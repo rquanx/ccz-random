@@ -173,6 +173,143 @@ class ScrollableFrame(tk.Frame):
             self.canvas.yview_scroll(-units, "units")
 
 
+class ScoreGrid(tk.Frame):
+    COLUMN_COUNT = 4
+
+    def __init__(
+        self,
+        parent,
+        items: list[tuple[str, tk.StringVar, str]],
+        **kwargs,
+    ):
+        super().__init__(parent, **kwargs)
+        self.items = items
+        self.enabled = True
+        self.editor: tk.Entry | None = None
+        self.editing: tuple[str, str] | None = None
+        columns = tuple(
+            column
+            for index in range(self.COLUMN_COUNT)
+            for column in (f"name{index}", f"score{index}")
+        )
+        self.tree = ttk.Treeview(
+            self,
+            columns=columns,
+            show="headings",
+            selectmode="none",
+        )
+        scrollbar = ttk.Scrollbar(
+            self, orient="vertical", command=self.tree.yview
+        )
+        self.tree.configure(yscrollcommand=scrollbar.set)
+        for index in range(self.COLUMN_COUNT):
+            name_column = f"name{index}"
+            score_column = f"score{index}"
+            self.tree.heading(name_column, text="名称")
+            self.tree.heading(score_column, text="基础分")
+            self.tree.column(
+                name_column,
+                width=155,
+                minwidth=110,
+                stretch=True,
+                anchor="w",
+            )
+            self.tree.column(
+                score_column,
+                width=58,
+                minwidth=52,
+                stretch=False,
+                anchor="center",
+            )
+        self.tree.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        self.tree.bind("<ButtonRelease-1>", self._start_edit)
+        self.bind("<Destroy>", self._destroy_editor, add="+")
+        self.refresh()
+
+    def refresh(self) -> None:
+        self.commit_pending()
+        self.tree.delete(*self.tree.get_children())
+        rows = (
+            len(self.items) + self.COLUMN_COUNT - 1
+        ) // self.COLUMN_COUNT
+        for row in range(rows):
+            values = []
+            for column in range(self.COLUMN_COUNT):
+                index = row * self.COLUMN_COUNT + column
+                if index >= len(self.items):
+                    values.extend(("", ""))
+                    continue
+                name, variable, category = self.items[index]
+                label = f"{name}  [{category}]" if category else name
+                values.extend((label, variable.get()))
+            self.tree.insert("", "end", iid=f"row-{row}", values=values)
+
+    def set_enabled(self, enabled: bool) -> None:
+        self.enabled = enabled
+        if not enabled:
+            self.commit_pending()
+
+    def commit_pending(self) -> None:
+        if self.editor is None or self.editing is None:
+            return
+        item_id, column_id = self.editing
+        try:
+            column_index = int(column_id.removeprefix("#")) - 1
+            item_index = (
+                int(item_id.removeprefix("row-")) * self.COLUMN_COUNT
+                + column_index // 2
+            )
+            if item_index < len(self.items):
+                self.items[item_index][1].set(self.editor.get())
+                values = list(self.tree.item(item_id, "values"))
+                values[column_index] = self.editor.get()
+                self.tree.item(item_id, values=values)
+        finally:
+            self._destroy_editor()
+
+    def _start_edit(self, event) -> None:
+        if not self.enabled:
+            return
+        item_id = self.tree.identify_row(event.y)
+        column_id = self.tree.identify_column(event.x)
+        if not item_id or not column_id:
+            return
+        column_index = int(column_id.removeprefix("#")) - 1
+        if column_index < 0 or column_index % 2 == 0:
+            return
+        item_index = (
+            int(item_id.removeprefix("row-")) * self.COLUMN_COUNT
+            + column_index // 2
+        )
+        if item_index >= len(self.items):
+            return
+        bbox = self.tree.bbox(item_id, column_id)
+        if not bbox:
+            return
+        self.commit_pending()
+        x, y, width, height = bbox
+        variable = self.items[item_index][1]
+        self.editor = tk.Entry(
+            self.tree,
+            justify="center",
+            textvariable=variable,
+        )
+        self.editing = (item_id, column_id)
+        self.editor.place(x=x, y=y, width=width, height=height)
+        self.editor.select_range(0, "end")
+        self.editor.focus_set()
+        self.editor.bind("<Return>", lambda _event: self.commit_pending())
+        self.editor.bind("<FocusOut>", lambda _event: self.commit_pending())
+        self.editor.bind("<Escape>", lambda _event: self._destroy_editor())
+
+    def _destroy_editor(self, _event=None) -> None:
+        if self.editor is not None:
+            self.editor.destroy()
+        self.editor = None
+        self.editing = None
+
+
 def show_advanced_help(parent, selected_index: int) -> None:
     dialog = tk.Toplevel(parent)
     dialog.withdraw()
@@ -357,9 +494,9 @@ def show_rule_editor(
     threshold_tab = tk.Frame(advanced_book, padx=16, pady=14)
     job_tab = tk.Frame(advanced_book, padx=16, pady=14)
     affinity_tab = tk.Frame(advanced_book, padx=16, pady=14)
-    base_score_tab = ScrollableFrame(advanced_book, padx=12, pady=8)
+    base_score_tab = tk.Frame(advanced_book, padx=8, pady=8)
     skill_tab = tk.Frame(advanced_book, padx=16, pady=14)
-    skill_score_tab = ScrollableFrame(advanced_book, padx=12, pady=8)
+    skill_score_tab = tk.Frame(advanced_book, padx=8, pady=8)
     advanced_book.add(threshold_tab, text="阶段门槛")
     advanced_book.add(job_tab, text="兵种评分")
     advanced_book.add(affinity_tab, text="人物倾向")
@@ -501,61 +638,15 @@ def show_rule_editor(
         secondary.grid(row=row, column=2, padx=(18, 0), pady=4)
         editable_widgets.extend((primary, secondary))
 
-    def add_score_grid_item(
-        parent,
-        index: int,
-        name: str,
-        variable: tk.StringVar,
-        category: str = "",
-    ) -> tk.Spinbox:
-        row, column = divmod(index, 4)
-        cell = tk.Frame(parent, bd=1, relief="solid", padx=8, pady=6)
-        cell.grid(
-            row=row,
-            column=column,
-            sticky="nsew",
-            padx=4,
-            pady=4,
-        )
-        title = tk.Frame(cell)
-        title.pack(fill="x")
-        tk.Label(title, text=name, anchor="w").pack(side="left")
-        if category:
-            tk.Label(
-                title,
-                text=category,
-                fg="#777777",
-                anchor="e",
-            ).pack(side="right", padx=(6, 0))
-        spinbox = tk.Spinbox(
-            cell,
-            from_=0,
-            to=20,
-            increment=0.5,
-            textvariable=variable,
-            width=8,
-        )
-        spinbox.pack(fill="x", pady=(5, 0))
-        return spinbox
-
-    for column in range(4):
-        base_score_tab.body.columnconfigure(column, weight=1, uniform="jobs")
-        skill_score_tab.body.columnconfigure(
-            column, weight=1, uniform="skills"
-        )
-
     job_score_vars: dict[str, tk.StringVar] = {}
-    for index, (_job_id, job) in enumerate(sorted(job_map.items())):
+    job_score_items = []
+    for _job_id, job in sorted(job_map.items()):
         job_name, default_score, _job_type = job
         variable = tk.StringVar(value=str(default_score))
         job_score_vars[job_name] = variable
-        spinbox = add_score_grid_item(
-            base_score_tab.body,
-            index,
-            job_name,
-            variable,
-        )
-        editable_widgets.append(spinbox)
+        job_score_items.append((job_name, variable, ""))
+    job_score_grid = ScoreGrid(base_score_tab, job_score_items)
+    job_score_grid.pack(fill="both", expand=True)
 
     add_number(skill_tab, 0, "ordinary_weight", "普通优质特技基础分")
     add_number(skill_tab, 1, "strong_weight", "强力特技基础分")
@@ -595,21 +686,16 @@ def show_rule_editor(
     skill_score_vars: dict[str, tk.StringVar] = {}
     skill_defaults: dict[str, float] = {}
     skill_categories: dict[str, str] = {}
-    for index, (skill_name, default_score, category) in enumerate(
-        skill_catalog
-    ):
+    skill_score_items = []
+    for skill_name, default_score, category in skill_catalog:
         variable = tk.StringVar(value=f"{default_score:g}")
         skill_score_vars[skill_name] = variable
         skill_defaults[skill_name] = float(default_score)
         skill_categories[skill_name] = category
-        spinbox = add_score_grid_item(
-            skill_score_tab.body,
-            index,
-            skill_name,
-            variable,
-            category,
-        )
-        editable_widgets.append(spinbox)
+        skill_score_items.append((skill_name, variable, category))
+    skill_score_grid = ScoreGrid(skill_score_tab, skill_score_items)
+    skill_score_grid.pack(fill="both", expand=True)
+    score_grids = (job_score_grid, skill_score_grid)
 
     def is_builtin(name: str) -> bool:
         return bool(working["profiles"][name].get("builtin"))
@@ -623,6 +709,8 @@ def show_rule_editor(
                     widget.configure(state="normal" if enabled else "disabled")
             except tk.TclError:
                 pass
+        for score_grid in score_grids:
+            score_grid.set_enabled(enabled)
         reset_button.configure(state="normal" if enabled else "disabled")
         rename_button.configure(state="normal" if enabled else "disabled")
         delete_button.configure(state="normal" if enabled else "disabled")
@@ -630,6 +718,8 @@ def show_rule_editor(
     def store_profile(name: str) -> None:
         if loading or is_builtin(name):
             return
+        for score_grid in score_grids:
+            score_grid.commit_pending()
         profile = working["profiles"][name]
         profile["editorMode"] = (
             "simple" if notebook.index(notebook.select()) == 0 else "advanced"
@@ -773,6 +863,8 @@ def show_rule_editor(
                 variable.set(
                     f"{skill_overrides.get(skill_name, fallback_score):g}"
                 )
+            for score_grid in score_grids:
+                score_grid.refresh()
             notebook.select(
                 simple_tab
                 if profile["editorMode"] == "simple"

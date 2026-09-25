@@ -50,7 +50,9 @@ class SessionManagementTests(unittest.TestCase):
 
     def test_production_randomizer_does_not_use_system_mouse_api(self):
         source = (
-            Path(__file__).resolve().parents[2] / "fast_randomizer.py"
+            Path(__file__).resolve().parents[2]
+            / "ccz_randomizer"
+            / "app.py"
         ).read_text(encoding="utf-8")
         tree = ast.parse(source)
         forbidden = {"SetCursorPos", "mouse_event", "SendInput"}

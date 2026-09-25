@@ -4489,7 +4489,7 @@ def gui_main() -> int:
         output.configure(state="disabled")
 
     def append_result_link() -> None:
-        if result_image_path is None:
+        if result_image_path is None or not result_image_path.is_file():
             return
         output.configure(state="normal")
         output.insert("end", "结果图（")
@@ -4512,6 +4512,37 @@ def gui_main() -> int:
             "<Leave>",
             lambda _event: output.configure(cursor=""),
         )
+        output.see("end")
+        output.configure(state="disabled")
+
+    def append_stopped_summary() -> None:
+        output.configure(state="normal")
+        output.insert("end", "\n本次流程已停止")
+        if result_image_path is not None and result_image_path.is_file():
+            output.insert("end", "，结果图（")
+            tag = f"result-link-{output.index('end')}"
+            output.insert("end", "点击打开结果图", tag)
+            output.insert("end", "）。\n")
+            output.tag_configure(
+                tag, foreground="#0563c1", underline=True
+            )
+            output.tag_bind(
+                tag,
+                "<Button-1>",
+                lambda _event, path=result_image_path: os.startfile(path),
+            )
+            output.tag_bind(
+                tag,
+                "<Enter>",
+                lambda _event: output.configure(cursor="hand2"),
+            )
+            output.tag_bind(
+                tag,
+                "<Leave>",
+                lambda _event: output.configure(cursor=""),
+            )
+        else:
+            output.insert("end", "。\n")
         output.see("end")
         output.configure(state="disabled")
 
@@ -4549,17 +4580,13 @@ def gui_main() -> int:
             rule_button.configure(state="normal")
             stopped = stop_requested_by_user or code == 130
             status.set("已停止" if stopped else ("已完成" if code == 0 else "执行失败"))
-            append(
-                "本次流程已结束。"
-                if code == 0
-                else (
-                    "本次流程已停止，已完成的结果和日志仍保留。"
-                    if stopped
-                    else "本次流程执行失败，详细信息已写入日志文件。"
-                )
-            )
-            if code == 0 or stopped:
+            if stopped:
+                append_stopped_summary()
+            elif code == 0:
+                append("本次流程已结束。")
                 append_result_link()
+            else:
+                append("本次流程执行失败，详细信息已写入日志文件。")
             if stop_file is not None:
                 stop_file.unlink(missing_ok=True)
                 stop_file = None

@@ -29,6 +29,7 @@ from ccz_randomizer.rules.config import (
     validate_rule_config,
 )
 from ccz_randomizer.rules.editor import show_rule_editor
+from ccz_randomizer.diagnostics.skill_storage import write_skill_evidence
 from ccz_randomizer.runtime.loader import install
 from ccz_randomizer.workflow.randomization import (
     AcceptedResult,
@@ -3156,6 +3157,7 @@ def inspect_saved_slot(
             if not title_load_verified(game.pid, slot - 1, save_path):
                 raise RuntimeError("候选存档未能完成后台读取")
             time.sleep(0.8)
+            before_jump_memory = read_memory(game.pid, 0, R0_MEMORY_SIZE)
 
             runner = task_module.CczReRandTask(0)
             runner.savePos = slot
@@ -3407,6 +3409,25 @@ def inspect_saved_slot(
                 ],
                 "metrics": skill_evaluation.metrics,
             }
+            if member_index is None:
+                evidence_path = write_skill_evidence(
+                    output_dir / "skill-evidence.zip",
+                    candidate_save=save_path.read_bytes(),
+                    before_jump_memory=before_jump_memory,
+                    after_render_memory=read_memory(
+                        game.pid,
+                        0,
+                        R0_MEMORY_SIZE,
+                    ),
+                    metadata={
+                        "slot": slot,
+                        "job_ids": list(job_ids),
+                        "job_names": result["job_names"],
+                        "skills": result["skills"],
+                        "qualified": result["qualified"],
+                    },
+                )
+                result["skill_evidence"] = str(evidence_path)
             (output_dir / "inspection.json").write_text(
                 json.dumps(result, ensure_ascii=False, indent=2),
                 encoding="utf-8",
@@ -4059,6 +4080,28 @@ def patch_runtime(
                     inspection_dir,
                     self._r0_average,
                 )
+                evidence_source = Path(
+                    inspection.get("skill_evidence", "")
+                )
+                if evidence_source.is_file():
+                    evidence_root = (
+                        DIAGNOSTIC_LOG_PATH.parent
+                        if DIAGNOSTIC_LOG_PATH is not None
+                        else app_dir() / "ccz_fast_logs"
+                    ) / "skill_evidence"
+                    evidence_root.mkdir(parents=True, exist_ok=True)
+                    evidence_name = (
+                        dt.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+                        + f"_slot{self.savePos}.zip"
+                    )
+                    archived_evidence = evidence_root / evidence_name
+                    shutil.copyfile(evidence_source, archived_evidence)
+                    diagnostic_log(
+                        "skill_evidence_archived",
+                        path=archived_evidence,
+                        target_slot=self.savePos,
+                        qualified=inspection["qualified"],
+                    )
                 self._job_names = tuple(inspection["job_names"])
                 self._member_panels = tuple(
                     Image.open(panel_path).convert("RGB").copy()
@@ -4124,10 +4167,8 @@ def patch_runtime(
     CczPeopleWindow.clickPeople = direct_click_people
     task_module.KeyboardUtils.tapKey = lambda key: post_key_to_game(pid, key)
     task_module.CczReRandTask.checkPeopleAtR0 = fast_check_people_at_r0
-    task_module.CczReRandTask.checkPeopleAtR1 = fast_check_people_at_r1
-    task_module.CczReRandTask._getTeamSkillsInfo = (
-        load_team_skills_from_memory
-    )
+    # The legacy 0x6800 hypothesis has not matched UI-recognized skills.
+    # Keep the proven UI inspection path until evidence establishes a mapping.
     task_module.CczReRandTask.collect_equipment = collect_equipment
     task_module.CczReRandTask.startRand = verified_start_rand
     task_module.CczReRandTask.checkCczVersion = cached_version_check

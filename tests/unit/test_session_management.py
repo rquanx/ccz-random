@@ -63,6 +63,21 @@ class SessionManagementTests(unittest.TestCase):
         }
         self.assertEqual(set(), used)
 
+    def test_unverified_skill_memory_reader_is_not_patched_into_runtime(self):
+        source = (
+            Path(__file__).resolve().parents[2]
+            / "ccz_randomizer"
+            / "app.py"
+        ).read_text(encoding="utf-8")
+        self.assertNotIn(
+            "CczReRandTask.checkPeopleAtR1 = fast_check_people_at_r1",
+            source,
+        )
+        self.assertNotIn(
+            "CczReRandTask._getTeamSkillsInfo =",
+            source,
+        )
+
     def test_initial_roster_uses_xiahou_yuan_not_cao_ren(self):
         self.assertEqual(
             ("曹操", "夏侯惇", "夏侯渊"),

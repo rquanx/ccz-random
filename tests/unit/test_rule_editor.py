@@ -34,6 +34,12 @@ def descendants(widget):
 
 
 class RuleEditorTests(unittest.TestCase):
+    def test_initial_skill_check_progress_is_visible(self):
+        self.assertEqual(
+            "正在检查特技条件……",
+            format_user_log("初始三人兵种合格，正在检查特技条件"),
+        )
+
     def test_active_profile_can_be_switched_and_persisted(self):
         config = default_rule_config()
         config["profiles"]["测试规则"] = json.loads(

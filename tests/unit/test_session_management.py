@@ -174,6 +174,7 @@ class SessionManagementTests(unittest.TestCase):
                     Path("Ekd5.exe"),
                     1,
                     output_dir,
+                    7.5,
                 )
         self.assertEqual(
             {"panels": ["one", "two", "three"]},

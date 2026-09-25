@@ -2365,6 +2365,7 @@ def run_initial_inspection_process_once(
     game_executable: Path,
     slot: int,
     output_dir: Path,
+    job_score: float,
 ) -> dict:
     if getattr(sys, "frozen", False):
         command = [
@@ -2375,6 +2376,8 @@ def run_initial_inspection_process_once(
             str(output_dir),
             "--game-executable",
             str(game_executable),
+            "--job-score",
+            str(job_score),
         ]
     else:
         command = [
@@ -2386,6 +2389,8 @@ def run_initial_inspection_process_once(
             str(output_dir),
             "--game-executable",
             str(game_executable),
+            "--job-score",
+            str(job_score),
         ]
     env = os.environ.copy()
     env["CCZ_USE_ISOLATED_DESKTOP"] = "1"
@@ -2420,6 +2425,7 @@ def run_initial_inspection_process(
     game_executable: Path,
     slot: int,
     output_dir: Path,
+    job_score: float,
 ) -> dict:
     last_error: RuntimeError | None = None
     for attempt in range(1, 3):
@@ -2428,6 +2434,7 @@ def run_initial_inspection_process(
                 game_executable,
                 slot,
                 output_dir,
+                job_score,
             )
         except RuntimeError as exc:
             last_error = exc
@@ -2829,6 +2836,7 @@ def capture_initial_member_panels(
             raise RuntimeError("初始三人检查未能打开曹操能力窗口")
 
         panels = []
+        members = initial_team_members(task_module.TEAM_MEMBER_LIST)
         for index, expected_name in enumerate(member_names):
             shown_name = current_dialog_member(info_hwnd, member_names)
             if shown_name != expected_name:
@@ -2843,6 +2851,16 @@ def capture_initial_member_panels(
                 raise RuntimeError(
                     f"{expected_name}能力窗口不可用"
                 )
+            skill_list = []
+            for skill_mat in runner.peopleInfoWind.getSkillMatList():
+                skill = task_module.CczUtils.getCczSkillWithMat(skill_mat)
+                if skill is not None:
+                    skill_list.append(skill)
+            members[index].skillList = sorted(
+                skill_list,
+                key=lambda skill: skill.score,
+                reverse=True,
+            )
             panel = runner.peopleInfoWind.getAllSkillMat()
             if panel is None or not getattr(panel, "size", 0):
                 raise RuntimeError(
@@ -2855,6 +2873,7 @@ def capture_initial_member_panels(
                 member=expected_name,
                 index=index,
                 shape=getattr(panel, "shape", None),
+                skills=[skill.name for skill in members[index].skillList],
             )
             if index + 1 < len(member_names):
                 info_hwnd = advance_people_info(
@@ -2865,7 +2884,7 @@ def capture_initial_member_panels(
                     member_names[index + 1],
                     member_names,
                 )
-        return tuple(panels)
+        return tuple(panels), members
     finally:
         if info_hwnd and user32.IsWindow(info_hwnd):
             close_member_dialog(pid, main_window, info_hwnd)
@@ -2891,6 +2910,7 @@ def inspect_initial_saved_slot(
     game_executable: Path,
     slot: int,
     output_dir: Path,
+    job_score: float,
 ) -> int:
     load_media_modules()
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -2914,7 +2934,7 @@ def inspect_initial_saved_slot(
             raise RuntimeError("结果存档未能完成后台读取")
         time.sleep(0.8)
         runner = task_module.CczReRandTask(0)
-        panels = capture_initial_member_panels(
+        panels, members = capture_initial_member_panels(
             task_module,
             game.pid,
             game.main_window,
@@ -2931,7 +2951,23 @@ def inspect_initial_saved_slot(
         slot=slot,
         elapsed_seconds=round(time.perf_counter() - started_at, 3),
     )
-    result = {"panels": panel_paths}
+    rules = load_rule_config(app_dir()).config
+    skill_evaluation = evaluate_task_skill_rules(
+        rules,
+        task_module,
+        members,
+        job_score,
+    )
+    result = {
+        "qualified": skill_evaluation.qualified,
+        "reasons": list(skill_evaluation.reasons),
+        "skills": [
+            [skill.name for skill in member.skillList]
+            for member in members
+        ],
+        "panels": panel_paths,
+        "metrics": skill_evaluation.metrics,
+    }
     (output_dir / "inspection.json").write_text(
         json.dumps(result, ensure_ascii=False, indent=2),
         encoding="utf-8",
@@ -3907,12 +3943,67 @@ def patch_runtime(
         diagnostic_log("job_filter_accepted", pid=pid, jobs=current)
 
         if three_person_mode:
-            self._job_names = ()
-            self._member_panels = ()
-            self._team_members = ()
-            print(
-                "初始三人兵种合格，跳过后四人和特技筛选"
+            scratch_slot = 16
+            scratch_path = (
+                game_path.parent / "SV" / f"SV{scratch_slot:03}.E5S"
             )
+            scratch_backup = (
+                scratch_path.read_bytes() if scratch_path.is_file() else None
+            )
+            inspection_dir = None
+            try:
+                native_direct_save(pid, scratch_slot - 1)
+                memory_after_save = read_memory(pid, 0, R0_MEMORY_SIZE)
+                if not scratch_path.is_file():
+                    raise RuntimeError("游戏报告保存成功，但未找到候选存档")
+                saved = scratch_path.read_bytes()
+                if saved[:R0_MEMORY_SIZE] != memory_after_save:
+                    raise RuntimeError("初始三人候选存档与游戏内存不一致")
+                self._candidate_save = saved
+                print("初始三人兵种合格，正在检查特技条件")
+                inspection_dir = Path(
+                    tempfile.mkdtemp(
+                        prefix="ccz-initial-inspect-",
+                        dir=app_dir(),
+                    )
+                )
+                inspection = run_initial_inspection_process(
+                    game_path,
+                    scratch_slot,
+                    inspection_dir,
+                    self._r0_average,
+                )
+                self._job_names = tuple(
+                    JOB_MAP[job_id][0] for job_id in self._r0_job_ids
+                )
+                self._member_panels = tuple(
+                    Image.open(panel_path).convert("RGB").copy()
+                    for panel_path in inspection["panels"]
+                )
+                self._team_members = initial_team_members(
+                    task_module.TEAM_MEMBER_LIST
+                )
+                diagnostic_log(
+                    "initial_skill_rule_evaluation",
+                    qualified=inspection["qualified"],
+                    reasons=inspection.get("reasons", []),
+                    skills=inspection.get("skills", []),
+                    metrics=inspection.get("metrics", {}),
+                )
+                if not inspection["qualified"]:
+                    reasons = inspection.get("reasons", [])
+                    if reasons:
+                        print("规则原因: " + "；".join(reasons))
+                    print("用户进度: 本轮最终结果=特技不合格")
+                    return False
+                print("R1 特技界面筛选: 通过")
+            finally:
+                if inspection_dir is not None:
+                    shutil.rmtree(inspection_dir, ignore_errors=True)
+                if scratch_backup is None:
+                    scratch_path.unlink(missing_ok=True)
+                else:
+                    scratch_path.write_bytes(scratch_backup)
         else:
             scratch_slot = 16
             scratch_path = (
@@ -4013,33 +4104,6 @@ def patch_runtime(
             f"第 {self.savePos} 号结果存档已由游戏原生保存，"
             "并通过保存时内存逐字节校验"
         )
-        if three_person_mode:
-            print(
-                f"用户进度: 正在整理第 {self.savePos} 号存档的"
-                "初始三人能力……"
-            )
-            inspection_dir = Path(
-                tempfile.mkdtemp(
-                    prefix="ccz-initial-inspect-",
-                    dir=app_dir(),
-                )
-            )
-            try:
-                inspection = run_initial_inspection_process(
-                    game_path,
-                    self.savePos,
-                    inspection_dir,
-                )
-                self._member_panels = tuple(
-                    Image.open(panel_path).convert("RGB").copy()
-                    for panel_path in inspection["panels"]
-                )
-                print(
-                    f"用户进度: 第 {self.savePos} 号存档的"
-                    "初始三人能力已整理"
-                )
-            finally:
-                shutil.rmtree(inspection_dir, ignore_errors=True)
         return True
 
     BaseWindow.setForeground = set_foreground
@@ -4087,6 +4151,8 @@ def format_user_log(line: str) -> str:
     if text.startswith("规则提示："):
         return text
     if text.startswith("R1 七人特技内存读取:"):
+        return "正在检查特技条件……"
+    if text.startswith("初始三人兵种合格，正在检查特技条件"):
         return "正在检查特技条件……"
     if text.startswith("========== 结果 "):
         parts = text.strip("= ").split("，", 1)
@@ -5350,11 +5416,19 @@ if __name__ == "__main__":
         slot_index = sys.argv.index("--inspect-initial-slot")
         output_index = sys.argv.index("--inspect-output")
         game_index = sys.argv.index("--game-executable")
+        score_index = (
+            sys.argv.index("--job-score")
+            if "--job-score" in sys.argv
+            else -1
+        )
         try:
             inspect_code = inspect_initial_saved_slot(
                 Path(sys.argv[game_index + 1]),
                 int(sys.argv[slot_index + 1]),
                 Path(sys.argv[output_index + 1]),
+                float(sys.argv[score_index + 1])
+                if score_index >= 0
+                else 0.0,
             )
         except Exception:
             traceback.print_exc()

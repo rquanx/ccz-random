@@ -69,6 +69,26 @@ class RuleConfigTests(unittest.TestCase):
         result = evaluate_job_rules(config, "three", jobs, MEMBERS)
         self.assertFalse(result.qualified)
 
+    def test_member_affinity_can_be_disabled(self):
+        config = default_rule_config()
+        profile = config["profiles"][DEFAULT_PROFILE_NAME]
+        profile["memberAffinity"]["曹操"] = {
+            "primaryType": "NONE",
+            "secondaryType": "NONE",
+        }
+        normalized = validate_rule_config(config)
+        jobs = [
+            {"name": "群雄", "score": 7.4, "type": "ALL_ROUNDER"},
+        ]
+        result = evaluate_job_rules(
+            normalized,
+            "three",
+            jobs,
+            [{"name": "曹操"}],
+        )
+        self.assertTrue(result.qualified)
+        self.assertEqual(7.4, result.metrics["average"])
+
     def test_duplicate_skills_are_counted_per_occurrence(self):
         config = default_rule_config()
         result = evaluate_skill_rules(

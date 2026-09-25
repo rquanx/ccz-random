@@ -390,7 +390,7 @@ def validate_rule_config(config: dict[str, Any]) -> dict[str, Any]:
             primary = _require_choice(
                 row.get("primaryType"),
                 f"{name}.{member}主要倾向",
-                AFFINITY_TYPES[:-1],
+                AFFINITY_TYPES,
             )
             secondary = _require_choice(
                 row.get("secondaryType", "NONE"),

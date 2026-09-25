@@ -315,9 +315,7 @@ def show_rule_editor(
     tk.Label(affinity_tab, text="次要倾向").grid(
         row=0, column=2, sticky="w", padx=(18, 0), pady=(0, 8)
     )
-    primary_options = tuple(
-        TYPE_LABELS[value] for value in AFFINITY_TYPES if value != "NONE"
-    )
+    primary_options = tuple(TYPE_LABELS[value] for value in AFFINITY_TYPES)
     secondary_options = tuple(TYPE_LABELS[value] for value in AFFINITY_TYPES)
     for row, member in enumerate(team_members, start=1):
         member_name = member[0] if isinstance(member, tuple) else str(member)

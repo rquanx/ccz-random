@@ -98,7 +98,7 @@ CONFIRM_FIRST_CLIENT_POSITION = (297, 220)
 EQUIPMENT_OFFSET = 0x54D8
 EQUIPMENT_SIZE = 376
 EQUIPMENT_NAMES = (
-    "倚天剑", "雌雄双剑", "青釭剑", "古锭刀", "青龙偃月刀",
+    "雌雄双剑", "倚天剑", "青釭剑", "古锭刀", "青龙偃月刀",
     "丈八蛇矛", "方天画戟", "龙胆枪", "李广之弓", "吕布之弓",
     "龙渊剑", "流星锤", "双鞭", "霸王枪", "青冥剑",
     "开山斧", "双戟", "龙骑枪", "金火罐车", "白羽扇",
@@ -1287,6 +1287,7 @@ def decode_equipment_effect(code: int, parameter: int) -> str:
     if code == 0x33:
         return {
             4: "穿透攻击-两格",
+            7: "穿透攻击-三格",
             9: "穿透攻击-横扫",
         }.get(parameter, f"穿透攻击-{parameter}")
     if code == 0x70:
@@ -2352,6 +2353,91 @@ def run_inspection_process(
     raise last_error or RuntimeError("候选结果检查失败")
 
 
+def run_initial_inspection_process_once(
+    game_executable: Path,
+    slot: int,
+    output_dir: Path,
+) -> dict:
+    if getattr(sys, "frozen", False):
+        command = [
+            sys.executable,
+            "--inspect-initial-slot",
+            str(slot),
+            "--inspect-output",
+            str(output_dir),
+            "--game-executable",
+            str(game_executable),
+        ]
+    else:
+        command = [
+            sys.executable,
+            str(Path(__file__).resolve()),
+            "--inspect-initial-slot",
+            str(slot),
+            "--inspect-output",
+            str(output_dir),
+            "--game-executable",
+            str(game_executable),
+        ]
+    env = os.environ.copy()
+    env["CCZ_USE_ISOLATED_DESKTOP"] = "1"
+    env.pop("CCZ_BACKGROUND_RENDER", None)
+    env.pop("CCZ_DISABLE_GUARD", None)
+    env["PYTHONIOENCODING"] = "utf-8"
+    process = subprocess.Popen(
+        command,
+        cwd=str(game_executable.parent),
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    )
+    result_file = output_dir / "inspection.json"
+    try:
+        stdout, _ = process.communicate(timeout=90)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        stdout, _ = process.communicate()
+        raise RuntimeError("初始三人能力检查超时")
+    if process.returncode != 0 or not result_file.is_file():
+        detail = decode_subprocess_output(stdout).strip()[-2000:]
+        raise RuntimeError(
+            "初始三人能力检查失败"
+            + (f"：{detail}" if detail else "")
+        )
+    return json.loads(result_file.read_text(encoding="utf-8"))
+
+
+def run_initial_inspection_process(
+    game_executable: Path,
+    slot: int,
+    output_dir: Path,
+) -> dict:
+    last_error: RuntimeError | None = None
+    for attempt in range(1, 3):
+        try:
+            return run_initial_inspection_process_once(
+                game_executable,
+                slot,
+                output_dir,
+            )
+        except RuntimeError as exc:
+            last_error = exc
+            diagnostic_log(
+                "initial_inspection_process_failed",
+                slot=slot,
+                attempt=attempt,
+                error=repr(exc),
+            )
+            if attempt == 1:
+                print("初始三人能力检查异常，正在自动重试一次")
+                shutil.rmtree(output_dir, ignore_errors=True)
+                output_dir.mkdir(parents=True, exist_ok=True)
+                continue
+            raise
+    raise last_error or RuntimeError("初始三人能力检查失败")
+
+
 def patch_inspection_runtime(task_module, pid: int, panel_dir: Path):
     from window.BaseWindow import BaseWindow
     from window.CczWindow import CczPeopleWindow
@@ -2697,6 +2783,185 @@ def close_member_dialog(pid: int, main_window: int, info_hwnd: int) -> None:
     native_end_dialog(pid, info_hwnd)
     if not wait_for_window_state(info_hwnd, exists=False, timeout=3.0):
         raise RuntimeError("武将能力窗口未能关闭")
+
+
+def capture_initial_member_panels(
+    task_module,
+    pid: int,
+    main_window: int,
+    runner,
+) -> tuple:
+    member_names = tuple(member[0] for member in INITIAL_TEAM_MEMBERS)
+    info_hwnd = 0
+    for attempt in range(1, 5):
+        runner.openPeople()
+        if runner.peopleWind.isInitSuccess():
+            break
+        native_wake_game(pid, main_window, 600)
+        time.sleep(0.2)
+    else:
+        raise RuntimeError("初始三人检查未能打开武将列表")
+    try:
+        run_native_control(
+            pid,
+            ["list-window", str(runner.peopleWind.hwnd), "0"],
+        )
+        time.sleep(0.6)
+        deadline = time.perf_counter() + 8.0
+        shown_name = ""
+        while time.perf_counter() < deadline:
+            runner.initPeopleInfoWind()
+            info_hwnd, shown_name = find_any_member_dialog(
+                pid, member_names
+            )
+            if info_hwnd:
+                break
+            time.sleep(0.05)
+        if not info_hwnd:
+            raise RuntimeError("初始三人检查未能打开曹操能力窗口")
+
+        panels = []
+        for index, expected_name in enumerate(member_names):
+            shown_name = current_dialog_member(info_hwnd, member_names)
+            if shown_name != expected_name:
+                raise RuntimeError(
+                    "初始三人能力窗口顺序不一致："
+                    f"应为{expected_name}，实际为{shown_name or '未知武将'}"
+                )
+            runner.peopleInfoWind._BaseWindow__hwnd = info_hwnd
+            if not wait_for_window_state(
+                info_hwnd, exists=True, enabled=True, timeout=3.0
+            ):
+                raise RuntimeError(
+                    f"{expected_name}能力窗口不可用"
+                )
+            panel = runner.peopleInfoWind.getAllSkillMat()
+            if panel is None or not getattr(panel, "size", 0):
+                raise RuntimeError(
+                    f"{expected_name}能力信息未能读取"
+                )
+            panels.append(panel.copy())
+            diagnostic_log(
+                "initial_member_panel_captured",
+                pid=pid,
+                member=expected_name,
+                index=index,
+                shape=getattr(panel, "shape", None),
+            )
+            if index + 1 < len(member_names):
+                info_hwnd = advance_people_info(
+                    pid,
+                    main_window,
+                    info_hwnd,
+                    expected_name,
+                    member_names[index + 1],
+                    member_names,
+                )
+        return tuple(panels)
+    finally:
+        if info_hwnd and user32.IsWindow(info_hwnd):
+            close_member_dialog(pid, main_window, info_hwnd)
+        people_hwnd = getattr(
+            getattr(runner, "peopleWind", None), "hwnd", 0
+        )
+        if people_hwnd and user32.IsWindow(people_hwnd):
+            runner.closePeopleWindow()
+            time.sleep(0.3)
+        current_main = find_process_window_by_class(pid, "SOUSOU")
+        if current_main:
+            try:
+                native_wake_game(pid, current_main, 500)
+            except RuntimeError as exc:
+                diagnostic_log(
+                    "initial_member_cleanup_wake_failed",
+                    pid=pid,
+                    error=repr(exc),
+                )
+
+
+def inspect_initial_saved_slot(
+    game_executable: Path,
+    slot: int,
+    output_dir: Path,
+) -> int:
+    load_media_modules()
+    output_dir.mkdir(parents=True, exist_ok=True)
+    install(bundle_root())
+    import task.CczReRandTask as task_module
+
+    save_path = (
+        game_executable.parent / "SV" / f"SV{slot:03}.E5S"
+    )
+    if not save_path.is_file():
+        raise FileNotFoundError(f"未找到结果存档 {save_path.name}")
+
+    panel_paths = []
+    member_names = tuple(member[0] for member in INITIAL_TEAM_MEMBERS)
+    for index, member_name in enumerate(member_names):
+        with HiddenGameSession(game_executable) as game:
+            patch_inspection_runtime(
+                task_module,
+                game.pid,
+                output_dir,
+            )
+            if not title_load_verified(game.pid, slot - 1, save_path):
+                raise RuntimeError("结果存档未能完成后台读取")
+            time.sleep(0.8)
+            runner = task_module.CczReRandTask(0)
+            for _attempt in range(4):
+                runner.openPeople()
+                if runner.peopleWind.isInitSuccess():
+                    break
+                native_wake_game(game.pid, game.main_window, 600)
+                time.sleep(0.2)
+            else:
+                raise RuntimeError("初始三人检查未能打开武将列表")
+            run_native_control(
+                game.pid,
+                [
+                    "list-window",
+                    str(runner.peopleWind.hwnd),
+                    str(index),
+                ],
+            )
+            time.sleep(0.6)
+            info_hwnd = 0
+            deadline = time.perf_counter() + 8.0
+            while time.perf_counter() < deadline:
+                runner.initPeopleInfoWind()
+                info_hwnd = find_member_dialog(
+                    game.pid,
+                    member_name,
+                )
+                if info_hwnd:
+                    break
+                time.sleep(0.05)
+            if not info_hwnd:
+                raise RuntimeError(
+                    f"初始三人检查未能打开{member_name}能力窗口"
+                )
+            runner.peopleInfoWind._BaseWindow__hwnd = info_hwnd
+            panel = runner.peopleInfoWind.getAllSkillMat()
+            if panel is None or not getattr(panel, "size", 0):
+                raise RuntimeError(
+                    f"{member_name}能力信息未能读取"
+                )
+            panel_path = output_dir / f"member-{index + 1}.png"
+            write_cv_image(panel_path, panel)
+            panel_paths.append(str(panel_path))
+            diagnostic_log(
+                "initial_member_panel_captured",
+                pid=game.pid,
+                member=member_name,
+                index=index,
+                shape=getattr(panel, "shape", None),
+            )
+    result = {"panels": panel_paths}
+    (output_dir / "inspection.json").write_text(
+        json.dumps(result, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    return 0
 
 
 def inspect_saved_slot(
@@ -3669,13 +3934,9 @@ def patch_runtime(
         if three_person_mode:
             self._job_names = ()
             self._member_panels = ()
-            load_team_skills_from_memory(self)
-            self._team_members = initial_team_members(
-                task_module.TEAM_MEMBER_LIST
-            )
+            self._team_members = ()
             print(
-                "初始三人兵种合格，跳过后四人和特技筛选；"
-                "结果图保留初始三人特技"
+                "初始三人兵种合格，跳过后四人和特技筛选"
             )
         else:
             scratch_slot = 16
@@ -3777,6 +4038,26 @@ def patch_runtime(
             f"第 {self.savePos} 号结果存档已由游戏原生保存，"
             "并通过保存时内存逐字节校验"
         )
+        if three_person_mode:
+            inspection_dir = Path(
+                tempfile.mkdtemp(
+                    prefix="ccz-initial-inspect-",
+                    dir=app_dir(),
+                )
+            )
+            try:
+                inspection = run_initial_inspection_process(
+                    game_path,
+                    self.savePos,
+                    inspection_dir,
+                )
+                self._member_panels = tuple(
+                    Image.open(panel_path).convert("RGB").copy()
+                    for panel_path in inspection["panels"]
+                )
+                print("初始三人实际能力已读取到结果图")
+            finally:
+                shutil.rmtree(inspection_dir, ignore_errors=True)
         return True
 
     BaseWindow.setForeground = set_foreground
@@ -5032,6 +5313,20 @@ if __name__ == "__main__":
         if not catalog:
             raise SystemExit(1)
         raise SystemExit(0)
+    if "--inspect-initial-slot" in sys.argv:
+        slot_index = sys.argv.index("--inspect-initial-slot")
+        output_index = sys.argv.index("--inspect-output")
+        game_index = sys.argv.index("--game-executable")
+        try:
+            inspect_code = inspect_initial_saved_slot(
+                Path(sys.argv[game_index + 1]),
+                int(sys.argv[slot_index + 1]),
+                Path(sys.argv[output_index + 1]),
+            )
+        except Exception:
+            traceback.print_exc()
+            inspect_code = 1
+        raise SystemExit(inspect_code)
     if "--inspect-slot" in sys.argv:
         slot_index = sys.argv.index("--inspect-slot")
         output_index = sys.argv.index("--inspect-output")

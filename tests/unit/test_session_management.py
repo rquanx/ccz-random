@@ -5,11 +5,14 @@ from pathlib import Path
 from unittest.mock import patch
 
 from fast_randomizer import (
+    EQUIPMENT_NAMES,
     INITIAL_TEAM_MEMBERS,
+    decode_equipment_effect,
     decode_subprocess_output,
     format_user_log,
     initial_team_members,
     native_background_click,
+    run_initial_inspection_process,
     run_inspection_process,
     session_failure_requires_restart,
 )
@@ -24,6 +27,15 @@ class FakeGameSession:
 
 
 class SessionManagementTests(unittest.TestCase):
+    def test_equipment_order_matches_game_numbers(self):
+        self.assertEqual(("雌雄双剑", "倚天剑"), EQUIPMENT_NAMES[:2])
+
+    def test_three_grid_penetration_effect_is_named(self):
+        self.assertEqual(
+            "穿透攻击-三格",
+            decode_equipment_effect(0x33, 0x07),
+        )
+
     def test_production_randomizer_does_not_use_system_mouse_api(self):
         source = (
             Path(__file__).resolve().parents[2] / "fast_randomizer.py"
@@ -134,6 +146,27 @@ class SessionManagementTests(unittest.TestCase):
                     7.5,
                 )
         self.assertEqual({"qualified": True}, result)
+        self.assertEqual(2, run_once.call_count)
+
+    def test_initial_inspection_process_retries_once(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output_dir = Path(directory) / "inspection"
+            with patch(
+                "fast_randomizer.run_initial_inspection_process_once",
+                side_effect=[
+                    RuntimeError("temporary failure"),
+                    {"panels": ["one", "two", "three"]},
+                ],
+            ) as run_once:
+                result = run_initial_inspection_process(
+                    Path("Ekd5.exe"),
+                    1,
+                    output_dir,
+                )
+        self.assertEqual(
+            {"panels": ["one", "two", "three"]},
+            result,
+        )
         self.assertEqual(2, run_once.call_count)
 
 

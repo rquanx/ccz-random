@@ -14,9 +14,10 @@ import tempfile
 import threading
 import time
 import traceback
-from types import SimpleNamespace
 from ctypes import wintypes
+from functools import lru_cache
 from pathlib import Path
+from types import SimpleNamespace
 
 from ccz_randomizer.rules.config import (
     active_profile,
@@ -1516,6 +1517,7 @@ def result_grid_path() -> Path:
     return RESULT_GRID_FILE
 
 
+@lru_cache(maxsize=16)
 def result_font(size: int, bold: bool = False):
     load_media_modules()
     candidates = (
@@ -3443,6 +3445,11 @@ def patch_runtime(
     )
     original_get_mat = BaseWindow._ccz_original_get_mat
     rules = rules or default_rule_config()
+    game_path = process_executable(pid)
+    if game_path is None:
+        raise RuntimeError("无法定位游戏目录")
+    source_save = game_path.parent / "SV" / "SV020.E5S"
+    source_memory = source_save.read_bytes()[:R0_MEMORY_SIZE]
 
     def get_hwnd_by_name(self, window_name: str) -> None:
         self._BaseWindow__hwnd = find_process_window(pid, window_name)
@@ -3757,12 +3764,11 @@ def patch_runtime(
         if not game:
             raise RuntimeError("未找到游戏主窗口")
 
-        time.sleep(1.5)
-        game_path = process_executable(pid)
-        if game_path is None:
-            raise RuntimeError("无法定位游戏目录")
-        source_save = game_path.parent / "SV" / "SV020.E5S"
-        source_memory = source_save.read_bytes()[:R0_MEMORY_SIZE]
+        if not getattr(self, "_source_loaded", False):
+            # Only a newly started game needs the initial settle period.
+            # Later attempts use a verified direct load and already retain
+            # the native click action's own completion delay.
+            time.sleep(1.5)
         load_started = time.perf_counter()
         if getattr(self, "_source_loaded", False):
             diagnostic_log("source_load_start", pid=pid, mode="direct")
@@ -5351,7 +5357,6 @@ def main() -> int:
                         "后台游戏恢复后仍无法完成回读校验"
                     )
 
-                time.sleep(0.5)
                 initial_three = read_job_ids(
                     game.pid, JOB_POSITIONS_R0
                 )

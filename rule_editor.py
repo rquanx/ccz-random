@@ -352,8 +352,6 @@ def show_rule_editor(
         )
     simple_tab.columnconfigure(0, weight=1)
 
-    advanced_toolbar = tk.Frame(advanced_tab)
-    advanced_toolbar.pack(fill="x", pady=(0, 8))
     advanced_book = ttk.Notebook(advanced_tab)
     advanced_book.pack(fill="both", expand=True)
     threshold_tab = tk.Frame(advanced_book, padx=16, pady=14)
@@ -368,14 +366,6 @@ def show_rule_editor(
     advanced_book.add(base_score_tab, text="兵种基础分")
     advanced_book.add(skill_tab, text="特技评分")
     advanced_book.add(skill_score_tab, text="特技基础分")
-    tk.Button(
-        advanced_toolbar,
-        text="规则说明",
-        command=lambda: show_advanced_help(
-            editor, advanced_book.index(advanced_book.select())
-        ),
-        width=10,
-    ).pack(side="right")
 
     number_vars: dict[str, tk.StringVar] = {}
     bool_vars: dict[str, tk.BooleanVar] = {}
@@ -934,11 +924,20 @@ def show_rule_editor(
     active_button = tk.Button(
         action_frame, text="设为当前规则", command=set_active
     )
+    help_button = tk.Button(
+        action_frame,
+        text="规则说明",
+        command=lambda: show_advanced_help(
+            editor, advanced_book.index(advanced_book.select())
+        ),
+        width=10,
+    )
     new_button.pack(side="left")
     rename_button.pack(side="left", padx=(8, 0))
     delete_button.pack(side="left", padx=(8, 0))
     reset_button.pack(side="left", padx=(8, 0))
     active_button.pack(side="right")
+    help_button.pack(side="right", padx=(0, 8))
 
     footer = tk.Frame(editor, padx=14, pady=12)
     footer.pack(fill="x")

@@ -4,8 +4,10 @@ from pathlib import Path
 from unittest.mock import patch
 
 from fast_randomizer import (
+    INITIAL_TEAM_MEMBERS,
     decode_subprocess_output,
     format_user_log,
+    initial_team_members,
     native_background_click,
     run_inspection_process,
     session_failure_requires_restart,
@@ -21,6 +23,18 @@ class FakeGameSession:
 
 
 class SessionManagementTests(unittest.TestCase):
+    def test_initial_roster_uses_xiahou_yuan_not_cao_ren(self):
+        self.assertEqual(
+            ("曹操", "夏侯惇", "夏侯渊"),
+            tuple(member[0] for member in INITIAL_TEAM_MEMBERS),
+        )
+        self.assertEqual(
+            ("member-0", "member-1", "member-3"),
+            initial_team_members(
+                tuple(f"member-{index}" for index in range(7))
+            ),
+        )
+
     def test_dead_game_always_requires_restart(self):
         self.assertTrue(
             session_failure_requires_restart(

@@ -316,6 +316,14 @@ TEAM_MEMBERS = (
     ("李典", "MASTER", "ALL_ROUNDER"),
     ("曹洪", "ALL_ROUNDER", "WARRIOR"),
 )
+INITIAL_TEAM_MEMBER_INDICES = (0, 1, 3)
+INITIAL_TEAM_MEMBERS = tuple(
+    TEAM_MEMBERS[index] for index in INITIAL_TEAM_MEMBER_INDICES
+)
+
+
+def initial_team_members(members):
+    return tuple(members[index] for index in INITIAL_TEAM_MEMBER_INDICES)
 
 
 def skill_name_groups(task_module) -> tuple[set[str], set[str], set[str]]:
@@ -1769,7 +1777,12 @@ def save_result_image(runner, equip_info, save_slot: int = 1) -> Path:
     three_person_mode = bool(
         getattr(runner, "_three_person_mode", False)
     )
-    for index, (job_id, member) in enumerate(zip(runner._r0_job_ids, TEAM_MEMBERS)):
+    report_members = (
+        INITIAL_TEAM_MEMBERS if three_person_mode else TEAM_MEMBERS
+    )
+    for index, (job_id, member) in enumerate(
+        zip(runner._r0_job_ids, report_members)
+    ):
         job_name = (
             recognized_job_names[index]
             if index < len(recognized_job_names)
@@ -1828,19 +1841,16 @@ def save_result_image(runner, equip_info, save_slot: int = 1) -> Path:
             else None
         )
         live_skills = list(getattr(live_member, "skillList", ()))
-        if three_person_mode:
-            detail_lines = [("仅检查初始兵种", 0)]
-        else:
-            detail_lines = [("个人天赋:", 0)]
-            detail_lines.extend(
-                (str(getattr(skill, "name", skill)), 12)
-                for skill in live_skills[:3]
-            )
-            detail_lines.append(("兵种技能:", 0))
-            detail_lines.extend(
-                (str(getattr(skill, "name", skill)), 12)
-                for skill in live_skills[3:6]
-            )
+        detail_lines = [("个人天赋:", 0)]
+        detail_lines.extend(
+            (str(getattr(skill, "name", skill)), 12)
+            for skill in live_skills[:3]
+        )
+        detail_lines.append(("兵种技能:", 0))
+        detail_lines.extend(
+            (str(getattr(skill, "name", skill)), 12)
+            for skill in live_skills[3:6]
+        )
         detail_y = top + 3
         title_y = top + 112
         for detail, indent in detail_lines:
@@ -3261,7 +3271,9 @@ def patch_runtime(
         positions = (
             JOB_POSITIONS_R0 if three_person_mode else JOB_POSITIONS_R1
         )
-        members = TEAM_MEMBERS[:3] if three_person_mode else TEAM_MEMBERS
+        members = (
+            INITIAL_TEAM_MEMBERS if three_person_mode else TEAM_MEMBERS
+        )
         ids = read_job_ids(pid, positions)
         if any(job_id not in JOB_MAP for job_id in ids):
             print(f"内存快筛遇到未收录兵种编号 {ids}，本轮放弃")
@@ -3651,8 +3663,14 @@ def patch_runtime(
         if three_person_mode:
             self._job_names = ()
             self._member_panels = ()
-            self._team_members = ()
-            print("初始三人兵种合格，跳过七人和人物特技检查")
+            load_team_skills_from_memory(self)
+            self._team_members = initial_team_members(
+                task_module.TEAM_MEMBER_LIST
+            )
+            print(
+                "初始三人兵种合格，跳过后四人和特技筛选；"
+                "结果图保留初始三人特技"
+            )
         else:
             scratch_slot = 16
             scratch_path = (

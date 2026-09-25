@@ -20,7 +20,7 @@ from rule_config import (
 MEMBERS = [
     {"name": "曹操", "primaryType": "ALL_ROUNDER", "secondaryType": "WARRIOR"},
     {"name": "夏侯惇", "primaryType": "WARRIOR", "secondaryType": "ALL_ROUNDER"},
-    {"name": "曹仁", "primaryType": "ALL_ROUNDER", "secondaryType": "WARRIOR"},
+    {"name": "夏侯渊", "primaryType": "MASTER", "secondaryType": "ALL_ROUNDER"},
 ]
 
 

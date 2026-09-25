@@ -1163,7 +1163,8 @@ def show_rule_editor(
             return
         try:
             payload = json.loads(Path(path).read_text(encoding="utf-8-sig"))
-            working, imported_names = merge_rule_export(working, payload)
+            merged, imported_names = merge_rule_export(working, payload)
+            save_rule_config(base_dir, merged)
         except Exception as exc:
             messagebox.showerror(
                 "规则无法导入",
@@ -1171,11 +1172,12 @@ def show_rule_editor(
                 parent=editor,
             )
             return
+        working = merged
+        on_saved(working)
         refresh_profiles(imported_names[0])
         messagebox.showinfo(
             "规则已导入",
-            f"已追加 {len(imported_names)} 套规则。\n"
-            "请点击“保存规则”写入工具目录。",
+            f"已追加并保存 {len(imported_names)} 套规则。",
             parent=editor,
         )
 

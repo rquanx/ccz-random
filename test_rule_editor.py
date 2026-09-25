@@ -1,13 +1,14 @@
 import tempfile
 import tkinter as tk
 import unittest
+import json
 from pathlib import Path
 from tkinter import ttk
 from types import SimpleNamespace
 from unittest.mock import patch
 
 from fast_randomizer import JOB_MAP, TEAM_MEMBERS
-from rule_config import default_rule_config, load_rule_config
+from rule_config import build_rule_export, default_rule_config, load_rule_config
 from rule_editor import ScoreGrid, show_rule_editor
 
 
@@ -124,6 +125,59 @@ class RuleEditorTests(unittest.TestCase):
                 self.assertEqual(
                     {}, profile["sevenPerson"]["skillBaseScores"]
                 )
+        finally:
+            root.destroy()
+
+    def test_import_saves_profiles_immediately(self):
+        root = tk.Tk()
+        root.withdraw()
+        saved = []
+        try:
+            with tempfile.TemporaryDirectory() as directory:
+                base = Path(directory)
+                import_path = base / "import.json"
+                import_path.write_text(
+                    json.dumps(
+                        build_rule_export(default_rule_config()),
+                        ensure_ascii=False,
+                    ),
+                    encoding="utf-8",
+                )
+                with (
+                    patch(
+                        "rule_editor.filedialog.askopenfilename",
+                        return_value=str(import_path),
+                    ),
+                    patch("rule_editor.messagebox.showinfo"),
+                    patch("rule_editor.messagebox.showerror") as show_error,
+                ):
+                    show_rule_editor(
+                        root,
+                        base,
+                        default_rule_config(),
+                        JOB_MAP,
+                        TEAM_MEMBERS,
+                        SKILL_CATALOG,
+                        saved.append,
+                    )
+                    root.update()
+                    editor = next(
+                        child
+                        for child in root.winfo_children()
+                        if isinstance(child, tk.Toplevel)
+                    )
+                    buttons = {
+                        widget.cget("text"): widget
+                        for widget in descendants(editor)
+                        if isinstance(widget, tk.Button)
+                    }
+                    buttons["导入规则"].invoke()
+                    root.update()
+
+                self.assertFalse(show_error.called)
+                self.assertEqual(1, len(saved))
+                loaded = load_rule_config(base)
+                self.assertIn("默认规则(1)", loaded.config["profiles"])
         finally:
             root.destroy()
 

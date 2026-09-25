@@ -821,10 +821,21 @@ def native_background_click(
                 "1" if right else "0",
             ],
         )
-    except subprocess.TimeoutExpired:
+    except RuntimeError as exc:
         # A modal window blocks the injected click call until it closes,
         # although the click itself has already been delivered.
-        return
+        if "响应超时" in str(exc):
+            diagnostic_log(
+                "background_click_timeout_ignored",
+                pid=pid.value,
+                hwnd=hwnd,
+                x=client_x,
+                y=client_y,
+                count=count,
+                right=right,
+            )
+            return
+        raise
 
 
 def native_silent_click_burst(
@@ -2207,7 +2218,20 @@ def write_cv_image(path: Path, image) -> None:
     buffer.tofile(str(path))
 
 
-def run_inspection_process(
+def decode_subprocess_output(output: bytes | str | None) -> str:
+    if output is None:
+        return ""
+    if isinstance(output, str):
+        return output
+    for encoding in ("utf-8", "gb18030"):
+        try:
+            return output.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    return output.decode("utf-8", errors="replace")
+
+
+def run_inspection_process_once(
     game_executable: Path,
     slot: int,
     output_dir: Path,
@@ -2249,9 +2273,6 @@ def run_inspection_process(
         env=env,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
         creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
     )
     result_file = output_dir / "inspection.json"
@@ -2275,12 +2296,44 @@ def run_inspection_process(
         process.kill()
     stdout, _ = process.communicate()
     if process.returncode != 0 or not result_file.is_file():
-        detail = stdout.strip()[-2000:]
+        detail = decode_subprocess_output(stdout).strip()[-2000:]
         raise RuntimeError(
             "候选结果界面检查失败"
             + (f"：{detail}" if detail else "")
         )
     return json.loads(result_file.read_text(encoding="utf-8"))
+
+
+def run_inspection_process(
+    game_executable: Path,
+    slot: int,
+    output_dir: Path,
+    job_score: float,
+) -> dict:
+    last_error: RuntimeError | None = None
+    for attempt in range(1, 3):
+        try:
+            return run_inspection_process_once(
+                game_executable,
+                slot,
+                output_dir,
+                job_score,
+            )
+        except RuntimeError as exc:
+            last_error = exc
+            diagnostic_log(
+                "inspection_process_failed",
+                slot=slot,
+                attempt=attempt,
+                error=repr(exc),
+            )
+            if attempt == 1:
+                print("候选结果检查异常，正在自动重试一次")
+                shutil.rmtree(output_dir, ignore_errors=True)
+                output_dir.mkdir(parents=True, exist_ok=True)
+                continue
+            raise
+    raise last_error or RuntimeError("候选结果检查失败")
 
 
 def patch_inspection_runtime(task_module, pid: int, panel_dir: Path):
@@ -2705,9 +2758,6 @@ def inspect_saved_slot(
                             env=env,
                             stdout=subprocess.PIPE,
                             stderr=subprocess.STDOUT,
-                            text=True,
-                            encoding="utf-8",
-                            errors="replace",
                             creationflags=getattr(
                                 subprocess, "CREATE_NO_WINDOW", 0
                             ),
@@ -2729,7 +2779,7 @@ def inspect_saved_slot(
                 if process.returncode != 0 or not result_path.is_file():
                     raise RuntimeError(
                         f"第 {index + 1} 个武将检查失败："
-                        + stdout.strip()[-1200:]
+                        + decode_subprocess_output(stdout).strip()[-1200:]
                     )
                 worker_results.append(
                     json.loads(result_path.read_text(encoding="utf-8"))
@@ -3790,7 +3840,7 @@ def format_user_log(line: str) -> str:
     if "个结果存档全部生成并通过回读校验" in text:
         return text.replace("结果存档全部生成并通过回读校验", "存档结果已完成")
     if text.startswith("Traceback"):
-        return "执行失败，详细信息已写入日志文件"
+        return ""
     if text.startswith("  File "):
         return ""
     if text.startswith(("曹操传加强版", "默认生成", "游戏将在", "日志:", "本轮结果目录", "本轮总图路径")):

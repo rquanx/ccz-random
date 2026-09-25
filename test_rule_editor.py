@@ -7,7 +7,7 @@ from tkinter import ttk
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from fast_randomizer import JOB_MAP, TEAM_MEMBERS
+from fast_randomizer import JOB_MAP, TEAM_MEMBERS, format_user_log
 from rule_config import build_rule_export, default_rule_config, load_rule_config
 from rule_editor import ScoreGrid, show_rule_editor
 
@@ -29,6 +29,14 @@ def descendants(widget):
 
 
 class RuleEditorTests(unittest.TestCase):
+    def test_rule_reason_is_hidden_from_user_log(self):
+        self.assertEqual(
+            "",
+            format_user_log(
+                "规则原因: 兵种综合评价未达到当前规则要求"
+            ),
+        )
+
     def test_score_grid_uses_one_canvas_and_edits_values(self):
         root = tk.Tk()
         root.withdraw()

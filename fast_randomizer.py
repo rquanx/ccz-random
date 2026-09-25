@@ -3731,7 +3731,7 @@ def format_user_log(line: str) -> str:
         progress = progress.replace("，开始保存", "")
         return progress
     if text.startswith("规则原因:"):
-        return "原因：" + text.split(":", 1)[1].strip()
+        return ""
     if text.startswith("规则提示："):
         return text
     if text.startswith("R1 七人特技内存读取:"):

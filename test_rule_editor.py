@@ -57,6 +57,8 @@ class RuleEditorTests(unittest.TestCase):
                         for widget in descendants(editor)
                         if isinstance(widget, tk.Button)
                     }
+                    self.assertIn("导入规则", buttons)
+                    self.assertIn("导出规则", buttons)
                     buttons["新建副本"].invoke()
                     root.update()
                     buttons["规则说明"].invoke()

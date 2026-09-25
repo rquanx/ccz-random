@@ -6,10 +6,12 @@ from pathlib import Path
 from rule_config import (
     DEFAULT_PROFILE_NAME,
     apply_simple_settings,
+    build_rule_export,
     default_rule_config,
     evaluate_job_rules,
     evaluate_skill_rules,
     load_rule_config,
+    merge_rule_export,
     save_rule_config,
     validate_rule_config,
 )
@@ -223,6 +225,27 @@ class RuleConfigTests(unittest.TestCase):
                     "minJobAverage"
                 ],
             )
+
+    def test_export_can_include_one_selected_profile(self):
+        config = default_rule_config()
+        custom = json.loads(
+            json.dumps(config["profiles"][DEFAULT_PROFILE_NAME])
+        )
+        custom["builtin"] = False
+        config["profiles"]["自定义"] = custom
+        payload = build_rule_export(config, ("自定义",))
+        self.assertEqual(("自定义",), tuple(payload["profiles"]))
+
+    def test_import_appends_profiles_and_renames_duplicates(self):
+        config = default_rule_config()
+        payload = build_rule_export(config)
+        merged, first_names = merge_rule_export(config, payload)
+        merged, second_names = merge_rule_export(merged, payload)
+        self.assertEqual(("默认规则(1)",), first_names)
+        self.assertEqual(("默认规则(2)",), second_names)
+        self.assertFalse(
+            merged["profiles"]["默认规则(1)"]["builtin"]
+        )
 
     def test_version_one_config_migrates_without_exact_conditions(self):
         old = {

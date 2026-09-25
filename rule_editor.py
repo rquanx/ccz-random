@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import copy
+import json
 import tkinter as tk
+from datetime import datetime
 from pathlib import Path
-from tkinter import messagebox, simpledialog, ttk
+from tkinter import filedialog, messagebox, simpledialog, ttk
 from typing import Callable
 
 from rule_config import (
@@ -11,7 +13,9 @@ from rule_config import (
     DEFAULT_PROFILE_NAME,
     SIMPLE_PRESET_OPTIONS,
     apply_simple_settings,
+    build_rule_export,
     default_rule_config,
+    merge_rule_export,
     save_rule_config,
     validate_rule_config,
 )
@@ -983,6 +987,139 @@ def show_rule_editor(
         working["profiles"][name] = profile
         load_profile(name)
 
+    def choose_export_scope() -> str | None:
+        choice = {"value": None}
+        dialog = tk.Toplevel(editor)
+        dialog.withdraw()
+        dialog.title("导出规则")
+        dialog.resizable(False, False)
+        dialog.transient(editor)
+        frame = tk.Frame(dialog, padx=18, pady=16)
+        frame.pack(fill="both", expand=True)
+        tk.Label(frame, text="选择要导出的规则：", anchor="w").pack(
+            fill="x"
+        )
+        values = ("全部规则", *working["profiles"].keys())
+        scope_var = tk.StringVar(value=selected_name)
+        combo = ttk.Combobox(
+            frame,
+            textvariable=scope_var,
+            values=values,
+            state="readonly",
+            width=30,
+        )
+        combo.pack(fill="x", pady=(8, 16))
+        actions = tk.Frame(frame)
+        actions.pack(fill="x")
+
+        def confirm() -> None:
+            choice["value"] = scope_var.get()
+            dialog.destroy()
+
+        tk.Button(
+            actions, text="取消", command=dialog.destroy, width=10
+        ).pack(side="right", padx=(8, 0))
+        tk.Button(
+            actions, text="下一步", command=confirm, width=10
+        ).pack(side="right")
+        dialog.protocol("WM_DELETE_WINDOW", dialog.destroy)
+        dialog.update_idletasks()
+        width = dialog.winfo_reqwidth()
+        height = dialog.winfo_reqheight()
+        x = editor.winfo_rootx() + (editor.winfo_width() - width) // 2
+        y = editor.winfo_rooty() + (editor.winfo_height() - height) // 2
+        dialog.geometry(f"{width}x{height}+{max(0, x)}+{max(0, y)}")
+        dialog.deiconify()
+        dialog.lift()
+        dialog.grab_set()
+        combo.focus_set()
+        dialog.wait_window()
+        return choice["value"]
+
+    def export_rules() -> None:
+        try:
+            store_profile(selected_name)
+        except Exception as exc:
+            messagebox.showerror(
+                "规则无法导出",
+                f"请先修正当前页面中的数值。\n\n{exc}",
+                parent=editor,
+            )
+            return
+        scope = choose_export_scope()
+        if not scope:
+            return
+        names = None if scope == "全部规则" else (scope,)
+        try:
+            payload = build_rule_export(working, names)
+        except Exception as exc:
+            messagebox.showerror("规则无法导出", str(exc), parent=editor)
+            return
+        safe_scope = "全部" if scope == "全部规则" else scope
+        default_name = (
+            f"随机规则-{safe_scope}-{datetime.now():%Y%m%d}.json"
+        )
+        path = filedialog.asksaveasfilename(
+            parent=editor,
+            title="保存规则文件",
+            defaultextension=".json",
+            filetypes=(("规则文件", "*.json"), ("所有文件", "*.*")),
+            initialfile=default_name,
+        )
+        if not path:
+            return
+        try:
+            Path(path).write_text(
+                json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
+        except Exception as exc:
+            messagebox.showerror(
+                "规则无法导出", f"文件保存失败：{exc}", parent=editor
+            )
+            return
+        messagebox.showinfo(
+            "规则已导出",
+            f"已导出到：\n{path}",
+            parent=editor,
+        )
+
+    def import_rules() -> None:
+        nonlocal working
+        try:
+            store_profile(selected_name)
+        except Exception as exc:
+            messagebox.showerror(
+                "规则无法导入",
+                f"请先修正当前页面中的数值。\n\n{exc}",
+                parent=editor,
+            )
+            return
+        path = filedialog.askopenfilename(
+            parent=editor,
+            title="选择规则文件",
+            filetypes=(("规则文件", "*.json"), ("所有文件", "*.*")),
+        )
+        if not path:
+            return
+        try:
+            payload = json.loads(Path(path).read_text(encoding="utf-8-sig"))
+            working, imported_names = merge_rule_export(working, payload)
+        except Exception as exc:
+            messagebox.showerror(
+                "规则无法导入",
+                f"所选文件无法使用：\n{exc}",
+                parent=editor,
+            )
+            return
+        refresh_profiles(imported_names[0])
+        messagebox.showinfo(
+            "规则已导入",
+            f"已追加 {len(imported_names)} 套规则。\n"
+            "请点击“保存规则”写入工具目录。",
+            parent=editor,
+        )
+
     def save_all() -> None:
         try:
             store_profile(selected_name)
@@ -1024,12 +1161,26 @@ def show_rule_editor(
         ),
         width=10,
     )
+    export_button = tk.Button(
+        action_frame,
+        text="导出规则",
+        command=export_rules,
+        width=10,
+    )
+    import_button = tk.Button(
+        action_frame,
+        text="导入规则",
+        command=import_rules,
+        width=10,
+    )
     new_button.pack(side="left")
     rename_button.pack(side="left", padx=(8, 0))
     delete_button.pack(side="left", padx=(8, 0))
     reset_button.pack(side="left", padx=(8, 0))
     active_button.pack(side="right")
     help_button.pack(side="right", padx=(0, 8))
+    export_button.pack(side="right", padx=(0, 8))
+    import_button.pack(side="right", padx=(0, 8))
 
     footer = tk.Frame(editor, padx=14, pady=12)
     footer.pack(fill="x")

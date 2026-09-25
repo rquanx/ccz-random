@@ -10,6 +10,8 @@ from typing import Any, Iterable
 
 RULE_FILE_NAME = "random_rules.json"
 RULE_VERSION = 2
+RULE_EXPORT_FORMAT = "ccz-random-rules"
+RULE_EXPORT_VERSION = 1
 DEFAULT_PROFILE_NAME = "默认规则"
 TEAM_MEMBER_NAMES = (
     "曹操",
@@ -444,6 +446,79 @@ def save_rule_config(base_dir: Path, config: dict[str, Any]) -> Path:
     )
     os.replace(temporary, path)
     return path
+
+
+def build_rule_export(
+    config: dict[str, Any],
+    profile_names: Iterable[str] | None = None,
+) -> dict[str, Any]:
+    normalized = validate_rule_config(config)
+    names = (
+        tuple(normalized["profiles"])
+        if profile_names is None
+        else tuple(profile_names)
+    )
+    if not names:
+        raise ValueError("至少需要导出一套规则")
+    profiles = {}
+    for name in names:
+        if name not in normalized["profiles"]:
+            raise ValueError(f"规则“{name}”不存在")
+        profiles[name] = copy.deepcopy(normalized["profiles"][name])
+    return {
+        "format": RULE_EXPORT_FORMAT,
+        "version": RULE_EXPORT_VERSION,
+        "profiles": profiles,
+    }
+
+
+def merge_rule_export(
+    config: dict[str, Any],
+    payload: dict[str, Any],
+) -> tuple[dict[str, Any], tuple[str, ...]]:
+    merged = validate_rule_config(config)
+    if not isinstance(payload, dict):
+        raise ValueError("导入文件内容格式错误")
+    if payload.get("format") == RULE_EXPORT_FORMAT:
+        if payload.get("version") != RULE_EXPORT_VERSION:
+            raise ValueError("导入文件版本不受支持")
+        profiles = payload.get("profiles")
+    elif "profiles" in payload and "activeProfile" in payload:
+        profiles = payload.get("profiles")
+    else:
+        raise ValueError("这不是随机工具的规则文件")
+    if not isinstance(profiles, dict) or not profiles:
+        raise ValueError("导入文件中没有可用规则")
+
+    imported_names = []
+    existing_names = set(merged["profiles"])
+    for original_name, raw_profile in profiles.items():
+        if not isinstance(original_name, str) or not original_name.strip():
+            raise ValueError("导入文件中存在名称为空的规则")
+        if not isinstance(raw_profile, dict):
+            raise ValueError(f"规则“{original_name}”格式错误")
+        base_name = original_name.strip()
+        imported_name = base_name
+        suffix = 1
+        while imported_name in existing_names:
+            imported_name = f"{base_name}({suffix})"
+            suffix += 1
+
+        probe_name = "__imported_profile__"
+        while probe_name in merged["profiles"]:
+            probe_name += "_"
+        probe = default_rule_config()
+        probe["profiles"][probe_name] = copy.deepcopy(raw_profile)
+        probe["profiles"][probe_name]["builtin"] = False
+        probe["activeProfile"] = probe_name
+        normalized_profile = validate_rule_config(probe)["profiles"][
+            probe_name
+        ]
+        normalized_profile["builtin"] = False
+        merged["profiles"][imported_name] = normalized_profile
+        existing_names.add(imported_name)
+        imported_names.append(imported_name)
+    return validate_rule_config(merged), tuple(imported_names)
 
 
 def active_profile(config: dict[str, Any]) -> dict[str, Any]:

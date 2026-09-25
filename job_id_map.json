@@ -1,0 +1,202 @@
+{
+  "0": {
+    "name": "群雄",
+    "score": 8,
+    "type": "ALL_ROUNDER"
+  },
+  "3": {
+    "name": "轻步兵",
+    "score": 6,
+    "type": "WARRIOR"
+  },
+  "6": {
+    "name": "弓兵",
+    "score": 5,
+    "type": "WARRIOR"
+  },
+  "9": {
+    "name": "轻骑兵",
+    "score": 5,
+    "type": "WARRIOR"
+  },
+  "12": {
+    "name": "弓骑兵",
+    "score": 5,
+    "type": "WARRIOR"
+  },
+  "15": {
+    "name": "轻炮车",
+    "score": 8,
+    "type": "WARRIOR"
+  },
+  "18": {
+    "name": "游侠",
+    "score": 6,
+    "type": "WARRIOR"
+  },
+  "21": {
+    "name": "山贼",
+    "score": 4,
+    "type": "WARRIOR"
+  },
+  "24": {
+    "name": "策士",
+    "score": 7,
+    "type": "MASTER"
+  },
+  "27": {
+    "name": "医师",
+    "score": 7,
+    "type": "MASTER"
+  },
+  "30": {
+    "name": "道士",
+    "score": 7,
+    "type": "MASTER"
+  },
+  "33": {
+    "name": "骑策士",
+    "score": 7,
+    "type": "ALL_ROUNDER"
+  },
+  "36": {
+    "name": "女侍",
+    "score": 4,
+    "type": "MASTER"
+  },
+  "39": {
+    "name": "刀兵",
+    "score": 6,
+    "type": "WARRIOR"
+  },
+  "42": {
+    "name": "枪兵",
+    "score": 4,
+    "type": "WARRIOR"
+  },
+  "45": {
+    "name": "先锋兵",
+    "score": 5,
+    "type": "WARRIOR"
+  },
+  "48": {
+    "name": "水贼",
+    "score": 4,
+    "type": "WARRIOR"
+  },
+  "51": {
+    "name": "轻战车",
+    "score": 6,
+    "type": "WARRIOR"
+  },
+  "54": {
+    "name": "重骑兵",
+    "score": 6,
+    "type": "WARRIOR"
+  },
+  "57": {
+    "name": "校尉",
+    "score": 6,
+    "type": "ALL_ROUNDER"
+  },
+  "60": {
+    "name": "西凉骑",
+    "score": 5,
+    "type": "WARRIOR"
+  },
+  "61": {
+    "name": "勇将",
+    "score": 9,
+    "type": "WARRIOR"
+  },
+  "62": {
+    "name": "游牧骑",
+    "score": 9,
+    "type": "WARRIOR"
+  },
+  "63": {
+    "name": "驯兽师",
+    "score": 7,
+    "type": "WARRIOR"
+  },
+  "64": {
+    "name": "杀手",
+    "score": 7,
+    "type": "WARRIOR"
+  },
+  "65": {
+    "name": "都督",
+    "score": 9,
+    "type": "ALL_ROUNDER"
+  },
+  "66": {
+    "name": "咒术师",
+    "score": 9,
+    "type": "MASTER"
+  },
+  "67": {
+    "name": "玉龙军",
+    "score": 9,
+    "type": "ALL_ROUNDER"
+  },
+  "68": {
+    "name": "辎重队",
+    "score": 9,
+    "type": "ALL_ROUNDER"
+  },
+  "69": {
+    "name": "神羿骑",
+    "score": 7,
+    "type": "WARRIOR"
+  },
+  "70": {
+    "name": "机关",
+    "score": 7,
+    "type": "WARRIOR"
+  },
+  "71": {
+    "name": "名将",
+    "score": 9,
+    "type": "ALL_ROUNDER"
+  },
+  "72": {
+    "name": "皇帝",
+    "score": 10,
+    "type": "ALL_ROUNDER"
+  },
+  "73": {
+    "name": "虎豹骑",
+    "score": 9,
+    "type": "WARRIOR"
+  },
+  "74": {
+    "name": "穿杨手",
+    "score": 7,
+    "type": "WARRIOR"
+  },
+  "75": {
+    "name": "虎贲军",
+    "score": 8,
+    "type": "WARRIOR"
+  },
+  "76": {
+    "name": "力士",
+    "score": 8,
+    "type": "WARRIOR"
+  },
+  "77": {
+    "name": "云川卫",
+    "score": 8,
+    "type": "WARRIOR"
+  },
+  "78": {
+    "name": "宿卫骑",
+    "score": 9,
+    "type": "WARRIOR"
+  },
+  "79": {
+    "name": "魔王",
+    "score": 12,
+    "type": "ALL_ROUNDER"
+  }
+}

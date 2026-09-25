@@ -1,0 +1,58 @@
+{
+  "__GOOD_SKILL_PREFIX_LIST": [
+    "\u672a\u77e5",
+    "\u7279\u6548",
+    "\u4e8c\u6b21\u884c\u52a8",
+    "\u514d\u75ab",
+    "\u81ea\u52a8\u4f7f\u7528",
+    "\u552f\u6211\u72ec\u5c0a",
+    "\u795e\u9b54\u9644\u4f535",
+    "\u5f3a\u5316\u6210\u957f-\u5168\u80fd\u529b",
+    "\u81ea\u52a8\u63d0\u5347\u5168\u80fd\u529b",
+    "\u63d0\u5347\u5468\u56f4-\u5168\u80fd\u529b",
+    "\u5982\u5c65\u5e73\u5730",
+    "\u7eb5\u6a2a\u65e0\u963b",
+    "\u7834\u7532\u653b\u51fb"
+  ],
+  "__FOLLOW_UP_EQUIP_LIST": [
+    "\u501a\u5929\u5251",
+    "\u592a\u5e73\u6e05\u9886\u4e66",
+    "\u53e4\u952d\u5200",
+    "\u9ec4\u91d1\u94e0",
+    "\u7edd\u5f71"
+  ],
+  "__LEGACY_LIST": [
+    "\u51e4\u51f0\u7fbd\u8863",
+    "\u9041\u7532\u5929\u4e66",
+    "\u722a\u9ec4\u98de\u7535",
+    "\u6d41\u661f\u9524"
+  ],
+  "__LVBU_EQUIP_LIST": [
+    "\u65b9\u5929\u753b\u621f",
+    "\u5415\u5e03\u4e4b\u5f13",
+    "\u517d\u9762\u541e\u4e91\u94e0",
+    "\u8d64\u5154"
+  ],
+  "__ZHUGELIANG_EQUIP_LIST": [
+    "\u767d\u7fbd\u6247",
+    "\u9e64\u6c05",
+    "\u8bf8\u845b\u5dfe"
+  ],
+  "__LIUBEI_EQUIP_LIST": [
+    "\u96cc\u96c4\u53cc\u5251",
+    "\u7684\u5362"
+  ],
+  "__GUANYU_EQUIP_LIST": [
+    "\u9752\u9f99\u5043\u6708\u5200",
+    "\u9752\u9f99\u6218\u888d",
+    "\u8d64\u5154"
+  ],
+  "__ZHANGFEI_EQUIP_LIST": [
+    "\u4e08\u516b\u86c7\u77db"
+  ],
+  "__ZHAOYUN_EQUIP_LIST": [
+    "\u9f99\u80c6\u67aa",
+    "\u4eae\u94f6\u7532",
+    "\u7167\u591c\u7389\u72ee\u5b50"
+  ]
+}

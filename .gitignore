@@ -1,0 +1,44 @@
+# Python environments and caches
+/.venv*/
+/__pycache__/
+*.py[cod]
+
+# Build and packaging output
+/build*/
+/dist*/
+*.obj
+*.lib
+*.exp
+/native/*.dll
+/native/*.exe
+
+# Runtime output
+/ccz_fast_logs/
+/randResult/
+/*.E5S
+
+# Generated inspection and reverse-engineering workspaces
+/inspect-*/
+/coord-probe/
+/current-check/
+/memory-slots/
+/offscreen-ui-test/
+/r1-probe/
+/renderer/
+/renderer-preview*/
+/sequence/
+/skill-ground-truth/
+/valid-templates/
+/vendor/
+
+# Captures and generated reports
+/*.png
+/*.jpg
+/*.bmp
+/*.htm
+/*.html
+/*.txt
+
+# Required packaged assets kept despite the capture rules above
+!/source_slot_20_help.png
+!/job_map.txt

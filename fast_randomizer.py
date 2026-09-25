@@ -2270,11 +2270,39 @@ def patch_inspection_runtime(task_module, pid: int, panel_dir: Path):
 
     def open_people(self) -> None:
         self.initWind()
-        point = Point(138, 18)
-        user32.ClientToScreen(self.wind.hwnd, ctypes.byref(point))
-        post_click(self.wind.hwnd, point.x, point.y)
-        time.sleep(0.5)
-        self.initPeopleWind()
+        if not self.wind.isInitSuccess():
+            raise RuntimeError("候选检查阶段未找到游戏主窗口")
+        for attempt in range(1, 5):
+            self.initPeopleWind()
+            if self.peopleWind.isInitSuccess():
+                return
+            native_wake_game(pid, self.wind.hwnd, 600)
+            point = Point(138, 18)
+            user32.ClientToScreen(self.wind.hwnd, ctypes.byref(point))
+            post_click(self.wind.hwnd, point.x, point.y)
+            deadline = time.perf_counter() + 3.0
+            while time.perf_counter() < deadline:
+                time.sleep(0.15)
+                self.initPeopleWind()
+                if self.peopleWind.isInitSuccess():
+                    print(f"候选武将列表第 {attempt} 次尝试打开成功")
+                    return
+            print(f"候选武将列表第 {attempt}/4 次尝试未打开")
+            native_silent_click_burst(self.wind.hwnd, 360, 400, 12)
+            native_wake_game(pid, self.wind.hwnd, 800)
+        windows = [
+            {
+                "class": window_class(hwnd),
+                "title": window_text(hwnd),
+                "visible": bool(user32.IsWindowVisible(hwnd)),
+                "enabled": bool(user32.IsWindowEnabled(hwnd)),
+            }
+            for hwnd in process_windows(pid, visible_only=False)
+        ]
+        raise RuntimeError(
+            "候选存档的武将列表连续4次未能打开；"
+            f"当前窗口={windows}"
+        )
 
     def click_info_button(hwnd: int, from_right: int) -> None:
         buttons: list[tuple[int, int]] = []
@@ -2736,8 +2764,6 @@ def inspect_saved_slot(
                 print_window_mat(game.main_window),
             )
             runner.openPeople()
-            if not runner.peopleWind.isInitSuccess():
-                raise RuntimeError("候选存档的武将列表未能打开")
             write_cv_image(
                 output_dir / "people-window.png",
                 print_window_mat(runner.peopleWind.hwnd),
@@ -4684,8 +4710,8 @@ if __name__ == "__main__":
             if "--inspect-member" in sys.argv
             else -1
         )
-        raise SystemExit(
-            inspect_saved_slot(
+        try:
+            inspect_code = inspect_saved_slot(
                 Path(sys.argv[game_index + 1]),
                 int(sys.argv[slot_index + 1]),
                 Path(sys.argv[output_index + 1]),
@@ -4696,7 +4722,10 @@ if __name__ == "__main__":
                     else None
                 ),
             )
-        )
+        except Exception:
+            traceback.print_exc()
+            inspect_code = 1
+        raise SystemExit(inspect_code)
     if "--worker" in sys.argv:
         raise SystemExit(main())
     raise SystemExit(gui_main())

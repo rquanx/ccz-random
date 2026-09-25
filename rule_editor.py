@@ -179,6 +179,9 @@ class ScrollableFrame(tk.Frame):
 
 class ScoreGrid(tk.Frame):
     COLUMN_COUNT = 4
+    CARD_HEIGHT = 66
+    GAP = 8
+    SCORE_HEIGHT = 24
 
     def __init__(
         self,
@@ -190,128 +193,184 @@ class ScoreGrid(tk.Frame):
         self.items = items
         self.enabled = True
         self.editor: tk.Entry | None = None
-        self.editing: tuple[str, str] | None = None
-        columns = tuple(
-            column
-            for index in range(self.COLUMN_COUNT)
-            for column in (f"name{index}", f"score{index}")
-        )
-        self.tree = ttk.Treeview(
+        self.editor_window: int | None = None
+        self.editing_index: int | None = None
+        self.hit_boxes: list[tuple[int, int, int, int, int]] = []
+        self.canvas = tk.Canvas(
             self,
-            columns=columns,
-            show="headings",
-            selectmode="none",
+            highlightthickness=0,
+            background="#f5f5f5",
         )
         scrollbar = ttk.Scrollbar(
-            self, orient="vertical", command=self.tree.yview
+            self, orient="vertical", command=self.canvas.yview
         )
-        self.tree.configure(yscrollcommand=scrollbar.set)
-        for index in range(self.COLUMN_COUNT):
-            name_column = f"name{index}"
-            score_column = f"score{index}"
-            self.tree.heading(name_column, text="名称")
-            self.tree.heading(score_column, text="基础分")
-            self.tree.column(
-                name_column,
-                width=155,
-                minwidth=110,
-                stretch=True,
-                anchor="w",
-            )
-            self.tree.column(
-                score_column,
-                width=58,
-                minwidth=52,
-                stretch=False,
-                anchor="center",
-            )
-        self.tree.pack(side="left", fill="both", expand=True)
+        self.canvas.configure(yscrollcommand=scrollbar.set)
+        self.canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
-        self.tree.bind("<ButtonRelease-1>", self._start_edit)
+        self.canvas.bind("<Configure>", lambda _event: self.refresh())
+        self.canvas.bind("<Button-1>", self._start_edit)
+        self.canvas.bind("<MouseWheel>", self._on_mousewheel)
         self.bind("<Destroy>", self._destroy_editor, add="+")
-        self.refresh()
+        self.after_idle(self.refresh)
 
     def refresh(self) -> None:
         self.commit_pending()
-        self.tree.delete(*self.tree.get_children())
+        self.canvas.delete("all")
+        self.hit_boxes.clear()
+        viewport_width = max(760, self.canvas.winfo_width())
+        content_width = viewport_width - self.GAP
+        card_width = (
+            content_width - self.GAP * (self.COLUMN_COUNT - 1)
+        ) // self.COLUMN_COUNT
         rows = (
             len(self.items) + self.COLUMN_COUNT - 1
         ) // self.COLUMN_COUNT
-        for row in range(rows):
-            values = []
-            for column in range(self.COLUMN_COUNT):
-                index = row * self.COLUMN_COUNT + column
-                if index >= len(self.items):
-                    values.extend(("", ""))
-                    continue
-                name, variable, category = self.items[index]
-                label = f"{name}  [{category}]" if category else name
-                values.extend((label, variable.get()))
-            self.tree.insert("", "end", iid=f"row-{row}", values=values)
+        for index, (name, variable, category) in enumerate(self.items):
+            row, column = divmod(index, self.COLUMN_COUNT)
+            x1 = self.GAP + column * (card_width + self.GAP)
+            y1 = self.GAP + row * (self.CARD_HEIGHT + self.GAP)
+            x2 = x1 + card_width
+            y2 = y1 + self.CARD_HEIGHT
+            self.canvas.create_rectangle(
+                x1,
+                y1,
+                x2,
+                y2,
+                fill="#ffffff",
+                outline="#d8d8d8",
+            )
+            if category:
+                category_color = {
+                    "特殊": "#b24747",
+                    "强力": "#496fa8",
+                    "优质": "#4d8560",
+                    "其他": "#888888",
+                }.get(category, "#888888")
+                self.canvas.create_rectangle(
+                    x1,
+                    y1,
+                    x1 + 3,
+                    y2,
+                    fill=category_color,
+                    outline="",
+                )
+            self.canvas.create_text(
+                x1 + 9,
+                y1 + 16,
+                text=name,
+                anchor="w",
+                fill="#222222",
+                font=("Microsoft YaHei UI", 9),
+            )
+            score_x1 = x1 + 8
+            score_y1 = y2 - self.SCORE_HEIGHT - 7
+            score_x2 = x2 - 8
+            score_y2 = y2 - 7
+            self.canvas.create_rectangle(
+                score_x1,
+                score_y1,
+                score_x2,
+                score_y2,
+                fill="#fafafa" if self.enabled else "#f0f0f0",
+                outline="#b8b8b8",
+            )
+            self.canvas.create_text(
+                score_x1 + 8,
+                (score_y1 + score_y2) / 2,
+                text=f"{category} · 基础分" if category else "基础分",
+                anchor="w",
+                fill="#777777",
+                font=("Microsoft YaHei UI", 8),
+            )
+            self.canvas.create_text(
+                score_x2 - 8,
+                (score_y1 + score_y2) / 2,
+                text=variable.get(),
+                anchor="e",
+                fill="#222222" if self.enabled else "#888888",
+                font=("Microsoft YaHei UI", 9, "bold"),
+            )
+            self.hit_boxes.append(
+                (score_x1, score_y1, score_x2, score_y2, index)
+            )
+        total_height = (
+            self.GAP + rows * (self.CARD_HEIGHT + self.GAP)
+            if rows
+            else self.CARD_HEIGHT
+        )
+        self.canvas.configure(
+            scrollregion=(0, 0, viewport_width, total_height)
+        )
 
     def set_enabled(self, enabled: bool) -> None:
         self.enabled = enabled
         if not enabled:
             self.commit_pending()
+        self.refresh()
 
     def commit_pending(self) -> None:
-        if self.editor is None or self.editing is None:
+        if self.editor is None or self.editing_index is None:
             return
-        item_id, column_id = self.editing
         try:
-            column_index = int(column_id.removeprefix("#")) - 1
-            item_index = (
-                int(item_id.removeprefix("row-")) * self.COLUMN_COUNT
-                + column_index // 2
-            )
-            if item_index < len(self.items):
-                self.items[item_index][1].set(self.editor.get())
-                values = list(self.tree.item(item_id, "values"))
-                values[column_index] = self.editor.get()
-                self.tree.item(item_id, values=values)
+            self.items[self.editing_index][1].set(self.editor.get())
         finally:
             self._destroy_editor()
+        self.refresh()
 
     def _start_edit(self, event) -> None:
         if not self.enabled:
             return
-        item_id = self.tree.identify_row(event.y)
-        column_id = self.tree.identify_column(event.x)
-        if not item_id or not column_id:
-            return
-        column_index = int(column_id.removeprefix("#")) - 1
-        if column_index < 0 or column_index % 2 == 0:
-            return
-        item_index = (
-            int(item_id.removeprefix("row-")) * self.COLUMN_COUNT
-            + column_index // 2
+        canvas_x = int(self.canvas.canvasx(event.x))
+        canvas_y = int(self.canvas.canvasy(event.y))
+        match = next(
+            (
+                box
+                for box in self.hit_boxes
+                if box[0] <= canvas_x <= box[2]
+                and box[1] <= canvas_y <= box[3]
+            ),
+            None,
         )
-        if item_index >= len(self.items):
-            return
-        bbox = self.tree.bbox(item_id, column_id)
-        if not bbox:
+        if match is None:
             return
         self.commit_pending()
-        x, y, width, height = bbox
+        x1, y1, x2, y2, item_index = match
         variable = self.items[item_index][1]
         self.editor = tk.Entry(
-            self.tree,
+            self.canvas,
             justify="center",
-            textvariable=variable,
         )
-        self.editing = (item_id, column_id)
-        self.editor.place(x=x, y=y, width=width, height=height)
+        self.editor.insert(0, variable.get())
+        self.editing_index = item_index
+        self.editor_window = self.canvas.create_window(
+            x1,
+            y1,
+            anchor="nw",
+            width=x2 - x1,
+            height=y2 - y1,
+            window=self.editor,
+        )
         self.editor.select_range(0, "end")
         self.editor.focus_set()
         self.editor.bind("<Return>", lambda _event: self.commit_pending())
         self.editor.bind("<FocusOut>", lambda _event: self.commit_pending())
         self.editor.bind("<Escape>", lambda _event: self._destroy_editor())
 
+    def _on_mousewheel(self, event) -> None:
+        units = int(event.delta / 120)
+        if units:
+            self.canvas.yview_scroll(-units, "units")
+
     def _destroy_editor(self, _event=None) -> None:
-        if self.editor is not None:
-            self.editor.destroy()
+        editor = self.editor
+        editor_window = self.editor_window
         self.editor = None
-        self.editing = None
+        self.editor_window = None
+        self.editing_index = None
+        if editor_window is not None:
+            self.canvas.delete(editor_window)
+        if editor is not None:
+            editor.destroy()
 
 
 def show_advanced_help(parent, selected_index: int) -> None:

@@ -18,10 +18,6 @@ from types import SimpleNamespace
 from ctypes import wintypes
 from pathlib import Path
 
-import cv2
-import numpy as np
-from PIL import Image, ImageDraw, ImageFont
-
 from rule_config import (
     active_profile,
     default_rule_config,
@@ -33,6 +29,32 @@ from rule_config import (
 )
 from rule_editor import show_rule_editor
 from runtime_loader import install
+
+
+cv2 = None
+np = None
+Image = None
+ImageDraw = None
+ImageFont = None
+_SKILL_SCORE_CATALOG = None
+_SKILL_SCORE_CATALOG_LOCK = threading.Lock()
+
+
+def load_media_modules() -> None:
+    global cv2, np, Image, ImageDraw, ImageFont
+    if cv2 is not None:
+        return
+    import cv2 as cv2_module
+    import numpy as numpy_module
+    from PIL import Image as image_module
+    from PIL import ImageDraw as image_draw_module
+    from PIL import ImageFont as image_font_module
+
+    cv2 = cv2_module
+    np = numpy_module
+    Image = image_module
+    ImageDraw = image_draw_module
+    ImageFont = image_font_module
 
 
 GAME_EXE_NAME = "Ekd5.exe"
@@ -313,30 +335,37 @@ def skill_name_groups(task_module) -> tuple[set[str], set[str], set[str]]:
 
 
 def skill_score_catalog() -> tuple[tuple[str, float, str], ...]:
-    previous_cwd = Path.cwd()
-    try:
-        install(bundle_root())
-        import task.CczReRandTask as task_module
-        from models.CczModels import CCZ_MODELS
-    finally:
-        os.chdir(previous_cwd)
+    global _SKILL_SCORE_CATALOG
+    if _SKILL_SCORE_CATALOG is not None:
+        return _SKILL_SCORE_CATALOG
+    with _SKILL_SCORE_CATALOG_LOCK:
+        if _SKILL_SCORE_CATALOG is not None:
+            return _SKILL_SCORE_CATALOG
+        previous_cwd = Path.cwd()
+        try:
+            install(bundle_root())
+            import task.CczReRandTask as task_module
+            from models.CczModels import CCZ_MODELS
+        finally:
+            os.chdir(previous_cwd)
 
-    catalog = []
-    seen = set()
-    for skill in CCZ_MODELS.skills:
-        if skill.name in seen:
-            continue
-        seen.add(skill.name)
-        if task_module.CczUtils.isSkillSpecial(skill):
-            default_score, category = 5.0, "特殊"
-        elif task_module.CczUtils.isSkillImba(skill):
-            default_score, category = 2.0, "强力"
-        elif task_module.CczUtils.isSkillCarry(skill):
-            default_score, category = 1.0, "优质"
-        else:
-            default_score, category = 0.0, "其他"
-        catalog.append((skill.name, default_score, category))
-    return tuple(catalog)
+        catalog = []
+        seen = set()
+        for skill in CCZ_MODELS.skills:
+            if skill.name in seen:
+                continue
+            seen.add(skill.name)
+            if task_module.CczUtils.isSkillSpecial(skill):
+                default_score, category = 5.0, "特殊"
+            elif task_module.CczUtils.isSkillImba(skill):
+                default_score, category = 2.0, "强力"
+            elif task_module.CczUtils.isSkillCarry(skill):
+                default_score, category = 1.0, "优质"
+            else:
+                default_score, category = 0.0, "其他"
+            catalog.append((skill.name, default_score, category))
+        _SKILL_SCORE_CATALOG = tuple(catalog)
+        return _SKILL_SCORE_CATALOG
 
 
 def effective_member_skill_names(task_module, members) -> list[str]:
@@ -1448,6 +1477,7 @@ def result_grid_path() -> Path:
 
 
 def result_font(size: int, bold: bool = False):
+    load_media_modules()
     candidates = (
         Path("C:/Windows/Fonts/simsun.ttc"),
         Path("C:/Windows/Fonts/msyh.ttc"),
@@ -1467,6 +1497,7 @@ def print_window_mat(
     h: int = 0,
     strip_client: bool = True,
 ) -> np.ndarray:
+    load_media_modules()
     rect = wintypes.RECT()
     if not user32.GetWindowRect(hwnd, ctypes.byref(rect)):
         raise ctypes.WinError(ctypes.get_last_error())
@@ -1534,6 +1565,7 @@ def print_window_mat(
 
 
 def save_result_image(runner, equip_info, save_slot: int = 1) -> Path:
+    load_media_modules()
     width, height = 740, 1028
     # These coordinates match the original result image: the two blue
     # separators are at x=132/133 and x=334/335, with the equipment split
@@ -1870,6 +1902,7 @@ def save_result_image(runner, equip_info, save_slot: int = 1) -> Path:
 
 
 def compose_result_grid(panel_paths: dict[int, Path]) -> Path:
+    load_media_modules()
     panel_width, panel_height = 740, 1028
     grid = Image.new(
         "RGB", (panel_width * 5, panel_height * 3), (235, 233, 228)
@@ -2163,6 +2196,7 @@ def bundled_random_s00() -> Path:
 
 
 def write_cv_image(path: Path, image) -> None:
+    load_media_modules()
     suffix = path.suffix or ".png"
     encoded, buffer = cv2.imencode(suffix, image)
     if not encoded:
@@ -2601,6 +2635,7 @@ def inspect_saved_slot(
     job_score: float,
     member_index: int | None = None,
 ) -> int:
+    load_media_modules()
     output_dir.mkdir(parents=True, exist_ok=True)
     random_script = bundled_random_s00()
     if not random_script.is_file():
@@ -4511,6 +4546,14 @@ def gui_main() -> int:
                 parent=root,
             ),
         )
+    root.after(
+        250,
+        lambda: threading.Thread(
+            target=skill_score_catalog,
+            name="rule-catalog-preload",
+            daemon=True,
+        ).start(),
+    )
     root.after(100, poll_worker)
     root.mainloop()
     return 0
@@ -4518,6 +4561,7 @@ def gui_main() -> int:
 
 def main() -> int:
     global RESULT_BASE_DIR, DIAGNOSTIC_LOG_PATH
+    load_media_modules()
     RESULT_BASE_DIR = app_dir()
     stop_file_value = os.environ.get("CCZ_STOP_FILE", "")
     stop_file = Path(stop_file_value) if stop_file_value else None
@@ -4724,6 +4768,14 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    if "--smoke-startup" in sys.argv:
+        raise SystemExit(0)
+    if "--smoke-imports" in sys.argv:
+        load_media_modules()
+        catalog = skill_score_catalog()
+        if not catalog:
+            raise SystemExit(1)
+        raise SystemExit(0)
     if "--inspect-slot" in sys.argv:
         slot_index = sys.argv.index("--inspect-slot")
         output_index = sys.argv.index("--inspect-output")

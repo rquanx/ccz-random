@@ -9,7 +9,6 @@ from pathlib import Path
 
 
 APP_PACKAGES = {
-    "PIL",
     "cfg",
     "encrypt",
     "keyboard",

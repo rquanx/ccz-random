@@ -3,11 +3,12 @@ import tkinter as tk
 import unittest
 from pathlib import Path
 from tkinter import ttk
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from fast_randomizer import JOB_MAP, TEAM_MEMBERS
 from rule_config import default_rule_config, load_rule_config
-from rule_editor import show_rule_editor
+from rule_editor import ScoreGrid, show_rule_editor
 
 
 SKILL_CATALOG = (
@@ -27,6 +28,35 @@ def descendants(widget):
 
 
 class RuleEditorTests(unittest.TestCase):
+    def test_score_grid_uses_one_canvas_and_edits_values(self):
+        root = tk.Tk()
+        root.withdraw()
+        try:
+            variable = tk.StringVar(value="2")
+            grid = ScoreGrid(
+                root,
+                [("测试特技", variable, "强力")],
+                width=800,
+                height=300,
+            )
+            grid.pack(fill="both", expand=True)
+            root.update()
+            self.assertLess(len(descendants(grid)), 8)
+            x1, y1, x2, y2, _index = grid.hit_boxes[0]
+            grid._start_edit(
+                SimpleNamespace(
+                    x=(x1 + x2) // 2,
+                    y=(y1 + y2) // 2,
+                )
+            )
+            self.assertIsNotNone(grid.editor)
+            grid.editor.delete(0, "end")
+            grid.editor.insert(0, "3.5")
+            grid.commit_pending()
+            self.assertEqual("3.5", variable.get())
+        finally:
+            root.destroy()
+
     def test_copy_select_and_save_profile(self):
         root = tk.Tk()
         root.withdraw()

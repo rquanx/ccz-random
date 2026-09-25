@@ -31,6 +31,7 @@ from rule_config import (
     save_rule_config,
     validate_rule_config,
 )
+from rule_editor import show_rule_editor
 from runtime_loader import install
 
 
@@ -3860,7 +3861,7 @@ def gui_main() -> int:
     def join_names(values) -> str:
         return "，".join(values)
 
-    def open_rule_editor() -> None:
+    def legacy_rule_editor() -> None:
         nonlocal current_rules
         editor = tk.Toplevel(root)
         editor.title("规则设置")
@@ -4253,6 +4254,23 @@ def gui_main() -> int:
         tk.Button(
             footer, text="保存规则", command=save_rules, width=12
         ).pack(side="right")
+
+    def open_rule_editor() -> None:
+        def rules_saved(config: dict) -> None:
+            nonlocal current_rules
+            current_rules = config
+            rule_name_var.set(
+                f"当前规则：{config['activeProfile']}"
+            )
+
+        show_rule_editor(
+            root,
+            app_dir(),
+            current_rules,
+            JOB_MAP,
+            TEAM_MEMBERS,
+            rules_saved,
+        )
 
     def append(text: str) -> None:
         if not text:

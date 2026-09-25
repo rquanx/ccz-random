@@ -4,11 +4,14 @@ import unittest
 from pathlib import Path
 
 from rule_config import (
+    DEFAULT_PROFILE_NAME,
+    apply_simple_settings,
     default_rule_config,
     evaluate_job_rules,
     evaluate_skill_rules,
     load_rule_config,
     save_rule_config,
+    validate_rule_config,
 )
 
 
@@ -20,7 +23,7 @@ MEMBERS = [
 
 
 class RuleConfigTests(unittest.TestCase):
-    def test_default_three_person_job_rule_matches_existing_threshold(self):
+    def test_default_job_rule_matches_existing_threshold(self):
         jobs = [
             {"name": "群雄", "score": 8, "type": "ALL_ROUNDER"},
             {"name": "虎豹骑", "score": 9, "type": "WARRIOR"},
@@ -31,20 +34,40 @@ class RuleConfigTests(unittest.TestCase):
         )
         self.assertTrue(result.qualified)
 
-    def test_member_blocked_job_reports_plain_reason(self):
+    def test_job_base_score_override_changes_result(self):
         config = default_rule_config()
-        profile = config["profiles"]["默认规则"]
-        profile["jobConditions"]["memberBlockedJobs"] = {
-            "曹操": ["医师"]
+        profile = config["profiles"][DEFAULT_PROFILE_NAME]
+        profile["jobScoring"]["jobBaseScores"] = {
+            "群雄": 1,
+            "虎豹骑": 1,
+            "都督": 1,
         }
         jobs = [
-            {"name": "医师", "score": 7, "type": "MASTER"},
+            {"name": "群雄", "score": 8, "type": "ALL_ROUNDER"},
             {"name": "虎豹骑", "score": 9, "type": "WARRIOR"},
             {"name": "都督", "score": 9, "type": "ALL_ROUNDER"},
         ]
         result = evaluate_job_rules(config, "three", jobs, MEMBERS)
         self.assertFalse(result.qualified)
-        self.assertIn("曹操命中排除兵种“医师”", result.reasons)
+        self.assertEqual(
+            ("兵种综合评价未达到当前规则要求",), result.reasons
+        )
+
+    def test_member_affinity_is_configurable_by_type(self):
+        config = default_rule_config()
+        profile = config["profiles"][DEFAULT_PROFILE_NAME]
+        profile["threePerson"]["minJobAverage"] = 8.4
+        profile["memberAffinity"]["曹操"] = {
+            "primaryType": "MASTER",
+            "secondaryType": "WARRIOR",
+        }
+        jobs = [
+            {"name": "群雄", "score": 8, "type": "ALL_ROUNDER"},
+            {"name": "虎豹骑", "score": 8, "type": "WARRIOR"},
+            {"name": "都督", "score": 8, "type": "ALL_ROUNDER"},
+        ]
+        result = evaluate_job_rules(config, "three", jobs, MEMBERS)
+        self.assertFalse(result.qualified)
 
     def test_duplicate_skills_are_counted_per_occurrence(self):
         config = default_rule_config()
@@ -61,10 +84,12 @@ class RuleConfigTests(unittest.TestCase):
             set(),
         )
         self.assertTrue(result.qualified)
-        self.assertEqual(4, result.metrics["carryCount"])
+        self.assertEqual(4, result.metrics["skillScore"])
 
-    def test_strong_skills_keep_double_weight(self):
+    def test_skill_weights_are_configurable(self):
         config = default_rule_config()
+        seven = config["profiles"][DEFAULT_PROFILE_NAME]["sevenPerson"]
+        seven["strongSkillWeight"] = 1.5
         result = evaluate_skill_rules(
             config,
             7.6,
@@ -73,58 +98,88 @@ class RuleConfigTests(unittest.TestCase):
             {"强特技"},
             set(),
         )
-        self.assertTrue(result.qualified)
-        self.assertEqual(4, result.metrics["effectiveCount"])
-
-    def test_required_and_blocked_skills(self):
-        config = default_rule_config()
-        conditions = config["profiles"]["默认规则"]["skillConditions"]
-        conditions["requiredAny"] = ["二次行动", "唯我独尊"]
-        conditions["blocked"] = ["物理免疫"]
-        result = evaluate_skill_rules(
-            config,
-            8,
-            {"曹操": ["物理免疫"]},
-            set(),
-            set(),
-            set(),
-        )
         self.assertFalse(result.qualified)
-        self.assertIn("未出现任一指定特技", result.reasons)
-        self.assertIn("出现排除特技“物理免疫”", result.reasons)
+        self.assertEqual(3, result.metrics["skillScore"])
 
-    def test_save_load_and_corrupt_fallback(self):
+    def test_simple_preset_updates_abstract_weights(self):
+        config = default_rule_config()
+        profile = config["profiles"][DEFAULT_PROFILE_NAME]
+        profile["simpleSettings"].update(
+            {
+                "jobQuality": "严格",
+                "affinityImportance": "较高",
+                "teamBalance": "严格",
+                "skillQuality": "严格",
+                "strongSkillImportance": "较高",
+                "highJobPreference": "较高",
+            }
+        )
+        apply_simple_settings(profile)
+        self.assertEqual(7.7, profile["threePerson"]["minJobAverage"])
+        self.assertEqual(0.09, profile["jobScoring"]["primaryBonusRate"])
+        self.assertEqual(
+            2.5, profile["sevenPerson"]["strongSkillWeight"]
+        )
+
+    def test_multiple_profiles_survive_save_and_load(self):
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)
             config = default_rule_config()
-            config["profiles"]["默认规则"]["threePerson"][
-                "minJobAverage"
-            ] = 8.2
-            path = save_rule_config(base, config)
+            custom = json.loads(
+                json.dumps(config["profiles"][DEFAULT_PROFILE_NAME])
+            )
+            custom["builtin"] = False
+            custom["threePerson"]["minJobAverage"] = 8.2
+            config["profiles"]["严格规则"] = custom
+            config["activeProfile"] = "严格规则"
+            save_rule_config(base, config)
             loaded = load_rule_config(base)
             self.assertEqual("local", loaded.source)
+            self.assertEqual("严格规则", loaded.config["activeProfile"])
             self.assertEqual(
                 8.2,
-                loaded.config["profiles"]["默认规则"]["threePerson"][
+                loaded.config["profiles"]["严格规则"]["threePerson"][
                     "minJobAverage"
                 ],
             )
 
+    def test_version_one_config_migrates_without_exact_conditions(self):
+        old = {
+            "version": 1,
+            "activeProfile": "默认规则",
+            "profiles": {
+                "默认规则": {
+                    "threePerson": {"minJobAverage": 7.5},
+                    "sevenPerson": {
+                        "minJobAverage": 7.5,
+                        "normalJobAverage": 7.7,
+                        "highJobAverage": 7.9,
+                        "mediumMinEffectiveSkills": 4,
+                        "lowMinEffectiveSkills": 5,
+                        "strongSkillWeight": 2,
+                        "specialSkillAutoPass": True,
+                        "highJobAutoPass": True,
+                    },
+                    "jobConditions": {
+                        "memberBlockedJobs": {"曹操": ["医师"]}
+                    },
+                }
+            },
+        }
+        migrated = validate_rule_config(old)
+        profile = migrated["profiles"][DEFAULT_PROFILE_NAME]
+        self.assertEqual(2, migrated["version"])
+        self.assertNotIn("jobConditions", profile)
+        self.assertEqual(7.5, profile["threePerson"]["minJobAverage"])
+
+    def test_corrupt_file_falls_back_to_builtin(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            path = base / "random_rules.json"
             path.write_text("{broken", encoding="utf-8")
             fallback = load_rule_config(base)
             self.assertEqual("builtin", fallback.source)
             self.assertTrue(fallback.warning)
-
-    def test_unknown_fields_survive_validation(self):
-        with tempfile.TemporaryDirectory() as directory:
-            base = Path(directory)
-            config = default_rule_config()
-            config["futureField"] = {"enabled": True}
-            save_rule_config(base, config)
-            loaded = json.loads(
-                (base / "random_rules.json").read_text(encoding="utf-8")
-            )
-            self.assertEqual({"enabled": True}, loaded["futureField"])
 
 
 if __name__ == "__main__":

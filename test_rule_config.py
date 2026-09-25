@@ -101,6 +101,67 @@ class RuleConfigTests(unittest.TestCase):
         self.assertFalse(result.qualified)
         self.assertEqual(3, result.metrics["skillScore"])
 
+    def test_individual_skill_score_overrides_category_weight(self):
+        config = default_rule_config()
+        seven = config["profiles"][DEFAULT_PROFILE_NAME]["sevenPerson"]
+        seven["skillBaseScores"] = {"强特技": 4.5}
+        result = evaluate_skill_rules(
+            config,
+            7.6,
+            {"曹操": ["强特技"]},
+            set(),
+            {"强特技"},
+            set(),
+        )
+        self.assertTrue(result.qualified)
+        self.assertEqual(4.5, result.metrics["skillScore"])
+
+    def test_other_skill_can_receive_custom_score(self):
+        config = default_rule_config()
+        seven = config["profiles"][DEFAULT_PROFILE_NAME]["sevenPerson"]
+        seven["skillBaseScores"] = {"普通特技": 5}
+        result = evaluate_skill_rules(
+            config,
+            7.6,
+            {"曹操": ["普通特技"]},
+            set(),
+            set(),
+            set(),
+        )
+        self.assertTrue(result.qualified)
+        self.assertEqual(5, result.metrics["skillScore"])
+
+    def test_custom_skill_score_counts_duplicate_occurrences(self):
+        config = default_rule_config()
+        seven = config["profiles"][DEFAULT_PROFILE_NAME]["sevenPerson"]
+        seven["skillBaseScores"] = {"普通特技": 2}
+        result = evaluate_skill_rules(
+            config,
+            7.6,
+            {"曹操": ["普通特技", "普通特技"]},
+            set(),
+            set(),
+            set(),
+        )
+        self.assertTrue(result.qualified)
+        self.assertEqual(4, result.metrics["skillScore"])
+
+    def test_incompatible_quality_skill_does_not_receive_override(self):
+        config = default_rule_config()
+        seven = config["profiles"][DEFAULT_PROFILE_NAME]["sevenPerson"]
+        seven["skillBaseScores"] = {"优质特技": 10}
+        result = evaluate_skill_rules(
+            config,
+            7.6,
+            {"曹操": ["优质特技"]},
+            {"优质特技"},
+            set(),
+            set(),
+            effective_skill_names=[],
+        )
+        self.assertFalse(result.qualified)
+        self.assertEqual(0, result.metrics["skillScore"])
+
     def test_simple_preset_updates_abstract_weights(self):
         config = default_rule_config()
         profile = config["profiles"][DEFAULT_PROFILE_NAME]

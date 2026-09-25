@@ -90,6 +90,7 @@ def _default_profile() -> dict[str, Any]:
             "ordinarySkillWeight": 1.0,
             "strongSkillWeight": 2.0,
             "specialSkillWeight": 5.0,
+            "skillBaseScores": {},
             "specialSkillAutoPass": True,
             "highJobAutoPass": True,
         },
@@ -339,6 +340,16 @@ def validate_rule_config(config: dict[str, Any]) -> dict[str, Any]:
         seven["highJobAutoPass"] = _require_bool(
             seven["highJobAutoPass"], f"{name}.高兵种直接通过"
         )
+        skill_scores = seven["skillBaseScores"]
+        if not isinstance(skill_scores, dict):
+            raise ValueError(f"{name}.特技基础分必须是映射")
+        seven["skillBaseScores"] = {
+            str(skill_name): _require_number(
+                score, f"{name}.{skill_name}基础分", 0, 20
+            )
+            for skill_name, score in skill_scores.items()
+            if str(skill_name).strip()
+        }
 
         for key, label, minimum, maximum in (
             ("baseScoreWeight", "兵种基础分权重", 0, 5),
@@ -529,11 +540,27 @@ def evaluate_skill_rules(
     special_count = sum(
         skill in special_skill_names for skill in all_skill_items
     )
-    skill_score = (
-        carry_count * seven["ordinarySkillWeight"]
-        + strong_count * seven["strongSkillWeight"]
-        + special_count * seven["specialSkillWeight"]
-    )
+    overrides = seven["skillBaseScores"]
+    effective_remaining: dict[str, int] = {}
+    for skill in effective_items:
+        effective_remaining[skill] = effective_remaining.get(skill, 0) + 1
+    skill_score = 0.0
+    for skill in all_skill_items:
+        if skill in special_skill_names:
+            default_score = seven["specialSkillWeight"]
+        elif skill in strong_skill_names:
+            if effective_remaining.get(skill, 0) <= 0:
+                continue
+            effective_remaining[skill] -= 1
+            default_score = seven["strongSkillWeight"]
+        elif skill in carry_skill_names:
+            if effective_remaining.get(skill, 0) <= 0:
+                continue
+            effective_remaining[skill] -= 1
+            default_score = seven["ordinarySkillWeight"]
+        else:
+            default_score = 0.0
+        skill_score += float(overrides.get(skill, default_score))
 
     if seven["specialSkillAutoPass"] and special_count > 0:
         qualified = True

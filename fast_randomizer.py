@@ -312,6 +312,33 @@ def skill_name_groups(task_module) -> tuple[set[str], set[str], set[str]]:
     return carry_names, strong_names, special_names
 
 
+def skill_score_catalog() -> tuple[tuple[str, float, str], ...]:
+    previous_cwd = Path.cwd()
+    try:
+        install(bundle_root())
+        import task.CczReRandTask as task_module
+        from models.CczModels import CCZ_MODELS
+    finally:
+        os.chdir(previous_cwd)
+
+    catalog = []
+    seen = set()
+    for skill in CCZ_MODELS.skills:
+        if skill.name in seen:
+            continue
+        seen.add(skill.name)
+        if task_module.CczUtils.isSkillSpecial(skill):
+            default_score, category = 5.0, "特殊"
+        elif task_module.CczUtils.isSkillImba(skill):
+            default_score, category = 2.0, "强力"
+        elif task_module.CczUtils.isSkillCarry(skill):
+            default_score, category = 1.0, "优质"
+        else:
+            default_score, category = 0.0, "其他"
+        catalog.append((skill.name, default_score, category))
+    return tuple(catalog)
+
+
 def effective_member_skill_names(task_module, members) -> list[str]:
     names: list[str] = []
     for member in members:
@@ -4295,6 +4322,7 @@ def gui_main() -> int:
             current_rules,
             JOB_MAP,
             TEAM_MEMBERS,
+            skill_score_catalog(),
             rules_saved,
         )
 

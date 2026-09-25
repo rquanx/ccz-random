@@ -9,6 +9,14 @@ from rule_config import default_rule_config, load_rule_config
 from rule_editor import show_rule_editor
 
 
+SKILL_CATALOG = (
+    ("普通特技", 0.0, "其他"),
+    ("优质特技", 1.0, "优质"),
+    ("强力特技", 2.0, "强力"),
+    ("特殊特技", 5.0, "特殊"),
+)
+
+
 def descendants(widget):
     result = []
     for child in widget.winfo_children():
@@ -34,6 +42,7 @@ class RuleEditorTests(unittest.TestCase):
                         default_rule_config(),
                         JOB_MAP,
                         TEAM_MEMBERS,
+                        SKILL_CATALOG,
                         saved.append,
                     )
                     root.update()
@@ -59,6 +68,12 @@ class RuleEditorTests(unittest.TestCase):
                 self.assertEqual(2, len(loaded.config["profiles"]))
                 self.assertNotEqual(
                     "默认规则", loaded.config["activeProfile"]
+                )
+                profile = loaded.config["profiles"][
+                    loaded.config["activeProfile"]
+                ]
+                self.assertEqual(
+                    {}, profile["sevenPerson"]["skillBaseScores"]
                 )
         finally:
             root.destroy()

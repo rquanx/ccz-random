@@ -52,6 +52,24 @@ class ScrollableFrame(tk.Frame):
                 self.window, width=event.width
             ),
         )
+        self.winfo_toplevel().bind(
+            "<MouseWheel>", self._on_mousewheel, add="+"
+        )
+
+    def _contains(self, widget: tk.Widget) -> bool:
+        current = widget
+        while current is not None:
+            if current == self:
+                return True
+            current = getattr(current, "master", None)
+        return False
+
+    def _on_mousewheel(self, event) -> None:
+        if not self.winfo_ismapped() or not self._contains(event.widget):
+            return
+        units = int(event.delta / 120)
+        if units:
+            self.canvas.yview_scroll(-units, "units")
 
 
 def show_rule_editor(
@@ -60,6 +78,7 @@ def show_rule_editor(
     config: dict,
     job_map: dict,
     team_members: tuple,
+    skill_catalog: tuple,
     on_saved: Callable[[dict], None],
 ) -> None:
     working = copy.deepcopy(validate_rule_config(config))
@@ -182,11 +201,13 @@ def show_rule_editor(
     affinity_tab = tk.Frame(advanced_book, padx=16, pady=14)
     base_score_tab = ScrollableFrame(advanced_book, padx=12, pady=8)
     skill_tab = tk.Frame(advanced_book, padx=16, pady=14)
+    skill_score_tab = ScrollableFrame(advanced_book, padx=12, pady=8)
     advanced_book.add(threshold_tab, text="阶段门槛")
     advanced_book.add(job_tab, text="兵种评分")
     advanced_book.add(affinity_tab, text="人物倾向")
     advanced_book.add(base_score_tab, text="兵种基础分")
     advanced_book.add(skill_tab, text="特技评分")
+    advanced_book.add(skill_score_tab, text="特技基础分")
 
     number_vars: dict[str, tk.StringVar] = {}
     bool_vars: dict[str, tk.BooleanVar] = {}
@@ -324,33 +345,60 @@ def show_rule_editor(
         secondary.grid(row=row, column=2, padx=(18, 0), pady=4)
         editable_widgets.extend((primary, secondary))
 
-    job_score_vars: dict[str, tk.StringVar] = {}
-    tk.Label(
-        base_score_tab.body,
-        text="兵种名称",
-        font=("Microsoft YaHei UI", 9, "bold"),
-    ).grid(row=0, column=0, sticky="w", padx=(4, 20), pady=(0, 8))
-    tk.Label(
-        base_score_tab.body,
-        text="基础分",
-        font=("Microsoft YaHei UI", 9, "bold"),
-    ).grid(row=0, column=1, sticky="w", pady=(0, 8))
-    for row, (_job_id, job) in enumerate(sorted(job_map.items()), start=1):
-        job_name, default_score, _job_type = job
-        tk.Label(base_score_tab.body, text=job_name, anchor="w").grid(
-            row=row, column=0, sticky="w", padx=(4, 20), pady=2
+    def add_score_grid_item(
+        parent,
+        index: int,
+        name: str,
+        variable: tk.StringVar,
+        category: str = "",
+    ) -> tk.Spinbox:
+        row, column = divmod(index, 4)
+        cell = tk.Frame(parent, bd=1, relief="solid", padx=8, pady=6)
+        cell.grid(
+            row=row,
+            column=column,
+            sticky="nsew",
+            padx=4,
+            pady=4,
         )
-        variable = tk.StringVar(value=str(default_score))
-        job_score_vars[job_name] = variable
+        title = tk.Frame(cell)
+        title.pack(fill="x")
+        tk.Label(title, text=name, anchor="w").pack(side="left")
+        if category:
+            tk.Label(
+                title,
+                text=category,
+                fg="#777777",
+                anchor="e",
+            ).pack(side="right", padx=(6, 0))
         spinbox = tk.Spinbox(
-            base_score_tab.body,
+            cell,
             from_=0,
             to=20,
             increment=0.5,
             textvariable=variable,
-            width=10,
+            width=8,
         )
-        spinbox.grid(row=row, column=1, sticky="w", pady=2)
+        spinbox.pack(fill="x", pady=(5, 0))
+        return spinbox
+
+    for column in range(4):
+        base_score_tab.body.columnconfigure(column, weight=1, uniform="jobs")
+        skill_score_tab.body.columnconfigure(
+            column, weight=1, uniform="skills"
+        )
+
+    job_score_vars: dict[str, tk.StringVar] = {}
+    for index, (_job_id, job) in enumerate(sorted(job_map.items())):
+        job_name, default_score, _job_type = job
+        variable = tk.StringVar(value=str(default_score))
+        job_score_vars[job_name] = variable
+        spinbox = add_score_grid_item(
+            base_score_tab.body,
+            index,
+            job_name,
+            variable,
+        )
         editable_widgets.append(spinbox)
 
     add_number(skill_tab, 0, "ordinary_weight", "普通优质特技基础分")
@@ -388,6 +436,25 @@ def show_rule_editor(
     high_check.grid(row=6, column=0, columnspan=2, sticky="w", pady=5)
     editable_widgets.extend((special_check, high_check))
 
+    skill_score_vars: dict[str, tk.StringVar] = {}
+    skill_defaults: dict[str, float] = {}
+    skill_categories: dict[str, str] = {}
+    for index, (skill_name, default_score, category) in enumerate(
+        skill_catalog
+    ):
+        variable = tk.StringVar(value=f"{default_score:g}")
+        skill_score_vars[skill_name] = variable
+        skill_defaults[skill_name] = float(default_score)
+        skill_categories[skill_name] = category
+        spinbox = add_score_grid_item(
+            skill_score_tab.body,
+            index,
+            skill_name,
+            variable,
+            category,
+        )
+        editable_widgets.append(spinbox)
+
     def is_builtin(name: str) -> bool:
         return bool(working["profiles"][name].get("builtin"))
 
@@ -416,6 +483,12 @@ def show_rule_editor(
         profile["threePerson"]["minJobAverage"] = float(
             number_vars["three_min"].get()
         )
+        category_scores = {
+            "优质": float(number_vars["ordinary_weight"].get()),
+            "强力": float(number_vars["strong_weight"].get()),
+            "特殊": float(number_vars["special_weight"].get()),
+            "其他": 0.0,
+        }
         profile["sevenPerson"].update(
             {
                 "minJobAverage": float(number_vars["seven_min"].get()),
@@ -436,6 +509,15 @@ def show_rule_editor(
                 "specialSkillWeight": float(
                     number_vars["special_weight"].get()
                 ),
+                "skillBaseScores": {
+                    skill_name: float(variable.get())
+                    for skill_name, variable in skill_score_vars.items()
+                    if float(variable.get())
+                    != category_scores.get(
+                        skill_categories[skill_name],
+                        skill_defaults[skill_name],
+                    )
+                },
                 "specialSkillAutoPass": bool(special_auto.get()),
                 "highJobAutoPass": bool(high_auto.get()),
             }
@@ -520,6 +602,21 @@ def show_rule_editor(
             }
             for job_name, variable in job_score_vars.items():
                 variable.set(f"{overrides.get(job_name, defaults[job_name]):g}")
+            skill_overrides = seven["skillBaseScores"]
+            category_scores = {
+                "优质": seven["ordinarySkillWeight"],
+                "强力": seven["strongSkillWeight"],
+                "特殊": seven["specialSkillWeight"],
+                "其他": 0.0,
+            }
+            for skill_name, variable in skill_score_vars.items():
+                fallback_score = category_scores.get(
+                    skill_categories[skill_name],
+                    skill_defaults[skill_name],
+                )
+                variable.set(
+                    f"{skill_overrides.get(skill_name, fallback_score):g}"
+                )
             notebook.select(
                 simple_tab
                 if profile["editorMode"] == "simple"

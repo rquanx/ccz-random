@@ -22,6 +22,15 @@ import cv2
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
+from rule_config import (
+    active_profile,
+    default_rule_config,
+    evaluate_job_rules,
+    evaluate_skill_rules,
+    load_rule_config,
+    save_rule_config,
+    validate_rule_config,
+)
 from runtime_loader import install
 
 
@@ -284,6 +293,66 @@ TEAM_MEMBERS = (
     ("李典", "MASTER", "ALL_ROUNDER"),
     ("曹洪", "ALL_ROUNDER", "WARRIOR"),
 )
+
+
+def skill_name_groups(task_module) -> tuple[set[str], set[str], set[str]]:
+    from models.CczModels import CCZ_MODELS
+
+    carry_names: set[str] = set()
+    strong_names: set[str] = set()
+    special_names: set[str] = set()
+    for skill in CCZ_MODELS.skills:
+        if task_module.CczUtils.isSkillSpecial(skill):
+            special_names.add(skill.name)
+        if task_module.CczUtils.isSkillImba(skill):
+            strong_names.add(skill.name)
+        elif task_module.CczUtils.isSkillCarry(skill):
+            carry_names.add(skill.name)
+    return carry_names, strong_names, special_names
+
+
+def effective_member_skill_names(task_module, members) -> list[str]:
+    names: list[str] = []
+    for member in members:
+        for skill in member.skillList:
+            if not (
+                task_module.CczUtils.isSkillCarry(skill)
+                or task_module.CczUtils.isSkillImba(skill)
+            ):
+                continue
+            if (
+                member.cczType == task_module.CczType.WARRIOR
+                and skill.type == task_module.CczType.MASTER
+            ) or (
+                member.cczType == task_module.CczType.MASTER
+                and skill.type == task_module.CczType.WARRIOR
+            ):
+                continue
+            names.append(skill.name)
+    return names
+
+
+def evaluate_task_skill_rules(
+    rules: dict,
+    task_module,
+    members,
+    job_average: float,
+):
+    carry_names, strong_names, special_names = skill_name_groups(task_module)
+    member_skills = {
+        member.name: [skill.name for skill in member.skillList]
+        for member in members
+    }
+    return evaluate_skill_rules(
+        rules,
+        job_average,
+        member_skills,
+        carry_names,
+        strong_names,
+        special_names,
+        effective_member_skill_names(task_module, members),
+    )
+
 
 kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
 user32 = ctypes.WinDLL("user32", use_last_error=True)
@@ -2500,6 +2569,7 @@ def inspect_saved_slot(
 
         install(bundle_root())
         import task.CczReRandTask as task_module
+        rules = load_rule_config(app_dir()).config
 
         if (
             member_index is None
@@ -2590,30 +2660,29 @@ def inspect_saved_slot(
             job_ids = worker_results[0]["job_ids"]
             if any(result["job_ids"] != job_ids for result in worker_results):
                 raise RuntimeError("并行检查读取到的兵种结果不一致")
-            carry_skill_count = sum(
-                result["carry_count"] for result in worker_results
+            carry_names, strong_names, special_names = skill_name_groups(
+                task_module
             )
-            imba_skill_count = sum(
-                result["imba_count"] for result in worker_results
-            )
-            special_skill_count = sum(
-                result["special_count"] for result in worker_results
-            )
-            useful_skill_count = carry_skill_count + imba_skill_count * 2
-            qualified = (
-                special_skill_count > 0
-                or job_score >= task_module.HIGH_SCORE_LINE
-                or (
-                    job_score >= task_module.NORMAL_SCORE_LINE
-                    and useful_skill_count >= 4
-                )
-                or (
-                    job_score < task_module.NORMAL_SCORE_LINE
-                    and useful_skill_count >= 5
-                )
+            member_skills = {
+                result["name"]: result["skills"]
+                for result in worker_results
+            }
+            skill_evaluation = evaluate_skill_rules(
+                rules,
+                job_score,
+                member_skills,
+                carry_names,
+                strong_names,
+                special_names,
+                [
+                    skill
+                    for result in worker_results
+                    for skill in result["effective_skills"]
+                ],
             )
             result = {
-                "qualified": qualified,
+                "qualified": skill_evaluation.qualified,
+                "reasons": list(skill_evaluation.reasons),
                 "job_names": [
                     JOB_MAP[job_id][0] for job_id in job_ids
                 ],
@@ -2813,6 +2882,28 @@ def inspect_saved_slot(
                         "carry_count": carry_count,
                         "imba_count": imba_count,
                         "special_count": special_count,
+                        "effective_skills": [
+                            skill.name
+                            for skill in member.skillList
+                            if (
+                                task_module.CczUtils.isSkillCarry(skill)
+                                or task_module.CczUtils.isSkillImba(skill)
+                            )
+                            and not (
+                                (
+                                    member.cczType
+                                    == task_module.CczType.WARRIOR
+                                    and skill.type
+                                    == task_module.CczType.MASTER
+                                )
+                                or (
+                                    member.cczType
+                                    == task_module.CczType.MASTER
+                                    and skill.type
+                                    == task_module.CczType.WARRIOR
+                                )
+                            )
+                        ],
                     }
                     (output_dir / "member.json").write_text(
                         json.dumps(
@@ -2855,27 +2946,15 @@ def inspect_saved_slot(
                 raise RuntimeError(
                     f"只读取到 {len(panels)}/{TEAM_MEMBER_NUM} 个武将能力面板"
                 )
-            (
-                member_with_carry_skill_count,
-                carry_skill_count,
-                special_skill_count,
-                imba_skill_count,
-            ) = runner._getTeamCarrySkillsCount()
-            useful_skill_count = carry_skill_count + imba_skill_count * 2
-            qualified = (
-                special_skill_count > 0
-                or job_score >= task_module.HIGH_SCORE_LINE
-                or (
-                    job_score >= task_module.NORMAL_SCORE_LINE
-                    and useful_skill_count >= 4
-                )
-                or (
-                    job_score < task_module.NORMAL_SCORE_LINE
-                    and useful_skill_count >= 5
-                )
+            skill_evaluation = evaluate_task_skill_rules(
+                rules,
+                task_module,
+                task_module.TEAM_MEMBER_LIST,
+                job_score,
             )
             result = {
-                "qualified": qualified,
+                "qualified": skill_evaluation.qualified,
+                "reasons": list(skill_evaluation.reasons),
                 "job_names": [
                     JOB_MAP[job_id][0] for job_id in job_ids
                 ],
@@ -2887,12 +2966,7 @@ def inspect_saved_slot(
                     str(output_dir / f"member-{index}.png")
                     for index in range(1, TEAM_MEMBER_NUM + 1)
                 ],
-                "counts": {
-                    "members": member_with_carry_skill_count,
-                    "carry": carry_skill_count,
-                    "special": special_skill_count,
-                    "imba": imba_skill_count,
-                },
+                "metrics": skill_evaluation.metrics,
             }
             (output_dir / "inspection.json").write_text(
                 json.dumps(result, ensure_ascii=False, indent=2),
@@ -2912,6 +2986,7 @@ def patch_runtime(
     task_module,
     pid: int,
     three_person_mode: bool = False,
+    rules: dict | None = None,
 ) -> None:
     from window.BaseWindow import BaseWindow
     from window.CczWindow import CczPeopleWindow
@@ -2919,6 +2994,7 @@ def patch_runtime(
     original_check = task_module.CczReRandTask.checkPeopleAtR0
     original_version_check = task_module.CczReRandTask.checkCczVersion
     original_get_mat = BaseWindow.getMat
+    rules = rules or default_rule_config()
 
     def get_hwnd_by_name(self, window_name: str) -> None:
         self._BaseWindow__hwnd = find_process_window(pid, window_name)
@@ -3039,45 +3115,52 @@ def patch_runtime(
             print(f"内存快筛遇到未收录兵种编号 {ids}，本轮放弃")
             return False
 
-        total_score = 0.0
-        master_count = 0
         summaries = []
-        for index, (job_id, member) in enumerate(zip(ids, members)):
+        jobs = []
+        member_rules = []
+        for job_id, member in zip(ids, members):
             name, score, job_type = JOB_MAP[job_id]
             member_name, primary_type, secondary_type = member
-
-            attach_score = 0.0
-            if score >= 7 and job_type == primary_type:
-                attach_score = score * 0.06
-            elif score >= 7 and job_type == secondary_type:
-                attach_score = score * 0.03
-            if job_type == "MASTER":
-                master_count += 1
-                if index == 1:
-                    attach_score -= 1
-            total_score += score + attach_score
+            jobs.append({"name": name, "score": score, "type": job_type})
+            member_rules.append(
+                {
+                    "name": member_name,
+                    "primaryType": primary_type,
+                    "secondaryType": secondary_type,
+                }
+            )
             summaries.append(f"{member_name}:{name}")
 
-        if master_count > 1:
-            total_score -= (master_count - 1) ** 2
-        average = total_score / len(ids)
-        # This stage only scores the seven jobs. The original tool uses
-        # PREV_SCORE_LINE for the same job-only prefilter; HIGH_SCORE_LINE
-        # additionally assumes skill scores that are not part of this pass.
-        score_line = task_module.PREV_SCORE_LINE
+        evaluation = evaluate_job_rules(
+            rules,
+            "three" if three_person_mode else "seven",
+            jobs,
+            member_rules,
+        )
+        average = evaluation.metrics["average"]
         success = (
             os.environ.get("CCZ_TEST_ACCEPT_FIRST") == "1"
-            or average >= score_line
+            or evaluation.qualified
         )
         self._r0_job_ids = ids
         self._r0_average = average
         self._r0_summaries = summaries
+        self._r0_rule_reasons = evaluation.reasons
         print(
             f"R0 {'三人' if three_person_mode else '七人'}兵种筛选: "
             + "; ".join(summaries)
             + "; 结果="
             + ("通过" if success else "未通过")
         )
+        diagnostic_log(
+            "job_rule_evaluation",
+            mode="three" if three_person_mode else "seven",
+            qualified=success,
+            reasons=evaluation.reasons,
+            metrics=evaluation.metrics,
+        )
+        if not success and evaluation.reasons:
+            print("规则原因: " + "；".join(evaluation.reasons))
         return success
 
     def load_team_skills_from_memory(self):
@@ -3105,30 +3188,26 @@ def patch_runtime(
 
     def fast_check_people_at_r1(self) -> bool:
         load_team_skills_from_memory(self)
-        (
-            member_with_carry_skill_count,
-            carry_skill_count,
-            special_skill_count,
-            imba_skill_count,
-        ) = self._getTeamCarrySkillsCount()
-        useful_skill_count = carry_skill_count + imba_skill_count * 2
-        if special_skill_count > 0:
-            success = True
-        elif self._r0_average >= task_module.HIGH_SCORE_LINE:
-            success = True
-        elif self._r0_average >= task_module.NORMAL_SCORE_LINE:
-            success = useful_skill_count >= 4
-        else:
-            success = useful_skill_count >= 5
+        evaluation = evaluate_task_skill_rules(
+            rules,
+            task_module,
+            task_module.TEAM_MEMBER_LIST,
+            self._r0_average,
+        )
+        success = evaluation.qualified
+        self._r1_rule_reasons = evaluation.reasons
         print(
             "R1 特技内存快筛: "
-            f"携带特技人数={member_with_carry_skill_count}, "
-            f"携带特技={carry_skill_count}, "
-            f"特殊特技={special_skill_count}, "
-            f"强力特技={imba_skill_count}, "
-            f"有效计数={useful_skill_count}; "
             + ("通过" if success else "未通过")
         )
+        diagnostic_log(
+            "skill_rule_evaluation",
+            qualified=success,
+            reasons=evaluation.reasons,
+            metrics=evaluation.metrics,
+        )
+        if not success and evaluation.reasons:
+            print("规则原因: " + "；".join(evaluation.reasons))
         return success
 
     def collect_equipment(self):
@@ -3472,6 +3551,9 @@ def patch_runtime(
                 )
                 self._team_members = task_module.TEAM_MEMBER_LIST
                 if not inspection["qualified"]:
+                    reasons = inspection.get("reasons", [])
+                    if reasons:
+                        print("规则原因: " + "；".join(reasons))
                     print("用户进度: 本轮最终结果=特技不合格")
                     return False
             finally:
@@ -3559,6 +3641,10 @@ def format_user_log(line: str) -> str:
         progress = progress.replace("本轮最终结果=", "本轮结果：")
         progress = progress.replace("，开始保存", "")
         return progress
+    if text.startswith("规则原因:"):
+        return "原因：" + text.split(":", 1)[1].strip()
+    if text.startswith("规则提示："):
+        return text
     if text.startswith("R1 七人特技内存读取:"):
         return "正在检查特技条件……"
     if text.startswith("========== 结果 "):
@@ -3608,7 +3694,7 @@ def format_user_log(line: str) -> str:
 
 def gui_main() -> int:
     import tkinter as tk
-    from tkinter import messagebox, scrolledtext
+    from tkinter import messagebox, scrolledtext, ttk
 
     root = tk.Tk()
     root.title("2.10 随机工具")
@@ -3623,6 +3709,11 @@ def gui_main() -> int:
     stop_requested_by_user = False
     last_formatted_line = ""
     mode_var = tk.StringVar(value="seven")
+    rule_load = load_rule_config(app_dir())
+    current_rules = rule_load.config
+    rule_name_var = tk.StringVar(
+        value=f"当前规则：{current_rules['activeProfile']}"
+    )
 
     outer = tk.Frame(root, padx=14, pady=12)
     outer.pack(fill="both", expand=True)
@@ -3736,6 +3827,11 @@ def gui_main() -> int:
     )
     seven_mode_button.pack(side="left")
     three_mode_button.pack(side="left", padx=(8, 0))
+    rule_button = tk.Button(toolbar, text="规则设置", width=10)
+    rule_button.pack(side="left", padx=(0, 8))
+    tk.Label(toolbar, textvariable=rule_name_var, fg="#555555").pack(
+        side="left", padx=(0, 12)
+    )
     start_button = tk.Button(toolbar, text="开始随机", width=12)
     stop_button = tk.Button(toolbar, text="停止随机", width=12, state="disabled")
     stop_button.pack(side="right", padx=(8, 0))
@@ -3751,6 +3847,412 @@ def gui_main() -> int:
         borderwidth=1,
     )
     output.pack(fill="both", expand=True)
+
+    def split_names(value: str) -> list[str]:
+        normalized = value.replace("，", ",").replace("；", ",")
+        normalized = normalized.replace(";", ",").replace("\n", ",")
+        return list(
+            dict.fromkeys(
+                item.strip() for item in normalized.split(",") if item.strip()
+            )
+        )
+
+    def join_names(values) -> str:
+        return "，".join(values)
+
+    def open_rule_editor() -> None:
+        nonlocal current_rules
+        editor = tk.Toplevel(root)
+        editor.title("规则设置")
+        editor.geometry("900x700")
+        editor.minsize(760, 600)
+        editor.transient(root)
+        editor.grab_set()
+
+        working = json.loads(json.dumps(current_rules, ensure_ascii=False))
+        profile_name = working["activeProfile"]
+        profile = active_profile(working)
+        values: dict[str, tk.Variable] = {}
+        entries: dict[str, tk.Entry] = {}
+
+        header = tk.Frame(editor, padx=14, pady=12)
+        header.pack(fill="x")
+        tk.Label(header, text="规则名称").pack(side="left")
+        profile_var = tk.StringVar(value=profile_name)
+        tk.Entry(header, textvariable=profile_var, width=24).pack(
+            side="left", padx=(8, 0)
+        )
+        tk.Label(
+            header,
+            text="保存后，下一次随机会使用这套规则。",
+            fg="#555555",
+        ).pack(side="left", padx=(14, 0))
+
+        notebook = ttk.Notebook(editor)
+        notebook.pack(fill="both", expand=True, padx=14)
+        job_tab = tk.Frame(notebook, padx=14, pady=14)
+        skill_tab = tk.Frame(notebook, padx=14, pady=14)
+        advanced_tab = tk.Frame(notebook, padx=14, pady=14)
+        notebook.add(job_tab, text="兵种规则")
+        notebook.add(skill_tab, text="特技规则")
+        notebook.add(advanced_tab, text="高级设置")
+
+        def add_entry(
+            parent,
+            row: int,
+            key: str,
+            label: str,
+            value,
+            width: int = 18,
+            hint: str = "",
+        ) -> tk.Entry:
+            tk.Label(parent, text=label, anchor="w").grid(
+                row=row, column=0, sticky="w", pady=4
+            )
+            variable = tk.StringVar(value="" if value is None else str(value))
+            values[key] = variable
+            entry = tk.Entry(parent, textvariable=variable, width=width)
+            entry.grid(row=row, column=1, sticky="w", padx=(12, 8), pady=4)
+            entries[key] = entry
+            if hint:
+                tk.Label(parent, text=hint, fg="#666666", anchor="w").grid(
+                    row=row, column=2, sticky="w", pady=4
+                )
+            return entry
+
+        three = profile["threePerson"]
+        seven = profile["sevenPerson"]
+        conditions = profile["jobConditions"]
+        add_entry(
+            job_tab, 0, "three_min", "初始3人兵种门槛",
+            three["minJobAverage"], hint="只随机初始3人时使用",
+        )
+        add_entry(
+            job_tab, 1, "seven_min", "完整7人兵种门槛",
+            seven["minJobAverage"], hint="低于此条件直接重新随机",
+        )
+        max_master = add_entry(
+            job_tab, 2, "max_master", "文官兵种人数上限",
+            conditions["maxMasterCount"], hint="留空表示不限制",
+        )
+        max_master.configure(width=18)
+
+        tk.Label(job_tab, text="指定兵种组合", anchor="nw").grid(
+            row=3, column=0, sticky="nw", pady=(10, 4)
+        )
+        groups_text = scrolledtext.ScrolledText(
+            job_tab, width=56, height=5, wrap="word"
+        )
+        groups_text.grid(
+            row=3, column=1, columnspan=2, sticky="nsew",
+            padx=(12, 0), pady=(10, 4),
+        )
+        groups_text.insert(
+            "1.0",
+            "\n".join(
+                f"{join_names(group['jobs'])} | {group['minCount']}"
+                for group in conditions["requiredJobGroups"]
+            ),
+        )
+        tk.Label(
+            job_tab,
+            text="每行格式：虎豹骑，宿卫骑 | 1，表示这些兵种至少出现1人。",
+            fg="#666666",
+            anchor="w",
+        ).grid(row=4, column=1, columnspan=2, sticky="w", padx=(12, 0))
+
+        allowed_entries = {}
+        blocked_entries = {}
+        tk.Label(job_tab, text="武将").grid(row=5, column=0, pady=(14, 4))
+        tk.Label(job_tab, text="只允许这些兵种").grid(
+            row=5, column=1, pady=(14, 4)
+        )
+        tk.Label(job_tab, text="排除这些兵种").grid(
+            row=5, column=2, pady=(14, 4)
+        )
+        for offset, member in enumerate(
+            [item[0] for item in TEAM_MEMBERS], start=6
+        ):
+            tk.Label(job_tab, text=member).grid(
+                row=offset, column=0, sticky="w", pady=2
+            )
+            allowed = tk.Entry(job_tab, width=34)
+            allowed.insert(
+                0, join_names(conditions["memberAllowedJobs"].get(member, []))
+            )
+            allowed.grid(row=offset, column=1, padx=(12, 8), pady=2)
+            allowed_entries[member] = allowed
+            blocked = tk.Entry(job_tab, width=34)
+            blocked.insert(
+                0, join_names(conditions["memberBlockedJobs"].get(member, []))
+            )
+            blocked.grid(row=offset, column=2, pady=2)
+            blocked_entries[member] = blocked
+        job_tab.columnconfigure(1, weight=1)
+        job_tab.columnconfigure(2, weight=1)
+
+        skills = profile["skillConditions"]
+        add_entry(
+            skill_tab, 0, "required_any", "至少出现其中一个特技",
+            join_names(skills["requiredAny"]), width=58,
+            hint="留空表示不限制",
+        )
+        add_entry(
+            skill_tab, 1, "required_all", "必须全部出现的特技",
+            join_names(skills["requiredAll"]), width=58,
+            hint="留空表示不限制",
+        )
+        add_entry(
+            skill_tab, 2, "blocked_skills", "排除特技",
+            join_names(skills["blocked"]), width=58,
+            hint="出现任意一个即不合格",
+        )
+        add_entry(
+            skill_tab, 3, "min_quality_members", "至少几名武将有好特技",
+            skills["minMembersWithQualitySkill"], hint="0 表示不限制",
+        )
+        member_required_entries = {}
+        member_blocked_entries = {}
+        tk.Label(skill_tab, text="武将").grid(
+            row=4, column=0, pady=(14, 4)
+        )
+        tk.Label(skill_tab, text="至少出现其中一个特技").grid(
+            row=4, column=1, pady=(14, 4)
+        )
+        tk.Label(skill_tab, text="排除特技").grid(
+            row=4, column=2, pady=(14, 4)
+        )
+        for offset, member in enumerate(
+            [item[0] for item in TEAM_MEMBERS], start=5
+        ):
+            tk.Label(skill_tab, text=member).grid(
+                row=offset, column=0, sticky="w", pady=2
+            )
+            required = tk.Entry(skill_tab, width=34)
+            required.insert(
+                0, join_names(skills["memberRequired"].get(member, []))
+            )
+            required.grid(row=offset, column=1, padx=(12, 8), pady=2)
+            member_required_entries[member] = required
+            blocked = tk.Entry(skill_tab, width=34)
+            blocked.insert(
+                0, join_names(skills["memberBlocked"].get(member, []))
+            )
+            blocked.grid(row=offset, column=2, pady=2)
+            member_blocked_entries[member] = blocked
+        skill_tab.columnconfigure(1, weight=1)
+        skill_tab.columnconfigure(2, weight=1)
+
+        scoring = profile["jobScoring"]
+        add_entry(
+            advanced_tab, 0, "normal_average", "普通兵种分界",
+            seven["normalJobAverage"],
+        )
+        add_entry(
+            advanced_tab, 1, "high_average", "高兵种分界",
+            seven["highJobAverage"],
+        )
+        add_entry(
+            advanced_tab, 2, "medium_skills", "普通兵种所需有效特技",
+            seven["mediumMinEffectiveSkills"],
+        )
+        add_entry(
+            advanced_tab, 3, "low_skills", "较低兵种所需有效特技",
+            seven["lowMinEffectiveSkills"],
+        )
+        add_entry(
+            advanced_tab, 4, "strong_weight", "强力特技计数权重",
+            seven["strongSkillWeight"],
+        )
+        boolean_specs = (
+            ("special_auto", "特殊特技直接合格", seven["specialSkillAutoPass"]),
+            ("high_auto", "高兵种直接合格", seven["highJobAutoPass"]),
+            ("affinity", "启用武将兵种适配加成", scoring["affinityEnabled"]),
+            (
+                "master_penalty",
+                "启用文官兵种过多扣分",
+                scoring["extraMasterPenaltyEnabled"],
+            ),
+        )
+        for row, (key, label, value) in enumerate(boolean_specs, start=5):
+            variable = tk.BooleanVar(value=value)
+            values[key] = variable
+            tk.Checkbutton(
+                advanced_tab, text=label, variable=variable, anchor="w"
+            ).grid(row=row, column=0, columnspan=2, sticky="w", pady=3)
+        add_entry(
+            advanced_tab, 9, "affinity_min", "适配加成最低基础分",
+            scoring["affinityMinBaseScore"],
+        )
+        add_entry(
+            advanced_tab, 10, "primary_bonus", "主要类型加成比例",
+            scoring["primaryBonusRate"], hint="例如 0.06 表示 6%",
+        )
+        add_entry(
+            advanced_tab, 11, "secondary_bonus", "次要类型加成比例",
+            scoring["secondaryBonusRate"], hint="例如 0.03 表示 3%",
+        )
+        add_entry(
+            advanced_tab, 12, "xiahou_penalty", "夏侯惇为文官时扣分",
+            scoring["xiahouDunMasterPenalty"],
+        )
+
+        def parse_groups() -> list[dict]:
+            result = []
+            for line_number, line in enumerate(
+                groups_text.get("1.0", "end").splitlines(), start=1
+            ):
+                if not line.strip():
+                    continue
+                parts = line.replace("｜", "|").split("|")
+                if len(parts) != 2:
+                    raise ValueError(
+                        f"指定兵种组合第 {line_number} 行格式不正确"
+                    )
+                result.append(
+                    {
+                        "jobs": split_names(parts[0]),
+                        "minCount": int(parts[1].strip()),
+                    }
+                )
+            return result
+
+        def build_config() -> dict:
+            name = profile_var.get().strip()
+            if not name:
+                raise ValueError("规则名称不能为空")
+            result = default_rule_config()
+            result["activeProfile"] = name
+            result["profiles"] = {name: json.loads(json.dumps(profile))}
+            target = result["profiles"][name]
+            target["threePerson"]["minJobAverage"] = float(
+                values["three_min"].get()
+            )
+            target["sevenPerson"].update(
+                {
+                    "minJobAverage": float(values["seven_min"].get()),
+                    "normalJobAverage": float(values["normal_average"].get()),
+                    "highJobAverage": float(values["high_average"].get()),
+                    "mediumMinEffectiveSkills": int(
+                        values["medium_skills"].get()
+                    ),
+                    "lowMinEffectiveSkills": int(values["low_skills"].get()),
+                    "strongSkillWeight": int(values["strong_weight"].get()),
+                    "specialSkillAutoPass": bool(
+                        values["special_auto"].get()
+                    ),
+                    "highJobAutoPass": bool(values["high_auto"].get()),
+                }
+            )
+            target["jobScoring"].update(
+                {
+                    "affinityEnabled": bool(values["affinity"].get()),
+                    "affinityMinBaseScore": float(
+                        values["affinity_min"].get()
+                    ),
+                    "primaryBonusRate": float(
+                        values["primary_bonus"].get()
+                    ),
+                    "secondaryBonusRate": float(
+                        values["secondary_bonus"].get()
+                    ),
+                    "xiahouDunMasterPenalty": float(
+                        values["xiahou_penalty"].get()
+                    ),
+                    "extraMasterPenaltyEnabled": bool(
+                        values["master_penalty"].get()
+                    ),
+                }
+            )
+            max_master_value = values["max_master"].get().strip()
+            target["jobConditions"].update(
+                {
+                    "maxMasterCount": (
+                        None
+                        if not max_master_value
+                        else int(max_master_value)
+                    ),
+                    "requiredJobGroups": parse_groups(),
+                    "memberAllowedJobs": {
+                        member: split_names(entry.get())
+                        for member, entry in allowed_entries.items()
+                        if split_names(entry.get())
+                    },
+                    "memberBlockedJobs": {
+                        member: split_names(entry.get())
+                        for member, entry in blocked_entries.items()
+                        if split_names(entry.get())
+                    },
+                }
+            )
+            target["skillConditions"].update(
+                {
+                    "requiredAny": split_names(values["required_any"].get()),
+                    "requiredAll": split_names(values["required_all"].get()),
+                    "blocked": split_names(values["blocked_skills"].get()),
+                    "minMembersWithQualitySkill": int(
+                        values["min_quality_members"].get()
+                    ),
+                    "memberRequired": {
+                        member: split_names(entry.get())
+                        for member, entry in member_required_entries.items()
+                        if split_names(entry.get())
+                    },
+                    "memberBlocked": {
+                        member: split_names(entry.get())
+                        for member, entry in member_blocked_entries.items()
+                        if split_names(entry.get())
+                    },
+                }
+            )
+            return validate_rule_config(result)
+
+        footer = tk.Frame(editor, padx=14, pady=12)
+        footer.pack(fill="x")
+
+        def save_rules() -> None:
+            nonlocal current_rules
+            try:
+                config = build_config()
+                path = save_rule_config(app_dir(), config)
+            except Exception as exc:
+                messagebox.showerror(
+                    "规则无法保存",
+                    f"请检查填写内容。\n\n{exc}",
+                    parent=editor,
+                )
+                return
+            current_rules = config
+            rule_name_var.set(f"当前规则：{config['activeProfile']}")
+            messagebox.showinfo(
+                "规则已保存",
+                f"规则已保存到工具目录：\n{path.name}",
+                parent=editor,
+            )
+            editor.destroy()
+
+        def restore_defaults() -> None:
+            if not messagebox.askyesno(
+                "恢复内置默认",
+                "将关闭当前窗口并恢复内置默认规则，确定继续吗？",
+                parent=editor,
+            ):
+                return
+            nonlocal current_rules
+            current_rules = default_rule_config()
+            save_rule_config(app_dir(), current_rules)
+            rule_name_var.set("当前规则：默认规则")
+            editor.destroy()
+
+        tk.Button(
+            footer, text="恢复内置默认", command=restore_defaults, width=14
+        ).pack(side="left")
+        tk.Button(
+            footer, text="取消", command=editor.destroy, width=10
+        ).pack(side="right", padx=(8, 0))
+        tk.Button(
+            footer, text="保存规则", command=save_rules, width=12
+        ).pack(side="right")
 
     def append(text: str) -> None:
         if not text:
@@ -3818,6 +4320,7 @@ def gui_main() -> int:
             stop_button.configure(state="disabled")
             seven_mode_button.configure(state="normal")
             three_mode_button.configure(state="normal")
+            rule_button.configure(state="normal")
             stopped = stop_requested_by_user or code == 130
             status.set("已停止" if stopped else ("已完成" if code == 0 else "执行失败"))
             append(
@@ -3838,10 +4341,22 @@ def gui_main() -> int:
         root.after(100, poll_worker)
 
     def start() -> None:
+        nonlocal current_rules
         nonlocal worker, log_path, result_image_path, stop_file
         nonlocal stop_requested_by_user, last_formatted_line
         if worker is not None:
             return
+        latest_rules = load_rule_config(app_dir())
+        current_rules = latest_rules.config
+        rule_name_var.set(
+            f"当前规则：{current_rules['activeProfile']}"
+        )
+        if latest_rules.warning:
+            messagebox.showwarning(
+                "规则文件无法使用",
+                latest_rules.warning,
+                parent=root,
+            )
         result_image_path = None
         stop_requested_by_user = False
         last_formatted_line = ""
@@ -3892,6 +4407,7 @@ def gui_main() -> int:
         stop_button.configure(state="normal")
         seven_mode_button.configure(state="disabled")
         three_mode_button.configure(state="disabled")
+        rule_button.configure(state="disabled")
         status.set("运行中")
 
     def stop() -> None:
@@ -3912,7 +4428,17 @@ def gui_main() -> int:
 
     start_button.configure(command=start)
     stop_button.configure(command=stop)
+    rule_button.configure(command=open_rule_editor)
     root.protocol("WM_DELETE_WINDOW", close)
+    if rule_load.warning:
+        root.after(
+            150,
+            lambda: messagebox.showwarning(
+                "规则文件无法使用",
+                rule_load.warning,
+                parent=root,
+            ),
+        )
     root.after(100, poll_worker)
     root.mainloop()
     return 0
@@ -3956,6 +4482,11 @@ def main() -> int:
     )
     print(f"日志: {log_path}")
     print(f"诊断日志: {DIAGNOSTIC_LOG_PATH}")
+    rule_load = load_rule_config(app)
+    rules = rule_load.config
+    print(f"当前规则：{rules['activeProfile']}")
+    if rule_load.warning:
+        print(f"规则提示：{rule_load.warning}")
     diagnostic_log(
         "worker_start",
         executable=sys.executable,
@@ -3963,6 +4494,9 @@ def main() -> int:
         command_line=sys.argv,
         platform=sys.platform,
         random_mode="three" if three_person_mode else "seven",
+        rule_name=rules["activeProfile"],
+        rule_source=rule_load.source,
+        rule_warning=rule_load.warning,
     )
 
     try:
@@ -4014,6 +4548,7 @@ def main() -> int:
                         task_module,
                         game.pid,
                         three_person_mode=three_person_mode,
+                        rules=rules,
                     )
                     runner = task_module.CczReRandTask(0)
                     runner._target_save_pos = result_slot

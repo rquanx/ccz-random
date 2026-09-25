@@ -16,6 +16,8 @@
 /ccz_fast_logs/
 /randResult/
 /*.E5S
+/random_rules.json
+/.random_rules.json.*.tmp
 
 # Generated inspection and reverse-engineering workspaces
 /inspect-*/

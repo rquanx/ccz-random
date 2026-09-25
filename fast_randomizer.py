@@ -2903,67 +2903,34 @@ def inspect_initial_saved_slot(
     if not save_path.is_file():
         raise FileNotFoundError(f"未找到结果存档 {save_path.name}")
 
+    started_at = time.perf_counter()
+    with HiddenGameSession(game_executable) as game:
+        patch_inspection_runtime(
+            task_module,
+            game.pid,
+            output_dir,
+        )
+        if not title_load_verified(game.pid, slot - 1, save_path):
+            raise RuntimeError("结果存档未能完成后台读取")
+        time.sleep(0.8)
+        runner = task_module.CczReRandTask(0)
+        panels = capture_initial_member_panels(
+            task_module,
+            game.pid,
+            game.main_window,
+            runner,
+        )
+
     panel_paths = []
-    member_names = tuple(member[0] for member in INITIAL_TEAM_MEMBERS)
-    for index, member_name in enumerate(member_names):
-        with HiddenGameSession(game_executable) as game:
-            patch_inspection_runtime(
-                task_module,
-                game.pid,
-                output_dir,
-            )
-            if not title_load_verified(game.pid, slot - 1, save_path):
-                raise RuntimeError("结果存档未能完成后台读取")
-            time.sleep(0.8)
-            runner = task_module.CczReRandTask(0)
-            for _attempt in range(4):
-                runner.openPeople()
-                if runner.peopleWind.isInitSuccess():
-                    break
-                native_wake_game(game.pid, game.main_window, 600)
-                time.sleep(0.2)
-            else:
-                raise RuntimeError("初始三人检查未能打开武将列表")
-            run_native_control(
-                game.pid,
-                [
-                    "list-window",
-                    str(runner.peopleWind.hwnd),
-                    str(index),
-                ],
-            )
-            time.sleep(0.6)
-            info_hwnd = 0
-            deadline = time.perf_counter() + 8.0
-            while time.perf_counter() < deadline:
-                runner.initPeopleInfoWind()
-                info_hwnd = find_member_dialog(
-                    game.pid,
-                    member_name,
-                )
-                if info_hwnd:
-                    break
-                time.sleep(0.05)
-            if not info_hwnd:
-                raise RuntimeError(
-                    f"初始三人检查未能打开{member_name}能力窗口"
-                )
-            runner.peopleInfoWind._BaseWindow__hwnd = info_hwnd
-            panel = runner.peopleInfoWind.getAllSkillMat()
-            if panel is None or not getattr(panel, "size", 0):
-                raise RuntimeError(
-                    f"{member_name}能力信息未能读取"
-                )
-            panel_path = output_dir / f"member-{index + 1}.png"
-            write_cv_image(panel_path, panel)
-            panel_paths.append(str(panel_path))
-            diagnostic_log(
-                "initial_member_panel_captured",
-                pid=game.pid,
-                member=member_name,
-                index=index,
-                shape=getattr(panel, "shape", None),
-            )
+    for index, panel in enumerate(panels):
+        panel_path = output_dir / f"member-{index + 1}.png"
+        write_cv_image(panel_path, panel)
+        panel_paths.append(str(panel_path))
+    diagnostic_log(
+        "initial_member_inspection_completed",
+        slot=slot,
+        elapsed_seconds=round(time.perf_counter() - started_at, 3),
+    )
     result = {"panels": panel_paths}
     (output_dir / "inspection.json").write_text(
         json.dumps(result, ensure_ascii=False, indent=2),
@@ -4047,6 +4014,10 @@ def patch_runtime(
             "并通过保存时内存逐字节校验"
         )
         if three_person_mode:
+            print(
+                f"用户进度: 正在整理第 {self.savePos} 号存档的"
+                "初始三人能力……"
+            )
             inspection_dir = Path(
                 tempfile.mkdtemp(
                     prefix="ccz-initial-inspect-",
@@ -4063,7 +4034,10 @@ def patch_runtime(
                     Image.open(panel_path).convert("RGB").copy()
                     for panel_path in inspection["panels"]
                 )
-                print("初始三人实际能力已读取到结果图")
+                print(
+                    f"用户进度: 第 {self.savePos} 号存档的"
+                    "初始三人能力已整理"
+                )
             finally:
                 shutil.rmtree(inspection_dir, ignore_errors=True)
         return True

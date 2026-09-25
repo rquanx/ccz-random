@@ -144,7 +144,14 @@ class RuleEditorTests(unittest.TestCase):
                         if isinstance(widget, ttk.Notebook)
                     ]
                     self.assertEqual(1, len(help_books))
-                    self.assertEqual(6, len(help_books[0].tabs()))
+                    self.assertEqual(7, len(help_books[0].tabs()))
+                    self.assertEqual(
+                        "先看这里",
+                        help_books[0].tab(
+                            help_books[0].select(),
+                            "text",
+                        ),
+                    )
                     help_dialog.destroy()
                     buttons["保存规则"].invoke()
                     root.update()

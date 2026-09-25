@@ -25,6 +25,107 @@ TYPE_LABELS = {
 }
 TYPE_VALUES = {label: value for value, label in TYPE_LABELS.items()}
 
+ADVANCED_HELP_SECTIONS = (
+    (
+        "阶段门槛",
+        """用于决定一轮结果是否进入后续检查，以及最终需要达到的标准。
+
+初始3人兵种合格门槛
+只随机3人时使用，3人的兵种综合平均分达到该数值才合格。
+
+完整7人兵种合格门槛
+随机7人时使用。低于该数值会直接重新随机，不再检查特技。
+
+普通兵种质量分界
+兵种平均分达到该数值后，使用“普通兵种组合所需特技分”。
+
+高兵种质量分界
+开启“达到高兵种质量分界时直接合格”后，兵种平均分达到该数值即可合格。
+
+数值越高，规则越严格。修改门槛不会改变各个兵种本身的基础分。""",
+    ),
+    (
+        "兵种评分",
+        """控制兵种基础分、人物倾向和队伍结构如何共同形成兵种综合分。
+
+兵种基础分权重
+统一放大或缩小全部兵种基础分。1表示保持原值。
+
+人物兵种适配加成
+开启后，兵种类型符合人物的主要倾向或次要倾向时获得加成。
+
+适配加成最低基础分
+基础分低于该数值的兵种不会获得人物倾向加成。
+
+主要倾向、次要倾向加成比例
+例如0.06表示在加权后的兵种分数上增加6%。
+
+夏侯惇为文官型时扣分
+夏侯惇随机为文官型兵种时额外扣除的分数。
+
+文官型兵种过多扣分
+开启后，队伍中出现多个文官型兵种时会按数量增加扣分。""",
+    ),
+    (
+        "人物倾向",
+        """设置每个人更适合的兵种类型，只影响兵种综合评分，不会限制实际能够随机出的兵种。
+
+主要倾向
+匹配时使用“主要倾向加成比例”。
+
+次要倾向
+匹配时使用“次要倾向加成比例”。
+
+选择“无”
+表示该位置不设置倾向，不会产生对应的适配加成。
+
+人物倾向不是指定条件。设置武将型后，人物仍然可能随机到全能型或文官型兵种，只是综合评分可能不同。""",
+    ),
+    (
+        "兵种基础分",
+        """设置每个兵种参与综合评价时使用的原始分数。
+
+这里的数值会覆盖工具内置的兵种基础分，再经过“兵种基础分权重”、人物倾向加成和队伍结构扣分计算。
+
+提高某个兵种的基础分，会让包含该兵种的组合更容易达到阶段门槛；降低则会让它更难通过。
+
+兵种基础分只影响评分，不会指定、排除或改变游戏实际随机出的兵种。""",
+    ),
+    (
+        "特技评分",
+        """设置特技阶段的分类默认分值、合格门槛和直接合格条件。
+
+优质、强力、特殊特技基础分
+未在“特技基础分”中单独修改的特技，按照所属分类使用这里的默认分值。
+
+普通兵种组合所需特技分
+兵种平均分达到普通质量分界时使用。
+
+较低兵种组合所需特技分
+兵种平均分未达到普通质量分界时使用，通常应设置得更高。
+
+出现特殊特技时直接合格
+开启后，只要出现特殊特技便跳过特技分数门槛。
+
+达到高兵种质量分界时直接合格
+开启后，兵种平均分达到高质量分界便跳过特技分数门槛。""",
+    ),
+    (
+        "特技基础分",
+        """设置单个特技参与综合评价时使用的分数。
+
+单独修改后的分数优先级高于“特技评分”中的分类默认分值。没有单独修改的特技继续跟随所属分类的默认分值。
+
+例如：特殊特技分类分值为5，某个特殊特技单独改为3，则该特技按3分计算，其他特殊特技仍按5分计算。
+
+“其他”类别默认不计分，但可以在这里为个别特技设置分数。
+
+普通优质特技和强力特技仍需符合人物类型适配规则才会计分。特殊特技不受该适配过滤影响。
+
+如果开启“出现特殊特技时直接合格”，直接合格规则的优先级高于单项分数和分类分值。""",
+    ),
+)
+
 
 class ScrollableFrame(tk.Frame):
     def __init__(self, parent, **kwargs):
@@ -70,6 +171,63 @@ class ScrollableFrame(tk.Frame):
         units = int(event.delta / 120)
         if units:
             self.canvas.yview_scroll(-units, "units")
+
+
+def show_advanced_help(parent, selected_index: int) -> None:
+    dialog = tk.Toplevel(parent)
+    dialog.withdraw()
+    dialog.title("高级规则说明")
+    dialog.geometry("760x560")
+    dialog.minsize(680, 480)
+    dialog.transient(parent)
+
+    book = ttk.Notebook(dialog)
+    book.pack(fill="both", expand=True, padx=14, pady=(14, 8))
+    tabs = []
+    for title, content in ADVANCED_HELP_SECTIONS:
+        tab = tk.Frame(book, padx=18, pady=16)
+        book.add(tab, text=title)
+        tabs.append(tab)
+        text = tk.Text(
+            tab,
+            wrap="word",
+            relief="flat",
+            padx=4,
+            pady=4,
+            font=("Microsoft YaHei UI", 10),
+            spacing1=2,
+            spacing3=7,
+        )
+        text.insert("1.0", content)
+        text.configure(state="disabled")
+        scrollbar = ttk.Scrollbar(tab, orient="vertical", command=text.yview)
+        text.configure(yscrollcommand=scrollbar.set)
+        text.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+    if 0 <= selected_index < len(tabs):
+        book.select(tabs[selected_index])
+
+    footer = tk.Frame(dialog, padx=14)
+    footer.pack(fill="x", pady=(0, 12))
+    tk.Button(
+        footer,
+        text="关闭",
+        command=dialog.destroy,
+        width=10,
+    ).pack(side="right")
+
+    dialog.update_idletasks()
+    width = max(760, dialog.winfo_reqwidth())
+    height = max(560, dialog.winfo_reqheight())
+    x = parent.winfo_rootx() + (parent.winfo_width() - width) // 2
+    y = parent.winfo_rooty() + (parent.winfo_height() - height) // 2
+    x = max(0, min(x, dialog.winfo_screenwidth() - width))
+    y = max(0, min(y, dialog.winfo_screenheight() - height))
+    dialog.geometry(f"{width}x{height}+{x}+{y}")
+    dialog.deiconify()
+    dialog.lift()
+    dialog.grab_set()
 
 
 def show_rule_editor(
@@ -194,6 +352,8 @@ def show_rule_editor(
         )
     simple_tab.columnconfigure(0, weight=1)
 
+    advanced_toolbar = tk.Frame(advanced_tab)
+    advanced_toolbar.pack(fill="x", pady=(0, 8))
     advanced_book = ttk.Notebook(advanced_tab)
     advanced_book.pack(fill="both", expand=True)
     threshold_tab = tk.Frame(advanced_book, padx=16, pady=14)
@@ -208,6 +368,14 @@ def show_rule_editor(
     advanced_book.add(base_score_tab, text="兵种基础分")
     advanced_book.add(skill_tab, text="特技评分")
     advanced_book.add(skill_score_tab, text="特技基础分")
+    tk.Button(
+        advanced_toolbar,
+        text="规则说明",
+        command=lambda: show_advanced_help(
+            editor, advanced_book.index(advanced_book.select())
+        ),
+        width=10,
+    ).pack(side="right")
 
     number_vars: dict[str, tk.StringVar] = {}
     bool_vars: dict[str, tk.BooleanVar] = {}

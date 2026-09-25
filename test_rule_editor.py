@@ -2,6 +2,7 @@ import tempfile
 import tkinter as tk
 import unittest
 from pathlib import Path
+from tkinter import ttk
 from unittest.mock import patch
 
 from fast_randomizer import JOB_MAP, TEAM_MEMBERS
@@ -58,6 +59,22 @@ class RuleEditorTests(unittest.TestCase):
                     }
                     buttons["新建副本"].invoke()
                     root.update()
+                    buttons["规则说明"].invoke()
+                    root.update()
+                    help_dialog = next(
+                        child
+                        for child in descendants(root)
+                        if isinstance(child, tk.Toplevel)
+                        and child != editor
+                    )
+                    help_books = [
+                        widget
+                        for widget in descendants(help_dialog)
+                        if isinstance(widget, ttk.Notebook)
+                    ]
+                    self.assertEqual(1, len(help_books))
+                    self.assertEqual(6, len(help_books[0].tabs()))
+                    help_dialog.destroy()
                     buttons["设为当前规则"].invoke()
                     buttons["保存规则"].invoke()
                     root.update()

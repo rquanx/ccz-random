@@ -7,7 +7,12 @@ from tkinter import ttk
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from fast_randomizer import JOB_MAP, TEAM_MEMBERS, format_user_log
+from fast_randomizer import (
+    JOB_MAP,
+    TEAM_MEMBERS,
+    activate_rule_profile,
+    format_user_log,
+)
 from rule_config import build_rule_export, default_rule_config, load_rule_config
 from rule_editor import ScoreGrid, show_rule_editor
 
@@ -29,6 +34,24 @@ def descendants(widget):
 
 
 class RuleEditorTests(unittest.TestCase):
+    def test_active_profile_can_be_switched_and_persisted(self):
+        config = default_rule_config()
+        config["profiles"]["测试规则"] = json.loads(
+            json.dumps(config["profiles"]["默认规则"], ensure_ascii=False)
+        )
+        config["profiles"]["测试规则"]["builtin"] = False
+
+        with tempfile.TemporaryDirectory() as directory:
+            updated = activate_rule_profile(
+                Path(directory),
+                config,
+                "测试规则",
+            )
+            loaded = load_rule_config(Path(directory))
+
+        self.assertEqual("测试规则", updated["activeProfile"])
+        self.assertEqual("测试规则", loaded.config["activeProfile"])
+
     def test_rule_reason_is_hidden_from_user_log(self):
         self.assertEqual(
             "",
@@ -98,6 +121,7 @@ class RuleEditorTests(unittest.TestCase):
                     }
                     self.assertIn("导入规则", buttons)
                     self.assertIn("导出规则", buttons)
+                    self.assertNotIn("设为当前规则", buttons)
                     buttons["新建副本"].invoke()
                     root.update()
                     buttons["规则说明"].invoke()
@@ -116,7 +140,6 @@ class RuleEditorTests(unittest.TestCase):
                     self.assertEqual(1, len(help_books))
                     self.assertEqual(6, len(help_books[0].tabs()))
                     help_dialog.destroy()
-                    buttons["设为当前规则"].invoke()
                     buttons["保存规则"].invoke()
                     root.update()
 
@@ -124,15 +147,62 @@ class RuleEditorTests(unittest.TestCase):
                 self.assertEqual(1, len(saved))
                 loaded = load_rule_config(Path(directory))
                 self.assertEqual(2, len(loaded.config["profiles"]))
-                self.assertNotEqual(
-                    "默认规则", loaded.config["activeProfile"]
-                )
+                self.assertEqual("默认规则", loaded.config["activeProfile"])
                 profile = loaded.config["profiles"][
-                    loaded.config["activeProfile"]
+                    next(
+                        name
+                        for name in loaded.config["profiles"]
+                        if name != "默认规则"
+                    )
                 ]
                 self.assertEqual(
                     {}, profile["sevenPerson"]["skillBaseScores"]
                 )
+        finally:
+            root.destroy()
+
+    def test_unsaved_new_profile_requires_close_confirmation(self):
+        root = tk.Tk()
+        root.withdraw()
+        try:
+            with tempfile.TemporaryDirectory() as directory:
+                with (
+                    patch("rule_editor.messagebox.askyesno") as confirm,
+                    patch("rule_editor.messagebox.showerror"),
+                ):
+                    show_rule_editor(
+                        root,
+                        Path(directory),
+                        default_rule_config(),
+                        JOB_MAP,
+                        TEAM_MEMBERS,
+                        SKILL_CATALOG,
+                        lambda _config: None,
+                    )
+                    root.update()
+                    editor = next(
+                        child
+                        for child in root.winfo_children()
+                        if isinstance(child, tk.Toplevel)
+                    )
+                    buttons = {
+                        widget.cget("text"): widget
+                        for widget in descendants(editor)
+                        if isinstance(widget, tk.Button)
+                    }
+                    buttons["新建副本"].invoke()
+                    root.update()
+
+                    confirm.return_value = False
+                    buttons["取消"].invoke()
+                    root.update()
+                    self.assertTrue(editor.winfo_exists())
+
+                    confirm.return_value = True
+                    buttons["取消"].invoke()
+                    root.update()
+                    self.assertFalse(editor.winfo_exists())
+                    self.assertEqual(2, confirm.call_count)
         finally:
             root.destroy()
 

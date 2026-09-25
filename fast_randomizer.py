@@ -4135,6 +4135,20 @@ def format_user_log(line: str) -> str:
     return ""
 
 
+def activate_rule_profile(
+    base_dir: Path,
+    config: dict,
+    profile_name: str,
+) -> dict:
+    updated = json.loads(json.dumps(config, ensure_ascii=False))
+    if profile_name not in updated.get("profiles", {}):
+        raise ValueError(f"规则不存在：{profile_name}")
+    updated["activeProfile"] = profile_name
+    normalized = validate_rule_config(updated)
+    save_rule_config(base_dir, normalized)
+    return normalized
+
+
 def session_failure_requires_restart(
     game: HiddenGameSession, exc: BaseException
 ) -> bool:
@@ -4188,8 +4202,8 @@ def gui_main() -> int:
     mode_var = tk.StringVar(value="seven")
     rule_load = load_rule_config(app_dir())
     current_rules = rule_load.config
-    rule_name_var = tk.StringVar(
-        value=f"当前规则：{current_rules['activeProfile']}"
+    rule_profile_var = tk.StringVar(
+        value=current_rules["activeProfile"]
     )
 
     outer = tk.Frame(root, padx=14, pady=12)
@@ -4304,11 +4318,17 @@ def gui_main() -> int:
     )
     seven_mode_button.pack(side="left")
     three_mode_button.pack(side="left", padx=(8, 0))
+    tk.Label(toolbar, text="规则").pack(side="left", padx=(0, 6))
+    rule_profile_combo = ttk.Combobox(
+        toolbar,
+        textvariable=rule_profile_var,
+        values=tuple(current_rules["profiles"]),
+        state="readonly",
+        width=18,
+    )
+    rule_profile_combo.pack(side="left", padx=(0, 8))
     rule_button = tk.Button(toolbar, text="规则设置", width=10)
     rule_button.pack(side="left", padx=(0, 8))
-    tk.Label(toolbar, textvariable=rule_name_var, fg="#555555").pack(
-        side="left", padx=(0, 12)
-    )
     start_button = tk.Button(toolbar, text="开始随机", width=12)
     stop_button = tk.Button(toolbar, text="停止随机", width=12, state="disabled")
     stop_button.pack(side="right", padx=(8, 0))
@@ -4735,9 +4755,10 @@ def gui_main() -> int:
         def rules_saved(config: dict) -> None:
             nonlocal current_rules
             current_rules = config
-            rule_name_var.set(
-                f"当前规则：{config['activeProfile']}"
+            rule_profile_combo.configure(
+                values=tuple(config["profiles"])
             )
+            rule_profile_var.set(config["activeProfile"])
 
         show_rule_editor(
             root,
@@ -4748,6 +4769,28 @@ def gui_main() -> int:
             skill_score_catalog(),
             rules_saved,
         )
+
+    def select_rule_profile(_event=None) -> None:
+        nonlocal current_rules
+        selected = rule_profile_var.get()
+        previous = current_rules["activeProfile"]
+        if selected == previous:
+            return
+        try:
+            updated = activate_rule_profile(
+                app_dir(),
+                current_rules,
+                selected,
+            )
+        except Exception as exc:
+            rule_profile_var.set(previous)
+            messagebox.showerror(
+                "规则无法切换",
+                f"无法使用所选规则。\n\n{exc}",
+                parent=root,
+            )
+            return
+        current_rules = updated
 
     def append(text: str) -> None:
         if not text:
@@ -4846,6 +4889,7 @@ def gui_main() -> int:
             stop_button.configure(state="disabled")
             seven_mode_button.configure(state="normal")
             three_mode_button.configure(state="normal")
+            rule_profile_combo.configure(state="readonly")
             rule_button.configure(state="normal")
             stopped = stop_requested_by_user or code == 130
             status.set("已停止" if stopped else ("已完成" if code == 0 else "执行失败"))
@@ -4870,9 +4914,10 @@ def gui_main() -> int:
             return
         latest_rules = load_rule_config(app_dir())
         current_rules = latest_rules.config
-        rule_name_var.set(
-            f"当前规则：{current_rules['activeProfile']}"
+        rule_profile_combo.configure(
+            values=tuple(current_rules["profiles"])
         )
+        rule_profile_var.set(current_rules["activeProfile"])
         if latest_rules.warning:
             messagebox.showwarning(
                 "规则文件无法使用",
@@ -4929,6 +4974,7 @@ def gui_main() -> int:
         stop_button.configure(state="normal")
         seven_mode_button.configure(state="disabled")
         three_mode_button.configure(state="disabled")
+        rule_profile_combo.configure(state="disabled")
         rule_button.configure(state="disabled")
         status.set("运行中")
 
@@ -4951,6 +4997,7 @@ def gui_main() -> int:
     start_button.configure(command=start)
     stop_button.configure(command=stop)
     rule_button.configure(command=open_rule_editor)
+    rule_profile_combo.bind("<<ComboboxSelected>>", select_rule_profile)
     root.protocol("WM_DELETE_WINDOW", close)
     if rule_load.warning:
         root.after(

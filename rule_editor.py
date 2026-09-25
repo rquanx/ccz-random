@@ -440,6 +440,12 @@ def show_rule_editor(
     on_saved: Callable[[dict], None],
 ) -> None:
     working = copy.deepcopy(validate_rule_config(config))
+    saved_snapshot = json.dumps(
+        working,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
     editor = tk.Toplevel(parent)
     editor.withdraw()
     editor.title("规则设置")
@@ -463,12 +469,6 @@ def show_rule_editor(
         width=24,
     )
     profile_combo.pack(side="left", padx=(8, 12))
-    active_label = tk.StringVar(
-        value=f"当前使用：{working['activeProfile']}"
-    )
-    tk.Label(top, textvariable=active_label, fg="#555555").pack(
-        side="left"
-    )
 
     action_frame = tk.Frame(editor, padx=14)
     action_frame.pack(fill="x", pady=(0, 10))
@@ -1004,7 +1004,6 @@ def show_rule_editor(
         working["profiles"][name] = profile
         if working["activeProfile"] == old_name:
             working["activeProfile"] = name
-            active_label.set(f"当前使用：{name}")
         refresh_profiles(name)
 
     def delete_profile() -> None:
@@ -1021,19 +1020,7 @@ def show_rule_editor(
         target = DEFAULT_PROFILE_NAME
         if was_active:
             working["activeProfile"] = target
-            active_label.set(f"当前使用：{target}")
         refresh_profiles(target)
-
-    def set_active() -> None:
-        try:
-            store_profile(selected_name)
-        except Exception as exc:
-            messagebox.showerror(
-                "规则无法使用", f"请检查填写内容。\n\n{exc}", parent=editor
-            )
-            return
-        working["activeProfile"] = selected_name
-        active_label.set(f"当前使用：{selected_name}")
 
     def reset_profile() -> None:
         if is_builtin(selected_name):
@@ -1144,7 +1131,7 @@ def show_rule_editor(
         )
 
     def import_rules() -> None:
-        nonlocal working
+        nonlocal working, saved_snapshot
         try:
             store_profile(selected_name)
         except Exception as exc:
@@ -1173,6 +1160,12 @@ def show_rule_editor(
             )
             return
         working = merged
+        saved_snapshot = json.dumps(
+            validate_rule_config(working),
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
         on_saved(working)
         refresh_profiles(imported_names[0])
         messagebox.showinfo(
@@ -1180,6 +1173,28 @@ def show_rule_editor(
             f"已追加并保存 {len(imported_names)} 套规则。",
             parent=editor,
         )
+
+    def has_unsaved_changes() -> bool:
+        try:
+            store_profile(selected_name)
+            current_snapshot = json.dumps(
+                validate_rule_config(working),
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+        except Exception:
+            return True
+        return current_snapshot != saved_snapshot
+
+    def request_close() -> None:
+        if has_unsaved_changes() and not messagebox.askyesno(
+            "放弃未保存的修改",
+            "当前规则有尚未保存的修改，确定关闭吗？",
+            parent=editor,
+        ):
+            return
+        editor.destroy()
 
     def save_all() -> None:
         try:
@@ -1211,9 +1226,6 @@ def show_rule_editor(
     reset_button = tk.Button(
         action_frame, text="恢复默认参数", command=reset_profile
     )
-    active_button = tk.Button(
-        action_frame, text="设为当前规则", command=set_active
-    )
     help_button = tk.Button(
         action_frame,
         text="规则说明",
@@ -1238,7 +1250,6 @@ def show_rule_editor(
     rename_button.pack(side="left", padx=(8, 0))
     delete_button.pack(side="left", padx=(8, 0))
     reset_button.pack(side="left", padx=(8, 0))
-    active_button.pack(side="right")
     help_button.pack(side="right", padx=(0, 8))
     export_button.pack(side="right", padx=(0, 8))
     import_button.pack(side="right", padx=(0, 8))
@@ -1251,13 +1262,14 @@ def show_rule_editor(
         fg="#555555",
     ).pack(side="left")
     tk.Button(
-        footer, text="取消", command=editor.destroy, width=10
+        footer, text="取消", command=request_close, width=10
     ).pack(side="right", padx=(8, 0))
     tk.Button(
         footer, text="保存规则", command=save_all, width=12
     ).pack(side="right")
 
     profile_combo.bind("<<ComboboxSelected>>", switch_profile)
+    editor.protocol("WM_DELETE_WINDOW", request_close)
     load_profile(selected_name)
     editor.update_idletasks()
     width = max(980, editor.winfo_reqwidth())

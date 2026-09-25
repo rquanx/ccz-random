@@ -623,17 +623,25 @@ gdi32.DeleteDC.restype = wintypes.BOOL
 
 class Tee:
     def __init__(self, *streams):
-        self.streams = streams
+        self.streams = tuple(
+            stream for stream in streams if stream is not None
+        )
 
     def write(self, text: str) -> int:
         for stream in self.streams:
-            stream.write(text)
-            stream.flush()
+            try:
+                stream.write(text)
+                stream.flush()
+            except (AttributeError, OSError, ValueError):
+                continue
         return len(text)
 
     def flush(self) -> None:
         for stream in self.streams:
-            stream.flush()
+            try:
+                stream.flush()
+            except (AttributeError, OSError, ValueError):
+                continue
 
 
 def diagnostic_log(event: str, **fields) -> None:
@@ -5306,6 +5314,10 @@ def main() -> int:
 
 if __name__ == "__main__":
     if "--smoke-startup" in sys.argv:
+        raise SystemExit(0)
+    if "--smoke-windowed-output" in sys.argv:
+        with open(os.devnull, "w", encoding="utf-8") as sink:
+            Tee(sys.stdout, sink).write("ok")
         raise SystemExit(0)
     if "--smoke-imports" in sys.argv:
         load_media_modules()

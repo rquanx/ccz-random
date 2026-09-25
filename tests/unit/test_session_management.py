@@ -7,6 +7,7 @@ from unittest.mock import patch
 from fast_randomizer import (
     EQUIPMENT_NAMES,
     INITIAL_TEAM_MEMBERS,
+    Tee,
     decode_equipment_effect,
     decode_subprocess_output,
     format_user_log,
@@ -27,6 +28,17 @@ class FakeGameSession:
 
 
 class SessionManagementTests(unittest.TestCase):
+    def test_tee_ignores_missing_windowed_stream(self):
+        output = tempfile.SpooledTemporaryFile(mode="w+", encoding="utf-8")
+        tee = Tee(None, output)
+
+        self.assertEqual(4, tee.write("test"))
+        tee.flush()
+        output.seek(0)
+
+        self.assertEqual("test", output.read())
+        output.close()
+
     def test_equipment_order_matches_game_numbers(self):
         self.assertEqual(("雌雄双剑", "倚天剑"), EQUIPMENT_NAMES[:2])
 

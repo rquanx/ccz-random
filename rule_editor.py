@@ -64,11 +64,11 @@ def show_rule_editor(
 ) -> None:
     working = copy.deepcopy(validate_rule_config(config))
     editor = tk.Toplevel(parent)
+    editor.withdraw()
     editor.title("规则设置")
     editor.geometry("980x760")
     editor.minsize(860, 660)
     editor.transient(parent)
-    editor.grab_set()
 
     selected_name = working["activeProfile"]
     loading = False
@@ -693,3 +693,18 @@ def show_rule_editor(
 
     profile_combo.bind("<<ComboboxSelected>>", switch_profile)
     load_profile(selected_name)
+    editor.update_idletasks()
+    width = max(980, editor.winfo_reqwidth())
+    height = max(760, editor.winfo_reqheight())
+    if parent.winfo_viewable():
+        x = parent.winfo_rootx() + (parent.winfo_width() - width) // 2
+        y = parent.winfo_rooty() + (parent.winfo_height() - height) // 2
+    else:
+        x = (editor.winfo_screenwidth() - width) // 2
+        y = (editor.winfo_screenheight() - height) // 2
+    x = max(0, min(x, editor.winfo_screenwidth() - width))
+    y = max(0, min(y, editor.winfo_screenheight() - height))
+    editor.geometry(f"{width}x{height}+{x}+{y}")
+    editor.deiconify()
+    editor.lift()
+    editor.grab_set()

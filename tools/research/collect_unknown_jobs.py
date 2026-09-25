@@ -7,12 +7,13 @@ import sys
 import time
 from pathlib import Path
 
-from experiment_reroll import EXTRACTED_ROOT, read_region
+from tools.project_paths import JOB_DATA_DIR
+from tools.research.experiment_reroll import EXTRACTED_ROOT, read_region
 from runtime_loader import install
 
 
-SAMPLES_PATH = Path(__file__).resolve().parent / "job_samples.json"
-MAP_PATH = Path(__file__).resolve().parent / "job_id_map.json"
+SAMPLES_PATH = JOB_DATA_DIR / "job_samples.json"
+MAP_PATH = JOB_DATA_DIR / "job_id_map.json"
 EXPECTED_IDS = set(range(0, 61, 3)) | set(range(61, 80))
 
 

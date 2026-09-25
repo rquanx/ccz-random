@@ -6,6 +6,8 @@ import re
 from difflib import SequenceMatcher
 from pathlib import Path
 
+from tools.project_paths import EQUIPMENT_DATA_DIR
+
 
 EQUIP_NAMES = (
     "倚天剑", "雌雄双剑", "青釭剑", "古锭刀", "青龙偃月刀",
@@ -93,7 +95,7 @@ def reference_effects(root: Path, slot: int) -> dict[str, str]:
 
 
 def main() -> int:
-    root = Path(__file__).resolve().parent
+    root = EQUIPMENT_DATA_DIR
     game_root = Path(os.environ["CCZ_GAME_ROOT"])
     save_root = game_root / "SV"
     observations = []

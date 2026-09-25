@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 
 import fast_randomizer as fast
-from diagnose_dialog_load import child_controls
+from tools.diagnostics.diagnose_dialog_load import child_controls
 
 
 GAME = Path(

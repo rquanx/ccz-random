@@ -1,6 +1,6 @@
 # 项目结构
 
-生产代码统一放在 `ccz_randomizer` 包中，根目录只保留打包入口和历史导入兼容层。
+生产代码统一放在 `ccz_randomizer` 包中，根目录只保留运行入口、测试入口和历史导入兼容层。
 
 ```text
 ccz_randomizer/
@@ -12,6 +12,17 @@ ccz_randomizer/
     loader.py             原版工具运行时加载
   workflow/
     randomization.py      与游戏无关的随机流程状态机
+packaging/                PyInstaller 打包配置
+resources/
+  app/                    运行时图片和剧情辅助文件
+  data/                   研究得到的兵种、特技和宝物数据
+  icons/                  程序图标
+  legacy/                 历史测试版使用的二进制模板
+tools/
+  diagnostics/            游戏流程和内存诊断脚本
+  research/               数据提取、反汇编和映射生成脚本
+  legacy/                 已停止使用的实验实现
+  windows/                Windows 辅助脚本
 ```
 
 ## 依赖方向
@@ -22,12 +33,15 @@ ccz_randomizer/
 - `app` 组合上述模块，并负责 Windows 原生控制、游戏检查、结果输出和界面。
 
 根目录的 `fast_randomizer.py`、`rule_config.py`、`rule_editor.py`、
-`runtime_loader.py` 和 `random_workflow.py` 是兼容入口。旧诊断脚本仍可沿用原导入路径，
-新增代码应直接从 `ccz_randomizer` 包导入。
+`runtime_loader.py` 和 `random_workflow.py` 是兼容入口。新增代码应直接从
+`ccz_randomizer` 包导入。工具脚本从仓库根目录使用模块方式运行，例如：
+
+```powershell
+python -m tools.diagnostics.analyze_skill_storage --help
+```
 
 ## 入口
 
 - 开发运行：`python fast_randomizer.py`
 - 单元测试：`python run_tests.py unit`
-- 打包入口：`fast_randomizer.py`
-
+- 正式版打包：`python -m PyInstaller --noconfirm packaging/CCZ_真实随机内存快筛版.spec`

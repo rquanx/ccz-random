@@ -195,7 +195,10 @@ def app_dir() -> Path:
 def resource_path(name: str) -> Path:
     if getattr(sys, "frozen", False):
         return Path(sys._MEIPASS) / name
-    return Path(__file__).resolve().parent / name
+    root = Path(__file__).resolve().parents[2]
+    if name.startswith("native/"):
+        return root / name
+    return root / "resources" / "legacy" / name
 
 
 def run_native_control(pid: int, action: str, value: int | None = None) -> None:

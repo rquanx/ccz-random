@@ -13,6 +13,7 @@ from ccz_randomizer.diagnostics.skill_storage import (
     stable_direct_offsets,
 )
 from ccz_randomizer.runtime.loader import install
+from tools.project_paths import SKILL_DATA_DIR
 
 
 DETAIL_TOP = 98
@@ -36,7 +37,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def read_skill_names() -> dict[int, str]:
-    path = Path(__file__).resolve().parent / "skill_dump_ascii.json"
+    path = SKILL_DATA_DIR / "skill_dump_ascii.json"
     if not path.is_file():
         return {}
     return {

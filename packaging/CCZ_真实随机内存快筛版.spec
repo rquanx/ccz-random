@@ -3,6 +3,7 @@
 from pathlib import Path
 
 
+project_root = Path(SPECPATH).parent
 extracted_root = Path(
     'C:/Users/91658/Documents/Codex/2026-09-18/hi/work/'
     'exe-analysis/tool.exe_extracted'
@@ -65,14 +66,14 @@ for source in extracted_root.rglob('*'):
 
 
 a = Analysis(
-    ['fast_randomizer.py'],
-    pathex=[],
+    [str(project_root / 'fast_randomizer.py')],
+    pathex=[str(project_root)],
     binaries=[],
     datas=original_datas + [
-        ('random_s00.eex', '.'),
-        ('source_slot_20_help.png', '.'),
-        ('native/ccz_control.dll', 'native'),
-        ('native/ccz_injector.exe', 'native'),
+        (str(project_root / 'resources/app/random_s00.eex'), '.'),
+        (str(project_root / 'resources/app/source_slot_20_help.png'), '.'),
+        (str(project_root / 'native/ccz_control.dll'), 'native'),
+        (str(project_root / 'native/ccz_injector.exe'), 'native'),
     ],
     hiddenimports=[],
     hookspath=[],
@@ -91,7 +92,7 @@ exe = EXE(
     a.datas,
     [],
     name='2.10随机工具',
-    icon='2.10随机工具.ico',
+    icon=str(project_root / 'resources/icons/2.10随机工具.ico'),
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

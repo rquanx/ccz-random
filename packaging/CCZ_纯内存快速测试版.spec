@@ -1,12 +1,16 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+from pathlib import Path
+
+
+project_root = Path(SPECPATH).parent
 
 a = Analysis(
-    ['direct_randomizer.py'],
-    pathex=[],
+    [str(project_root / 'tools/legacy/direct_randomizer.py')],
+    pathex=[str(project_root)],
     binaries=[],
     datas=[
-        ('random_save_templates.bin', '.'),
+        (str(project_root / 'resources/legacy/random_save_templates.bin'), '.'),
     ],
     hiddenimports=[],
     hookspath=[],

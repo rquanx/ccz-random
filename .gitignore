@@ -44,5 +44,5 @@
 /*.txt
 
 # Required packaged assets kept despite the capture rules above
-!/source_slot_20_help.png
-!/job_map.txt
+!/resources/app/source_slot_20_help.png
+!/resources/data/jobs/job_map.txt

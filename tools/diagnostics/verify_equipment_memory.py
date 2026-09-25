@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 
 import fast_randomizer as randomizer
+from tools.project_paths import EQUIPMENT_DATA_DIR
 
 
 KNOWN_OCR_ERRORS = {
@@ -28,7 +29,6 @@ def save_records(data: bytes) -> tuple[bytes, ...]:
 
 
 def main() -> int:
-    root = Path(__file__).resolve().parent
     game_root = Path(
         os.environ.get(
             "CCZ_GAME_ROOT",
@@ -36,7 +36,9 @@ def main() -> int:
         )
     )
     observed = json.loads(
-        (root / "equip_effect_map.json").read_text(encoding="utf-8")
+        (EQUIPMENT_DATA_DIR / "equip_effect_map.json").read_text(
+            encoding="utf-8"
+        )
     )
     mismatches = []
     for key, expected in observed.items():

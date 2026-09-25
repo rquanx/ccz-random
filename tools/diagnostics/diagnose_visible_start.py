@@ -7,7 +7,10 @@ import time
 from pathlib import Path
 
 import fast_randomizer as fast
-from trace_original_flow import read_absolute, wait_for_game_window
+from tools.diagnostics.trace_original_flow import (
+    read_absolute,
+    wait_for_game_window,
+)
 
 
 GAME = Path(

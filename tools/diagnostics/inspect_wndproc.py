@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 
 import fast_randomizer as fast
-from inspect_live_code import disassemble
+from tools.diagnostics.inspect_live_code import disassemble
 
 
 def main() -> None:

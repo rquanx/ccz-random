@@ -7,11 +7,12 @@ import sys
 import time
 from pathlib import Path
 
-from experiment_reroll import EXTRACTED_ROOT, read_region
+from tools.project_paths import JOB_DATA_DIR
+from tools.research.experiment_reroll import EXTRACTED_ROOT, read_region
 from runtime_loader import install
 
 
-OUTPUT = Path(__file__).resolve().parent / "job_samples.json"
+OUTPUT = JOB_DATA_DIR / "job_samples.json"
 
 
 def install_foreground_patch() -> None:

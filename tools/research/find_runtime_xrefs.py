@@ -7,7 +7,7 @@ from pathlib import Path
 from capstone import CS_ARCH_X86, CS_MODE_32, CS_OP_IMM, Cs
 
 import fast_randomizer as fast
-from inspect_live_code import read_process
+from tools.diagnostics.inspect_live_code import read_process
 
 
 GAME = Path(

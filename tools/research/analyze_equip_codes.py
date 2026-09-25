@@ -1,5 +1,15 @@
-import json,re,collections
-obs=json.load(open('equip_ground_truth.json',encoding='utf8'))
+import collections
+import json
+import re
+
+from tools.project_paths import EQUIPMENT_DATA_DIR
+
+
+obs = json.loads(
+    (EQUIPMENT_DATA_DIR / "equip_ground_truth.json").read_text(
+        encoding="utf-8"
+    )
+)
 def stem(s):
  s=s.replace('→','-').replace('一','1')
  s=re.sub(r'[+\-]?\d+%?|ALL$','',s)

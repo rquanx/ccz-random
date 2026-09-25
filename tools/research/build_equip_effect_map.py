@@ -6,6 +6,8 @@ from collections import Counter, defaultdict
 from difflib import SequenceMatcher
 from pathlib import Path
 
+from tools.project_paths import EQUIPMENT_DATA_DIR
+
 
 def normalized(value: str) -> str:
     return (
@@ -17,7 +19,7 @@ def normalized(value: str) -> str:
 
 
 def main() -> int:
-    root = Path(__file__).resolve().parent
+    root = EQUIPMENT_DATA_DIR
     canonical = [
         line.strip()
         for line in (root / "equip_skill_names.txt").read_text(

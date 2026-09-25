@@ -723,7 +723,7 @@ def native_dir() -> Path:
 def ui_asset_path(name: str) -> Path:
     if getattr(sys, "frozen", False):
         return Path(sys._MEIPASS) / name
-    return source_root() / name
+    return source_root() / "resources" / "app" / name
 
 
 def native_control_error_hint(return_code: int) -> str:
@@ -2237,7 +2237,7 @@ def click_leftmost_dialog_button(hwnd: int) -> bool:
 def bundled_random_s00() -> Path:
     if getattr(sys, "frozen", False):
         return Path(sys._MEIPASS) / "random_s00.eex"
-    return source_root() / "random_s00.eex"
+    return source_root() / "resources" / "app" / "random_s00.eex"
 
 
 def write_cv_image(path: Path, image) -> None:

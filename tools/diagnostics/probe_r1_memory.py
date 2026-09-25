@@ -12,15 +12,16 @@ import cv2
 
 import fast_randomizer as fr
 from runtime_loader import install
+from tools.project_paths import APP_RESOURCES_DIR, ARTIFACTS_DIR
 
 
 GAME_DIR = Path(
     r"E:\game\ccz\曹操传加强版V2.10.4c\曹操传加强版V2.10.4c"
 )
 GAME_EXE = GAME_DIR / "Ekd5.exe"
-OUTPUT = Path(__file__).resolve().parent / "r1-probe"
+OUTPUT = ARTIFACTS_DIR / "r1-probe"
 S00_PATHS = (GAME_DIR / "S_00.eex", GAME_DIR / "RS" / "S_00.eex")
-RANDOM_S00 = Path(__file__).resolve().parent / "random_s00.eex"
+RANDOM_S00 = APP_RESOURCES_DIR / "random_s00.eex"
 
 
 def write_memory(pid: int, offset: int, data: bytes) -> None:

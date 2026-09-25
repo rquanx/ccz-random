@@ -960,16 +960,19 @@ def locate_game_executable() -> Path:
 
 class HiddenGameSession:
     def __init__(
-        self, executable: Path, arguments: tuple[str, ...] = ()
+        self,
+        executable: Path,
+        arguments: tuple[str, ...] = (),
+        restarted: bool = False,
     ):
         self.executable = executable.resolve()
         self.arguments = arguments
+        self.restarted = restarted
         self.process = 0
         self.job = 0
         self.pid = 0
         self.main_window = 0
         self.foreground_before = 0
-        self.cursor_before = Point()
         self.desktop = 0
         self.use_isolated_desktop = (
             os.environ.get("CCZ_USE_ISOLATED_DESKTOP", "1") != "0"
@@ -982,7 +985,6 @@ class HiddenGameSession:
     def __enter__(self) -> "HiddenGameSession":
         global WINDOW_DESKTOP
         self.foreground_before = user32.GetForegroundWindow()
-        user32.GetCursorPos(ctypes.byref(self.cursor_before))
         if self.use_isolated_desktop:
             self.desktop = user32.CreateDesktopW(
                 self.desktop_name,
@@ -1123,17 +1125,24 @@ class HiddenGameSession:
         time.sleep(0.25)
 
         foreground_after = user32.GetForegroundWindow()
-        cursor_after = Point()
-        user32.GetCursorPos(ctypes.byref(cursor_after))
         if window_process_id(foreground_after) == self.pid:
             raise RuntimeError(
                 "静默游戏抢占了前台窗口，已停止测试"
             )
         print(
-            f"隐藏游戏实例已启动，PID={self.pid}；"
+            f"隐藏游戏实例已{'重新' if self.restarted else ''}启动，"
+            f"PID={self.pid}；"
             "游戏未取得前台，系统鼠标未被程序控制。"
         )
         return self
+
+    def is_healthy(self) -> bool:
+        return bool(
+            self.process
+            and kernel32.WaitForSingleObject(self.process, 0) != 0
+            and self.main_window
+            and user32.IsWindow(self.main_window)
+        )
 
     def __exit__(self, exc_type, exc, tb) -> None:
         global WINDOW_DESKTOP
@@ -1149,13 +1158,6 @@ class HiddenGameSession:
         if self.desktop:
             user32.CloseDesktop(self.desktop)
             self.desktop = 0
-        user32.SetCursorPos(self.cursor_before.x, self.cursor_before.y)
-        if (
-            self.foreground_before
-            and user32.IsWindow(self.foreground_before)
-            and user32.GetForegroundWindow() != self.foreground_before
-        ):
-            user32.SetForegroundWindow(self.foreground_before)
         WINDOW_DESKTOP = 0
 
 
@@ -3080,9 +3082,20 @@ def patch_runtime(
     from window.BaseWindow import BaseWindow
     from window.CczWindow import CczPeopleWindow
 
-    original_check = task_module.CczReRandTask.checkPeopleAtR0
-    original_version_check = task_module.CczReRandTask.checkCczVersion
-    original_get_mat = BaseWindow.getMat
+    if not hasattr(task_module.CczReRandTask, "_ccz_original_check_r0"):
+        task_module.CczReRandTask._ccz_original_check_r0 = (
+            task_module.CczReRandTask.checkPeopleAtR0
+        )
+        task_module.CczReRandTask._ccz_original_version_check = (
+            task_module.CczReRandTask.checkCczVersion
+        )
+    if not hasattr(BaseWindow, "_ccz_original_get_mat"):
+        BaseWindow._ccz_original_get_mat = BaseWindow.getMat
+    original_check = task_module.CczReRandTask._ccz_original_check_r0
+    original_version_check = (
+        task_module.CczReRandTask._ccz_original_version_check
+    )
+    original_get_mat = BaseWindow._ccz_original_get_mat
     rules = rules or default_rule_config()
 
     def get_hwnd_by_name(self, window_name: str) -> None:
@@ -3423,7 +3436,9 @@ def patch_runtime(
                         pid=pid,
                         mode="direct_and_title",
                     )
-                    return False
+                    raise RuntimeError(
+                        "第 20 号源存档连续两种后台读取方式均失败"
+                    )
             scene_ready_delay = 1.2
         else:
             diagnostic_log("source_load_start", pid=pid, mode="title")
@@ -3766,6 +3781,8 @@ def format_user_log(line: str) -> str:
         return ""
     if text.startswith("游戏将在独立后台桌面运行"):
         return "游戏将在后台运行，不占用当前鼠标和前台"
+    if text.startswith("隐藏游戏实例已重新启动"):
+        return "后台游戏异常，已重新启动"
     if text.startswith("隐藏游戏实例已启动"):
         return "后台游戏已启动"
     if text.startswith("游戏原生随机已触发"):
@@ -3779,6 +3796,40 @@ def format_user_log(line: str) -> str:
     if text.startswith(("曹操传加强版", "默认生成", "游戏将在", "日志:", "本轮结果目录", "本轮总图路径")):
         return ""
     return ""
+
+
+def session_failure_requires_restart(
+    game: HiddenGameSession, exc: BaseException
+) -> bool:
+    if not game.is_healthy():
+        return True
+    if not isinstance(exc, RuntimeError):
+        return False
+    message = str(exc)
+    if any(
+        text in message
+        for text in (
+            "已经包含随机结果",
+            "不能作为源存档",
+            "源存档在随机过程中被修改",
+            "与保存时游戏内存不一致",
+            "R0 原生保存与内存不一致",
+        )
+    ):
+        return False
+    return any(
+        text in message
+        for text in (
+            "未找到游戏主窗口",
+            "静默控件模块",
+            "源存档读取失败",
+            "后台读取",
+            "连续 3 次点击许子将",
+            "游戏原生保存",
+            "读取进度窗口未出现",
+            "静默游戏实例",
+        )
+    )
 
 
 def gui_main() -> int:
@@ -4644,31 +4695,88 @@ def main() -> int:
         panel_dir, grid_file = initialize_result_output()
         print(f"本轮结果目录：{panel_dir}")
         print(f"本轮总图路径：{grid_file}")
-        for result_slot in range(1, result_count + 1):
-            check_stop_requested()
-            for round_index in range(1, 10001):
-                check_stop_requested()
-                print(
-                    f"========== 结果 {result_slot}/{result_count}，"
-                    f"原生随机第 {round_index} 轮 =========="
+        game: HiddenGameSession | None = None
+        source_loaded = False
+
+        def start_game_session(
+            restarted: bool = False,
+        ) -> HiddenGameSession:
+            session = HiddenGameSession(
+                game_executable,
+                restarted=restarted,
+            )
+            session.__enter__()
+            try:
+                diagnostic_log(
+                    "game_session_restarted"
+                    if restarted
+                    else "game_session_started",
+                    pid=session.pid,
+                    hwnd=session.main_window,
                 )
-                with HiddenGameSession(game_executable) as game:
-                    diagnostic_log(
-                        "game_session_started",
-                        pid=game.pid,
-                        hwnd=game.main_window,
-                        result_slot=result_slot,
-                        round_index=round_index,
+                patch_runtime(
+                    task_module,
+                    session.pid,
+                    three_person_mode=three_person_mode,
+                    rules=rules,
+                )
+            except Exception:
+                session.__exit__(None, None, None)
+                raise
+            return session
+
+        def close_game_session(
+            session: HiddenGameSession | None,
+        ) -> None:
+            if session is not None:
+                session.__exit__(None, None, None)
+
+        game = start_game_session()
+        try:
+            for result_slot in range(1, result_count + 1):
+                check_stop_requested()
+                for round_index in range(1, 10001):
+                    check_stop_requested()
+                    print(
+                        f"========== 结果 {result_slot}/{result_count}，"
+                        f"原生随机第 {round_index} 轮 =========="
                     )
-                    patch_runtime(
-                        task_module,
-                        game.pid,
-                        three_person_mode=three_person_mode,
-                        rules=rules,
-                    )
-                    runner = task_module.CczReRandTask(0)
-                    runner._target_save_pos = result_slot
-                    if runner.run():
+                    for recovery_attempt in range(2):
+                        runner = task_module.CczReRandTask(0)
+                        runner._target_save_pos = result_slot
+                        runner._source_loaded = source_loaded
+                        try:
+                            accepted = runner.run()
+                            source_loaded = bool(
+                                getattr(runner, "_source_loaded", False)
+                            )
+                            break
+                        except Exception as exc:
+                            if (
+                                recovery_attempt == 0
+                                and session_failure_requires_restart(
+                                    game, exc
+                                )
+                            ):
+                                diagnostic_log(
+                                    "game_session_recovery",
+                                    pid=game.pid,
+                                    result_slot=result_slot,
+                                    round_index=round_index,
+                                    error=repr(exc),
+                                )
+                                print(
+                                    "后台游戏运行异常，正在自动重新启动……"
+                                )
+                                close_game_session(game)
+                                game = start_game_session(restarted=True)
+                                source_loaded = False
+                                continue
+                            raise
+                    else:
+                        raise RuntimeError("后台游戏恢复后仍无法继续随机")
+
+                    if accepted:
                         equip_info = runner.collect_equipment()
                         panel_paths[result_slot] = save_result_image(
                             runner, equip_info, result_slot
@@ -4683,45 +4791,83 @@ def main() -> int:
                             tuple(runner._r0_initial_three),
                         )
                         break
-            else:
-                raise RuntimeError(
-                    f"结果 {result_slot} 连续 10000 轮未产生满足条件的结果"
-                )
-        if panel_paths:
-            print(
-                f"{result_count} 个存档结果图已完成："
-                f"{result_grid_path()}"
-            )
-
-        if hashlib.sha256(source_save.read_bytes()).hexdigest() != source_hash:
-            raise RuntimeError("第 20 号源存档在随机过程中被修改")
-
-        for output_slot, (
-            expected_jobs,
-            expected_initial_three,
-        ) in expected_results.items():
-            check_stop_requested()
-            saved_path = (
-                game_executable.parent
-                / "SV"
-                / f"SV{output_slot:03}.E5S"
-            )
-            with HiddenGameSession(game_executable) as verify_game:
-                time.sleep(1.5)
-                loaded = title_load_verified(
-                    verify_game.pid, output_slot - 1, saved_path
-                )
-                if not loaded:
+                else:
                     raise RuntimeError(
-                        f"第 {output_slot} 号存档回读时未能完成内存校验"
+                        f"结果 {result_slot} 连续 10000 轮"
+                        "未产生满足条件的结果"
                     )
+            if panel_paths:
+                print(
+                    f"{result_count} 个存档结果图已完成："
+                    f"{result_grid_path()}"
+                )
+
+            if (
+                hashlib.sha256(source_save.read_bytes()).hexdigest()
+                != source_hash
+            ):
+                raise RuntimeError("第 20 号源存档在随机过程中被修改")
+
+            verify_on_title = False
+            for output_slot, (
+                expected_jobs,
+                expected_initial_three,
+            ) in expected_results.items():
+                check_stop_requested()
+                saved_path = (
+                    game_executable.parent
+                    / "SV"
+                    / f"SV{output_slot:03}.E5S"
+                )
+                for recovery_attempt in range(2):
+                    try:
+                        if verify_on_title:
+                            loaded = title_load_verified(
+                                game.pid, output_slot - 1, saved_path
+                            )
+                            verify_on_title = False
+                        else:
+                            loaded = direct_load_verified(
+                                game.pid, output_slot - 1, saved_path
+                            )
+                        if not loaded:
+                            raise RuntimeError(
+                                f"第 {output_slot} 号存档回读时"
+                                "未能完成后台读取"
+                            )
+                        break
+                    except Exception as exc:
+                        if (
+                            recovery_attempt == 0
+                            and session_failure_requires_restart(game, exc)
+                        ):
+                            diagnostic_log(
+                                "verify_session_recovery",
+                                pid=game.pid,
+                                output_slot=output_slot,
+                                error=repr(exc),
+                            )
+                            print(
+                                "后台游戏校验异常，正在自动重新启动……"
+                            )
+                            close_game_session(game)
+                            game = start_game_session(restarted=True)
+                            source_loaded = False
+                            verify_on_title = True
+                            continue
+                        raise
+                else:
+                    raise RuntimeError(
+                        "后台游戏恢复后仍无法完成回读校验"
+                    )
+
                 time.sleep(0.5)
                 initial_three = read_job_ids(
-                    verify_game.pid, JOB_POSITIONS_R0
+                    game.pid, JOB_POSITIONS_R0
                 )
                 if not three_person_mode:
                     reloaded_jobs = read_job_ids(
-                        verify_game.pid, JOB_POSITIONS_R1
+                        game.pid, JOB_POSITIONS_R1
                     )
                     if reloaded_jobs != expected_jobs:
                         raise RuntimeError(
@@ -4737,8 +4883,11 @@ def main() -> int:
                         f"回读后={initial_three}"
                     )
                 print(
-                    f"第 {output_slot} 号存档回读校验通过：{reloaded_jobs}"
+                    f"第 {output_slot} 号存档回读校验通过："
+                    f"{reloaded_jobs}"
                 )
+        finally:
+            close_game_session(game)
         print(f"{result_count} 个结果存档全部生成并通过回读校验。")
         return 0
     except KeyboardInterrupt:

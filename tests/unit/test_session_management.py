@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+import ast
 from pathlib import Path
 from unittest.mock import patch
 
@@ -23,6 +24,19 @@ class FakeGameSession:
 
 
 class SessionManagementTests(unittest.TestCase):
+    def test_production_randomizer_does_not_use_system_mouse_api(self):
+        source = (
+            Path(__file__).resolve().parents[2] / "fast_randomizer.py"
+        ).read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        forbidden = {"SetCursorPos", "mouse_event", "SendInput"}
+        used = {
+            node.attr
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Attribute) and node.attr in forbidden
+        }
+        self.assertEqual(set(), used)
+
     def test_initial_roster_uses_xiahou_yuan_not_cao_ren(self):
         self.assertEqual(
             ("曹操", "夏侯惇", "夏侯渊"),

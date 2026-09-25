@@ -9,10 +9,7 @@ from pathlib import Path
 import fast_randomizer as fast
 
 
-GAME = Path(
-    r"E:\game\ccz\曹操传加强版V2.10.4c"
-    r"\曹操传加强版V2.10.4c\Ekd5.exe"
-)
+GAME = Path(os.environ["CCZ_GAME_EXE"])
 TEST_SAVE = Path(
     os.environ.get(
         "CCZ_TEST_SAVE",

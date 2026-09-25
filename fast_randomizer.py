@@ -29,6 +29,12 @@ from rule_config import (
 )
 from rule_editor import show_rule_editor
 from runtime_loader import install
+from random_workflow import (
+    AcceptedResult,
+    AttemptResult,
+    run_random_workflow,
+    validate_reloaded_jobs,
+)
 
 
 cv2 = None
@@ -4791,7 +4797,6 @@ def main() -> int:
         print(f"本轮结果目录：{panel_dir}")
         print(f"本轮总图路径：{grid_file}")
         game: HiddenGameSession | None = None
-        source_loaded = False
 
         def start_game_session(
             restarted: bool = False,
@@ -4828,69 +4833,80 @@ def main() -> int:
 
         game = start_game_session()
         try:
-            for result_slot in range(1, result_count + 1):
-                check_stop_requested()
-                for round_index in range(1, 10001):
-                    check_stop_requested()
-                    print(
-                        f"========== 结果 {result_slot}/{result_count}，"
-                        f"原生随机第 {round_index} 轮 =========="
-                    )
-                    for recovery_attempt in range(2):
-                        runner = task_module.CczReRandTask(0)
-                        runner._target_save_pos = result_slot
-                        runner._source_loaded = source_loaded
-                        try:
-                            accepted = runner.run()
-                            source_loaded = bool(
-                                getattr(runner, "_source_loaded", False)
-                            )
-                            break
-                        except Exception as exc:
-                            if (
-                                recovery_attempt == 0
-                                and session_failure_requires_restart(
-                                    game, exc
-                                )
-                            ):
-                                diagnostic_log(
-                                    "game_session_recovery",
-                                    pid=game.pid,
-                                    result_slot=result_slot,
-                                    round_index=round_index,
-                                    error=repr(exc),
-                                )
-                                print(
-                                    "后台游戏运行异常，正在自动重新启动……"
-                                )
-                                close_game_session(game)
-                                game = start_game_session(restarted=True)
-                                source_loaded = False
-                                continue
-                            raise
-                    else:
-                        raise RuntimeError("后台游戏恢复后仍无法继续随机")
+            def run_attempt(
+                result_slot: int,
+                _round_index: int,
+                loaded: bool,
+            ) -> AttemptResult:
+                runner = task_module.CczReRandTask(0)
+                runner._target_save_pos = result_slot
+                runner._source_loaded = loaded
+                accepted = runner.run()
+                return AttemptResult(
+                    accepted=accepted,
+                    source_loaded=bool(
+                        getattr(runner, "_source_loaded", False)
+                    ),
+                    payload=runner,
+                )
 
-                    if accepted:
-                        equip_info = runner.collect_equipment()
-                        panel_paths[result_slot] = save_result_image(
-                            runner, equip_info, result_slot
-                        )
-                        current_grid = compose_result_grid(panel_paths)
-                        print(
-                            f"第 {result_slot} 号结果图已生成，"
-                            f"总图已更新：{current_grid}"
-                        )
-                        expected_results[result_slot] = (
-                            tuple(runner._r0_job_ids),
-                            tuple(runner._r0_initial_three),
-                        )
-                        break
-                else:
-                    raise RuntimeError(
-                        f"结果 {result_slot} 连续 10000 轮"
-                        "未产生满足条件的结果"
-                    )
+            def recover_session(
+                exc: BaseException,
+                result_slot: int,
+                round_index: int,
+            ) -> None:
+                nonlocal game
+                diagnostic_log(
+                    "game_session_recovery",
+                    pid=game.pid,
+                    result_slot=result_slot,
+                    round_index=round_index,
+                    error=repr(exc),
+                )
+                print("后台游戏运行异常，正在自动重新启动……")
+                close_game_session(game)
+                game = start_game_session(restarted=True)
+
+            def attempt_started(
+                result_slot: int,
+                round_index: int,
+            ) -> None:
+                print(
+                    f"========== 结果 {result_slot}/{result_count}，"
+                    f"原生随机第 {round_index} 轮 =========="
+                )
+
+            def accepted_result(
+                result: AcceptedResult,
+            ) -> None:
+                runner = result.payload
+                result_slot = result.result_slot
+                equip_info = runner.collect_equipment()
+                panel_paths[result_slot] = save_result_image(
+                    runner, equip_info, result_slot
+                )
+                current_grid = compose_result_grid(panel_paths)
+                print(
+                    f"第 {result_slot} 号结果图已生成，"
+                    f"总图已更新：{current_grid}"
+                )
+                expected_results[result_slot] = (
+                    tuple(runner._r0_job_ids),
+                    tuple(runner._r0_initial_three),
+                )
+
+            run_random_workflow(
+                result_count=result_count,
+                max_attempts=10000,
+                run_attempt=run_attempt,
+                recover_session=recover_session,
+                should_recover=lambda exc: session_failure_requires_restart(
+                    game, exc
+                ),
+                on_attempt_started=attempt_started,
+                on_accepted=accepted_result,
+                check_stop=check_stop_requested,
+            )
             if panel_paths:
                 print(
                     f"{result_count} 个存档结果图已完成："
@@ -4947,7 +4963,6 @@ def main() -> int:
                             )
                             close_game_session(game)
                             game = start_game_session(restarted=True)
-                            source_loaded = False
                             verify_on_title = True
                             continue
                         raise
@@ -4964,19 +4979,16 @@ def main() -> int:
                     reloaded_jobs = read_job_ids(
                         game.pid, JOB_POSITIONS_R1
                     )
-                    if reloaded_jobs != expected_jobs:
-                        raise RuntimeError(
-                            f"第 {output_slot} 号存档回读七人兵种不一致："
-                            f"保存前={expected_jobs}，回读后={reloaded_jobs}"
-                        )
                 else:
                     reloaded_jobs = initial_three
-                if initial_three != expected_initial_three:
-                    raise RuntimeError(
-                        f"第 {output_slot} 号存档回读初始三人兵种不一致："
-                        f"保存前={expected_initial_three}，"
-                        f"回读后={initial_three}"
-                    )
+                validate_reloaded_jobs(
+                    output_slot=output_slot,
+                    expected_jobs=expected_jobs,
+                    expected_initial_three=expected_initial_three,
+                    reloaded_jobs=reloaded_jobs,
+                    initial_three=initial_three,
+                    three_person_mode=three_person_mode,
+                )
                 print(
                     f"第 {output_slot} 号存档回读校验通过："
                     f"{reloaded_jobs}"

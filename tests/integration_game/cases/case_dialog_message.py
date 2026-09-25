@@ -8,10 +8,7 @@ import fast_randomizer as fast
 from trace_original_flow import read_absolute
 
 
-GAME = Path(
-    r"E:\game\ccz\曹操传加强版V2.10.4c"
-    r"\曹操传加强版V2.10.4c\Ekd5.exe"
-)
+GAME = Path(os.environ["CCZ_GAME_EXE"])
 
 
 def main() -> None:

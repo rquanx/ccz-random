@@ -8,7 +8,9 @@ import cv2
 import fast_randomizer as fast
 from runtime_loader import install
 from trace_original_flow import read_absolute
-from test_direct_native_random import write_absolute
+from tests.integration_game.cases.case_direct_native_random import (
+    write_absolute,
+)
 
 
 GAME = Path(

@@ -5,7 +5,9 @@ import time
 from pathlib import Path
 
 import fast_randomizer as fast
-from test_direct_native_random import write_absolute
+from tests.integration_game.cases.case_direct_native_random import (
+    write_absolute,
+)
 from trace_original_flow import read_absolute
 
 

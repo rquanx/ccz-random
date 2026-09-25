@@ -32,6 +32,8 @@
 /skill-ground-truth/
 /valid-templates/
 /vendor/
+/artifacts/
+/release/
 
 # Captures and generated reports
 /*.png

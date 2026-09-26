@@ -80,6 +80,11 @@ def main() -> int:
                     raise RuntimeError(
                         f"第 {attempt} 次{load_mode}读取第 20 号存档失败"
                     )
+                if attempt > 1:
+                    fast.close_stale_load_confirmation(
+                        game.pid,
+                        game.main_window,
+                    )
                 load_elapsed = time.perf_counter() - load_started
                 time.sleep(1.5)
                 before = fast.read_job_ids(

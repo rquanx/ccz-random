@@ -11,6 +11,7 @@ from fast_randomizer import (
     NativeControlError,
     NativeControlTimeout,
     Tee,
+    advance_people_info_in_game_order,
     decode_equipment_effect,
     decode_subprocess_output,
     format_user_log,
@@ -89,13 +90,41 @@ class SessionManagementTests(unittest.TestCase):
             / "app.py"
         ).read_text(encoding="utf-8")
         self.assertIn(
-            "next_info_hwnd = advance_people_info(",
+            "advance_people_info_in_game_order(",
             source,
         )
+        self.assertIn("panel_index = (", source)
         self.assertNotIn(
             'f"切换到第 {index + 2} 个武将失败"',
             source,
         )
+
+    def test_full_inspection_accepts_actual_game_member_order(self):
+        member_names = (
+            "曹操",
+            "夏侯惇",
+            "曹仁",
+            "夏侯渊",
+            "乐进",
+            "李典",
+            "曹洪",
+        )
+        with (
+            patch("fast_randomizer.click_dialog_button") as click,
+            patch(
+                "fast_randomizer.current_dialog_member",
+                return_value="夏侯渊",
+            ),
+        ):
+            result = advance_people_info_in_game_order(
+                123,
+                456,
+                "夏侯惇",
+                member_names,
+                {"曹操", "夏侯惇"},
+            )
+        self.assertEqual((456, "夏侯渊"), result)
+        click.assert_called_once_with(456, "下一武将")
 
     def test_unverified_skill_memory_reader_is_not_patched_into_runtime(self):
         source = (

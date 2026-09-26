@@ -3237,6 +3237,44 @@ def advance_people_info(
     )
 
 
+def advance_people_info_in_game_order(
+    pid: int,
+    info_hwnd: int,
+    current_name: str,
+    member_names: tuple[str, ...],
+    captured_names: set[str],
+) -> tuple[int, str]:
+    """Advance to the next distinct member without assuming roster order."""
+    for _ in range(3):
+        click_dialog_button(info_hwnd, "下一武将")
+        deadline = time.perf_counter() + 2.0
+        while time.perf_counter() < deadline:
+            shown_name = current_dialog_member(info_hwnd, member_names)
+            if (
+                shown_name
+                and shown_name != current_name
+                and shown_name not in captured_names
+            ):
+                return info_hwnd, shown_name
+            candidate_hwnd, candidate_name = find_any_member_dialog(
+                pid, member_names
+            )
+            if (
+                candidate_hwnd
+                and candidate_name
+                and candidate_name != current_name
+                and candidate_name not in captured_names
+            ):
+                return candidate_hwnd, candidate_name
+            time.sleep(0.05)
+        time.sleep(0.2)
+    shown_name = current_dialog_member(info_hwnd, member_names)
+    raise RuntimeError(
+        "切换到下一武将失败，"
+        f"当前仍为{shown_name or current_name or '未知武将'}"
+    )
+
+
 def close_member_dialog(pid: int, main_window: int, info_hwnd: int) -> None:
     button = find_dialog_button(info_hwnd, "确定")
     if button:
@@ -3661,6 +3699,7 @@ def inspect_saved_slot(
             member_names = tuple(
                 item.name for item in task_module.TEAM_MEMBER_LIST
             )
+            captured_names: set[str] = set()
             next_info_hwnd = 0
             next_shown_name = ""
             for index, member in members_to_read:
@@ -3700,6 +3739,10 @@ def inspect_saved_slot(
                     for item in task_module.TEAM_MEMBER_LIST
                     if item.name == shown_name
                 )
+                if member_index is None and member.name in captured_names:
+                    raise RuntimeError(
+                        f"重复读取武将能力面板：{member.name}"
+                    )
                 runner.peopleInfoWind._BaseWindow__hwnd = info_hwnd
                 if not wait_for_window_state(
                     info_hwnd, exists=True, enabled=True, timeout=3.0
@@ -3725,8 +3768,14 @@ def inspect_saved_slot(
                 )
                 panel = runner.peopleInfoWind.getAllSkillMat()
                 panels.append(panel.copy())
+                captured_names.add(member.name)
+                panel_index = (
+                    member_names.index(member.name)
+                    if member_index is None
+                    else requested_index
+                )
                 write_cv_image(
-                    output_dir / f"member-{index + 1}.png",
+                    output_dir / f"member-{panel_index + 1}.png",
                     panel,
                 )
                 if member_index is not None:
@@ -3763,7 +3812,7 @@ def inspect_saved_slot(
                             skill.name for skill in member.skillList
                         ],
                         "panel": str(
-                            output_dir / f"member-{index + 1}.png"
+                            output_dir / f"member-{panel_index + 1}.png"
                         ),
                         "carry_count": carry_count,
                         "imba_count": imba_count,
@@ -3796,36 +3845,39 @@ def inspect_saved_slot(
                         encoding="utf-8",
                     )
                     return 0
-                if index + 1 < TEAM_MEMBER_NUM:
-                    expected_name = member_names[index + 1]
+                if len(captured_names) < TEAM_MEMBER_NUM:
                     diagnostic_log(
                         "member_transition_start",
                         pid=game.pid,
                         current_member=member.name,
-                        expected_member=expected_name,
-                        current_index=index,
+                        captured_members=sorted(captured_names),
+                        traversal_index=index,
                         hwnd=info_hwnd,
                     )
-                    next_info_hwnd = advance_people_info(
+                    (
+                        next_info_hwnd,
+                        next_shown_name,
+                    ) = advance_people_info_in_game_order(
                         game.pid,
-                        game.main_window,
                         info_hwnd,
                         member.name,
-                        expected_name,
                         member_names,
+                        captured_names,
                     )
-                    next_shown_name = expected_name
                     diagnostic_log(
                         "member_transition_succeeded",
                         pid=game.pid,
                         current_member=member.name,
                         shown_member=next_shown_name,
-                        next_index=index + 1,
+                        traversal_index=index + 1,
                         hwnd=next_info_hwnd,
                     )
-            if len(panels) != TEAM_MEMBER_NUM:
+            if (
+                len(panels) != TEAM_MEMBER_NUM
+                or captured_names != set(member_names)
+            ):
                 raise RuntimeError(
-                    f"只读取到 {len(panels)}/{TEAM_MEMBER_NUM} 个武将能力面板"
+                    f"武将能力面板读取不完整：{sorted(captured_names)}"
                 )
             skill_evaluation = evaluate_task_skill_rules(
                 rules,

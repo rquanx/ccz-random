@@ -108,6 +108,7 @@ SOURCE_SAVE_NUMBER = 20
 SOURCE_TITLE_LIST_INDEX = 19
 XU_CLIENT_POSITION = (369, 234)
 CONFIRM_FIRST_CLIENT_POSITION = (297, 220)
+DIRECT_RELOAD_FAILURES_BEFORE_COMPATIBILITY = 3
 EQUIPMENT_OFFSET = 0x54D8
 EQUIPMENT_SIZE = 376
 EQUIPMENT_NAMES = (
@@ -6582,6 +6583,7 @@ def main() -> int:
         )
         game: HiddenGameSession | None = None
         compatibility_restart_mode = False
+        consecutive_direct_reload_failures = 0
 
         def start_game_session(
             restarted: bool = False,
@@ -6689,7 +6691,7 @@ def main() -> int:
                         _round_index: int,
                         loaded: bool,
                     ) -> AttemptResult:
-                        nonlocal game
+                        nonlocal game, consecutive_direct_reload_failures
                         if compatibility_restart_mode and loaded:
                             diagnostic_log(
                                 "compatibility_restart_before_attempt",
@@ -6704,10 +6706,13 @@ def main() -> int:
                                 announce=False,
                             )
                             loaded = False
+                        reused_session = loaded
                         runner = task_module.CczReRandTask(0)
                         runner._target_save_pos = result_slot
                         runner._source_loaded = loaded
                         accepted = runner.run()
+                        if reused_session:
+                            consecutive_direct_reload_failures = 0
                         return AttemptResult(
                             accepted=accepted,
                             source_loaded=bool(
@@ -6722,12 +6727,25 @@ def main() -> int:
                         round_index: int,
                     ) -> None:
                         nonlocal game, compatibility_restart_mode
+                        nonlocal consecutive_direct_reload_failures
                         if isinstance(exc, DirectReloadUnsupported):
-                            compatibility_restart_mode = True
-                            print(
-                                "当前设备不兼容后台快速读档，"
-                                "已自动切换兼容模式"
+                            consecutive_direct_reload_failures += 1
+                            diagnostic_log(
+                                "direct_reload_failure_counted",
+                                count=consecutive_direct_reload_failures,
+                                threshold=(
+                                    DIRECT_RELOAD_FAILURES_BEFORE_COMPATIBILITY
+                                ),
                             )
+                            if (
+                                consecutive_direct_reload_failures
+                                >= DIRECT_RELOAD_FAILURES_BEFORE_COMPATIBILITY
+                            ):
+                                compatibility_restart_mode = True
+                                print(
+                                    "当前设备不兼容后台快速读档，"
+                                    "已自动切换兼容模式"
+                                )
                         diagnostic_log(
                             "game_session_recovery",
                             pid=game.pid,

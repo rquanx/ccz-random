@@ -3901,11 +3901,10 @@ def patch_runtime(
         if not game:
             raise RuntimeError("未找到游戏主窗口")
 
-        if not getattr(self, "_source_loaded", False):
-            # Only a newly started game needs the initial settle period.
-            # Later attempts use a verified direct load and already retain
-            # the native click action's own completion delay.
-            time.sleep(1.5)
+        # Let the previous native scene transition finish before loading
+        # again. Some slower systems expose the restored save memory before
+        # the game is ready to accept another scripted interaction.
+        time.sleep(1.5)
         load_started = time.perf_counter()
         if getattr(self, "_source_loaded", False):
             diagnostic_log("source_load_start", pid=pid, mode="direct")

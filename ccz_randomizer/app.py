@@ -4417,6 +4417,13 @@ def inspect_saved_slot(
                             captured_names,
                         )
                     except RuntimeError as transition_error:
+                        if (
+                            os.environ.get(
+                                "CCZ_DISABLE_ROSTER_FALLBACK"
+                            )
+                            == "1"
+                        ):
+                            raise
                         diagnostic_log(
                             "member_transition_roster_fallback",
                             pid=game.pid,

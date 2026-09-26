@@ -105,6 +105,7 @@ class SessionManagementTests(unittest.TestCase):
             source,
         )
         self.assertIn("CCZ_FORCE_ROSTER_FALLBACK", source)
+        self.assertIn("CCZ_DISABLE_ROSTER_FALLBACK", source)
 
     def test_full_inspection_accepts_actual_game_member_order(self):
         member_names = (

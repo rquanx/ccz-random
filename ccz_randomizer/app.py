@@ -919,6 +919,21 @@ def run_native_control(pid: int, arguments: list[str]) -> None:
     )
 
 
+def native_silent_click(
+    pid: int,
+    hwnd: int,
+    x: int,
+    y: int,
+    *,
+    tail_delay_ms: int | None = None,
+) -> None:
+    action = "silent-click" if tail_delay_ms is None else "silent-click-timed"
+    arguments = [action, str(hwnd), str(x), str(y)]
+    if tail_delay_ms is not None:
+        arguments.append(str(tail_delay_ms))
+    run_native_control(pid, arguments)
+
+
 def activate_save_list_item(pid: int, index: int) -> None:
     run_native_control(pid, ["list", str(index - 1)])
 
@@ -1450,6 +1465,55 @@ def read_job_ids(
         f"<{size // 4}I", read_memory(pid, JOB_OFFSET, size)
     )
     return tuple(values[index] for index in positions)
+
+
+def trigger_random_choice_click(
+    pid: int,
+    game: int,
+    active_positions: tuple[int, ...],
+    before: tuple[int, ...],
+    interaction_attempt: int,
+) -> tuple[int, ...]:
+    try:
+        native_silent_click(
+            pid,
+            game,
+            CONFIRM_FIRST_CLIENT_POSITION[0],
+            CONFIRM_FIRST_CLIENT_POSITION[1],
+            tail_delay_ms=0,
+        )
+    except (NativeControlError, NativeControlTimeout) as exc:
+        diagnostic_log(
+            "fast_choice_click_failed",
+            pid=pid,
+            attempt=interaction_attempt,
+            error=repr(exc),
+        )
+        native_silent_click(
+            pid,
+            game,
+            CONFIRM_FIRST_CLIENT_POSITION[0],
+            CONFIRM_FIRST_CLIENT_POSITION[1],
+        )
+        return read_job_ids(pid, active_positions)
+
+    current = read_job_ids(pid, active_positions)
+    if current != before and any(current):
+        return current
+
+    diagnostic_log(
+        "fast_choice_click_no_change",
+        pid=pid,
+        attempt=interaction_attempt,
+        jobs=current,
+    )
+    native_silent_click(
+        pid,
+        game,
+        CONFIRM_FIRST_CLIENT_POSITION[0],
+        CONFIRM_FIRST_CLIENT_POSITION[1],
+    )
+    return read_job_ids(pid, active_positions)
 
 
 def read_skill_ids(pid: int, skill_count: int) -> tuple[tuple[int, ...], ...]:
@@ -4085,10 +4149,6 @@ def patch_runtime(
         if not game:
             raise RuntimeError("未找到游戏主窗口")
 
-        # Let the previous native scene transition finish before loading
-        # again. Some slower systems expose the restored save memory before
-        # the game is ready to accept another scripted interaction.
-        time.sleep(1.5)
         load_started = time.perf_counter()
         reused_session = bool(getattr(self, "_source_loaded", False))
         if reused_session:
@@ -4224,14 +4284,12 @@ def patch_runtime(
                     source_memory=source_memory,
                 ),
             )
-            run_native_control(
+            current = trigger_random_choice_click(
                 pid,
-                [
-                    "silent-click",
-                    str(game),
-                    str(CONFIRM_FIRST_CLIENT_POSITION[0]),
-                    str(CONFIRM_FIRST_CLIENT_POSITION[1]),
-                ],
+                game,
+                active_positions,
+                before,
+                interaction_attempt,
             )
             random_deadline = time.perf_counter() + 3
             while time.perf_counter() < random_deadline:

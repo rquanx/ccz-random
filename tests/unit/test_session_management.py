@@ -17,9 +17,11 @@ from fast_randomizer import (
     initial_team_members,
     native_background_click,
     native_control_error_hint,
+    native_silent_click,
     run_initial_inspection_process,
     run_inspection_process,
     session_failure_requires_restart,
+    trigger_random_choice_click,
 )
 
 
@@ -223,6 +225,76 @@ class SessionManagementTests(unittest.TestCase):
             patch("fast_randomizer.diagnostic_log") as diagnostic,
         ):
             native_background_click(456, 10, 20, 1, False)
+        diagnostic.assert_called_once()
+
+    def test_timed_silent_click_passes_tail_delay_to_native_control(self):
+        with patch("fast_randomizer.run_native_control") as control:
+            native_silent_click(
+                123,
+                456,
+                10,
+                20,
+                tail_delay_ms=0,
+            )
+        control.assert_called_once_with(
+            123,
+            ["silent-click-timed", "456", "10", "20", "0"],
+        )
+
+    def test_default_silent_click_keeps_compatible_action(self):
+        with patch("fast_randomizer.run_native_control") as control:
+            native_silent_click(123, 456, 10, 20)
+        control.assert_called_once_with(
+            123,
+            ["silent-click", "456", "10", "20"],
+        )
+
+    def test_fast_choice_click_uses_result_without_fallback(self):
+        with (
+            patch("fast_randomizer.native_silent_click") as click,
+            patch(
+                "fast_randomizer.read_job_ids",
+                return_value=(1, 2, 3),
+            ),
+        ):
+            result = trigger_random_choice_click(
+                123,
+                456,
+                (0, 1, 2),
+                (0, 0, 0),
+                1,
+            )
+        self.assertEqual((1, 2, 3), result)
+        click.assert_called_once_with(
+            123,
+            456,
+            297,
+            220,
+            tail_delay_ms=0,
+        )
+
+    def test_fast_choice_click_falls_back_when_state_does_not_change(self):
+        with (
+            patch("fast_randomizer.native_silent_click") as click,
+            patch(
+                "fast_randomizer.read_job_ids",
+                side_effect=[(0, 0, 0), (1, 2, 3)],
+            ),
+            patch("fast_randomizer.diagnostic_log") as diagnostic,
+        ):
+            result = trigger_random_choice_click(
+                123,
+                456,
+                (0, 1, 2),
+                (0, 0, 0),
+                2,
+            )
+        self.assertEqual((1, 2, 3), result)
+        self.assertEqual(2, click.call_count)
+        self.assertNotIn(
+            "tail_delay_ms",
+            click.call_args_list[1].kwargs,
+        )
         diagnostic.assert_called_once()
 
     def test_inspection_process_retries_once(self):

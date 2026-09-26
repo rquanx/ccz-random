@@ -52,6 +52,16 @@ CASES = (
         "重复读取第20号源存档并触发随机",
     ),
     GameCase(
+        "silent-click-tail-benchmark",
+        "case_silent_click_tail_benchmark.py",
+        "基准测试第二次随机点击的尾部等待",
+    ),
+    GameCase(
+        "scene-wait-benchmark",
+        "case_scene_wait_benchmark.py",
+        "分别基准测试读档前后的场景等待",
+    ),
+    GameCase(
         "silent-real-flow",
         "case_silent_real_flow.py",
         "验证静默真实随机流程",

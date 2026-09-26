@@ -58,7 +58,8 @@ enum {
     ACTION_SILENT_CLICK_BURST = 41,
     ACTION_LIST_WINDOW_ITEM = 42,
     ACTION_END_DIALOG = 43,
-    ACTION_MUTE_AUDIO = 44
+    ACTION_MUTE_AUDIO = 44,
+    ACTION_TIMED_SILENT_CLICK = 45
 };
 
 typedef struct ControlRequest {
@@ -203,6 +204,9 @@ static DWORD arm_first_choice(void);
 static DWORD run_pulse_burst(int x, int y, int count);
 static DWORD post_silent_click_burst(
     HWND window, int x, int y, int count
+);
+static DWORD post_silent_click_timed(
+    HWND window, int x, int y, int tail_delay_ms
 );
 static DWORD activate_list_window_item(HWND dialog, int item_index);
 
@@ -2268,9 +2272,14 @@ static void post_synthetic_click(
     InterlockedExchange(&allow_game_foreground, 0);
 }
 
-static DWORD post_silent_click(HWND window, int x, int y) {
+static DWORD post_silent_click_timed(
+    HWND window, int x, int y, int tail_delay_ms
+) {
     if (!IsWindow(window)) {
         return 80;
+    }
+    if (tail_delay_ms < 0 || tail_delay_ms > 5000) {
+        return 150;
     }
     synthetic_root = GetAncestor(window, GA_ROOT);
     synthetic_focus = window;
@@ -2309,9 +2318,13 @@ static DWORD post_silent_click(HWND window, int x, int y) {
     PostMessageW(
         window, WM_LBUTTONUP, 0, MAKELPARAM(x, y)
     );
-    Sleep(1200);
+    Sleep((DWORD)tail_delay_ms);
     remove_input_hooks();
     return 0;
+}
+
+static DWORD post_silent_click(HWND window, int x, int y) {
+    return post_silent_click_timed(window, x, y, 1200);
 }
 
 static DWORD post_silent_click_burst(
@@ -3687,6 +3700,17 @@ __declspec(dllexport) DWORD WINAPI ControlAction(LPVOID parameter) {
     }
     if (request.action == ACTION_MUTE_AUDIO) {
         return install_audio_mute_hooks();
+    }
+    if (request.action == ACTION_TIMED_SILENT_CLICK) {
+        HWND window = request.window != 0
+            ? (HWND)(UINT_PTR)request.window
+            : find_game_window();
+        return post_silent_click_timed(
+            window,
+            request.x,
+            request.y,
+            request.item_index
+        );
     }
     if (request.action == ACTION_STATUS) {
         return game_call_result;

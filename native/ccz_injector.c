@@ -218,6 +218,14 @@ int wmain(int argc, wchar_t **argv) {
         wcscmp(argv[3], L"mute-audio") == 0 && argc == 4
     ) {
         request.action = 44;
+    } else if (
+        wcscmp(argv[3], L"silent-click-timed") == 0 && argc == 8
+    ) {
+        request.action = 45;
+        request.window = wcstoul(argv[4], NULL, 10);
+        request.x = _wtoi(argv[5]);
+        request.y = _wtoi(argv[6]);
+        request.item_index = _wtoi(argv[7]);
     } else if (wcscmp(argv[3], L"dialog-enter") == 0 && argc == 5) {
         request.action = 26;
         request.item_index = _wtoi(argv[4]);

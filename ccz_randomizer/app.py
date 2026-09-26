@@ -3213,6 +3213,8 @@ def run_inspection_process_once(
     slot: int,
     output_dir: Path,
     job_score: float,
+    *,
+    force_injected_story_click: bool = False,
 ) -> dict:
     if getattr(sys, "frozen", False):
         command = [
@@ -3243,6 +3245,10 @@ def run_inspection_process_once(
     env["CCZ_USE_ISOLATED_DESKTOP"] = "1"
     env.pop("CCZ_BACKGROUND_RENDER", None)
     env.pop("CCZ_DISABLE_GUARD", None)
+    if force_injected_story_click:
+        env["CCZ_INSPECTION_FORCE_INJECTED_STORY_CLICK"] = "1"
+    else:
+        env.pop("CCZ_INSPECTION_FORCE_INJECTED_STORY_CLICK", None)
     env["PYTHONIOENCODING"] = "utf-8"
     process = subprocess.Popen(
         command,
@@ -3296,6 +3302,7 @@ def run_inspection_process(
                 slot,
                 output_dir,
                 job_score,
+                force_injected_story_click=attempt > 1,
             )
         except RuntimeError as exc:
             last_error = exc
@@ -3447,6 +3454,56 @@ def run_candidate_inspection(
         return None
 
 
+def inspection_background_click(
+    pid: int,
+    hwnd: int,
+    client_x: int,
+    client_y: int,
+    *,
+    right: bool = False,
+) -> str:
+    method = "injected_background_mouse"
+    try:
+        if right:
+            native_background_click(hwnd, client_x, client_y, 1, True)
+        else:
+            native_silent_click(
+                pid,
+                hwnd,
+                client_x,
+                client_y,
+                tail_delay_ms=120,
+            )
+    except (NativeControlError, NativeControlTimeout) as exc:
+        method = "post_message_fallback"
+        rect = wintypes.RECT()
+        if not user32.GetWindowRect(hwnd, ctypes.byref(rect)):
+            raise
+        post_click(
+            hwnd,
+            rect.left + client_x,
+            rect.top + client_y,
+            right=right,
+        )
+        diagnostic_log(
+            "inspection_click_rect_fallback",
+            pid=pid,
+            hwnd=hwnd,
+            client_point=(client_x, client_y),
+            right=right,
+            error=repr(exc),
+        )
+    diagnostic_log(
+        "inspection_click_rect",
+        pid=pid,
+        hwnd=hwnd,
+        client_point=(client_x, client_y),
+        right=right,
+        method=method,
+    )
+    return method
+
+
 def patch_inspection_runtime(task_module, pid: int, panel_dir: Path):
     from window.BaseWindow import BaseWindow
     from window.CczWindow import CczPeopleWindow
@@ -3464,14 +3521,35 @@ def patch_inspection_runtime(task_module, pid: int, panel_dir: Path):
     ) -> None:
         if not self.hwnd or not user32.IsWindow(self.hwnd):
             return
+        client_x = x + w // 2
+        client_y = y + h // 2
+        if os.environ.get(
+            "CCZ_INSPECTION_FORCE_INJECTED_STORY_CLICK"
+        ) == "1":
+            inspection_background_click(
+                pid,
+                self.hwnd,
+                client_x,
+                client_y,
+                right=rightClick,
+            )
+            return
         rect = wintypes.RECT()
         if not user32.GetWindowRect(self.hwnd, ctypes.byref(rect)):
             return
         post_click(
             self.hwnd,
-            rect.left + x + w // 2,
-            rect.top + y + h // 2,
+            rect.left + client_x,
+            rect.top + client_y,
             right=rightClick,
+        )
+        diagnostic_log(
+            "inspection_click_rect",
+            pid=pid,
+            hwnd=self.hwnd,
+            client_point=(client_x, client_y),
+            right=rightClick,
+            method="post_message",
         )
 
     def window_mat(
@@ -4293,7 +4371,7 @@ def advance_seven_member_story(
     rounds: int = 5,
     clicks_per_round: int = 20,
 ) -> None:
-    """Pace dialogue advancement so slower clients reach the seven-member roster."""
+    """Advance residual helper dialogue while the Z acceleration is active."""
     for round_index in range(1, rounds + 1):
         native_silent_click_burst(
             main_window,

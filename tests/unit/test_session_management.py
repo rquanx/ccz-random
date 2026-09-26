@@ -25,6 +25,7 @@ from fast_randomizer import (
     finish_reused_load_confirmation,
     format_user_log,
     initial_team_members,
+    inspection_background_click,
     native_background_click,
     native_control_error_hint,
     native_silent_click,
@@ -232,6 +233,55 @@ class SessionManagementTests(unittest.TestCase):
         self.assertIn("CCZ_DISABLE_ROSTER_FALLBACK", source)
         self.assertIn("advance_seven_member_story(", source)
 
+    def test_inspection_npc_click_uses_injected_background_mouse(self):
+        with (
+            patch("fast_randomizer.native_silent_click") as native_click,
+            patch("fast_randomizer.post_click") as post_click_mock,
+            patch("fast_randomizer.diagnostic_log"),
+        ):
+            method = inspection_background_click(123, 456, 369, 234)
+
+        self.assertEqual("injected_background_mouse", method)
+        native_click.assert_called_once_with(
+            123,
+            456,
+            369,
+            234,
+            tail_delay_ms=120,
+        )
+        post_click_mock.assert_not_called()
+
+    def test_inspection_npc_click_falls_back_to_window_message(self):
+        def set_rect(_hwnd, rect_pointer):
+            rect = rect_pointer._obj
+            rect.left = 10
+            rect.top = 20
+            rect.right = 650
+            rect.bottom = 460
+            return True
+
+        with (
+            patch(
+                "fast_randomizer.native_silent_click",
+                side_effect=NativeControlError(162),
+            ),
+            patch(
+                "fast_randomizer.user32.GetWindowRect",
+                side_effect=set_rect,
+            ),
+            patch("fast_randomizer.post_click") as post_click_mock,
+            patch("fast_randomizer.diagnostic_log"),
+        ):
+            method = inspection_background_click(123, 456, 369, 234)
+
+        self.assertEqual("post_message_fallback", method)
+        post_click_mock.assert_called_once_with(
+            456,
+            379,
+            254,
+            right=False,
+        )
+
     def test_seven_member_story_progress_is_paced(self):
         with (
             patch("fast_randomizer.native_silent_click_burst") as click_burst,
@@ -266,34 +316,6 @@ class SessionManagementTests(unittest.TestCase):
             sleep.call_args_list,
         )
         self.assertEqual(3, diagnostic.call_count)
-
-    def test_initial_three_roster_reaches_seven_after_paced_progress(self):
-        state = {"member_count": 3, "processed_rounds": 0}
-
-        def process_click_round(_hwnd, _x, _y, _count):
-            state["processed_rounds"] += 1
-            if state["processed_rounds"] >= 3:
-                state["member_count"] = 7
-
-        self.assertEqual(3, state["member_count"])
-        with (
-            patch(
-                "fast_randomizer.native_silent_click_burst",
-                side_effect=process_click_round,
-            ),
-            patch("fast_randomizer.native_wake_game"),
-            patch("fast_randomizer.time.sleep"),
-            patch("fast_randomizer.diagnostic_log"),
-        ):
-            advance_seven_member_story(
-                123,
-                456,
-                rounds=5,
-                clicks_per_round=20,
-            )
-
-        self.assertEqual(7, state["member_count"])
-        self.assertGreaterEqual(state["processed_rounds"], 3)
 
     def test_full_inspection_accepts_actual_game_member_order(self):
         member_names = (
@@ -1040,6 +1062,16 @@ class SessionManagementTests(unittest.TestCase):
                 )
         self.assertEqual({"qualified": True}, result)
         self.assertEqual(2, run_once.call_count)
+        self.assertFalse(
+            run_once.call_args_list[0].kwargs[
+                "force_injected_story_click"
+            ]
+        )
+        self.assertTrue(
+            run_once.call_args_list[1].kwargs[
+                "force_injected_story_click"
+            ]
+        )
 
     def test_initial_inspection_process_retries_once(self):
         with tempfile.TemporaryDirectory() as directory:

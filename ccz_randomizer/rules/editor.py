@@ -14,6 +14,7 @@ from ccz_randomizer.rules.config import (
     SIMPLE_PRESET_OPTIONS,
     apply_simple_settings,
     build_rule_export,
+    classify_skill_score,
     default_rule_config,
     merge_rule_export,
     save_rule_config,
@@ -28,6 +29,12 @@ TYPE_LABELS = {
     "NONE": "无",
 }
 TYPE_VALUES = {label: value for value, label in TYPE_LABELS.items()}
+SKILL_TIER_LABELS = {
+    "other": "其他",
+    "ordinary": "优质",
+    "strong": "强力",
+    "special": "特殊",
+}
 
 ADVANCED_HELP_SECTIONS = (
     (
@@ -135,8 +142,9 @@ ADVANCED_HELP_SECTIONS = (
 只随机3人和完整7人都会检查特技。3人模式统计初始3人的特技，7人模式统计全部7人的特技。
 
 【优质、强力、特殊特技基础分】
-特技会按照所属类别获得默认分数。分数越高，该类别对合格结果的帮助越大。
-如果某个特技在“特技基础分”中单独设置过，则优先使用单独设置的分数。
+这三个数值同时是该档次的默认分数和分档门槛。
+单项特技的最终基础分达到哪个门槛，就按哪个档次处理；达到特殊门槛后，也会参与“出现特殊特技时直接合格”。
+三个门槛必须满足：普通优质 ≤ 强力 ≤ 特殊。
 
 【普通兵种组合所需特技分】
 兵种平均分达到“普通兵种质量分界”时，特技总分需要达到该数值。
@@ -157,15 +165,19 @@ ADVANCED_HELP_SECTIONS = (
         """【它有什么作用】
 这里可以单独调整某一个特技的分数。单独设置的分数优先于该特技所属类别的默认分数。
 
+【分数会改变特技档次】
+最终基础分达到特殊门槛时按特殊特技处理；达到强力门槛时按强力特技处理；达到普通优质门槛时按优质特技处理。
+档次变化会同时影响人物类型匹配和“出现特殊特技时直接合格”。
+
 【举例】
-特殊特技默认5分。如果把其中一个特技单独改成3分，那么只有这个特技按3分计算，其他特殊特技仍按5分计算。
+普通优质、强力、特殊门槛分别为1、2、5分时，把一个优质特技改为5分，它会按特殊特技处理；把特殊特技降到1分，它会按优质特技处理。
 
 【“其他”类别】
 “其他”类别默认不计分。你可以在这里给少数想要重视的特技单独设置分数。
 
 【人物类型是否匹配】
 优质和强力特技只有符合人物类型时才会正常计分。例如文官型特技出现在武将型人物身上时，可能不会计入有效分数。
-特殊特技不受这一限制。
+当前分数达到特殊门槛的特技不受这一限制。
 
 【直接合格的优先级】
 如果开启“出现特殊特技时直接合格”，出现特殊特技后会直接通过，不再比较这个特技的单项分数。
@@ -231,10 +243,12 @@ class ScoreGrid(tk.Frame):
         self,
         parent,
         items: list[tuple[str, tk.StringVar, str]],
+        category_resolver: Callable[[str, str, str], str] | None = None,
         **kwargs,
     ):
         super().__init__(parent, **kwargs)
         self.items = items
+        self.category_resolver = category_resolver
         self.enabled = True
         self.editor: tk.Entry | None = None
         self.editor_window: int | None = None
@@ -258,7 +272,7 @@ class ScoreGrid(tk.Frame):
         self.after_idle(self.refresh)
 
     def refresh(self) -> None:
-        self.commit_pending()
+        self.commit_pending(refresh=False)
         self.canvas.delete("all")
         self.hit_boxes.clear()
         viewport_width = max(760, self.canvas.winfo_width())
@@ -270,6 +284,11 @@ class ScoreGrid(tk.Frame):
             len(self.items) + self.COLUMN_COUNT - 1
         ) // self.COLUMN_COUNT
         for index, (name, variable, category) in enumerate(self.items):
+            display_category = (
+                self.category_resolver(name, variable.get(), category)
+                if self.category_resolver is not None
+                else category
+            )
             row, column = divmod(index, self.COLUMN_COUNT)
             x1 = self.GAP + column * (card_width + self.GAP)
             y1 = self.GAP + row * (self.CARD_HEIGHT + self.GAP)
@@ -283,13 +302,13 @@ class ScoreGrid(tk.Frame):
                 fill="#ffffff",
                 outline="#d8d8d8",
             )
-            if category:
+            if display_category:
                 category_color = {
                     "特殊": "#b24747",
                     "强力": "#496fa8",
                     "优质": "#4d8560",
                     "其他": "#888888",
-                }.get(category, "#888888")
+                }.get(display_category, "#888888")
                 self.canvas.create_rectangle(
                     x1,
                     y1,
@@ -310,6 +329,7 @@ class ScoreGrid(tk.Frame):
             score_y1 = y2 - self.SCORE_HEIGHT - 7
             score_x2 = x2 - 8
             score_y2 = y2 - 7
+            value_x1 = max(score_x1 + 92, score_x2 - 58)
             self.canvas.create_rectangle(
                 score_x1,
                 score_y1,
@@ -318,10 +338,21 @@ class ScoreGrid(tk.Frame):
                 fill="#fafafa" if self.enabled else "#f0f0f0",
                 outline="#b8b8b8",
             )
+            self.canvas.create_line(
+                value_x1,
+                score_y1,
+                value_x1,
+                score_y2,
+                fill="#d0d0d0",
+            )
             self.canvas.create_text(
                 score_x1 + 8,
                 (score_y1 + score_y2) / 2,
-                text=f"{category} · 基础分" if category else "基础分",
+                text=(
+                    f"{display_category} · 基础分"
+                    if display_category
+                    else "基础分"
+                ),
                 anchor="w",
                 fill="#777777",
                 font=("Microsoft YaHei UI", 8),
@@ -335,7 +366,7 @@ class ScoreGrid(tk.Frame):
                 font=("Microsoft YaHei UI", 9, "bold"),
             )
             self.hit_boxes.append(
-                (score_x1, score_y1, score_x2, score_y2, index)
+                (value_x1, score_y1, score_x2, score_y2, index)
             )
         total_height = (
             self.GAP + rows * (self.CARD_HEIGHT + self.GAP)
@@ -352,14 +383,15 @@ class ScoreGrid(tk.Frame):
             self.commit_pending()
         self.refresh()
 
-    def commit_pending(self) -> None:
+    def commit_pending(self, refresh: bool = True) -> None:
         if self.editor is None or self.editing_index is None:
             return
         try:
             self.items[self.editing_index][1].set(self.editor.get())
         finally:
             self._destroy_editor()
-        self.refresh()
+        if refresh:
+            self.refresh()
 
     def _start_edit(self, event) -> None:
         if not self.enabled:
@@ -776,9 +808,24 @@ def show_rule_editor(
     job_score_grid = ScoreGrid(base_score_tab, job_score_items)
     job_score_grid.pack(fill="both", expand=True)
 
-    add_number(skill_tab, 0, "ordinary_weight", "普通优质特技基础分")
-    add_number(skill_tab, 1, "strong_weight", "强力特技基础分")
-    add_number(skill_tab, 2, "special_weight", "特殊特技基础分")
+    add_number(
+        skill_tab,
+        0,
+        "ordinary_weight",
+        "普通优质特技基础分 / 门槛",
+    )
+    add_number(
+        skill_tab,
+        1,
+        "strong_weight",
+        "强力特技基础分 / 门槛",
+    )
+    add_number(
+        skill_tab,
+        2,
+        "special_weight",
+        "特殊特技基础分 / 门槛",
+    )
     add_number(
         skill_tab,
         3,
@@ -821,9 +868,57 @@ def show_rule_editor(
         skill_defaults[skill_name] = float(default_score)
         skill_categories[skill_name] = category
         skill_score_items.append((skill_name, variable, category))
-    skill_score_grid = ScoreGrid(skill_score_tab, skill_score_items)
+
+    def resolve_skill_tier(
+        _skill_name: str,
+        score_text: str,
+        original_category: str,
+    ) -> str:
+        try:
+            tier = classify_skill_score(
+                float(score_text),
+                float(number_vars["ordinary_weight"].get()),
+                float(number_vars["strong_weight"].get()),
+                float(number_vars["special_weight"].get()),
+            )
+            return SKILL_TIER_LABELS[tier]
+        except (KeyError, TypeError, ValueError):
+            return original_category
+
+    skill_score_grid = ScoreGrid(
+        skill_score_tab,
+        skill_score_items,
+        category_resolver=resolve_skill_tier,
+    )
     skill_score_grid.pack(fill="both", expand=True)
     score_grids = (job_score_grid, skill_score_grid)
+
+    refresh_skill_grid_job: str | None = None
+
+    def refresh_skill_grid() -> None:
+        nonlocal refresh_skill_grid_job
+        refresh_skill_grid_job = None
+        skill_score_grid.refresh()
+
+    def schedule_skill_grid_refresh(*_args) -> None:
+        nonlocal refresh_skill_grid_job
+        if refresh_skill_grid_job is not None:
+            editor.after_cancel(refresh_skill_grid_job)
+        refresh_skill_grid_job = editor.after(80, refresh_skill_grid)
+
+    def cancel_skill_grid_refresh(event) -> None:
+        nonlocal refresh_skill_grid_job
+        if event.widget != editor or refresh_skill_grid_job is None:
+            return
+        try:
+            editor.after_cancel(refresh_skill_grid_job)
+        except tk.TclError:
+            pass
+        refresh_skill_grid_job = None
+
+    editor.bind("<Destroy>", cancel_skill_grid_refresh, add="+")
+    for key in ("ordinary_weight", "strong_weight", "special_weight"):
+        number_vars[key].trace_add("write", schedule_skill_grid_refresh)
 
     def is_builtin(name: str) -> bool:
         return bool(working["profiles"][name].get("builtin"))

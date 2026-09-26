@@ -88,10 +88,51 @@ class RuleEditorTests(unittest.TestCase):
                 )
             )
             self.assertIsNotNone(grid.editor)
+            visible_text = {
+                grid.canvas.itemcget(item, "text")
+                for item in grid.canvas.find_all()
+                if grid.canvas.type(item) == "text"
+            }
+            self.assertIn("强力 · 基础分", visible_text)
             grid.editor.delete(0, "end")
             grid.editor.insert(0, "3.5")
             grid.commit_pending()
             self.assertEqual("3.5", variable.get())
+        finally:
+            root.destroy()
+
+    def test_score_grid_updates_dynamic_skill_tier_after_edit(self):
+        root = tk.Tk()
+        root.withdraw()
+        try:
+            variable = tk.StringVar(value="1")
+            grid = ScoreGrid(
+                root,
+                [("测试特技", variable, "优质")],
+                category_resolver=lambda _name, score, _category: (
+                    "特殊" if float(score) >= 5 else "优质"
+                ),
+                width=800,
+                height=300,
+            )
+            grid.pack(fill="both", expand=True)
+            root.update()
+            x1, y1, x2, y2, _index = grid.hit_boxes[0]
+            grid._start_edit(
+                SimpleNamespace(
+                    x=(x1 + x2) // 2,
+                    y=(y1 + y2) // 2,
+                )
+            )
+            grid.editor.delete(0, "end")
+            grid.editor.insert(0, "5")
+            grid.commit_pending()
+            visible_text = {
+                grid.canvas.itemcget(item, "text")
+                for item in grid.canvas.find_all()
+                if grid.canvas.type(item) == "text"
+            }
+            self.assertIn("特殊 · 基础分", visible_text)
         finally:
             root.destroy()
 

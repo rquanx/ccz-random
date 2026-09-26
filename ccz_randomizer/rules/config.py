@@ -132,6 +132,21 @@ class RuleEvaluation:
     metrics: dict[str, Any]
 
 
+def classify_skill_score(
+    score: float,
+    ordinary_threshold: float,
+    strong_threshold: float,
+    special_threshold: float,
+) -> str:
+    if score >= special_threshold:
+        return "special"
+    if score >= strong_threshold:
+        return "strong"
+    if score >= ordinary_threshold:
+        return "ordinary"
+    return "other"
+
+
 def default_rule_config() -> dict[str, Any]:
     return copy.deepcopy(DEFAULT_RULE_CONFIG)
 
@@ -334,6 +349,15 @@ def validate_rule_config(config: dict[str, Any]) -> dict[str, Any]:
             ("specialSkillWeight", "特殊特技权重"),
         ):
             seven[key] = _require_number(seven[key], f"{name}.{label}", 0, 20)
+        if not (
+            seven["ordinarySkillWeight"]
+            <= seven["strongSkillWeight"]
+            <= seven["specialSkillWeight"]
+        ):
+            raise ValueError(
+                f"{name} 的特技档次分数必须满足："
+                "普通优质 ≤ 强力 ≤ 特殊"
+            )
         if seven["normalJobAverage"] > seven["highJobAverage"]:
             raise ValueError(f"{name} 的普通兵种分界不能高于高兵种分界")
         seven["specialSkillAutoPass"] = _require_bool(
@@ -605,37 +629,44 @@ def evaluate_skill_rules(
         if effective_skill_names is not None
         else all_skill_items
     )
-    strong_count = sum(
-        skill in strong_skill_names for skill in effective_items
-    )
-    carry_count = sum(
-        skill in carry_skill_names and skill not in strong_skill_names
-        for skill in effective_items
-    )
-    special_count = sum(
-        skill in special_skill_names for skill in all_skill_items
-    )
     overrides = seven["skillBaseScores"]
     effective_remaining: dict[str, int] = {}
     for skill in effective_items:
         effective_remaining[skill] = effective_remaining.get(skill, 0) + 1
     skill_score = 0.0
+    carry_count = 0
+    strong_count = 0
+    special_count = 0
     for skill in all_skill_items:
         if skill in special_skill_names:
             default_score = seven["specialSkillWeight"]
         elif skill in strong_skill_names:
-            if effective_remaining.get(skill, 0) <= 0:
-                continue
-            effective_remaining[skill] -= 1
             default_score = seven["strongSkillWeight"]
         elif skill in carry_skill_names:
-            if effective_remaining.get(skill, 0) <= 0:
-                continue
-            effective_remaining[skill] -= 1
             default_score = seven["ordinarySkillWeight"]
         else:
             default_score = 0.0
-        skill_score += float(overrides.get(skill, default_score))
+        score = float(overrides.get(skill, default_score))
+        category = classify_skill_score(
+            score,
+            seven["ordinarySkillWeight"],
+            seven["strongSkillWeight"],
+            seven["specialSkillWeight"],
+        )
+        if category == "special":
+            special_count += 1
+            skill_score += score
+            continue
+        if category == "other":
+            continue
+        if effective_remaining.get(skill, 0) <= 0:
+            continue
+        effective_remaining[skill] -= 1
+        if category == "strong":
+            strong_count += 1
+        else:
+            carry_count += 1
+        skill_score += score
 
     if seven["specialSkillAutoPass"] and special_count > 0:
         qualified = True

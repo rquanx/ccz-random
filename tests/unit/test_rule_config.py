@@ -7,6 +7,7 @@ from rule_config import (
     DEFAULT_PROFILE_NAME,
     apply_simple_settings,
     build_rule_export,
+    classify_skill_score,
     default_rule_config,
     evaluate_job_rules,
     evaluate_skill_rules,
@@ -25,6 +26,19 @@ MEMBERS = [
 
 
 class RuleConfigTests(unittest.TestCase):
+    def test_skill_score_classification_uses_configured_thresholds(self):
+        self.assertEqual("other", classify_skill_score(0.5, 1, 2, 5))
+        self.assertEqual("ordinary", classify_skill_score(1, 1, 2, 5))
+        self.assertEqual("strong", classify_skill_score(3, 1, 2, 5))
+        self.assertEqual("special", classify_skill_score(5, 1, 2, 5))
+
+    def test_skill_thresholds_must_be_ordered(self):
+        config = default_rule_config()
+        seven = config["profiles"][DEFAULT_PROFILE_NAME]["sevenPerson"]
+        seven["strongSkillWeight"] = 6
+        with self.assertRaisesRegex(ValueError, "普通优质 ≤ 强力 ≤ 特殊"):
+            validate_rule_config(config)
+
     def test_default_job_rule_matches_existing_threshold(self):
         jobs = [
             {"name": "群雄", "score": 8, "type": "ALL_ROUNDER"},
@@ -152,6 +166,41 @@ class RuleConfigTests(unittest.TestCase):
         )
         self.assertTrue(result.qualified)
         self.assertEqual(5, result.metrics["skillScore"])
+        self.assertEqual(1, result.metrics["specialCount"])
+
+    def test_score_override_promotes_skill_to_special_auto_pass(self):
+        config = default_rule_config()
+        seven = config["profiles"][DEFAULT_PROFILE_NAME]["sevenPerson"]
+        seven["skillBaseScores"] = {"优质特技": 5}
+        result = evaluate_skill_rules(
+            config,
+            7.6,
+            {"曹操": ["优质特技"]},
+            {"优质特技"},
+            set(),
+            set(),
+            effective_skill_names=[],
+        )
+        self.assertTrue(result.qualified)
+        self.assertEqual(1, result.metrics["specialCount"])
+        self.assertEqual(5, result.metrics["skillScore"])
+
+    def test_score_override_demotes_special_and_requires_type_match(self):
+        config = default_rule_config()
+        seven = config["profiles"][DEFAULT_PROFILE_NAME]["sevenPerson"]
+        seven["skillBaseScores"] = {"特殊特技": 1}
+        result = evaluate_skill_rules(
+            config,
+            7.6,
+            {"曹操": ["特殊特技"]},
+            set(),
+            set(),
+            {"特殊特技"},
+            effective_skill_names=[],
+        )
+        self.assertFalse(result.qualified)
+        self.assertEqual(0, result.metrics["specialCount"])
+        self.assertEqual(0, result.metrics["skillScore"])
 
     def test_custom_skill_score_counts_duplicate_occurrences(self):
         config = default_rule_config()
@@ -168,10 +217,10 @@ class RuleConfigTests(unittest.TestCase):
         self.assertTrue(result.qualified)
         self.assertEqual(4, result.metrics["skillScore"])
 
-    def test_incompatible_quality_skill_does_not_receive_override(self):
+    def test_incompatible_strong_skill_does_not_receive_override(self):
         config = default_rule_config()
         seven = config["profiles"][DEFAULT_PROFILE_NAME]["sevenPerson"]
-        seven["skillBaseScores"] = {"优质特技": 10}
+        seven["skillBaseScores"] = {"优质特技": 4}
         result = evaluate_skill_rules(
             config,
             7.6,

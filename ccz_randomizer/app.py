@@ -388,11 +388,6 @@ def effective_member_skill_names(task_module, members) -> list[str]:
     names: list[str] = []
     for member in members:
         for skill in member.skillList:
-            if not (
-                task_module.CczUtils.isSkillCarry(skill)
-                or task_module.CczUtils.isSkillImba(skill)
-            ):
-                continue
             if (
                 member.cczType == task_module.CczType.WARRIOR
                 and skill.type == task_module.CczType.MASTER
@@ -3635,11 +3630,7 @@ def inspect_saved_slot(
                         "effective_skills": [
                             skill.name
                             for skill in member.skillList
-                            if (
-                                task_module.CczUtils.isSkillCarry(skill)
-                                or task_module.CczUtils.isSkillImba(skill)
-                            )
-                            and not (
+                            if not (
                                 (
                                     member.cczType
                                     == task_module.CczType.WARRIOR

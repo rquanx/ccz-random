@@ -11,7 +11,6 @@ from fast_randomizer import (
     NativeControlError,
     NativeControlTimeout,
     Tee,
-    close_stale_load_confirmation,
     decode_equipment_effect,
     decode_subprocess_output,
     format_user_log,
@@ -97,50 +96,6 @@ class SessionManagementTests(unittest.TestCase):
             'f"切换到第 {index + 2} 个武将失败"',
             source,
         )
-
-    def test_stale_direct_load_confirmation_is_closed(self):
-        dialog_states = iter([True, False])
-        with (
-            patch(
-                "fast_randomizer.process_windows",
-                return_value=[456],
-            ),
-            patch(
-                "fast_randomizer.window_class",
-                return_value="#32770",
-            ),
-            patch(
-                "fast_randomizer.window_text",
-                return_value="确认",
-            ),
-            patch(
-                "fast_randomizer.user32.IsWindowVisible",
-                return_value=True,
-            ),
-            patch(
-                "fast_randomizer.user32.IsWindowEnabled",
-                side_effect=[False, True],
-            ),
-            patch(
-                "fast_randomizer.user32.IsWindow",
-                side_effect=lambda _hwnd: next(dialog_states),
-            ),
-            patch(
-                "fast_randomizer.click_leftmost_dialog_button",
-                return_value=True,
-            ) as click,
-            patch("fast_randomizer.diagnostic_log"),
-        ):
-            closed = close_stale_load_confirmation(123, 789)
-        self.assertTrue(closed)
-        click.assert_called_once_with(456)
-
-    def test_direct_load_without_confirmation_is_unchanged(self):
-        with patch(
-            "fast_randomizer.process_windows",
-            return_value=[],
-        ):
-            self.assertFalse(close_stale_load_confirmation(123, 789))
 
     def test_unverified_skill_memory_reader_is_not_patched_into_runtime(self):
         source = (

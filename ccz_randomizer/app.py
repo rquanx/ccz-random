@@ -2651,62 +2651,6 @@ def click_leftmost_dialog_button(hwnd: int) -> bool:
     )
 
 
-def close_stale_load_confirmation(pid: int, game: int) -> bool:
-    dialogs = [
-        hwnd
-        for hwnd in process_windows(pid)
-        if (
-            window_class(hwnd) == "#32770"
-            and window_text(hwnd) == "确认"
-            and user32.IsWindowVisible(hwnd)
-        )
-    ]
-    if not dialogs:
-        return False
-
-    dialog = dialogs[0]
-    diagnostic_log(
-        "direct_load_confirmation_found",
-        pid=pid,
-        game_hwnd=game,
-        dialog_hwnd=dialog,
-        game_enabled=bool(user32.IsWindowEnabled(game)),
-    )
-    if not click_leftmost_dialog_button(dialog):
-        diagnostic_log(
-            "direct_load_confirmation_click_failed",
-            pid=pid,
-            game_hwnd=game,
-            dialog_hwnd=dialog,
-        )
-        raise InteractionNotTriggered("后台读档确认窗口未能关闭")
-
-    deadline = time.perf_counter() + 3.0
-    while time.perf_counter() < deadline:
-        if (
-            not user32.IsWindow(dialog)
-            and user32.IsWindowEnabled(game)
-        ):
-            diagnostic_log(
-                "direct_load_confirmation_closed",
-                pid=pid,
-                game_hwnd=game,
-                dialog_hwnd=dialog,
-            )
-            return True
-        time.sleep(0.05)
-
-    diagnostic_log(
-        "direct_load_confirmation_close_timeout",
-        pid=pid,
-        game_hwnd=game,
-        dialog_hwnd=dialog,
-        dialog_valid=bool(user32.IsWindow(dialog)),
-        game_enabled=bool(user32.IsWindowEnabled(game)),
-    )
-    raise InteractionNotTriggered("后台读档确认窗口关闭后游戏未恢复")
-
-
 def bundled_random_s00() -> Path:
     if getattr(sys, "frozen", False):
         return Path(sys._MEIPASS) / "random_s00.eex"
@@ -4277,8 +4221,7 @@ def patch_runtime(
                     raise RuntimeError(
                         "第 20 号源存档连续两种后台读取方式均失败"
                     )
-            close_stale_load_confirmation(pid, game)
-            scene_ready_delay = 1.2
+            scene_ready_delay = 2.0
         else:
             load_mode = "title"
             diagnostic_log("source_load_start", pid=pid, mode=load_mode)

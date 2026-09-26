@@ -13,6 +13,7 @@ from fast_randomizer import (
     NativeControlTimeout,
     Tee,
     advance_people_info_in_game_order,
+    click_dialog_button,
     decode_equipment_effect,
     decode_subprocess_output,
     finish_reused_load_confirmation,
@@ -129,6 +130,7 @@ class SessionManagementTests(unittest.TestCase):
         click.assert_called_once_with(
             456,
             "下一武将",
+            pid=123,
             force_coordinate=False,
         )
 
@@ -295,6 +297,99 @@ class SessionManagementTests(unittest.TestCase):
                 call.kwargs.get("force_coordinate")
                 for call in click.call_args_list
             )
+        )
+
+    def test_forced_dialog_click_uses_injected_button_mouse(self):
+        def set_rect(_hwnd, rect_pointer):
+            rect = rect_pointer._obj
+            rect.left = 0
+            rect.top = 0
+            rect.right = 18
+            rect.bottom = 56
+            return True
+
+        with (
+            patch("fast_randomizer.find_dialog_button", return_value=789),
+            patch(
+                "fast_randomizer.user32.GetClientRect",
+                side_effect=set_rect,
+            ),
+            patch(
+                "fast_randomizer.user32.GetWindowRect",
+                side_effect=set_rect,
+            ),
+            patch("fast_randomizer.user32.SendMessageW") as send_message,
+            patch("fast_randomizer.native_silent_click") as native_click,
+            patch("fast_randomizer.diagnostic_log") as diagnostic,
+        ):
+            method = click_dialog_button(
+                456,
+                "下一武将",
+                pid=123,
+                force_coordinate=True,
+            )
+
+        self.assertEqual("injected_button_mouse", method)
+        native_click.assert_called_once_with(
+            123,
+            789,
+            9,
+            28,
+            tail_delay_ms=120,
+        )
+        send_message.assert_not_called()
+        self.assertEqual(
+            "injected_button_mouse",
+            diagnostic.call_args.kwargs["method"],
+        )
+
+    def test_dialog_fixed_fallback_uses_injected_mouse(self):
+        def set_window_rect(_hwnd, rect_pointer):
+            rect = rect_pointer._obj
+            rect.left = 100
+            rect.top = 200
+            rect.right = 600
+            rect.bottom = 700
+            return True
+
+        def to_client(_hwnd, point_pointer):
+            point = point_pointer._obj
+            point.x -= 108
+            point.y -= 231
+            return True
+
+        with (
+            patch("fast_randomizer.find_dialog_button", return_value=0),
+            patch("fast_randomizer.user32.IsWindow", return_value=True),
+            patch(
+                "fast_randomizer.user32.GetWindowRect",
+                side_effect=set_window_rect,
+            ),
+            patch(
+                "fast_randomizer.user32.ScreenToClient",
+                side_effect=to_client,
+            ),
+            patch("fast_randomizer.native_silent_click") as native_click,
+            patch("fast_randomizer.diagnostic_log") as diagnostic,
+        ):
+            method = click_dialog_button(
+                456,
+                "下一武将",
+                pid=123,
+                force_coordinate=True,
+            )
+
+        self.assertEqual("injected_dialog_fallback", method)
+        native_click.assert_called_once_with(
+            123,
+            456,
+            412,
+            347,
+            tail_delay_ms=120,
+        )
+        self.assertEqual(
+            "injected_dialog_fallback",
+            diagnostic.call_args.kwargs["method"],
         )
 
     def test_unverified_skill_memory_reader_is_not_patched_into_runtime(self):

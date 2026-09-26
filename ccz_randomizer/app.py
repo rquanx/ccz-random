@@ -3228,12 +3228,64 @@ def click_dialog_button(
     hwnd: int,
     text: str,
     *,
+    pid: int | None = None,
     force_coordinate: bool = False,
-) -> None:
+) -> str:
     button = find_dialog_button(hwnd, text)
     if button and not force_coordinate:
         user32.SendMessageW(button, BM_CLICK, 0, 0)
-        return
+        diagnostic_log(
+            "dialog_button_click",
+            hwnd=hwnd,
+            button_hwnd=button,
+            button_text=text,
+            method="send_bm_click",
+        )
+        return "send_bm_click"
+
+    if button and force_coordinate:
+        button_rect = wintypes.RECT()
+        screen_rect = wintypes.RECT()
+        if (
+            user32.GetClientRect(button, ctypes.byref(button_rect))
+            and user32.GetWindowRect(button, ctypes.byref(screen_rect))
+        ):
+            click_pid = pid
+            if click_pid is None:
+                process_id = wintypes.DWORD()
+                user32.GetWindowThreadProcessId(
+                    button, ctypes.byref(process_id)
+                )
+                click_pid = int(process_id.value)
+            if click_pid:
+                client_x = max(
+                    0, (button_rect.right - button_rect.left) // 2
+                )
+                client_y = max(
+                    0, (button_rect.bottom - button_rect.top) // 2
+                )
+                diagnostic_log(
+                    "dialog_button_click",
+                    hwnd=hwnd,
+                    button_hwnd=button,
+                    button_text=text,
+                    method="injected_button_mouse",
+                    client_point=(client_x, client_y),
+                    button_rect=(
+                        screen_rect.left,
+                        screen_rect.top,
+                        screen_rect.right,
+                        screen_rect.bottom,
+                    ),
+                )
+                native_silent_click(
+                    click_pid,
+                    button,
+                    client_x,
+                    client_y,
+                    tail_delay_ms=120,
+                )
+                return "injected_button_mouse"
 
     fallback_rects = {
         "上一武将": (290, 350, 18, 56),
@@ -3244,11 +3296,25 @@ def click_dialog_button(
         x, y, width, height = fallback
         rect = wintypes.RECT()
         if user32.GetWindowRect(hwnd, ctypes.byref(rect)):
+            point = Point(
+                rect.left + x + width // 2,
+                rect.top + y + height // 2,
+            )
+            user32.ScreenToClient(hwnd, ctypes.byref(point))
+            click_pid = pid
+            if click_pid is None:
+                process_id = wintypes.DWORD()
+                user32.GetWindowThreadProcessId(
+                    hwnd, ctypes.byref(process_id)
+                )
+                click_pid = int(process_id.value)
             diagnostic_log(
-                "dialog_button_coordinate_fallback",
+                "dialog_button_click",
                 hwnd=hwnd,
+                button_hwnd=button,
                 button_text=text,
-                forced=force_coordinate,
+                method="injected_dialog_fallback",
+                client_point=(point.x, point.y),
                 window_rect=(
                     rect.left,
                     rect.top,
@@ -3256,12 +3322,20 @@ def click_dialog_button(
                     rect.bottom,
                 ),
             )
-            post_click(
-                hwnd,
-                rect.left + x + width // 2,
-                rect.top + y + height // 2,
+            if click_pid:
+                native_silent_click(
+                    click_pid,
+                    hwnd,
+                    point.x,
+                    point.y,
+                    tail_delay_ms=120,
+                )
+                return "injected_dialog_fallback"
+            diagnostic_log(
+                "dialog_button_click_pid_missing",
+                hwnd=hwnd,
+                button_text=text,
             )
-            return
 
     buttons = []
     callback_type = ctypes.WINFUNCTYPE(
@@ -3368,7 +3442,7 @@ def advance_people_info(
             user32.SendMessageW(info_hwnd, 0x0006, 1, 0)
             user32.SendMessageW(info_hwnd, 0x0086, 1, 0)
             user32.SendMessageW(info_hwnd, 0x0007, 0, 0)
-        click_dialog_button(info_hwnd, "下一武将")
+        click_dialog_button(info_hwnd, "下一武将", pid=pid)
         deadline = time.perf_counter() + 1.5
         while time.perf_counter() < deadline:
             expected_hwnd = find_member_dialog(pid, expected_name)
@@ -3396,10 +3470,19 @@ def advance_people_info_in_game_order(
 ) -> tuple[int, str]:
     """Advance to the next distinct member without assuming roster order."""
     for attempt in range(3):
-        click_dialog_button(
+        click_method = click_dialog_button(
             info_hwnd,
             "下一武将",
+            pid=pid,
             force_coordinate=attempt > 0,
+        )
+        diagnostic_log(
+            "member_transition_click",
+            pid=pid,
+            hwnd=info_hwnd,
+            attempt=attempt + 1,
+            current_member=current_name,
+            method=click_method,
         )
         deadline = time.perf_counter() + 2.0
         while time.perf_counter() < deadline:
@@ -3409,6 +3492,15 @@ def advance_people_info_in_game_order(
                 and shown_name != current_name
                 and shown_name not in captured_names
             ):
+                diagnostic_log(
+                    "member_transition_observed",
+                    pid=pid,
+                    hwnd=info_hwnd,
+                    attempt=attempt + 1,
+                    current_member=current_name,
+                    shown_member=shown_name,
+                    method=click_method,
+                )
                 return info_hwnd, shown_name
             candidate_hwnd, candidate_name = find_any_member_dialog(
                 pid, member_names
@@ -3419,8 +3511,28 @@ def advance_people_info_in_game_order(
                 and candidate_name != current_name
                 and candidate_name not in captured_names
             ):
+                diagnostic_log(
+                    "member_transition_observed",
+                    pid=pid,
+                    hwnd=candidate_hwnd,
+                    attempt=attempt + 1,
+                    current_member=current_name,
+                    shown_member=candidate_name,
+                    method=click_method,
+                )
                 return candidate_hwnd, candidate_name
             time.sleep(0.05)
+        diagnostic_log(
+            "member_transition_click_no_change",
+            pid=pid,
+            hwnd=info_hwnd,
+            attempt=attempt + 1,
+            current_member=current_name,
+            shown_member=current_dialog_member(
+                info_hwnd, member_names
+            ),
+            method=click_method,
+        )
         time.sleep(0.2)
     shown_name = current_dialog_member(info_hwnd, member_names)
     raise RuntimeError(

@@ -997,6 +997,122 @@ def locate_game_executable() -> Path:
     )
 
 
+def source_save_job_ids(save_path: Path) -> tuple[int, ...]:
+    minimum_size = JOB_OFFSET + (max(JOB_POSITIONS_R1) + 1) * 4
+    try:
+        data = save_path.read_bytes()
+    except OSError as exc:
+        raise RuntimeError(
+            "第20栏存档无法读取。\n\n"
+            "请确认存档文件没有被其他程序占用，并检查游戏目录权限。"
+        ) from exc
+    if len(data) < max(R0_MEMORY_SIZE, minimum_size):
+        raise RuntimeError(
+            "第20栏存档文件不完整或版本不匹配。\n\n"
+            "请进入游戏重新保存到第20栏，然后再开始随机。"
+        )
+    values = struct.unpack_from(
+        f"<{max(JOB_POSITIONS_R1) + 1}I",
+        data,
+        JOB_OFFSET,
+    )
+    return tuple(values[index] for index in JOB_POSITIONS_R1)
+
+
+def ensure_directory_writable(directory: Path, label: str) -> None:
+    probe = None
+    try:
+        directory.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile(
+            prefix=".ccz-write-check-",
+            dir=directory,
+            delete=False,
+        ) as handle:
+            probe = Path(handle.name)
+    except OSError as exc:
+        raise RuntimeError(
+            f"{label}无法写入。\n\n"
+            "请将游戏放到普通文件夹，并确认当前用户拥有该目录的写入权限。"
+        ) from exc
+    finally:
+        if probe is not None:
+            probe.unlink(missing_ok=True)
+
+
+def validate_start_environment(game_executable: Path) -> Path:
+    game_executable = game_executable.resolve()
+    if not game_executable.is_file():
+        raise RuntimeError(
+            f"未找到 {GAME_EXE_NAME}。\n\n"
+            "请把本工具放到游戏目录下，再双击运行。"
+        )
+    if find_process_id(GAME_EXE_NAME) is not None:
+        raise RuntimeError(
+            "检测到游戏正在运行。\n\n"
+            "请先关闭游戏，再点击“开始随机”。"
+        )
+
+    game_dir = game_executable.parent
+    save_dir = game_dir / "SV"
+    source_save = save_dir / "SV020.E5S"
+    if not source_save.is_file():
+        raise RuntimeError(
+            "未找到第20栏存档。\n\n"
+            "请在许子将处完成配置，并在触发随机之前保存到第20栏。"
+        )
+
+    job_ids = source_save_job_ids(source_save)
+    if any(job_ids):
+        raise RuntimeError(
+            "第20栏存档已经触发过随机，不能作为源存档。\n\n"
+            "请重新读取配置完成但尚未随机的存档，"
+            "在与许子将对话并选择第一项之前保存到第20栏。"
+        )
+
+    missing_components = [
+        path.name
+        for path in (
+            native_dir() / "ccz_injector.exe",
+            native_dir() / "ccz_control.dll",
+        )
+        if not path.is_file()
+    ]
+    if not bundle_root().is_dir():
+        missing_components.append("运行组件")
+    if missing_components:
+        raise RuntimeError(
+            "工具运行文件不完整，缺少："
+            + "、".join(missing_components)
+            + "。\n\n请重新获取完整的工具程序。"
+        )
+
+    ensure_directory_writable(game_dir, "游戏目录")
+    ensure_directory_writable(save_dir, "存档目录")
+    read_only_saves = []
+    for slot in range(1, 16):
+        target = save_dir / f"SV{slot:03}.E5S"
+        attributes = (
+            getattr(target.stat(), "st_file_attributes", 0)
+            if target.exists()
+            else 0
+        )
+        if attributes & 0x1:
+            read_only_saves.append(str(slot))
+    if read_only_saves:
+        raise RuntimeError(
+            "以下结果存档被设置为只读，无法覆盖："
+            + "、".join(read_only_saves)
+            + "。\n\n请取消这些存档文件的“只读”属性后重试。"
+        )
+
+    if shutil.disk_usage(game_dir).free < 100 * 1024 * 1024:
+        raise RuntimeError(
+            "游戏所在磁盘剩余空间不足。\n\n"
+            "请至少清理出 100 MB 可用空间后再开始随机。"
+        )
+    return source_save
+
+
 class HiddenGameSession:
     def __init__(
         self,
@@ -5031,6 +5147,17 @@ def gui_main() -> int:
         nonlocal stop_requested_by_user, last_formatted_line
         if worker is not None:
             return
+        try:
+            game_executable = locate_game_executable()
+            validate_start_environment(game_executable)
+        except Exception as exc:
+            status.set("环境检查未通过")
+            messagebox.showerror(
+                "无法开始随机",
+                str(exc),
+                parent=root,
+            )
+            return
         latest_rules = load_rule_config(app_dir())
         current_rules = latest_rules.config
         rule_profile_combo.configure(
@@ -5056,6 +5183,7 @@ def gui_main() -> int:
                 else "完整7人"
             )
         )
+        append("环境检查：通过")
         env = os.environ.copy()
         stop_file = (
             app_dir()

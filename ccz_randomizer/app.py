@@ -4804,12 +4804,22 @@ def gui_main() -> int:
     outer = tk.Frame(root, padx=14, pady=12)
     outer.pack(fill="both", expand=True)
 
+    header = tk.Frame(outer)
+    header.pack(fill="x")
     tk.Label(
-        outer,
+        header,
         text="2.10 随机工具",
         font=("Microsoft YaHei UI", 16, "bold"),
         anchor="w",
-    ).pack(fill="x")
+    ).pack(side="left")
+    version = str(application_build_info().get("version", "")).strip()
+    tk.Label(
+        header,
+        text=f"V{version}" if version else "",
+        font=("Microsoft YaHei UI", 10),
+        anchor="e",
+        fg="#666666",
+    ).pack(side="right", padx=(12, 2), pady=(6, 0))
     help_popup: tk.Toplevel | None = None
     help_image: tk.PhotoImage | None = None
 

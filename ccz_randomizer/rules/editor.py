@@ -668,12 +668,14 @@ def show_toast(parent, message: str, duration_ms: int = 1800) -> None:
         padx=18,
         pady=10,
         font=("Microsoft YaHei UI", 10),
+        justify="center",
+        wraplength=520,
     ).pack()
     toast.update_idletasks()
     width = toast.winfo_reqwidth()
     height = toast.winfo_reqheight()
     x = parent.winfo_rootx() + (parent.winfo_width() - width) // 2
-    y = parent.winfo_rooty() + parent.winfo_height() - height - 28
+    y = parent.winfo_rooty() + (parent.winfo_height() - height) // 2
     x = max(0, min(x, toast.winfo_screenwidth() - width))
     y = max(0, min(y, toast.winfo_screenheight() - height))
     toast.geometry(f"{width}x{height}+{x}+{y}")

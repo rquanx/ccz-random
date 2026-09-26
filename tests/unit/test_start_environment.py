@@ -9,7 +9,9 @@ from unittest.mock import patch
 from ccz_randomizer.app import (
     JOB_OFFSET,
     JOB_POSITIONS_R1,
+    MIN_AVAILABLE_MEMORY_BYTES,
     R0_MEMORY_SIZE,
+    SecuritySoftwareDetected,
     source_save_job_ids,
     validate_start_environment,
 )
@@ -36,14 +38,22 @@ class StartEnvironmentTests(unittest.TestCase):
             patch("ccz_randomizer.app.find_process_id", return_value=None),
             patch("ccz_randomizer.app.native_dir", return_value=native),
             patch("ccz_randomizer.app.bundle_root", return_value=bundle),
+            patch(
+                "ccz_randomizer.app.detect_360_security_processes",
+                return_value=(),
+            ),
+            patch(
+                "ccz_randomizer.app.available_physical_memory_bytes",
+                return_value=MIN_AVAILABLE_MEMORY_BYTES,
+            ),
         )
 
     def test_valid_environment_passes(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             game, source_save = self.make_game_directory(root)
-            process_patch, native_patch, bundle_patch = self.runtime_patches(root)
-            with process_patch, native_patch, bundle_patch:
+            patches = self.runtime_patches(root)
+            with patches[0], patches[1], patches[2], patches[3], patches[4]:
                 self.assertEqual(
                     source_save,
                     validate_start_environment(game),
@@ -55,8 +65,8 @@ class StartEnvironmentTests(unittest.TestCase):
             game = root / "Ekd5.exe"
             game.write_bytes(b"game")
             (root / "SV").mkdir()
-            process_patch, native_patch, bundle_patch = self.runtime_patches(root)
-            with process_patch, native_patch, bundle_patch:
+            patches = self.runtime_patches(root)
+            with patches[0], patches[1], patches[2], patches[3], patches[4]:
                 with self.assertRaisesRegex(RuntimeError, "未找到第20栏存档"):
                     validate_start_environment(game)
 
@@ -72,9 +82,48 @@ class StartEnvironmentTests(unittest.TestCase):
                 3,
             )
             source_save.write_bytes(data)
-            process_patch, native_patch, bundle_patch = self.runtime_patches(root)
-            with process_patch, native_patch, bundle_patch:
+            patches = self.runtime_patches(root)
+            with patches[0], patches[1], patches[2], patches[3], patches[4]:
                 with self.assertRaisesRegex(RuntimeError, "已经触发过随机"):
+                    validate_start_environment(game)
+
+    def test_active_360_process_blocks_start(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            game, _source_save = self.make_game_directory(root)
+            patches = self.runtime_patches(root)
+            with (
+                patches[0],
+                patches[1],
+                patches[2],
+                patch(
+                    "ccz_randomizer.app.detect_360_security_processes",
+                    return_value=("360tray.exe",),
+                ),
+                patches[4],
+            ):
+                with self.assertRaisesRegex(
+                    SecuritySoftwareDetected,
+                    "完全退出 360",
+                ):
+                    validate_start_environment(game)
+
+    def test_low_available_memory_blocks_start(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            game, _source_save = self.make_game_directory(root)
+            patches = self.runtime_patches(root)
+            with (
+                patches[0],
+                patches[1],
+                patches[2],
+                patches[3],
+                patch(
+                    "ccz_randomizer.app.available_physical_memory_bytes",
+                    return_value=MIN_AVAILABLE_MEMORY_BYTES - 1,
+                ),
+            ):
+                with self.assertRaisesRegex(RuntimeError, "可用内存"):
                     validate_start_environment(game)
 
     def test_incomplete_source_save_is_rejected(self) -> None:

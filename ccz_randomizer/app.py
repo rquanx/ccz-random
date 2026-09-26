@@ -28,7 +28,7 @@ from ccz_randomizer.rules.config import (
     save_rule_config,
     validate_rule_config,
 )
-from ccz_randomizer.rules.editor import show_rule_editor
+from ccz_randomizer.rules.editor import show_rule_editor, show_toast
 from ccz_randomizer.diagnostics.skill_storage import write_skill_evidence
 from ccz_randomizer.runtime.log_retention import (
     RotatingTextWriter,
@@ -89,6 +89,7 @@ R0_MEMORY_SIZE = 0x30000
 PROCESS_QUERY_INFORMATION = 0x0400
 PROCESS_VM_READ = 0x0010
 PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+MIN_AVAILABLE_MEMORY_BYTES = 768 * 1024 * 1024
 DESKTOP_ACCESS = 0x01CB
 STARTF_USESHOWWINDOW = 0x00000001
 SW_HIDE = 0
@@ -109,6 +110,19 @@ SOURCE_TITLE_LIST_INDEX = 19
 XU_CLIENT_POSITION = (369, 234)
 CONFIRM_FIRST_CLIENT_POSITION = (297, 220)
 DIRECT_RELOAD_FAILURES_BEFORE_COMPATIBILITY = 3
+SECURITY_360_PROCESS_NAMES = frozenset(
+    {
+        "360doctor.exe",
+        "360rp.exe",
+        "360safe.exe",
+        "360sd.exe",
+        "360speedld.exe",
+        "360tray.exe",
+        "qhsafemain.exe",
+        "qhsafetray.exe",
+        "zhudongfangyu.exe",
+    }
+)
 EQUIPMENT_OFFSET = 0x54D8
 EQUIPMENT_SIZE = 376
 EQUIPMENT_NAMES = (
@@ -456,6 +470,20 @@ CWP_SKIPTRANSPARENT = 0x0004
 
 class Point(ctypes.Structure):
     _fields_ = [("x", ctypes.c_long), ("y", ctypes.c_long)]
+
+
+class MemoryStatusEx(ctypes.Structure):
+    _fields_ = [
+        ("dwLength", wintypes.DWORD),
+        ("dwMemoryLoad", wintypes.DWORD),
+        ("ullTotalPhys", ctypes.c_ulonglong),
+        ("ullAvailPhys", ctypes.c_ulonglong),
+        ("ullTotalPageFile", ctypes.c_ulonglong),
+        ("ullAvailPageFile", ctypes.c_ulonglong),
+        ("ullTotalVirtual", ctypes.c_ulonglong),
+        ("ullAvailVirtual", ctypes.c_ulonglong),
+        ("ullAvailExtendedVirtual", ctypes.c_ulonglong),
+    ]
 
 
 class BitmapInfoHeader(ctypes.Structure):
@@ -862,6 +890,10 @@ class DirectReloadUnsupported(InteractionNotTriggered):
     """The current machine cannot safely reuse a running game instance."""
 
 
+class SecuritySoftwareDetected(RuntimeError):
+    """A known incompatible security product is currently active."""
+
+
 def run_native_control(pid: int, arguments: list[str]) -> None:
     injector = native_dir() / "ccz_injector.exe"
     control_dll = native_dir() / "ccz_control.dll"
@@ -1088,6 +1120,39 @@ def find_process_id(exe_name: str) -> int | None:
         kernel32.CloseHandle(snapshot)
 
 
+def running_process_names() -> set[str]:
+    names: set[str] = set()
+    snapshot = kernel32.CreateToolhelp32Snapshot(0x00000002, 0)
+    if snapshot == wintypes.HANDLE(-1).value:
+        return names
+    try:
+        entry = ProcessEntry32()
+        entry.dwSize = ctypes.sizeof(entry)
+        if not kernel32.Process32FirstW(snapshot, ctypes.byref(entry)):
+            return names
+        while True:
+            names.add(entry.szExeFile.casefold())
+            if not kernel32.Process32NextW(snapshot, ctypes.byref(entry)):
+                return names
+    finally:
+        kernel32.CloseHandle(snapshot)
+
+
+def detect_360_security_processes() -> tuple[str, ...]:
+    matches = running_process_names().intersection(
+        SECURITY_360_PROCESS_NAMES
+    )
+    return tuple(sorted(matches))
+
+
+def available_physical_memory_bytes() -> int | None:
+    status = MemoryStatusEx()
+    status.dwLength = ctypes.sizeof(status)
+    if not kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):
+        return None
+    return int(status.ullAvailPhys)
+
+
 def process_executable(pid: int) -> Path | None:
     handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
     if not handle:
@@ -1179,6 +1244,24 @@ def validate_start_environment(game_executable: Path) -> Path:
         raise RuntimeError(
             "检测到游戏正在运行。\n\n"
             "请先关闭游戏，再点击“开始随机”。"
+        )
+    security_processes = detect_360_security_processes()
+    if security_processes:
+        raise SecuritySoftwareDetected(
+            "检测到 360 安全软件正在运行，可能会阻止随机工具的后台操作。"
+            "请完全退出 360 后，再点击“开始随机”。"
+        )
+    available_memory = available_physical_memory_bytes()
+    if (
+        available_memory is not None
+        and available_memory < MIN_AVAILABLE_MEMORY_BYTES
+    ):
+        available_mb = max(0, available_memory // (1024 * 1024))
+        required_mb = MIN_AVAILABLE_MEMORY_BYTES // (1024 * 1024)
+        raise RuntimeError(
+            f"当前可用内存约 {available_mb} MB，无法安全启动随机。\n\n"
+            f"请关闭其他占用内存的程序，确保至少有 {required_mb} MB "
+            "可用内存后再试。"
         )
 
     game_dir = game_executable.parent
@@ -6344,6 +6427,10 @@ def gui_main() -> int:
         try:
             game_executable = locate_game_executable()
             validate_start_environment(game_executable)
+        except SecuritySoftwareDetected as exc:
+            status.set("环境检查未通过")
+            show_toast(root, str(exc), 5200)
+            return
         except Exception as exc:
             status.set("环境检查未通过")
             messagebox.showerror(

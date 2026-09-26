@@ -690,7 +690,7 @@ def show_rule_editor(
     team_members: tuple,
     skill_catalog: tuple,
     on_saved: Callable[[dict], None],
-    is_random_running: Callable[[], bool] | None = None,
+    save_notice: Callable[[dict], str | None] | None = None,
 ) -> None:
     working = copy.deepcopy(validate_rule_config(config))
     saved_snapshot = json.dumps(
@@ -1862,13 +1862,13 @@ def show_rule_editor(
                 parent=editor,
             )
             return
+        notice = save_notice(normalized) if save_notice is not None else None
         on_saved(normalized)
         editor.destroy()
-        if is_random_running is not None and is_random_running():
+        if notice:
             show_toast(
                 parent,
-                "规则已保存\n"
-                "当前随机仍使用开始时的规则，新规则将在下次开始随机时生效。",
+                f"规则已保存\n{notice}",
                 3600,
             )
         else:

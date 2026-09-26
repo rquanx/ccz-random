@@ -8,10 +8,13 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from fast_randomizer import (
+    CURRENT_RUN_RULE_NOTICE,
     JOB_MAP,
     TEAM_MEMBERS,
     activate_rule_profile,
+    current_run_rule_save_notice,
     format_user_log,
+    serialize_rule_profile,
 )
 from rule_config import build_rule_export, default_rule_config, load_rule_config
 from rule_editor import ScoreGrid, show_rule_editor
@@ -294,7 +297,7 @@ class RuleEditorTests(unittest.TestCase):
                         TEAM_MEMBERS,
                         SKILL_CATALOG,
                         lambda _config: None,
-                        is_random_running=lambda: True,
+                        save_notice=lambda _config: CURRENT_RUN_RULE_NOTICE,
                     )
                     root.update()
                     editor = next(
@@ -314,11 +317,47 @@ class RuleEditorTests(unittest.TestCase):
                 show_toast.assert_called_once_with(
                     root,
                     "规则已保存\n"
-                    "当前随机仍使用开始时的规则，新规则将在下次开始随机时生效。",
+                    + CURRENT_RUN_RULE_NOTICE,
                     3600,
                 )
         finally:
             root.destroy()
+
+    def test_current_run_notice_only_when_running_profile_changes(self):
+        config = default_rule_config()
+        config["profiles"]["其他规则"] = json.loads(
+            json.dumps(config["profiles"]["默认规则"], ensure_ascii=False)
+        )
+        config["profiles"]["其他规则"]["builtin"] = False
+        running_name = "默认规则"
+        running_snapshot = serialize_rule_profile(
+            config["profiles"][running_name]
+        )
+
+        unchanged = json.loads(json.dumps(config, ensure_ascii=False))
+        unchanged["profiles"]["其他规则"]["threePerson"][
+            "minJobAverage"
+        ] = 9
+        self.assertIsNone(
+            current_run_rule_save_notice(
+                unchanged,
+                running_name,
+                running_snapshot,
+            )
+        )
+
+        changed = json.loads(json.dumps(config, ensure_ascii=False))
+        changed["profiles"][running_name]["threePerson"][
+            "minJobAverage"
+        ] = 9
+        self.assertEqual(
+            CURRENT_RUN_RULE_NOTICE,
+            current_run_rule_save_notice(
+                changed,
+                running_name,
+                running_snapshot,
+            ),
+        )
 
     def test_job_type_dialog_edits_profile_override(self):
         root = tk.Tk()

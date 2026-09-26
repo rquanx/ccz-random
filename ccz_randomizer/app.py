@@ -5464,6 +5464,35 @@ def session_failure_requires_restart(
     )
 
 
+CURRENT_RUN_RULE_NOTICE = (
+    "当前随机仍使用开始时的规则，新规则将在下次开始随机时生效。"
+)
+
+
+def serialize_rule_profile(profile: dict) -> str:
+    return json.dumps(
+        profile,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+
+
+def current_run_rule_save_notice(
+    config: dict,
+    running_rule_name: str | None,
+    running_rule_snapshot: str | None,
+) -> str | None:
+    if not running_rule_name or running_rule_snapshot is None:
+        return None
+    saved_profile = config.get("profiles", {}).get(running_rule_name)
+    if saved_profile is None:
+        return CURRENT_RUN_RULE_NOTICE
+    if serialize_rule_profile(saved_profile) != running_rule_snapshot:
+        return CURRENT_RUN_RULE_NOTICE
+    return None
+
+
 def gui_main() -> int:
     import tkinter as tk
     from tkinter import messagebox, scrolledtext, ttk
@@ -5474,6 +5503,8 @@ def gui_main() -> int:
     root.minsize(760, 520)
 
     worker: subprocess.Popen[str] | None = None
+    running_rule_name: str | None = None
+    running_rule_snapshot: str | None = None
     output_queue: queue.Queue[str] = queue.Queue()
     log_path: Path | None = None
     result_image_path: Path | None = None
@@ -6060,6 +6091,15 @@ def gui_main() -> int:
             )
             rule_profile_var.set(config["activeProfile"])
 
+        def save_notice(config: dict) -> str | None:
+            if worker is None or worker.poll() is not None:
+                return None
+            return current_run_rule_save_notice(
+                config,
+                running_rule_name,
+                running_rule_snapshot,
+            )
+
         show_rule_editor(
             root,
             app_dir(),
@@ -6068,7 +6108,7 @@ def gui_main() -> int:
             TEAM_MEMBERS,
             skill_score_catalog(),
             rules_saved,
-            lambda: worker is not None and worker.poll() is None,
+            save_notice,
         )
 
     def select_rule_profile(_event=None) -> None:
@@ -6168,6 +6208,7 @@ def gui_main() -> int:
     def poll_worker() -> None:
         nonlocal worker, result_image_path, stop_file
         nonlocal stop_requested_by_user, last_formatted_line
+        nonlocal running_rule_name, running_rule_snapshot
         while True:
             try:
                 line = output_queue.get_nowait()
@@ -6193,6 +6234,8 @@ def gui_main() -> int:
         if worker is not None and worker.poll() is not None:
             code = worker.returncode
             worker = None
+            running_rule_name = None
+            running_rule_snapshot = None
             action_button.configure(
                 text="开始随机",
                 command=start,
@@ -6222,6 +6265,7 @@ def gui_main() -> int:
         nonlocal current_rules
         nonlocal worker, log_path, result_image_path, stop_file
         nonlocal stop_requested_by_user, last_formatted_line
+        nonlocal running_rule_name, running_rule_snapshot
         if worker is not None:
             return
         try:
@@ -6241,6 +6285,10 @@ def gui_main() -> int:
             values=tuple(current_rules["profiles"])
         )
         rule_profile_var.set(current_rules["activeProfile"])
+        running_rule_name = current_rules["activeProfile"]
+        running_rule_snapshot = serialize_rule_profile(
+            current_rules["profiles"][running_rule_name]
+        )
         if latest_rules.warning:
             messagebox.showwarning(
                 "规则文件无法使用",

@@ -4271,6 +4271,8 @@ def session_failure_requires_restart(
 ) -> bool:
     if not game.is_healthy():
         return True
+    if isinstance(exc, OSError) and getattr(exc, "winerror", None) in {299}:
+        return True
     if not isinstance(exc, RuntimeError):
         return False
     message = str(exc)
@@ -5373,6 +5375,24 @@ def main() -> int:
                                 f"第 {output_slot} 号存档回读时"
                                 "未能完成后台读取"
                             )
+
+                        initial_three = read_job_ids(
+                            game.pid, JOB_POSITIONS_R0
+                        )
+                        if not three_person_mode:
+                            reloaded_jobs = read_job_ids(
+                                game.pid, JOB_POSITIONS_R1
+                            )
+                        else:
+                            reloaded_jobs = initial_three
+                        validate_reloaded_jobs(
+                            output_slot=output_slot,
+                            expected_jobs=expected_jobs,
+                            expected_initial_three=expected_initial_three,
+                            reloaded_jobs=reloaded_jobs,
+                            initial_three=initial_three,
+                            three_person_mode=three_person_mode,
+                        )
                         break
                     except Exception as exc:
                         if (
@@ -5398,23 +5418,6 @@ def main() -> int:
                         "后台游戏恢复后仍无法完成回读校验"
                     )
 
-                initial_three = read_job_ids(
-                    game.pid, JOB_POSITIONS_R0
-                )
-                if not three_person_mode:
-                    reloaded_jobs = read_job_ids(
-                        game.pid, JOB_POSITIONS_R1
-                    )
-                else:
-                    reloaded_jobs = initial_three
-                validate_reloaded_jobs(
-                    output_slot=output_slot,
-                    expected_jobs=expected_jobs,
-                    expected_initial_three=expected_initial_three,
-                    reloaded_jobs=reloaded_jobs,
-                    initial_three=initial_three,
-                    three_person_mode=three_person_mode,
-                )
                 print(
                     f"第 {output_slot} 号存档回读校验通过："
                     f"{reloaded_jobs}"

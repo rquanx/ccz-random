@@ -108,6 +108,28 @@ class SessionManagementTests(unittest.TestCase):
             )
         )
 
+    def test_partial_memory_read_requires_restart(self):
+        error = OSError(299, "仅完成部分的 ReadProcessMemory 请求")
+        error.winerror = 299
+
+        self.assertTrue(
+            session_failure_requires_restart(
+                FakeGameSession(),
+                error,
+            )
+        )
+
+    def test_unrelated_os_error_does_not_require_restart(self):
+        error = OSError(5, "拒绝访问")
+        error.winerror = 5
+
+        self.assertFalse(
+            session_failure_requires_restart(
+                FakeGameSession(),
+                error,
+            )
+        )
+
     def test_invalid_source_save_does_not_restart(self):
         self.assertFalse(
             session_failure_requires_restart(

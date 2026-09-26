@@ -700,6 +700,48 @@ def app_dir() -> Path:
     return source_root()
 
 
+@lru_cache(maxsize=1)
+def application_build_info() -> dict:
+    fallback_version_path = source_root() / "VERSION"
+    fallback_version = (
+        fallback_version_path.read_text(encoding="utf-8").strip()
+        if fallback_version_path.is_file()
+        else "unknown"
+    )
+    fallback = {
+        "version": fallback_version,
+        "buildId": "development",
+        "builtAt": "development",
+        "sourceHash": "development",
+        "gitCommit": "development",
+        "gitDirty": True,
+        "python": sys.version.split()[0],
+    }
+    if not getattr(sys, "frozen", False):
+        return fallback
+
+    path = Path(sys._MEIPASS) / "build_info.json"
+    try:
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError, TypeError):
+        return fallback
+    if not isinstance(loaded, dict):
+        return fallback
+    return {**fallback, **loaded}
+
+
+def build_version_text(info: dict | None = None) -> str:
+    info = info or application_build_info()
+    commit = str(info.get("gitCommit", "unknown"))
+    if info.get("gitDirty"):
+        commit += "+dirty"
+    return (
+        f"{info.get('version', 'unknown')} | "
+        f"构建 {info.get('buildId', 'unknown')} | "
+        f"源码 {commit}"
+    )
+
+
 def bundle_root() -> Path:
     if getattr(sys, "frozen", False):
         return Path(sys._MEIPASS) / "original"
@@ -4298,6 +4340,8 @@ def format_user_log(line: str) -> str:
     text = line.strip()
     if not text:
         return ""
+    if text.startswith("工具版本："):
+        return text
     if (
         text.startswith("R0 七人兵种筛选:")
         or text.startswith("R0 三人兵种筛选:")
@@ -5296,7 +5340,9 @@ def main() -> int:
     sys.stderr = Tee(original_stderr, log_file)
 
     ctypes.windll.kernel32.SetConsoleOutputCP(65001)
+    build_info = application_build_info()
     print("曹操传随机工具 - 内存快筛测试版")
+    print(f"工具版本：{build_version_text(build_info)}")
     print("默认生成第 1-15 号结果存档；第 20 号存档仍作为源存档。")
     print("游戏将在独立后台桌面运行，不会占用当前鼠标或抢前台。")
     three_person_mode = os.environ.get("CCZ_RANDOM_MODE") == "three"
@@ -5317,6 +5363,7 @@ def main() -> int:
         app_dir=app,
         command_line=sys.argv,
         platform=sys.platform,
+        build=build_info,
         random_mode="three" if three_person_mode else "seven",
         rule_name=rules["activeProfile"],
         rule_source=rule_load.source,

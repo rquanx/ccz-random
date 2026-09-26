@@ -1,9 +1,14 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 from pathlib import Path
+import sys
 
 
 project_root = Path(SPECPATH).parent
+sys.path.insert(0, str(Path(SPECPATH)))
+from build_metadata import write_build_info
+
+build_info_path = write_build_info(project_root)
 extracted_root = Path(
     'C:/Users/91658/Documents/Codex/2026-09-18/hi/work/'
     'exe-analysis/tool.exe_extracted'
@@ -72,6 +77,7 @@ a = Analysis(
     datas=original_datas + [
         (str(project_root / 'resources/app/random_s00.eex'), '.'),
         (str(project_root / 'resources/app/source_slot_20_help.png'), '.'),
+        (str(build_info_path), '.'),
         (str(project_root / 'native/ccz_control.dll'), 'native'),
         (str(project_root / 'native/ccz_injector.exe'), 'native'),
     ],

@@ -69,6 +69,19 @@ class SessionManagementTests(unittest.TestCase):
         }
         self.assertEqual(set(), used)
 
+    def test_reused_session_failure_restarts_without_in_process_retry(self):
+        source = (
+            Path(__file__).resolve().parents[2]
+            / "ccz_randomizer"
+            / "app.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn(
+            "interaction_limit = 1 if reused_session else 3",
+            source,
+        )
+        self.assertNotIn("interaction_compat_reload_start", source)
+        self.assertNotIn("interaction_compat_reload_ready", source)
+
     def test_unverified_skill_memory_reader_is_not_patched_into_runtime(self):
         source = (
             Path(__file__).resolve().parents[2]

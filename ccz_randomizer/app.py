@@ -2529,6 +2529,55 @@ def game_state_diagnostic(
     }
 
 
+def click_geometry_diagnostic(game: int) -> dict[str, object]:
+    window_rect = wintypes.RECT()
+    client_rect = wintypes.RECT()
+    client_origin = Point(0, 0)
+    has_window_rect = bool(
+        user32.GetWindowRect(game, ctypes.byref(window_rect))
+    )
+    has_client_rect = bool(
+        user32.GetClientRect(game, ctypes.byref(client_rect))
+    )
+    has_client_origin = bool(
+        user32.ClientToScreen(game, ctypes.byref(client_origin))
+    )
+    try:
+        dpi = int(user32.GetDpiForWindow(game))
+    except (AttributeError, OSError):
+        dpi = None
+    return {
+        "window_rect": (
+            [
+                window_rect.left,
+                window_rect.top,
+                window_rect.right,
+                window_rect.bottom,
+            ]
+            if has_window_rect
+            else None
+        ),
+        "client_rect": (
+            [
+                client_rect.left,
+                client_rect.top,
+                client_rect.right,
+                client_rect.bottom,
+            ]
+            if has_client_rect
+            else None
+        ),
+        "client_origin": (
+            [client_origin.x, client_origin.y]
+            if has_client_origin
+            else None
+        ),
+        "dpi": dpi,
+        "npc_client_position": list(XU_CLIENT_POSITION),
+        "choice_client_position": list(CONFIRM_FIRST_CLIENT_POSITION),
+    }
+
+
 def capture_interaction_failure(pid: int, game: int) -> str | None:
     if DIAGNOSTIC_LOG_PATH is None:
         return None
@@ -4251,6 +4300,7 @@ def patch_runtime(
                 window_valid=bool(user32.IsWindow(game)),
                 load_mode=load_mode,
                 reused_session=reused_session,
+                geometry=click_geometry_diagnostic(game),
                 state=game_state_diagnostic(
                     pid,
                     game,
@@ -4258,6 +4308,7 @@ def patch_runtime(
                     source_memory=source_memory,
                 ),
             )
+            npc_click_started = time.perf_counter()
             run_native_control(
                 pid,
                 [
@@ -4274,9 +4325,13 @@ def patch_runtime(
                 pid=pid,
                 attempt=interaction_attempt,
                 jobs=after_npc,
+                elapsed_ms=round(
+                    (time.perf_counter() - npc_click_started) * 1000
+                ),
                 window_valid=bool(user32.IsWindow(game)),
                 load_mode=load_mode,
                 reused_session=reused_session,
+                geometry=click_geometry_diagnostic(game),
                 state=game_state_diagnostic(
                     pid,
                     game,
@@ -4284,12 +4339,25 @@ def patch_runtime(
                     source_memory=source_memory,
                 ),
             )
+            choice_click_started = time.perf_counter()
             current = trigger_random_choice_click(
                 pid,
                 game,
                 active_positions,
                 before,
                 interaction_attempt,
+            )
+            diagnostic_log(
+                "interaction_choice_clicked",
+                pid=pid,
+                attempt=interaction_attempt,
+                jobs=current,
+                elapsed_ms=round(
+                    (time.perf_counter() - choice_click_started) * 1000
+                ),
+                load_mode=load_mode,
+                reused_session=reused_session,
+                geometry=click_geometry_diagnostic(game),
             )
             random_deadline = time.perf_counter() + 3
             while time.perf_counter() < random_deadline:
@@ -4350,6 +4418,7 @@ def patch_runtime(
                 final_jobs=current,
                 load_mode=load_mode,
                 reused_session=reused_session,
+                geometry=click_geometry_diagnostic(game),
                 state=failure_state,
                 screenshot=failure_capture,
             )

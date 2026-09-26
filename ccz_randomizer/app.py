@@ -780,13 +780,19 @@ def native_control_error_hint(return_code: int) -> str:
             "或杀毒软件的拦截、隔离记录，并允许本工具和 Ekd5.exe 运行。"
         )
     if return_code in (5, 10):
+        privilege_step = (
+            "\n1. 当前已使用管理员权限运行，无需重复尝试管理员模式；"
+            if is_running_as_admin()
+            else "\n1. 关闭本工具和游戏后，右键本工具选择“以管理员身份运行”；"
+        )
         return (
-            "\n电脑的安全防护可能阻止了本工具控制后台游戏。请按顺序尝试："
-            "\n1. 关闭本工具和游戏后，右键本工具选择“以管理员身份运行”；"
-            "\n2. 检查 Windows 安全中心或杀毒软件的拦截、隔离记录，"
-            "允许本工具和 Ekd5.exe；"
-            "\n3. 不要从压缩包内直接运行，请先完整解压到普通游戏目录；"
-            "\n4. 仍然失败时，请把普通日志和诊断日志一起发给工具作者。"
+            "\n电脑的安全防护已阻止本工具控制后台游戏。请按顺序处理："
+            + privilege_step
+            + "\n2. 检查 Windows 安全中心或杀毒软件的拦截、隔离记录，"
+            + "允许本工具、Ekd5.exe 和 ccz_control.dll；"
+            + "\n3. 不要从压缩包内直接运行，请先完整解压到普通游戏目录；"
+            + "\n4. 如果单位电脑启用了应用控制或安全策略，请联系管理员放行；"
+            + "\n5. 处理后重新运行。仍然失败时，请把普通日志和诊断日志一起发回。"
         )
     if return_code in (6, 7, 8):
         return (
@@ -797,6 +803,21 @@ def native_control_error_hint(return_code: int) -> str:
         "\n后台游戏未能正常响应。请先关闭游戏和本工具后重试；"
         "若再次失败，请把普通日志和诊断日志一起发给工具作者。"
     )
+
+
+class NativeControlError(RuntimeError):
+    def __init__(self, return_code: int, details: str = "") -> None:
+        self.return_code = return_code
+        self.details = details
+        super().__init__(
+            f"静默控件模块执行失败，代码 {return_code}"
+            + (f"：{details}" if details else "")
+            + native_control_error_hint(return_code)
+        )
+
+
+class NativeControlTimeout(RuntimeError):
+    pass
 
 
 def run_native_control(pid: int, arguments: list[str]) -> None:
@@ -835,7 +856,7 @@ def run_native_control(pid: int, arguments: list[str]) -> None:
             stdout=(exc.stdout or b"").decode(errors="replace"),
             stderr=(exc.stderr or b"").decode(errors="replace"),
         )
-        raise RuntimeError(
+        raise NativeControlTimeout(
             "静默控件模块响应超时"
             + native_control_error_hint(-1)
         ) from exc
@@ -857,11 +878,7 @@ def run_native_control(pid: int, arguments: list[str]) -> None:
             injector=file_diagnostic(injector),
             control_dll=file_diagnostic(control_dll),
         )
-        raise RuntimeError(
-            f"静默控件模块执行失败，代码 {result.returncode}"
-            + (f"：{details}" if details else "")
-            + native_control_error_hint(result.returncode)
-        )
+        raise NativeControlError(result.returncode, details)
 
 
 def activate_save_list_item(pid: int, index: int) -> None:
@@ -891,7 +908,7 @@ def native_background_click(
                 "1" if right else "0",
             ],
         )
-    except RuntimeError as exc:
+    except NativeControlTimeout as exc:
         # A modal window blocks the injected click call until it closes,
         # although the click itself has already been delivered.
         if "响应超时" in str(exc):
@@ -1578,7 +1595,7 @@ def title_load_verified(
     )
     try:
         run_native_control(pid, ["title-load", str(list_index)])
-    except RuntimeError as exc:
+    except NativeControlTimeout as exc:
         # The load dialog can keep the injected call blocked after the
         # save has already been copied. Verify the resulting memory instead
         # of treating that transport timeout as a failed load.
@@ -1626,7 +1643,7 @@ def direct_load_verified(
     for attempt in range(1, 4):
         try:
             native_direct_load(pid, slot_index)
-        except RuntimeError as exc:
+        except NativeControlTimeout as exc:
             print(f"游戏内原生直读返回延迟，改用内存确认：{exc}")
         deadline = time.perf_counter() + timeout
         while time.perf_counter() < deadline:
@@ -4430,6 +4447,9 @@ def session_failure_requires_restart(
 ) -> bool:
     if not game.is_healthy():
         return True
+    if isinstance(exc, NativeControlError):
+        # Restarting cannot change an OS or security-product policy.
+        return exc.return_code not in {3, 4, 5, 6, 7, 8, 9, 10}
     if isinstance(exc, OSError) and getattr(exc, "winerror", None) in {299}:
         return True
     if not isinstance(exc, RuntimeError):

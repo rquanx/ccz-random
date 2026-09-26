@@ -7,12 +7,15 @@ from unittest.mock import patch
 from fast_randomizer import (
     EQUIPMENT_NAMES,
     INITIAL_TEAM_MEMBERS,
+    NativeControlError,
+    NativeControlTimeout,
     Tee,
     decode_equipment_effect,
     decode_subprocess_output,
     format_user_log,
     initial_team_members,
     native_background_click,
+    native_control_error_hint,
     run_initial_inspection_process,
     run_inspection_process,
     session_failure_requires_restart,
@@ -146,6 +149,32 @@ class SessionManagementTests(unittest.TestCase):
             )
         )
 
+    def test_security_policy_failure_does_not_restart_game(self):
+        self.assertFalse(
+            session_failure_requires_restart(
+                FakeGameSession(),
+                NativeControlError(
+                    5,
+                    "LoadLibrary remote thread failed: "
+                    "win32=5, ntstatus=0xC0000022",
+                ),
+            )
+        )
+
+    def test_timeout_can_still_restart_game(self):
+        self.assertTrue(
+            session_failure_requires_restart(
+                FakeGameSession(),
+                NativeControlTimeout("静默控件模块响应超时"),
+            )
+        )
+
+    def test_admin_security_hint_does_not_ask_for_admin_again(self):
+        with patch("fast_randomizer.is_running_as_admin", return_value=True):
+            hint = native_control_error_hint(5)
+        self.assertIn("当前已使用管理员权限运行", hint)
+        self.assertIn("ccz_control.dll", hint)
+
     def test_restart_message_is_distinct(self):
         self.assertEqual(
             "后台游戏异常，已重新启动",
@@ -173,7 +202,7 @@ class SessionManagementTests(unittest.TestCase):
             ),
             patch(
                 "fast_randomizer.run_native_control",
-                side_effect=RuntimeError("静默控件模块响应超时"),
+                side_effect=NativeControlTimeout("静默控件模块响应超时"),
             ),
             patch("fast_randomizer.diagnostic_log") as diagnostic,
         ):

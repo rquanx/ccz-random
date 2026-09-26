@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import queue
+import re
 import shutil
 import subprocess
 import struct
@@ -998,6 +999,33 @@ class DirectReloadUnsupported(InteractionNotTriggered):
 
 class NormalReloadUnsupported(InteractionNotTriggered):
     """The current game instance cannot complete the normal load workflow."""
+
+
+class InspectionProcessError(RuntimeError):
+    """A separate result-inspection game instance failed."""
+
+    def __init__(
+        self,
+        stage: str,
+        subprocess_returncode: int | None,
+        details: str,
+        *,
+        timed_out: bool = False,
+    ):
+        self.stage = stage
+        self.subprocess_returncode = subprocess_returncode
+        self.details = details
+        match = re.search(r"静默控件模块执行失败，代码\s+(-?\d+)", details)
+        self.return_code = int(match.group(1)) if match else None
+        self.inner_error_type = (
+            "NativeControlError" if "NativeControlError" in details else None
+        )
+        self.native_timeout = timed_out or (
+            "remote thread timed out" in details.casefold()
+            or "响应超时" in details
+        )
+        label = "初始三人能力检查" if stage == "initial" else "候选结果界面检查"
+        super().__init__(label + "失败" + (f"：{details}" if details else ""))
 
 
 class SecuritySoftwareDetected(RuntimeError):
@@ -3246,9 +3274,10 @@ def run_inspection_process_once(
     stdout, _ = process.communicate()
     if process.returncode != 0 or not result_file.is_file():
         detail = decode_subprocess_output(stdout).strip()[-2000:]
-        raise RuntimeError(
-            "候选结果界面检查失败"
-            + (f"：{detail}" if detail else "")
+        raise InspectionProcessError(
+            "full",
+            process.returncode,
+            detail,
         )
     return json.loads(result_file.read_text(encoding="utf-8"))
 
@@ -3335,12 +3364,19 @@ def run_initial_inspection_process_once(
     except subprocess.TimeoutExpired:
         process.kill()
         stdout, _ = process.communicate()
-        raise RuntimeError("初始三人能力检查超时")
+        detail = decode_subprocess_output(stdout).strip()[-2000:]
+        raise InspectionProcessError(
+            "initial",
+            process.returncode,
+            detail or "检查进程运行超时",
+            timed_out=True,
+        )
     if process.returncode != 0 or not result_file.is_file():
         detail = decode_subprocess_output(stdout).strip()[-2000:]
-        raise RuntimeError(
-            "初始三人能力检查失败"
-            + (f"：{detail}" if detail else "")
+        raise InspectionProcessError(
+            "initial",
+            process.returncode,
+            detail,
         )
     return json.loads(result_file.read_text(encoding="utf-8"))
 
@@ -3375,6 +3411,40 @@ def run_initial_inspection_process(
                 continue
             raise
     raise last_error or RuntimeError("初始三人能力检查失败")
+
+
+def run_candidate_inspection(
+    game_executable: Path,
+    slot: int,
+    output_dir: Path,
+    job_score: float,
+    *,
+    mode: str,
+) -> dict | None:
+    if mode not in {"three", "seven"}:
+        raise ValueError(f"unsupported inspection mode: {mode}")
+    inspect = (
+        run_initial_inspection_process
+        if mode == "three"
+        else run_inspection_process
+    )
+    try:
+        return inspect(
+            game_executable,
+            slot,
+            output_dir,
+            job_score,
+        )
+    except InspectionProcessError as exc:
+        diagnostic_log(
+            "candidate_inspection_abandoned",
+            mode=mode,
+            slot=slot,
+            error=repr(exc),
+            native_return_code=exc.return_code,
+            native_timeout=exc.native_timeout,
+        )
+        return None
 
 
 def patch_inspection_runtime(task_module, pid: int, panel_dir: Path):
@@ -3434,9 +3504,60 @@ def patch_inspection_runtime(task_module, pid: int, panel_dir: Path):
             if self.peopleWind.isInitSuccess():
                 return
             native_wake_game(pid, self.wind.hwnd, 600)
-            point = Point(138, 18)
-            user32.ClientToScreen(self.wind.hwnd, ctypes.byref(point))
-            post_click(self.wind.hwnd, point.x, point.y)
+            method = "silent_click"
+            try:
+                if attempt == 1:
+                    native_silent_click(
+                        pid,
+                        self.wind.hwnd,
+                        138,
+                        18,
+                        tail_delay_ms=350,
+                    )
+                elif attempt == 2:
+                    method = "silent_burst"
+                    native_silent_click_burst(
+                        self.wind.hwnd,
+                        138,
+                        18,
+                        2,
+                    )
+                else:
+                    # The original synchronous click works on most systems,
+                    # but is kept behind non-blocking methods because it can
+                    # stall inside the game window procedure on some devices.
+                    method = "synchronous_click"
+                    point = Point(138, 18)
+                    user32.ClientToScreen(
+                        self.wind.hwnd, ctypes.byref(point)
+                    )
+                    post_click(self.wind.hwnd, point.x, point.y)
+                diagnostic_log(
+                    "inspection_roster_open_click",
+                    pid=pid,
+                    hwnd=self.wind.hwnd,
+                    attempt=attempt,
+                    method=method,
+                )
+            except (NativeControlError, NativeControlTimeout) as exc:
+                # A direct queued click is a weaker final fallback, but cannot
+                # stall the inspection process.
+                lparam = (18 << 16) | 138
+                user32.PostMessageW(
+                    self.wind.hwnd, 0x0201, 0x0001, lparam
+                )
+                user32.PostMessageW(
+                    self.wind.hwnd, 0x0202, 0, lparam
+                )
+                diagnostic_log(
+                    "inspection_roster_open_click_fallback",
+                    pid=pid,
+                    hwnd=self.wind.hwnd,
+                    attempt=attempt,
+                    error=repr(exc),
+                    failed_method=method,
+                    method="post_message",
+                )
             deadline = time.perf_counter() + 3.0
             while time.perf_counter() < deadline:
                 time.sleep(0.15)
@@ -5476,12 +5597,16 @@ def patch_runtime(
                         dir=app_dir(),
                     )
                 )
-                inspection = run_initial_inspection_process(
+                inspection = run_candidate_inspection(
                     game_path,
                     scratch_slot,
                     inspection_dir,
                     self._r0_average,
+                    mode="three",
                 )
+                if inspection is None:
+                    print("用户进度: 本轮最终结果=检查未完成")
+                    return False
                 self._job_names = tuple(
                     JOB_MAP[job_id][0] for job_id in self._r0_job_ids
                 )
@@ -5552,12 +5677,16 @@ def patch_runtime(
                 inspection_dir = Path(
                     tempfile.mkdtemp(prefix="ccz-inspect-", dir=app_dir())
                 )
-                inspection = run_inspection_process(
+                inspection = run_candidate_inspection(
                     game_path,
                     scratch_slot,
                     inspection_dir,
                     self._r0_average,
+                    mode="seven",
                 )
+                if inspection is None:
+                    print("用户进度: 本轮最终结果=检查未完成")
+                    return False
                 evidence_source = Path(
                     inspection.get("skill_evidence", "")
                 )
@@ -5780,6 +5909,10 @@ def session_failure_requires_restart(
         return True
     if not game.is_healthy():
         return True
+    if isinstance(exc, InspectionProcessError):
+        # Inspection runs in its own game process. Restarting the healthy
+        # randomization process cannot repair an inspection-only failure.
+        return False
     if isinstance(exc, NativeControlError):
         if "ntstatus=0xc000010a" in exc.details.casefold():
             return True

@@ -9,6 +9,7 @@ from fast_randomizer import (
     EQUIPMENT_NAMES,
     INITIAL_TEAM_MEMBERS,
     DirectReloadUnsupported,
+    InspectionProcessError,
     InteractionNotTriggered,
     NativeControlError,
     NativeControlTimeout,
@@ -28,7 +29,9 @@ from fast_randomizer import (
     native_silent_click,
     normal_load_verified,
     open_uncaptured_member_from_roster,
+    run_candidate_inspection,
     run_initial_inspection_process,
+    run_initial_inspection_process_once,
     run_inspection_process,
     session_failure_requires_restart,
     trigger_random_choice_click,
@@ -778,6 +781,21 @@ class SessionManagementTests(unittest.TestCase):
             )
         )
 
+    def test_inspection_failure_does_not_restart_healthy_main_game(self):
+        error = InspectionProcessError(
+            "initial",
+            1,
+            "ccz_randomizer.app.NativeControlError: "
+            "静默控件模块执行失败，代码 207："
+            "ControlAction remote thread timed out",
+        )
+
+        self.assertFalse(
+            session_failure_requires_restart(FakeGameSession(), error)
+        )
+        self.assertEqual(207, error.return_code)
+        self.assertTrue(error.native_timeout)
+
     def test_security_policy_failure_does_not_restart_game(self):
         self.assertFalse(
             session_failure_requires_restart(
@@ -978,6 +996,85 @@ class SessionManagementTests(unittest.TestCase):
             {"panels": ["one", "two", "three"]},
             result,
         )
+        self.assertEqual(2, run_once.call_count)
+
+    def test_initial_inspection_wraps_native_timeout_from_child_process(self):
+        child_output = (
+            "ccz_randomizer.app.NativeControlError: "
+            "静默控件模块执行失败，代码 207："
+            "ControlAction remote thread timed out: action=2"
+        ).encode("utf-8")
+        process = unittest.mock.Mock()
+        process.communicate.return_value = (child_output, None)
+        process.returncode = 1
+
+        with tempfile.TemporaryDirectory() as directory:
+            with patch("fast_randomizer.subprocess.Popen", return_value=process):
+                with self.assertRaises(InspectionProcessError) as captured:
+                    run_initial_inspection_process_once(
+                        Path("Ekd5.exe"),
+                        16,
+                        Path(directory),
+                        7.5,
+                    )
+
+        error = captured.exception
+        self.assertEqual(207, error.return_code)
+        self.assertTrue(error.native_timeout)
+        self.assertEqual("NativeControlError", error.inner_error_type)
+
+    def test_native_timeout_candidate_is_rejected_without_propagating(self):
+        error = InspectionProcessError(
+            "initial",
+            1,
+            "ccz_randomizer.app.NativeControlError: "
+            "静默控件模块执行失败，代码 207："
+            "ControlAction remote thread timed out",
+        )
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            patch(
+                "fast_randomizer.run_initial_inspection_process",
+                side_effect=error,
+            ),
+            patch("fast_randomizer.diagnostic_log") as diagnostic,
+        ):
+            result = run_candidate_inspection(
+                Path("Ekd5.exe"),
+                16,
+                Path(directory),
+                7.5,
+                mode="three",
+            )
+
+        self.assertIsNone(result)
+        diagnostic.assert_called_once()
+        self.assertEqual(
+            "candidate_inspection_abandoned",
+            diagnostic.call_args.args[0],
+        )
+
+    def test_repeated_native_timeout_keeps_inspection_error_type(self):
+        error = InspectionProcessError(
+            "initial",
+            1,
+            "ccz_randomizer.app.NativeControlError: "
+            "静默控件模块执行失败，代码 207："
+            "ControlAction remote thread timed out",
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            with patch(
+                "fast_randomizer.run_initial_inspection_process_once",
+                side_effect=error,
+            ) as run_once:
+                with self.assertRaises(InspectionProcessError):
+                    run_initial_inspection_process(
+                        Path("Ekd5.exe"),
+                        16,
+                        Path(directory),
+                        7.5,
+                    )
+
         self.assertEqual(2, run_once.call_count)
 
 

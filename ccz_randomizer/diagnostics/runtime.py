@@ -96,7 +96,16 @@ def exception_diagnostic(exc: BaseException) -> dict[str, Any]:
             "message": str(current),
             "repr": repr(current),
         }
-        for name in ("errno", "winerror", "return_code", "details"):
+        for name in (
+            "errno",
+            "winerror",
+            "return_code",
+            "details",
+            "stage",
+            "subprocess_returncode",
+            "inner_error_type",
+            "native_timeout",
+        ):
             value = getattr(current, name, None)
             if value is not None:
                 item[name] = value
@@ -145,6 +154,28 @@ def classify_exception(exc: BaseException) -> dict[str, Any]:
     return_code = getattr(exc, "return_code", None)
     winerror = getattr(exc, "winerror", None)
 
+    if name == "InspectionProcessError":
+        native_timeout = bool(getattr(exc, "native_timeout", False))
+        inner_type = getattr(exc, "inner_error_type", None)
+        if inner_type == "NativeControlError" or return_code is not None:
+            return {
+                "layer": "native_control",
+                "category": (
+                    "native_timeout" if native_timeout else "native_failure"
+                ),
+                "code": return_code,
+                "likely_cause": _native_likely_cause(return_code, message),
+            }
+        return {
+            "layer": "result_inspection",
+            "category": (
+                "inspection_timeout"
+                if native_timeout
+                else "inspection_process_failure"
+            ),
+            "code": getattr(exc, "subprocess_returncode", None),
+            "likely_cause": "独立能力检查实例未能完成界面读取",
+        }
     if name in {"NativeControlError", "NativeControlTimeout"}:
         return {
             "layer": "native_control",

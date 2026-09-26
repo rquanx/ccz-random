@@ -20,6 +20,20 @@ class FakeNativeError(RuntimeError):
 FakeNativeError.__name__ = "NativeControlError"
 
 
+class FakeInspectionError(RuntimeError):
+    def __init__(self):
+        self.return_code = 207
+        self.details = "ControlAction remote thread timed out"
+        self.stage = "initial"
+        self.subprocess_returncode = 1
+        self.inner_error_type = "NativeControlError"
+        self.native_timeout = True
+        super().__init__("initial inspection failed")
+
+
+FakeInspectionError.__name__ = "InspectionProcessError"
+
+
 class RuntimeDiagnosticsTests(unittest.TestCase):
     def setUp(self):
         start_diagnostic_run(mode="seven")
@@ -40,6 +54,13 @@ class RuntimeDiagnosticsTests(unittest.TestCase):
 
         self.assertEqual("native_control", result["layer"])
         self.assertEqual("native_failure", result["category"])
+        self.assertEqual(207, result["code"])
+
+    def test_wrapped_inspection_timeout_is_classified_as_native_timeout(self):
+        result = classify_exception(FakeInspectionError())
+
+        self.assertEqual("native_control", result["layer"])
+        self.assertEqual("native_timeout", result["category"])
         self.assertEqual(207, result["code"])
 
     def test_exception_contains_chain_and_recent_events(self):

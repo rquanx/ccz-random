@@ -804,7 +804,14 @@ def ui_asset_path(name: str) -> Path:
     return source_root() / "resources" / "app" / name
 
 
-def native_control_error_hint(return_code: int) -> str:
+def native_control_error_hint(
+    return_code: int,
+    details: str = "",
+) -> str:
+    if "ntstatus=0xc000010a" in details.casefold():
+        return (
+            "\n后台游戏进程正在退出，工具将重新启动游戏后继续。"
+        )
     if return_code == 2:
         if is_running_as_admin():
             return (
@@ -874,7 +881,7 @@ class NativeControlError(RuntimeError):
         super().__init__(
             f"静默控件模块执行失败，代码 {return_code}"
             + (f"：{details}" if details else "")
-            + native_control_error_hint(return_code)
+            + native_control_error_hint(return_code, details)
         )
 
 
@@ -5587,6 +5594,8 @@ def session_failure_requires_restart(
     if not game.is_healthy():
         return True
     if isinstance(exc, NativeControlError):
+        if "ntstatus=0xc000010a" in exc.details.casefold():
+            return True
         # Restarting cannot change an OS or security-product policy.
         return exc.return_code not in {3, 4, 5, 6, 7, 8, 9, 10}
     if isinstance(exc, OSError) and getattr(exc, "winerror", None) in {299}:

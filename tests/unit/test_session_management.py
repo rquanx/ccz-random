@@ -653,6 +653,22 @@ class SessionManagementTests(unittest.TestCase):
             )
         )
 
+    def test_terminating_process_native_failure_requires_restart(self):
+        error = NativeControlError(
+            5,
+            "LoadLibrary remote thread failed: "
+            "win32=5, ntstatus=0xC000010A",
+        )
+
+        self.assertTrue(
+            session_failure_requires_restart(
+                FakeGameSession(),
+                error,
+            )
+        )
+        self.assertIn("游戏进程正在退出", str(error))
+        self.assertNotIn("360", str(error))
+
     def test_timeout_can_still_restart_game(self):
         self.assertTrue(
             session_failure_requires_restart(

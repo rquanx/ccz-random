@@ -22,6 +22,11 @@ TEAM_MEMBER_NAMES = (
     "李典",
     "曹洪",
 )
+THREE_MEMBER_NAMES = (
+    "曹操",
+    "夏侯惇",
+    "夏侯渊",
+)
 AFFINITY_TYPES = ("ALL_ROUNDER", "WARRIOR", "MASTER", "NONE")
 JOB_AFFINITY_TYPES = ("ALL_ROUNDER", "WARRIOR", "MASTER")
 
@@ -85,11 +90,13 @@ def _default_profile() -> dict[str, Any]:
             "minJobAverage": 7.4,
             "jobQualificationMode": "average",
             "minQualifiedCount": 2,
+            "qualifiedMembers": list(THREE_MEMBER_NAMES),
         },
         "sevenPerson": {
             "minJobAverage": 7.4,
             "jobQualificationMode": "average",
             "minQualifiedCount": 4,
+            "qualifiedMembers": list(TEAM_MEMBER_NAMES),
             "normalJobAverage": 7.6,
             "highJobAverage": 7.8,
             "mediumMinSkillScore": 4.0,
@@ -211,6 +218,31 @@ def _require_bool(value: Any, path: str) -> bool:
     if not isinstance(value, bool):
         raise ValueError(f"{path} 必须为开启或关闭")
     return value
+
+
+def _require_member_selection(
+    value: Any,
+    path: str,
+    allowed_members: tuple[str, ...],
+) -> list[str]:
+    if not isinstance(value, list):
+        raise ValueError(f"{path} 必须是人物列表")
+    if not value:
+        raise ValueError(f"{path} 至少选择一名人物")
+    if any(not isinstance(member, str) for member in value):
+        raise ValueError(f"{path} 包含无效人物")
+    if len(value) != len(set(value)):
+        raise ValueError(f"{path} 不能重复选择同一人物")
+    invalid_members = [
+        member for member in value if member not in allowed_members
+    ]
+    if invalid_members:
+        raise ValueError(
+            f"{path} 包含不适用于当前模式的人物："
+            + "、".join(invalid_members)
+        )
+    selected = set(value)
+    return [member for member in allowed_members if member in selected]
 
 
 def _require_choice(
@@ -369,6 +401,15 @@ def validate_rule_config(config: dict[str, Any]) -> dict[str, Any]:
             1,
             3,
         )
+        three["qualifiedMembers"] = _require_member_selection(
+            three["qualifiedMembers"],
+            f"{name}.三人兵种达标人物",
+            THREE_MEMBER_NAMES,
+        )
+        if three["minQualifiedCount"] > len(three["qualifiedMembers"]):
+            raise ValueError(
+                f"{name}.三人兵种合格人数不能超过已选人物数量"
+            )
         for key, label in (
             ("minJobAverage", "七人兵种门槛"),
             ("normalJobAverage", "普通兵种分界"),
@@ -391,6 +432,15 @@ def validate_rule_config(config: dict[str, Any]) -> dict[str, Any]:
             1,
             7,
         )
+        seven["qualifiedMembers"] = _require_member_selection(
+            seven["qualifiedMembers"],
+            f"{name}.七人兵种达标人物",
+            TEAM_MEMBER_NAMES,
+        )
+        if seven["minQualifiedCount"] > len(seven["qualifiedMembers"]):
+            raise ValueError(
+                f"{name}.七人兵种合格人数不能超过已选人物数量"
+            )
         if not (
             seven["ordinarySkillWeight"]
             <= seven["strongSkillWeight"]
@@ -654,7 +704,18 @@ def evaluate_job_rules(
     ]
     threshold = mode_settings["minJobAverage"]
     qualification_mode = mode_settings["jobQualificationMode"]
-    qualified_count = sum(score >= threshold for score in member_scores)
+    eligible_members = list(mode_settings["qualifiedMembers"])
+    member_score_by_name = {
+        str(member["name"]): score
+        for member, score in zip(members, member_scores)
+    }
+    qualified_member_names = [
+        member_name
+        for member_name in eligible_members
+        if member_name in member_score_by_name
+        and member_score_by_name[member_name] >= threshold
+    ]
+    qualified_count = len(qualified_member_names)
     required_count = int(mode_settings["minQualifiedCount"])
     qualified = (
         average >= threshold
@@ -677,6 +738,8 @@ def evaluate_job_rules(
             "qualificationMode": qualification_mode,
             "qualifiedCount": qualified_count,
             "requiredCount": required_count,
+            "eligibleMembers": eligible_members,
+            "qualifiedMemberNames": qualified_member_names,
             "memberScores": member_scores,
         },
     )

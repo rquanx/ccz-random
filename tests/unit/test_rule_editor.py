@@ -181,6 +181,8 @@ class RuleEditorTests(unittest.TestCase):
                     }
                     self.assertIn("导入规则", buttons)
                     self.assertIn("导出规则", buttons)
+                    self.assertIn("选择人员（3/3）", buttons)
+                    self.assertIn("选择人员（7/7）", buttons)
                     self.assertNotIn("设为当前规则", buttons)
                     buttons["新建副本"].invoke()
                     root.update()
@@ -343,6 +345,108 @@ class RuleEditorTests(unittest.TestCase):
                     "jobScoring"
                 ]["jobTypeOverrides"]
                 self.assertEqual("MASTER", overrides["群雄"])
+        finally:
+            root.destroy()
+
+    def test_job_count_members_can_be_selected_and_saved(self):
+        root = tk.Tk()
+        root.withdraw()
+        saved = []
+        try:
+            with tempfile.TemporaryDirectory() as directory:
+                with (
+                    patch("rule_editor.messagebox.showerror") as show_error,
+                    patch("rule_editor.show_toast"),
+                ):
+                    show_rule_editor(
+                        root,
+                        Path(directory),
+                        default_rule_config(),
+                        JOB_MAP,
+                        TEAM_MEMBERS,
+                        SKILL_CATALOG,
+                        saved.append,
+                    )
+                    root.update()
+                    editor = next(
+                        child
+                        for child in root.winfo_children()
+                        if isinstance(child, tk.Toplevel)
+                    )
+                    buttons = {
+                        widget.cget("text"): widget
+                        for widget in descendants(editor)
+                        if isinstance(widget, tk.Button)
+                    }
+                    buttons["新建副本"].invoke()
+                    root.update()
+                    mode_notebook = next(
+                        widget
+                        for widget in descendants(editor)
+                        if isinstance(widget, ttk.Notebook)
+                        and tuple(
+                            widget.tab(tab_id, "text")
+                            for tab_id in widget.tabs()
+                        )
+                        == ("简单模式", "高级模式")
+                    )
+                    mode_notebook.select(mode_notebook.tabs()[1])
+                    mode_combos = [
+                        widget
+                        for widget in descendants(editor)
+                        if isinstance(widget, ttk.Combobox)
+                        and tuple(widget.cget("values"))
+                        == ("按平均分判断", "按达标人数判断")
+                    ]
+                    mode_combos[0].set("按达标人数判断")
+                    mode_combos[0].event_generate("<<ComboboxSelected>>")
+                    root.update()
+                    buttons = {
+                        widget.cget("text"): widget
+                        for widget in descendants(editor)
+                        if isinstance(widget, tk.Button)
+                    }
+                    buttons["选择人员（3/3）"].invoke()
+                    root.update()
+                    dialog = next(
+                        child
+                        for child in editor.winfo_children()
+                        if isinstance(child, tk.Toplevel)
+                    )
+                    checks = {
+                        widget.cget("text"): widget
+                        for widget in descendants(dialog)
+                        if isinstance(widget, tk.Checkbutton)
+                    }
+                    checks["夏侯惇"].invoke()
+                    dialog_buttons = {
+                        widget.cget("text"): widget
+                        for widget in descendants(dialog)
+                        if isinstance(widget, tk.Button)
+                    }
+                    dialog_buttons["确定"].invoke()
+                    root.update()
+                    buttons = {
+                        widget.cget("text"): widget
+                        for widget in descendants(editor)
+                        if isinstance(widget, tk.Button)
+                    }
+                    self.assertIn("选择人员（2/3）", buttons)
+                    buttons["保存规则"].invoke()
+                    root.update()
+
+                self.assertFalse(show_error.called)
+                profile_name = next(
+                    name
+                    for name in saved[0]["profiles"]
+                    if name != "默认规则"
+                )
+                three = saved[0]["profiles"][profile_name]["threePerson"]
+                self.assertEqual("count", three["jobQualificationMode"])
+                self.assertEqual(
+                    ["曹操", "夏侯渊"],
+                    three["qualifiedMembers"],
+                )
         finally:
             root.destroy()
 

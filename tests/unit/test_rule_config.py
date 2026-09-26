@@ -110,6 +110,98 @@ class RuleConfigTests(unittest.TestCase):
         self.assertFalse(result.qualified)
         self.assertEqual(2, result.metrics["qualifiedCount"])
 
+    def test_job_count_rule_only_counts_selected_members(self):
+        config = default_rule_config()
+        profile = config["profiles"][DEFAULT_PROFILE_NAME]
+        profile["jobScoring"]["affinityEnabled"] = False
+        profile["threePerson"].update(
+            {
+                "minJobAverage": 7,
+                "jobQualificationMode": "count",
+                "minQualifiedCount": 2,
+                "qualifiedMembers": ["曹操", "夏侯渊"],
+            }
+        )
+        jobs = [
+            {"name": "甲", "score": 7, "type": "ALL_ROUNDER"},
+            {"name": "乙", "score": 10, "type": "WARRIOR"},
+            {"name": "丙", "score": 7, "type": "MASTER"},
+        ]
+        result = evaluate_job_rules(config, "three", jobs, MEMBERS)
+        self.assertTrue(result.qualified)
+        self.assertEqual(["曹操", "夏侯渊"], result.metrics["eligibleMembers"])
+        self.assertEqual(
+            ["曹操", "夏侯渊"],
+            result.metrics["qualifiedMemberNames"],
+        )
+
+    def test_unselected_high_score_member_does_not_help_count_rule(self):
+        config = default_rule_config()
+        profile = config["profiles"][DEFAULT_PROFILE_NAME]
+        profile["jobScoring"]["affinityEnabled"] = False
+        profile["threePerson"].update(
+            {
+                "minJobAverage": 7,
+                "jobQualificationMode": "count",
+                "minQualifiedCount": 2,
+                "qualifiedMembers": ["曹操", "夏侯渊"],
+            }
+        )
+        jobs = [
+            {"name": "甲", "score": 7, "type": "ALL_ROUNDER"},
+            {"name": "乙", "score": 10, "type": "WARRIOR"},
+            {"name": "丙", "score": 1, "type": "MASTER"},
+        ]
+        result = evaluate_job_rules(config, "three", jobs, MEMBERS)
+        self.assertFalse(result.qualified)
+        self.assertEqual(1, result.metrics["qualifiedCount"])
+        self.assertEqual(["曹操"], result.metrics["qualifiedMemberNames"])
+
+    def test_old_rule_defaults_to_all_members_for_count_rule(self):
+        config = default_rule_config()
+        del config["profiles"][DEFAULT_PROFILE_NAME]["threePerson"][
+            "qualifiedMembers"
+        ]
+        normalized = validate_rule_config(config)
+        self.assertEqual(
+            ["曹操", "夏侯惇", "夏侯渊"],
+            normalized["profiles"][DEFAULT_PROFILE_NAME]["threePerson"][
+                "qualifiedMembers"
+            ],
+        )
+
+    def test_job_count_member_selection_must_not_be_empty(self):
+        config = default_rule_config()
+        config["profiles"][DEFAULT_PROFILE_NAME]["threePerson"][
+            "qualifiedMembers"
+        ] = []
+        with self.assertRaisesRegex(ValueError, "至少选择一名人物"):
+            validate_rule_config(config)
+
+    def test_job_count_member_selection_rejects_wrong_mode_member(self):
+        config = default_rule_config()
+        config["profiles"][DEFAULT_PROFILE_NAME]["threePerson"][
+            "qualifiedMembers"
+        ] = ["曹操", "曹仁"]
+        with self.assertRaisesRegex(ValueError, "不适用于当前模式"):
+            validate_rule_config(config)
+
+    def test_job_count_member_selection_rejects_duplicates(self):
+        config = default_rule_config()
+        config["profiles"][DEFAULT_PROFILE_NAME]["threePerson"][
+            "qualifiedMembers"
+        ] = ["曹操", "曹操"]
+        with self.assertRaisesRegex(ValueError, "不能重复选择"):
+            validate_rule_config(config)
+
+    def test_job_count_cannot_require_more_than_selected_members(self):
+        config = default_rule_config()
+        three = config["profiles"][DEFAULT_PROFILE_NAME]["threePerson"]
+        three["qualifiedMembers"] = ["曹操"]
+        three["minQualifiedCount"] = 2
+        with self.assertRaisesRegex(ValueError, "不能超过已选人物数量"):
+            validate_rule_config(config)
+
     def test_member_affinity_is_configurable_by_type(self):
         config = default_rule_config()
         profile = config["profiles"][DEFAULT_PROFILE_NAME]

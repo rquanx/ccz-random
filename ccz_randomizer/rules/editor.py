@@ -13,6 +13,8 @@ from ccz_randomizer.rules.config import (
     DEFAULT_PROFILE_NAME,
     JOB_AFFINITY_TYPES,
     SIMPLE_PRESET_OPTIONS,
+    TEAM_MEMBER_NAMES,
+    THREE_MEMBER_NAMES,
     apply_simple_settings,
     build_rule_export,
     classify_skill_score,
@@ -70,6 +72,11 @@ ADVANCED_HELP_SECTIONS = (
 【兵种合格方式】
 平均分达到门槛：队伍兵种平均分大于或等于门槛时合格。
 任意人数达到门槛：达到门槛的个人数量大于或等于指定人数时合格。例如门槛为7、人数为3，表示至少3人的个人兵种分大于或等于7。
+
+【指定参与判断的人物】
+只在“按达标人数判断”时生效。默认选择当前模式的全部人物。
+你可以只选择希望参与判断的人物，未选人物仍会正常随机和显示，但不会计入达标人数。
+例如只选择曹操、夏侯惇，并将人数设为2，表示两人的个人兵种分都必须达到门槛。
 
 【普通兵种质量分界】
 决定本轮使用哪一个特技合格门槛，3人和7人模式都会使用。
@@ -816,9 +823,13 @@ def show_rule_editor(
     bool_vars: dict[str, tk.BooleanVar] = {}
     qualification_mode_vars: dict[str, tk.StringVar] = {}
     qualification_count_vars: dict[str, tk.StringVar] = {}
+    qualification_member_values: dict[str, list[str]] = {
+        "three": list(THREE_MEMBER_NAMES),
+        "seven": list(TEAM_MEMBER_NAMES),
+    }
     qualification_controls: dict[
         str,
-        tuple[ttk.Combobox, ttk.Combobox, tk.Label],
+        tuple[ttk.Combobox, ttk.Combobox, tk.Label, tk.Button],
     ] = {}
 
     def add_number(
@@ -859,7 +870,7 @@ def show_rule_editor(
     def add_qualification_control(
         row: int,
         key: str,
-        maximum: int,
+        member_names: tuple[str, ...],
     ) -> None:
         mode_var = tk.StringVar()
         count_var = tk.StringVar()
@@ -882,7 +893,9 @@ def show_rule_editor(
         count_combo = ttk.Combobox(
             threshold_tab,
             textvariable=count_var,
-            values=tuple(str(value) for value in range(1, maximum + 1)),
+            values=tuple(
+                str(value) for value in range(1, len(member_names) + 1)
+            ),
             state="readonly",
             width=4,
         )
@@ -893,12 +906,133 @@ def show_rule_editor(
             anchor="w",
         )
         count_label.grid(row=row, column=5, sticky="w", padx=(5, 0), pady=5)
+        member_button = tk.Button(
+            threshold_tab,
+            text=f"选择人员（{len(member_names)}/{len(member_names)}）",
+            width=18,
+        )
+        member_button.grid(
+            row=row,
+            column=6,
+            sticky="w",
+            padx=(12, 0),
+            pady=5,
+        )
         qualification_controls[key] = (
             mode_combo,
             count_combo,
             count_label,
+            member_button,
         )
-        editable_widgets.extend((mode_combo, count_combo))
+        editable_widgets.extend((mode_combo, count_combo, member_button))
+
+        def refresh_member_button() -> None:
+            selected_count = len(qualification_member_values[key])
+            member_button.configure(
+                text=(
+                    f"选择人员（{selected_count}/{len(member_names)}）"
+                )
+            )
+
+        def choose_members() -> None:
+            selected = set(qualification_member_values[key])
+            dialog = tk.Toplevel(editor)
+            dialog.withdraw()
+            dialog.title("选择参与判断的人物")
+            dialog.resizable(False, False)
+            dialog.transient(editor)
+            frame = tk.Frame(dialog, padx=20, pady=16)
+            frame.pack(fill="both", expand=True)
+            tk.Label(
+                frame,
+                text="勾选参与兵种达标人数判断的人物",
+                anchor="w",
+            ).pack(fill="x", pady=(0, 10))
+            member_vars = {
+                member: tk.BooleanVar(value=member in selected)
+                for member in member_names
+            }
+            member_frame = tk.Frame(frame)
+            member_frame.pack(fill="x")
+            for index, member in enumerate(member_names):
+                tk.Checkbutton(
+                    member_frame,
+                    text=member,
+                    variable=member_vars[member],
+                    anchor="w",
+                ).grid(
+                    row=index // 4,
+                    column=index % 4,
+                    sticky="w",
+                    padx=(0, 18),
+                    pady=4,
+                )
+
+            button_frame = tk.Frame(frame)
+            button_frame.pack(fill="x", pady=(14, 0))
+
+            def select_all() -> None:
+                for variable in member_vars.values():
+                    variable.set(True)
+
+            def confirm() -> None:
+                chosen = [
+                    member
+                    for member in member_names
+                    if member_vars[member].get()
+                ]
+                if not chosen:
+                    messagebox.showwarning(
+                        "至少选择一人",
+                        "请至少选择一名参与判断的人物。",
+                        parent=dialog,
+                    )
+                    return
+                qualification_member_values[key] = chosen
+                count_combo.configure(
+                    values=tuple(
+                        str(value)
+                        for value in range(1, len(chosen) + 1)
+                    )
+                )
+                current_count = int(count_var.get() or "1")
+                if current_count > len(chosen):
+                    count_var.set(str(len(chosen)))
+                refresh_member_button()
+                dialog.destroy()
+
+            tk.Button(
+                button_frame,
+                text="全选",
+                command=select_all,
+                width=10,
+            ).pack(side="left")
+            tk.Button(
+                button_frame,
+                text="取消",
+                command=dialog.destroy,
+                width=10,
+            ).pack(side="right", padx=(8, 0))
+            tk.Button(
+                button_frame,
+                text="确定",
+                command=confirm,
+                width=10,
+            ).pack(side="right")
+
+            dialog.update_idletasks()
+            width = max(430, dialog.winfo_reqwidth())
+            height = max(190, dialog.winfo_reqheight())
+            x = editor.winfo_rootx() + (editor.winfo_width() - width) // 2
+            y = editor.winfo_rooty() + (editor.winfo_height() - height) // 2
+            dialog.geometry(
+                f"{width}x{height}+{max(0, x)}+{max(0, y)}"
+            )
+            dialog.deiconify()
+            dialog.lift()
+            dialog.grab_set()
+
+        member_button.configure(command=choose_members)
 
         def refresh_count_control(_event=None) -> None:
             enabled = (
@@ -907,6 +1041,7 @@ def show_rule_editor(
             )
             count_combo.configure(state="readonly" if enabled else "disabled")
             count_label.configure(fg="#222222" if enabled else "#999999")
+            member_button.configure(state="normal" if enabled else "disabled")
 
         mode_combo.bind(
             "<<ComboboxSelected>>",
@@ -914,7 +1049,7 @@ def show_rule_editor(
             add="+",
         )
 
-    add_qualification_control(0, "three", 3)
+    add_qualification_control(0, "three", THREE_MEMBER_NAMES)
     add_number(
         threshold_tab,
         1,
@@ -922,7 +1057,7 @@ def show_rule_editor(
         "完整7人兵种合格门槛",
         "低于门槛时直接重新随机",
     )
-    add_qualification_control(1, "seven", 7)
+    add_qualification_control(1, "seven", TEAM_MEMBER_NAMES)
     add_number(
         threshold_tab,
         2,
@@ -1196,7 +1331,7 @@ def show_rule_editor(
         return bool(working["profiles"][name].get("builtin"))
 
     def refresh_qualification_controls(enabled: bool) -> None:
-        for key, (mode_combo, count_combo, count_label) in (
+        for key, (mode_combo, count_combo, count_label, member_button) in (
             qualification_controls.items()
         ):
             count_enabled = (
@@ -1210,6 +1345,9 @@ def show_rule_editor(
             )
             count_label.configure(
                 fg="#222222" if count_enabled else "#999999"
+            )
+            member_button.configure(
+                state="normal" if count_enabled else "disabled"
             )
 
     def set_editable(enabled: bool) -> None:
@@ -1248,6 +1386,9 @@ def show_rule_editor(
         profile["threePerson"]["minQualifiedCount"] = int(
             qualification_count_vars["three"].get()
         )
+        profile["threePerson"]["qualifiedMembers"] = list(
+            qualification_member_values["three"]
+        )
         category_scores = {
             "优质": float(number_vars["ordinary_weight"].get()),
             "强力": float(number_vars["strong_weight"].get()),
@@ -1262,6 +1403,9 @@ def show_rule_editor(
                 ],
                 "minQualifiedCount": int(
                     qualification_count_vars["seven"].get()
+                ),
+                "qualifiedMembers": list(
+                    qualification_member_values["seven"]
                 ),
                 "normalJobAverage": float(
                     number_vars["normal_average"].get()
@@ -1365,6 +1509,12 @@ def show_rule_editor(
             for key, value in values.items():
                 number_vars[key].set(f"{value:g}")
             for key, settings in (("three", three), ("seven", seven)):
+                allowed_members = (
+                    THREE_MEMBER_NAMES if key == "three" else TEAM_MEMBER_NAMES
+                )
+                qualification_member_values[key] = list(
+                    settings["qualifiedMembers"]
+                )
                 qualification_mode_vars[key].set(
                     qualification_mode_values[
                         settings["jobQualificationMode"]
@@ -1372,6 +1522,25 @@ def show_rule_editor(
                 )
                 qualification_count_vars[key].set(
                     str(settings["minQualifiedCount"])
+                )
+                _mode_combo, count_combo, _label, member_button = (
+                    qualification_controls[key]
+                )
+                count_combo.configure(
+                    values=tuple(
+                        str(value)
+                        for value in range(
+                            1,
+                            len(qualification_member_values[key]) + 1,
+                        )
+                    )
+                )
+                member_button.configure(
+                    text=(
+                        "选择人员"
+                        f"（{len(qualification_member_values[key])}/"
+                        f"{len(allowed_members)}）"
+                    )
                 )
             special_auto.set(seven["specialSkillAutoPass"])
             high_auto.set(seven["highJobAutoPass"])

@@ -82,6 +82,21 @@ class SessionManagementTests(unittest.TestCase):
         self.assertNotIn("interaction_compat_reload_start", source)
         self.assertNotIn("interaction_compat_reload_ready", source)
 
+    def test_full_inspection_uses_resilient_member_transition(self):
+        source = (
+            Path(__file__).resolve().parents[2]
+            / "ccz_randomizer"
+            / "app.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn(
+            "next_info_hwnd = advance_people_info(",
+            source,
+        )
+        self.assertNotIn(
+            'f"切换到第 {index + 2} 个武将失败"',
+            source,
+        )
+
     def test_unverified_skill_memory_reader_is_not_patched_into_runtime(self):
         source = (
             Path(__file__).resolve().parents[2]

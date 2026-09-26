@@ -855,6 +855,10 @@ class InteractionNotTriggered(RuntimeError):
     """The game accepted background input without advancing randomization."""
 
 
+class DirectReloadUnsupported(InteractionNotTriggered):
+    """The current machine cannot safely reuse a running game instance."""
+
+
 def run_native_control(pid: int, arguments: list[str]) -> None:
     injector = native_dir() / "ccz_injector.exe"
     control_dll = native_dir() / "ccz_control.dll"
@@ -2745,6 +2749,16 @@ def finish_reused_load_confirmation(pid: int, game: int) -> bool:
             )
             return True
         if not dialog_valid and not game_enabled:
+            if not user32.IsWindow(game) or not process_executable(pid):
+                diagnostic_log(
+                    "reused_load_process_exited",
+                    pid=pid,
+                    game_hwnd=game,
+                    dialog_hwnd=dialog,
+                )
+                raise DirectReloadUnsupported(
+                    "当前设备的后台快速读档会导致游戏退出"
+                )
             diagnostic_log(
                 "reused_load_owner_disabled",
                 pid=pid,
@@ -3173,9 +3187,14 @@ def find_dialog_button(hwnd: int, text: str) -> int:
     return result
 
 
-def click_dialog_button(hwnd: int, text: str) -> None:
+def click_dialog_button(
+    hwnd: int,
+    text: str,
+    *,
+    force_coordinate: bool = False,
+) -> None:
     button = find_dialog_button(hwnd, text)
-    if button:
+    if button and not force_coordinate:
         user32.SendMessageW(button, BM_CLICK, 0, 0)
         return
 
@@ -3192,6 +3211,7 @@ def click_dialog_button(hwnd: int, text: str) -> None:
                 "dialog_button_coordinate_fallback",
                 hwnd=hwnd,
                 button_text=text,
+                forced=force_coordinate,
                 window_rect=(
                     rect.left,
                     rect.top,
@@ -3338,8 +3358,12 @@ def advance_people_info_in_game_order(
     captured_names: set[str],
 ) -> tuple[int, str]:
     """Advance to the next distinct member without assuming roster order."""
-    for _ in range(3):
-        click_dialog_button(info_hwnd, "下一武将")
+    for attempt in range(3):
+        click_dialog_button(
+            info_hwnd,
+            "下一武将",
+            force_coordinate=attempt > 0,
+        )
         deadline = time.perf_counter() + 2.0
         while time.perf_counter() < deadline:
             shown_name = current_dialog_member(info_hwnd, member_names)
@@ -3365,34 +3389,6 @@ def advance_people_info_in_game_order(
     raise RuntimeError(
         "切换到下一武将失败，"
         f"当前仍为{shown_name or current_name or '未知武将'}"
-    )
-
-
-def open_member_from_roster_index(
-    pid: int,
-    runner,
-    roster_index: int,
-    member_names: tuple[str, ...],
-    captured_names: set[str],
-) -> tuple[int, str]:
-    runner.openPeople()
-    if not runner.peopleWind.isInitSuccess():
-        raise RuntimeError("武将列表未能重新打开")
-    user32.EnableWindow(runner.peopleWind.hwnd, True)
-    runner.peopleWind.clickPeople(roster_index)
-    deadline = time.perf_counter() + 10.0
-    while time.perf_counter() < deadline:
-        runner.initPeopleInfoWind()
-        info_hwnd, shown_name = find_any_member_dialog(pid, member_names)
-        if (
-            info_hwnd
-            and shown_name
-            and shown_name not in captured_names
-        ):
-            return info_hwnd, shown_name
-        time.sleep(0.05)
-    raise RuntimeError(
-        f"从武将列表重新打开第 {roster_index + 1} 行失败"
     )
 
 
@@ -3975,46 +3971,16 @@ def inspect_saved_slot(
                         traversal_index=index,
                         hwnd=info_hwnd,
                     )
-                    try:
-                        (
-                            next_info_hwnd,
-                            next_shown_name,
-                        ) = advance_people_info_in_game_order(
-                            game.pid,
-                            info_hwnd,
-                            member.name,
-                            member_names,
-                            captured_names,
-                        )
-                    except RuntimeError as transition_error:
-                        diagnostic_log(
-                            "member_transition_roster_fallback",
-                            pid=game.pid,
-                            current_member=member.name,
-                            captured_members=sorted(captured_names),
-                            traversal_index=index,
-                            hwnd=info_hwnd,
-                            error=repr(transition_error),
-                        )
-                        print(
-                            f"切换下一武将未生效，改从武将列表读取第 "
-                            f"{index + 2} 行"
-                        )
-                        close_member_dialog(
-                            game.pid,
-                            game.main_window,
-                            info_hwnd,
-                        )
-                        (
-                            next_info_hwnd,
-                            next_shown_name,
-                        ) = open_member_from_roster_index(
-                            game.pid,
-                            runner,
-                            index + 1,
-                            member_names,
-                            captured_names,
-                        )
+                    (
+                        next_info_hwnd,
+                        next_shown_name,
+                    ) = advance_people_info_in_game_order(
+                        game.pid,
+                        info_hwnd,
+                        member.name,
+                        member_names,
+                        captured_names,
+                    )
                     diagnostic_log(
                         "member_transition_succeeded",
                         pid=game.pid,
@@ -6014,6 +5980,7 @@ def main() -> int:
             else int(os.environ.get("CCZ_RESULT_COUNT", "15"))
         )
         game: HiddenGameSession | None = None
+        compatibility_restart_mode = False
 
         def start_game_session(
             restarted: bool = False,
@@ -6116,6 +6083,21 @@ def main() -> int:
                         _round_index: int,
                         loaded: bool,
                     ) -> AttemptResult:
+                        nonlocal game
+                        if compatibility_restart_mode and loaded:
+                            diagnostic_log(
+                                "compatibility_restart_before_attempt",
+                                pid=game.pid,
+                                result_slot=result_slot,
+                                round_index=_round_index,
+                            )
+                            print("兼容模式：正在刷新后台游戏实例")
+                            close_game_session(game)
+                            game = start_game_session(
+                                restarted=True,
+                                announce=False,
+                            )
+                            loaded = False
                         runner = task_module.CczReRandTask(0)
                         runner._target_save_pos = result_slot
                         runner._source_loaded = loaded
@@ -6133,7 +6115,13 @@ def main() -> int:
                         result_slot: int,
                         round_index: int,
                     ) -> None:
-                        nonlocal game
+                        nonlocal game, compatibility_restart_mode
+                        if isinstance(exc, DirectReloadUnsupported):
+                            compatibility_restart_mode = True
+                            print(
+                                "当前设备不兼容后台快速读档，"
+                                "已自动切换兼容模式"
+                            )
                         diagnostic_log(
                             "game_session_recovery",
                             pid=game.pid,

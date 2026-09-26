@@ -7,6 +7,7 @@ from unittest.mock import patch
 from fast_randomizer import (
     EQUIPMENT_NAMES,
     INITIAL_TEAM_MEMBERS,
+    DirectReloadUnsupported,
     InteractionNotTriggered,
     NativeControlError,
     NativeControlTimeout,
@@ -20,7 +21,6 @@ from fast_randomizer import (
     native_background_click,
     native_control_error_hint,
     native_silent_click,
-    open_member_from_roster_index,
     run_initial_inspection_process,
     run_inspection_process,
     session_failure_requires_restart,
@@ -126,7 +126,11 @@ class SessionManagementTests(unittest.TestCase):
                 {"曹操", "夏侯惇"},
             )
         self.assertEqual((456, "夏侯渊"), result)
-        click.assert_called_once_with(456, "下一武将")
+        click.assert_called_once_with(
+            456,
+            "下一武将",
+            force_coordinate=False,
+        )
 
     def test_reused_load_delayed_confirmation_is_closed(self):
         dialog_states = iter([True, False])
@@ -211,7 +215,7 @@ class SessionManagementTests(unittest.TestCase):
             ),
             patch(
                 "fast_randomizer.user32.IsWindow",
-                return_value=False,
+                side_effect=lambda hwnd: hwnd == 789,
             ),
             patch(
                 "fast_randomizer.user32.EnableWindow",
@@ -222,6 +226,10 @@ class SessionManagementTests(unittest.TestCase):
                 return_value=True,
             ),
             patch("fast_randomizer.game_state_diagnostic", return_value={}),
+            patch(
+                "fast_randomizer.process_executable",
+                return_value=Path("Ekd5.exe"),
+            ),
             patch("fast_randomizer.diagnostic_log"),
         ):
             closed = finish_reused_load_confirmation(123, 789)
@@ -229,29 +237,65 @@ class SessionManagementTests(unittest.TestCase):
         self.assertTrue(closed)
         restore.assert_called_once_with(789, True)
 
-    def test_member_transition_can_reopen_next_roster_row(self):
-        runner = unittest.mock.Mock()
-        runner.peopleWind.isInitSuccess.return_value = True
-        runner.peopleWind.hwnd = 456
+    def test_reused_load_detects_game_process_exit(self):
         with (
             patch(
-                "fast_randomizer.find_any_member_dialog",
-                return_value=(789, "曹仁"),
+                "fast_randomizer.process_windows",
+                return_value=[456],
             ),
-            patch("fast_randomizer.user32.EnableWindow") as enable,
+            patch("fast_randomizer.window_class", return_value="#32770"),
+            patch("fast_randomizer.window_text", return_value="确认"),
+            patch(
+                "fast_randomizer.user32.IsWindowVisible",
+                return_value=True,
+            ),
+            patch(
+                "fast_randomizer.user32.IsWindowEnabled",
+                return_value=False,
+            ),
+            patch("fast_randomizer.user32.IsWindow", return_value=False),
+            patch(
+                "fast_randomizer.click_leftmost_dialog_button",
+                return_value=True,
+            ),
+            patch("fast_randomizer.process_executable", return_value=None),
+            patch("fast_randomizer.diagnostic_log"),
         ):
-            result = open_member_from_roster_index(
+            with self.assertRaises(DirectReloadUnsupported):
+                finish_reused_load_confirmation(123, 789)
+
+    def test_member_transition_uses_coordinate_fallback(self):
+        with (
+            patch("fast_randomizer.click_dialog_button") as click,
+            patch(
+                "fast_randomizer.current_dialog_member",
+                return_value="曹仁",
+            ),
+            patch(
+                "fast_randomizer.find_any_member_dialog",
+                return_value=(0, ""),
+            ),
+            patch(
+                "fast_randomizer.time.perf_counter",
+                side_effect=[0.0, 3.0, 4.0, 4.1],
+            ),
+            patch("fast_randomizer.time.sleep"),
+        ):
+            result = advance_people_info_in_game_order(
                 123,
-                runner,
-                3,
+                456,
+                "夏侯渊",
                 ("曹操", "夏侯惇", "夏侯渊", "曹仁"),
                 {"曹操", "夏侯惇", "夏侯渊"},
             )
 
-        self.assertEqual((789, "曹仁"), result)
-        runner.openPeople.assert_called_once_with()
-        enable.assert_called_once_with(456, True)
-        runner.peopleWind.clickPeople.assert_called_once_with(3)
+        self.assertEqual((456, "曹仁"), result)
+        self.assertTrue(
+            any(
+                call.kwargs.get("force_coordinate")
+                for call in click.call_args_list
+            )
+        )
 
     def test_unverified_skill_memory_reader_is_not_patched_into_runtime(self):
         source = (

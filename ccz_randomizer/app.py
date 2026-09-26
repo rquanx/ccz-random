@@ -3558,6 +3558,80 @@ def close_member_dialog(pid: int, main_window: int, info_hwnd: int) -> None:
         raise RuntimeError("武将能力窗口未能关闭")
 
 
+def open_uncaptured_member_from_roster(
+    pid: int,
+    main_window: int,
+    runner,
+    info_hwnd: int,
+    member_names: tuple[str, ...],
+    captured_names: set[str],
+) -> tuple[int, str]:
+    """Find an unread member from the roster without assuming row order."""
+    close_member_dialog(pid, main_window, info_hwnd)
+    observed: list[str] = []
+    for row_index in range(len(member_names)):
+        runner.openPeople()
+        if not runner.peopleWind.isInitSuccess():
+            diagnostic_log(
+                "member_roster_fallback_list_unavailable",
+                pid=pid,
+                row_index=row_index,
+                captured_members=sorted(captured_names),
+            )
+            continue
+        user32.EnableWindow(runner.peopleWind.hwnd, True)
+        diagnostic_log(
+            "member_roster_fallback_click",
+            pid=pid,
+            row_index=row_index,
+            list_hwnd=runner.peopleWind.hwnd,
+            captured_members=sorted(captured_names),
+        )
+        runner.peopleWind.clickPeople(row_index)
+        deadline = time.perf_counter() + 8.0
+        next_hwnd = 0
+        shown_name = ""
+        while time.perf_counter() < deadline:
+            runner.initPeopleInfoWind()
+            next_hwnd, shown_name = find_any_member_dialog(
+                pid, member_names
+            )
+            if next_hwnd:
+                break
+            time.sleep(0.05)
+        if not next_hwnd:
+            diagnostic_log(
+                "member_roster_fallback_row_failed",
+                pid=pid,
+                row_index=row_index,
+            )
+            continue
+        observed.append(shown_name)
+        if shown_name not in captured_names:
+            diagnostic_log(
+                "member_roster_fallback_succeeded",
+                pid=pid,
+                row_index=row_index,
+                info_hwnd=next_hwnd,
+                shown_member=shown_name,
+                captured_members=sorted(captured_names),
+            )
+            return next_hwnd, shown_name
+        diagnostic_log(
+            "member_roster_fallback_duplicate",
+            pid=pid,
+            row_index=row_index,
+            info_hwnd=next_hwnd,
+            shown_member=shown_name,
+        )
+        close_member_dialog(pid, main_window, next_hwnd)
+
+    raise RuntimeError(
+        "通过武将列表仍未找到尚未读取的武将；"
+        f"已读取={sorted(captured_names)}，列表识别={observed}"
+    )
+
+
 def capture_initial_member_panels(
     task_module,
     pid: int,
@@ -4120,16 +4194,38 @@ def inspect_saved_slot(
                         traversal_index=index,
                         hwnd=info_hwnd,
                     )
-                    (
-                        next_info_hwnd,
-                        next_shown_name,
-                    ) = advance_people_info_in_game_order(
-                        game.pid,
-                        info_hwnd,
-                        member.name,
-                        member_names,
-                        captured_names,
-                    )
+                    try:
+                        (
+                            next_info_hwnd,
+                            next_shown_name,
+                        ) = advance_people_info_in_game_order(
+                            game.pid,
+                            info_hwnd,
+                            member.name,
+                            member_names,
+                            captured_names,
+                        )
+                    except RuntimeError as transition_error:
+                        diagnostic_log(
+                            "member_transition_roster_fallback",
+                            pid=game.pid,
+                            current_member=member.name,
+                            captured_members=sorted(captured_names),
+                            traversal_index=index,
+                            hwnd=info_hwnd,
+                            error=repr(transition_error),
+                        )
+                        (
+                            next_info_hwnd,
+                            next_shown_name,
+                        ) = open_uncaptured_member_from_roster(
+                            game.pid,
+                            game.main_window,
+                            runner,
+                            info_hwnd,
+                            member_names,
+                            captured_names,
+                        )
                     diagnostic_log(
                         "member_transition_succeeded",
                         pid=game.pid,

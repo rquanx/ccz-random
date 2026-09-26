@@ -22,6 +22,7 @@ from fast_randomizer import (
     native_background_click,
     native_control_error_hint,
     native_silent_click,
+    open_uncaptured_member_from_roster,
     run_initial_inspection_process,
     run_inspection_process,
     session_failure_requires_restart,
@@ -390,6 +391,55 @@ class SessionManagementTests(unittest.TestCase):
         self.assertEqual(
             "injected_dialog_fallback",
             diagnostic.call_args.kwargs["method"],
+        )
+
+    def test_roster_fallback_skips_captured_member(self):
+        runner = unittest.mock.Mock()
+        runner.peopleWind.isInitSuccess.return_value = True
+        runner.peopleWind.hwnd = 777
+        with (
+            patch("fast_randomizer.close_member_dialog") as close_dialog,
+            patch(
+                "fast_randomizer.find_any_member_dialog",
+                side_effect=[
+                    (888, "夏侯渊"),
+                    (999, "曹仁"),
+                ],
+            ),
+            patch(
+                "fast_randomizer.time.perf_counter",
+                side_effect=[0.0, 0.1, 1.0, 1.1],
+            ),
+            patch("fast_randomizer.time.sleep"),
+            patch("fast_randomizer.user32.EnableWindow"),
+            patch("fast_randomizer.diagnostic_log") as diagnostic,
+        ):
+            result = open_uncaptured_member_from_roster(
+                123,
+                456,
+                runner,
+                321,
+                ("曹操", "夏侯惇", "夏侯渊", "曹仁"),
+                {"曹操", "夏侯惇", "夏侯渊"},
+            )
+
+        self.assertEqual((999, "曹仁"), result)
+        self.assertEqual(
+            [unittest.mock.call(0), unittest.mock.call(1)],
+            runner.peopleWind.clickPeople.call_args_list,
+        )
+        self.assertEqual(
+            [
+                unittest.mock.call(123, 456, 321),
+                unittest.mock.call(123, 456, 888),
+            ],
+            close_dialog.call_args_list,
+        )
+        self.assertTrue(
+            any(
+                call.args[0] == "member_roster_fallback_succeeded"
+                for call in diagnostic.call_args_list
+            )
         )
 
     def test_unverified_skill_memory_reader_is_not_patched_into_runtime(self):

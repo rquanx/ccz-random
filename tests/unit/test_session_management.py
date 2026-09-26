@@ -12,6 +12,7 @@ from fast_randomizer import (
     InteractionNotTriggered,
     NativeControlError,
     NativeControlTimeout,
+    NormalReloadUnsupported,
     Tee,
     advance_people_info_in_game_order,
     click_dialog_button,
@@ -25,6 +26,7 @@ from fast_randomizer import (
     native_background_click,
     native_control_error_hint,
     native_silent_click,
+    normal_load_verified,
     open_uncaptured_member_from_roster,
     run_initial_inspection_process,
     run_inspection_process,
@@ -42,6 +44,68 @@ class FakeGameSession:
 
 
 class SessionManagementTests(unittest.TestCase):
+    def test_normal_load_uses_game_menu_and_verifies_memory(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            save_path = Path(temporary) / "SV020.E5S"
+            expected = bytes(range(256)) * 768
+            save_path.write_bytes(expected)
+            load_action = unittest.mock.Mock()
+            with (
+                patch(
+                    "fast_randomizer.read_memory",
+                    return_value=expected,
+                ),
+                patch(
+                    "fast_randomizer.process_executable",
+                    return_value=Path("Ekd5.exe"),
+                ),
+                patch(
+                    "fast_randomizer.user32.IsWindow",
+                    return_value=True,
+                ),
+                patch("fast_randomizer.diagnostic_log") as diagnostic,
+            ):
+                loaded = normal_load_verified(
+                    123,
+                    456,
+                    20,
+                    save_path,
+                    load_action,
+                )
+
+        self.assertTrue(loaded)
+        load_action.assert_called_once_with(20)
+        self.assertTrue(
+            any(
+                call.args[0] == "normal_load_verified"
+                for call in diagnostic.call_args_list
+            )
+        )
+
+    def test_normal_load_wraps_menu_failure_for_session_recovery(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            save_path = Path(temporary) / "SV020.E5S"
+            save_path.write_bytes(b"\0" * 0x30000)
+            with (
+                patch(
+                    "fast_randomizer.game_state_diagnostic",
+                    return_value={},
+                ),
+                patch("fast_randomizer.diagnostic_log"),
+            ):
+                with self.assertRaises(NormalReloadUnsupported):
+                    normal_load_verified(
+                        123,
+                        456,
+                        20,
+                        save_path,
+                        unittest.mock.Mock(
+                            side_effect=RuntimeError(
+                                "读取进度窗口未出现"
+                            )
+                        ),
+                    )
+
     def test_diagnostic_screenshots_keep_only_one_per_error_type(self):
         with patch.object(
             app_module,
@@ -108,18 +172,42 @@ class SessionManagementTests(unittest.TestCase):
         }
         self.assertEqual(set(), used)
 
-    def test_reused_session_failure_restarts_without_in_process_retry(self):
+    def test_reused_session_uses_normal_load_and_three_interaction_attempts(
+        self,
+    ):
         source = (
             Path(__file__).resolve().parents[2]
             / "ccz_randomizer"
             / "app.py"
         ).read_text(encoding="utf-8")
+        self.assertIn('load_mode = "normal"', source)
+        self.assertIn("interaction_limit = 3", source)
         self.assertIn(
-            "interaction_limit = 1 if reused_session else 3",
+            "if not getattr(self, \"wind\", None):\n"
+            "            self.initWind()",
             source,
         )
+        self.assertIn("self._normal_load_succeeded = True", source)
+        self.assertIn(
+            "consecutive_normal_reload_failures = 0",
+            source,
+        )
+        self.assertNotIn("native_direct_load(pid, SOURCE_TITLE_LIST_INDEX)", source)
         self.assertNotIn("interaction_compat_reload_start", source)
         self.assertNotIn("interaction_compat_reload_ready", source)
+
+    def test_saved_result_verification_uses_normal_game_load(self):
+        source = (
+            Path(__file__).resolve().parents[2]
+            / "ccz_randomizer"
+            / "app.py"
+        ).read_text(encoding="utf-8")
+        verification_source = source.split(
+            "def verify_saved_result(", 1
+        )[1].split("for output_slot,", 1)[0]
+        self.assertIn("normal_load_verified(", verification_source)
+        self.assertIn("verifier.loadAndConfirm", verification_source)
+        self.assertNotIn("direct_load_verified(", verification_source)
 
     def test_full_inspection_uses_resilient_member_transition(self):
         source = (

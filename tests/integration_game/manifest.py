@@ -37,6 +37,16 @@ CASES = (
         "记录读档状态切换",
     ),
     GameCase(
+        "randomizer-three-normal-load",
+        "case_randomizer_three_normal_load.py",
+        "验证三人随机与正常读档复用",
+    ),
+    GameCase(
+        "randomizer-seven-normal-load",
+        "case_randomizer_seven_normal_load.py",
+        "验证七人随机与正常读档复用",
+    ),
+    GameCase(
         "native-confirm",
         "case_native_confirm_flow.py",
         "验证确认对话流程",

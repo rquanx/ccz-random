@@ -156,7 +156,11 @@ def classify_exception(exc: BaseException) -> dict[str, Any]:
             "code": return_code,
             "likely_cause": _native_likely_cause(return_code, message),
         }
-    if name in {"InteractionNotTriggered", "DirectReloadUnsupported"}:
+    if name in {
+        "InteractionNotTriggered",
+        "DirectReloadUnsupported",
+        "NormalReloadUnsupported",
+    }:
         return {
             "layer": "game_interaction",
             "category": "interaction_not_triggered",

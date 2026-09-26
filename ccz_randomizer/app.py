@@ -117,7 +117,7 @@ SOURCE_SAVE_NUMBER = 20
 SOURCE_TITLE_LIST_INDEX = 19
 XU_CLIENT_POSITION = (369, 234)
 CONFIRM_FIRST_CLIENT_POSITION = (297, 220)
-DIRECT_RELOAD_FAILURES_BEFORE_COMPATIBILITY = 3
+NORMAL_RELOAD_FAILURES_BEFORE_COMPATIBILITY = 3
 SECURITY_360_PROCESS_NAMES = frozenset(
     {
         "360doctor.exe",
@@ -994,6 +994,10 @@ class InteractionNotTriggered(RuntimeError):
 
 class DirectReloadUnsupported(InteractionNotTriggered):
     """The current machine cannot safely reuse a running game instance."""
+
+
+class NormalReloadUnsupported(InteractionNotTriggered):
+    """The current game instance cannot complete the normal load workflow."""
 
 
 class SecuritySoftwareDetected(RuntimeError):
@@ -1944,6 +1948,91 @@ def title_load_verified(
         process_alive=find_process_id(GAME_EXE_NAME) == pid,
     )
     return False
+
+
+def normal_load_verified(
+    pid: int,
+    game: int,
+    save_number: int,
+    save_path: Path,
+    load_action,
+    timeout: float = 12.0,
+) -> bool:
+    """Load through the game's normal menu and verify the resulting memory."""
+    expected = save_path.read_bytes()[:R0_MEMORY_SIZE]
+    started = time.perf_counter()
+    diagnostic_log(
+        "normal_load_start",
+        pid=pid,
+        game_hwnd=game,
+        save_number=save_number,
+        save_path=save_path,
+        expected_sha256=hashlib.sha256(expected).hexdigest(),
+    )
+    try:
+        load_action(save_number)
+    except Exception as exc:
+        diagnostic_log(
+            "normal_load_action_failed",
+            pid=pid,
+            game_hwnd=game,
+            error=repr(exc),
+            state=game_state_diagnostic(pid, game),
+        )
+        raise NormalReloadUnsupported(
+            "同一游戏实例未能完成正常读档"
+        ) from exc
+
+    deadline = time.perf_counter() + timeout
+    checks = 0
+    while time.perf_counter() < deadline:
+        checks += 1
+        if not user32.IsWindow(game) or process_executable(pid) is None:
+            diagnostic_log(
+                "normal_load_process_exited",
+                pid=pid,
+                game_hwnd=game,
+                checks=checks,
+            )
+            raise NormalReloadUnsupported(
+                "正常读档过程中游戏进程退出"
+            )
+        try:
+            current = read_memory(pid, 0, R0_MEMORY_SIZE)
+        except OSError as exc:
+            diagnostic_log(
+                "normal_load_memory_read_failed",
+                pid=pid,
+                game_hwnd=game,
+                checks=checks,
+                error=repr(exc),
+            )
+            time.sleep(0.05)
+            continue
+        if current == expected:
+            diagnostic_log(
+                "normal_load_verified",
+                pid=pid,
+                game_hwnd=game,
+                checks=checks,
+                elapsed_ms=round(
+                    (time.perf_counter() - started) * 1000
+                ),
+                memory_sha256=hashlib.sha256(current).hexdigest(),
+            )
+            return True
+        time.sleep(0.05)
+
+    diagnostic_log(
+        "normal_load_verification_failed",
+        pid=pid,
+        game_hwnd=game,
+        checks=checks,
+        state=game_state_diagnostic(pid, game),
+    )
+    raise NormalReloadUnsupported(
+        f"正常读档完成后，游戏内存与第 {save_number} 号存档不一致"
+    )
 
 
 def direct_load_verified(
@@ -4848,6 +4937,8 @@ def patch_runtime(
         )
 
     def robust_load_and_confirm(self, index: int) -> None:
+        if not getattr(self, "wind", None):
+            self.initWind()
         game = self.wind.hwnd if getattr(self, "wind", None) else 0
         if not game:
             raise RuntimeError("读档前未找到游戏主窗口")
@@ -5088,6 +5179,7 @@ def patch_runtime(
     def r0_only_run(self) -> bool:
         print(f"{self.name} 原生随机内存快筛流程 start")
         self._three_person_mode = three_person_mode
+        self._normal_load_succeeded = False
         diagnostic_log(
             "random_run_start",
             pid=pid,
@@ -5108,30 +5200,17 @@ def patch_runtime(
         load_started = time.perf_counter()
         reused_session = bool(getattr(self, "_source_loaded", False))
         if reused_session:
-            load_mode = "direct"
+            load_mode = "normal"
             diagnostic_log("source_load_start", pid=pid, mode=load_mode)
-            native_direct_load(pid, SOURCE_TITLE_LIST_INDEX)
-            reload_deadline = time.perf_counter() + 8
-            while time.perf_counter() < reload_deadline:
-                if read_memory(pid, 0, R0_MEMORY_SIZE) == source_memory:
-                    break
-                time.sleep(0.05)
-            else:
-                print("第 20 号源存档内存直读未确认，回退标题界面原生读取")
-                self._source_loaded = False
-                if not title_load_verified(
-                    pid, SOURCE_TITLE_LIST_INDEX, source_save
-                ):
-                    print("第 20 号源存档标题界面回读也失败")
-                    diagnostic_log(
-                        "source_load_failed",
-                        pid=pid,
-                        mode="direct_and_title",
-                    )
-                    raise RuntimeError(
-                        "第 20 号源存档连续两种后台读取方式均失败"
-                    )
-            scene_ready_delay = 2.0
+            normal_load_verified(
+                pid,
+                game,
+                SOURCE_SAVE_NUMBER,
+                source_save,
+                self.loadAndConfirm,
+            )
+            self._normal_load_succeeded = True
+            scene_ready_delay = 1.0
         else:
             load_mode = "title"
             diagnostic_log("source_load_start", pid=pid, mode=load_mode)
@@ -5193,11 +5272,9 @@ def patch_runtime(
             ),
         )
         time.sleep(scene_ready_delay)
-        if reused_session:
-            finish_reused_load_confirmation(pid, game)
 
         current = before
-        interaction_limit = 1 if reused_session else 3
+        interaction_limit = 3
         for interaction_attempt in range(1, interaction_limit + 1):
             interaction_started = time.perf_counter()
             diagnostic_log(
@@ -5231,14 +5308,14 @@ def patch_runtime(
             except NativeControlError as exc:
                 if reused_session:
                     diagnostic_log(
-                        "direct_reload_native_control_failed",
+                        "normal_reload_native_control_failed",
                         pid=pid,
                         hwnd=game,
                         return_code=exc.return_code,
                         error=repr(exc),
                     )
-                    raise DirectReloadUnsupported(
-                        "当前设备的后台快速读档会导致后续交互组件失效"
+                    raise NormalReloadUnsupported(
+                        "正常读档后，后台交互组件未能继续响应"
                     ) from exc
                 raise
             time.sleep(0.5)
@@ -6837,7 +6914,7 @@ def main() -> int:
         )
         game: HiddenGameSession | None = None
         compatibility_restart_mode = False
-        consecutive_direct_reload_failures = 0
+        consecutive_normal_reload_failures = 0
         session_generation = 0
 
         def start_game_session(
@@ -6970,7 +7047,7 @@ def main() -> int:
                         _round_index: int,
                         loaded: bool,
                     ) -> AttemptResult:
-                        nonlocal game, consecutive_direct_reload_failures
+                        nonlocal game, consecutive_normal_reload_failures
                         update_diagnostic_context(
                             phase="randomization",
                             result_slot=result_slot,
@@ -6997,7 +7074,15 @@ def main() -> int:
                         runner = task_module.CczReRandTask(0)
                         runner._target_save_pos = result_slot
                         runner._source_loaded = loaded
-                        accepted = runner.run()
+                        try:
+                            accepted = runner.run()
+                        finally:
+                            if getattr(
+                                runner,
+                                "_normal_load_succeeded",
+                                False,
+                            ):
+                                consecutive_normal_reload_failures = 0
                         update_diagnostic_context(
                             source_loaded=bool(
                                 getattr(runner, "_source_loaded", False)
@@ -7006,8 +7091,6 @@ def main() -> int:
                                 "accepted" if accepted else "rejected"
                             ),
                         )
-                        if reused_session:
-                            consecutive_direct_reload_failures = 0
                         return AttemptResult(
                             accepted=accepted,
                             source_loaded=bool(
@@ -7022,23 +7105,23 @@ def main() -> int:
                         round_index: int,
                     ) -> None:
                         nonlocal game, compatibility_restart_mode
-                        nonlocal consecutive_direct_reload_failures
-                        if isinstance(exc, DirectReloadUnsupported):
-                            consecutive_direct_reload_failures += 1
+                        nonlocal consecutive_normal_reload_failures
+                        if isinstance(exc, NormalReloadUnsupported):
+                            consecutive_normal_reload_failures += 1
                             diagnostic_log(
-                                "direct_reload_failure_counted",
-                                count=consecutive_direct_reload_failures,
+                                "normal_reload_failure_counted",
+                                count=consecutive_normal_reload_failures,
                                 threshold=(
-                                    DIRECT_RELOAD_FAILURES_BEFORE_COMPATIBILITY
+                                    NORMAL_RELOAD_FAILURES_BEFORE_COMPATIBILITY
                                 ),
                             )
                             if (
-                                consecutive_direct_reload_failures
-                                >= DIRECT_RELOAD_FAILURES_BEFORE_COMPATIBILITY
+                                consecutive_normal_reload_failures
+                                >= NORMAL_RELOAD_FAILURES_BEFORE_COMPATIBILITY
                             ):
                                 compatibility_restart_mode = True
                                 print(
-                                    "当前设备不兼容后台快速读档，"
+                                    "当前设备无法稳定复用后台游戏，"
                                     "已自动切换兼容模式"
                                 )
                         diagnostic_log(
@@ -7197,8 +7280,8 @@ def main() -> int:
                             game=game,
                             will_recover=will_recover,
                             compatibility_mode=compatibility_restart_mode,
-                            direct_reload_failure_count=(
-                                consecutive_direct_reload_failures
+                            normal_reload_failure_count=(
+                                consecutive_normal_reload_failures
                             ),
                             attempt_elapsed_ms=(
                                 round(
@@ -7291,10 +7374,13 @@ def main() -> int:
                                     )
                                     verify_on_title = False
                                 else:
-                                    loaded = direct_load_verified(
+                                    verifier = task_module.CczReRandTask(0)
+                                    loaded = normal_load_verified(
                                         game.pid,
-                                        output_slot - 1,
+                                        game.main_window,
+                                        output_slot,
                                         saved_path,
+                                        verifier.loadAndConfirm,
                                     )
                                 if not loaded:
                                     raise RuntimeError(

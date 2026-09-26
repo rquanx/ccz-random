@@ -1,6 +1,8 @@
 import tempfile
 import unittest
 import ast
+import json
+import os
 from pathlib import Path
 from unittest.mock import patch
 
@@ -26,6 +28,7 @@ from fast_randomizer import (
     format_user_log,
     initial_team_members,
     inspection_background_click,
+    inspection_attempt_paths,
     native_background_click,
     native_control_error_hint,
     native_silent_click,
@@ -34,6 +37,7 @@ from fast_randomizer import (
     run_candidate_inspection,
     run_initial_inspection_process,
     run_initial_inspection_process_once,
+    run_inspection_cli_with_diagnostics,
     run_inspection_process,
     session_failure_requires_restart,
     trigger_random_choice_click,
@@ -1072,6 +1076,77 @@ class SessionManagementTests(unittest.TestCase):
                 "force_injected_story_click"
             ]
         )
+        self.assertEqual(
+            1,
+            run_once.call_args_list[0].kwargs["attempt"],
+        )
+        self.assertEqual(
+            2,
+            run_once.call_args_list[1].kwargs["attempt"],
+        )
+
+    def test_inspection_child_writes_complete_diagnostic_files(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            log_path = root / "inspection.log"
+            diagnostic_path = root / "inspection_diagnostic.jsonl"
+
+            def operation():
+                print("child inspection output")
+                app_module.diagnostic_log(
+                    "inspection_test_stage",
+                    marker="complete",
+                )
+                return 0
+
+            with patch.dict(
+                os.environ,
+                {
+                    "CCZ_INSPECTION_LOG_PATH": str(log_path),
+                    "CCZ_INSPECTION_DIAGNOSTIC_PATH": str(
+                        diagnostic_path
+                    ),
+                    "CCZ_INSPECTION_ATTEMPT": "2",
+                    "CCZ_INSPECTION_CLICK_STRATEGY": (
+                        "injected_background_mouse"
+                    ),
+                },
+                clear=False,
+            ):
+                result = run_inspection_cli_with_diagnostics(
+                    "full",
+                    operation,
+                )
+
+            records = [
+                json.loads(line)
+                for line in diagnostic_path.read_text(
+                    encoding="utf-8"
+                ).splitlines()
+                if line.strip()
+            ]
+            events = [record["event"] for record in records]
+            self.assertEqual(0, result)
+            self.assertIn("child inspection output", log_path.read_text(
+                encoding="utf-8"
+            ))
+            self.assertIn("inspection_child_started", events)
+            self.assertIn("inspection_test_stage", events)
+            self.assertIn("inspection_child_completed", events)
+            self.assertEqual(
+                "injected_background_mouse",
+                records[0]["context"]["click_strategy"],
+            )
+
+    def test_inspection_attempt_logs_are_outside_retry_directory(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output_dir = Path(directory) / "panels" / "save-1"
+            paths = inspection_attempt_paths(output_dir, 2)
+            self.assertTrue(all(path.parent == output_dir.parent for path in paths))
+            self.assertTrue(all(path.is_absolute() for path in paths))
+            self.assertTrue(
+                all("attempt-2" in path.name for path in paths)
+            )
 
     def test_initial_inspection_process_retries_once(self):
         with tempfile.TemporaryDirectory() as directory:

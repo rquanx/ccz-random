@@ -1011,6 +1011,11 @@ class InspectionProcessError(RuntimeError):
         details: str,
         *,
         timed_out: bool = False,
+        child_log_path: Path | None = None,
+        child_diagnostic_path: Path | None = None,
+        child_stdout_path: Path | None = None,
+        click_strategy: str | None = None,
+        elapsed_seconds: float | None = None,
     ):
         self.stage = stage
         self.subprocess_returncode = subprocess_returncode
@@ -1024,6 +1029,11 @@ class InspectionProcessError(RuntimeError):
             "remote thread timed out" in details.casefold()
             or "响应超时" in details
         )
+        self.child_log_path = child_log_path
+        self.child_diagnostic_path = child_diagnostic_path
+        self.child_stdout_path = child_stdout_path
+        self.click_strategy = click_strategy
+        self.elapsed_seconds = elapsed_seconds
         label = "初始三人能力检查" if stage == "initial" else "候选结果界面检查"
         super().__init__(label + "失败" + (f"：{details}" if details else ""))
 
@@ -3208,6 +3218,40 @@ def decode_subprocess_output(output: bytes | str | None) -> str:
     return output.decode("utf-8", errors="replace")
 
 
+def inspection_attempt_paths(
+    output_dir: Path,
+    attempt: int,
+    slot: int | None = None,
+) -> tuple[Path, Path, Path]:
+    unique = f"{time.time_ns():x}"
+    if DIAGNOSTIC_LOG_PATH is not None:
+        base_stem = DIAGNOSTIC_LOG_PATH.stem.removesuffix("_diagnostic")
+        prefix = DIAGNOSTIC_LOG_PATH.parent.resolve() / (
+            f"{base_stem}_inspection_slot{slot or 0}_"
+            f"attempt-{attempt}_{unique}"
+        )
+    else:
+        prefix = output_dir.parent.resolve() / (
+            f"{output_dir.name}-inspection-attempt-{attempt}-{unique}"
+        )
+    log_path = prefix.with_suffix(".log")
+    return (
+        log_path,
+        prefix.with_name(prefix.name + "_diagnostic.jsonl"),
+        log_path,
+    )
+
+
+def read_log_preview(path: Path, limit: int = 8000) -> str:
+    if not path.is_file():
+        return ""
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+    return text.strip()[-limit:]
+
+
 def run_inspection_process_once(
     game_executable: Path,
     slot: int,
@@ -3215,7 +3259,17 @@ def run_inspection_process_once(
     job_score: float,
     *,
     force_injected_story_click: bool = False,
+    attempt: int = 1,
 ) -> dict:
+    started_at = time.perf_counter()
+    click_strategy = (
+        "injected_background_mouse"
+        if force_injected_story_click
+        else "post_message"
+    )
+    child_log_path, child_diagnostic_path, child_stdout_path = (
+        inspection_attempt_paths(output_dir, attempt, slot)
+    )
     if getattr(sys, "frozen", False):
         command = [
             sys.executable,
@@ -3250,42 +3304,97 @@ def run_inspection_process_once(
     else:
         env.pop("CCZ_INSPECTION_FORCE_INJECTED_STORY_CLICK", None)
     env["PYTHONIOENCODING"] = "utf-8"
-    process = subprocess.Popen(
-        command,
-        cwd=str(game_executable.parent),
-        env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    env.pop("CCZ_INSPECTION_LOG_PATH", None)
+    env["CCZ_INSPECTION_DIAGNOSTIC_PATH"] = str(child_diagnostic_path)
+    env["CCZ_INSPECTION_ATTEMPT"] = str(attempt)
+    env["CCZ_INSPECTION_CLICK_STRATEGY"] = click_strategy
+    if DIAGNOSTIC_LOG_PATH is not None:
+        env["CCZ_PARENT_DIAGNOSTIC_PATH"] = str(DIAGNOSTIC_LOG_PATH)
+    diagnostic_log(
+        "inspection_process_started",
+        slot=slot,
+        attempt=attempt,
+        click_strategy=click_strategy,
+        child_log_path=str(child_log_path),
+        child_diagnostic_path=str(child_diagnostic_path),
+        child_stdout_path=str(child_stdout_path),
     )
-    result_file = output_dir / "inspection.json"
-    deadline = time.perf_counter() + 180
-    while time.perf_counter() < deadline:
-        if result_file.is_file():
-            try:
-                process.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                process.terminate()
+    child_stdout_path.parent.mkdir(parents=True, exist_ok=True)
+    timed_out = False
+    with child_stdout_path.open("wb") as stdout_stream:
+        process = subprocess.Popen(
+            command,
+            cwd=str(game_executable.parent),
+            env=env,
+            stdout=stdout_stream,
+            stderr=subprocess.STDOUT,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+        result_file = output_dir / "inspection.json"
+        deadline = time.perf_counter() + 180
+        while time.perf_counter() < deadline:
+            if result_file.is_file():
                 try:
-                    process.wait(timeout=5)
+                    process.wait(timeout=10)
                 except subprocess.TimeoutExpired:
-                    process.kill()
-                    process.wait()
-            return json.loads(result_file.read_text(encoding="utf-8"))
-        if process.poll() is not None:
-            break
-        time.sleep(0.2)
-    if process.poll() is None:
-        process.kill()
-    stdout, _ = process.communicate()
+                    process.terminate()
+                    try:
+                        process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        process.wait()
+                break
+            if process.poll() is not None:
+                break
+            time.sleep(0.2)
+        if process.poll() is None:
+            timed_out = True
+            process.kill()
+            process.wait()
+        stdout_stream.flush()
+    elapsed_seconds = round(time.perf_counter() - started_at, 3)
     if process.returncode != 0 or not result_file.is_file():
-        detail = decode_subprocess_output(stdout).strip()[-2000:]
-        raise InspectionProcessError(
+        detail = read_log_preview(child_stdout_path)
+        error = InspectionProcessError(
             "full",
             process.returncode,
             detail,
+            timed_out=timed_out,
+            child_log_path=child_log_path,
+            child_diagnostic_path=child_diagnostic_path,
+            child_stdout_path=child_stdout_path,
+            click_strategy=click_strategy,
+            elapsed_seconds=elapsed_seconds,
         )
-    return json.loads(result_file.read_text(encoding="utf-8"))
+        diagnostic_log(
+            "inspection_process_child_failed",
+            slot=slot,
+            attempt=attempt,
+            child_pid=process.pid,
+            child_returncode=process.returncode,
+            timed_out=timed_out,
+            elapsed_seconds=elapsed_seconds,
+            click_strategy=click_strategy,
+            child_log_path=str(child_log_path),
+            child_diagnostic_path=str(child_diagnostic_path),
+            child_stdout_path=str(child_stdout_path),
+            output_preview=detail,
+        )
+        raise error
+    result = json.loads(result_file.read_text(encoding="utf-8"))
+    diagnostic_log(
+        "inspection_process_completed",
+        slot=slot,
+        attempt=attempt,
+        child_pid=process.pid,
+        child_returncode=process.returncode,
+        elapsed_seconds=elapsed_seconds,
+        click_strategy=click_strategy,
+        child_log_path=str(child_log_path),
+        child_diagnostic_path=str(child_diagnostic_path),
+        child_stdout_path=str(child_stdout_path),
+    )
+    return result
 
 
 def run_inspection_process(
@@ -3303,6 +3412,7 @@ def run_inspection_process(
                 output_dir,
                 job_score,
                 force_injected_story_click=attempt > 1,
+                attempt=attempt,
             )
         except RuntimeError as exc:
             last_error = exc
@@ -3311,6 +3421,15 @@ def run_inspection_process(
                 slot=slot,
                 attempt=attempt,
                 error=repr(exc),
+                click_strategy=getattr(exc, "click_strategy", None),
+                child_log_path=str(getattr(exc, "child_log_path", "") or ""),
+                child_diagnostic_path=str(
+                    getattr(exc, "child_diagnostic_path", "") or ""
+                ),
+                child_stdout_path=str(
+                    getattr(exc, "child_stdout_path", "") or ""
+                ),
+                elapsed_seconds=getattr(exc, "elapsed_seconds", None),
             )
             if attempt == 1:
                 print("候选结果检查异常，正在自动重试一次")
@@ -4574,6 +4693,21 @@ def inspect_saved_slot(
     job_score: float,
     member_index: int | None = None,
 ) -> int:
+    started_at = time.perf_counter()
+    game_for_diagnostics = None
+    captured_names: set[str] = set()
+    member_names: tuple[str, ...] = ()
+    click_strategy = os.environ.get(
+        "CCZ_INSPECTION_CLICK_STRATEGY",
+        (
+            "injected_background_mouse"
+            if os.environ.get(
+                "CCZ_INSPECTION_FORCE_INJECTED_STORY_CLICK"
+            )
+            == "1"
+            else "post_message"
+        ),
+    )
     load_media_modules()
     output_dir.mkdir(parents=True, exist_ok=True)
     random_script = bundled_random_s00()
@@ -4591,15 +4725,50 @@ def inspect_saved_slot(
         if manage_script
         else {}
     )
+    update_diagnostic_context(
+        phase="inspection_prepare",
+        result_slot=slot,
+        inspection_mode="full",
+        click_strategy=click_strategy,
+    )
+    diagnostic_log(
+        "inspection_started",
+        slot=slot,
+        member_index=member_index,
+        output_dir=str(output_dir),
+        game_executable=file_diagnostic(game_executable),
+        helper_script=file_diagnostic(random_script),
+        script_targets=[
+            file_diagnostic(target) for target in script_targets
+        ],
+        manage_script=manage_script,
+        click_strategy=click_strategy,
+    )
     try:
         if manage_script:
             for target in script_targets:
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(random_script, target)
+            diagnostic_log(
+                "inspection_script_installed",
+                targets=[
+                    file_diagnostic(target) for target in script_targets
+                ],
+            )
+        else:
+            diagnostic_log(
+                "inspection_script_install_skipped",
+                reason="CCZ_SKIP_S00",
+            )
 
         install(bundle_root())
         import task.CczReRandTask as task_module
         rules = load_rule_config(app_dir()).config
+        diagnostic_log(
+            "inspection_runtime_loaded",
+            bundle_root=str(bundle_root()),
+            active_rule=rules.get("activeProfile"),
+        )
 
         if (
             member_index is None
@@ -4733,38 +4902,109 @@ def inspect_saved_slot(
         )
         if not save_path.is_file():
             raise FileNotFoundError(f"未找到候选存档 {save_path.name}")
+        diagnostic_log(
+            "inspection_candidate_ready",
+            candidate_save=file_diagnostic(save_path),
+        )
 
         with HiddenGameSession(game_executable) as game:
+            game_for_diagnostics = game
+            update_diagnostic_context(
+                phase="inspection_game_started",
+                game_pid=game.pid,
+                game_hwnd=game.main_window,
+            )
+            diagnostic_log(
+                "inspection_game_started",
+                pid=game.pid,
+                main_window=game.main_window,
+                state=game_state_diagnostic(game.pid, game.main_window),
+            )
             panels, click_info_button = patch_inspection_runtime(
                 task_module, game.pid, output_dir
             )
             time.sleep(1.2)
+            update_diagnostic_context(phase="inspection_candidate_load")
+            diagnostic_log(
+                "inspection_candidate_load_started",
+                pid=game.pid,
+                slot=slot,
+                candidate_save=file_diagnostic(save_path),
+            )
             if not title_load_verified(game.pid, slot - 1, save_path):
                 raise RuntimeError("候选存档未能完成后台读取")
+            diagnostic_log(
+                "inspection_candidate_load_verified",
+                pid=game.pid,
+                slot=slot,
+                state=game_state_diagnostic(game.pid, game.main_window),
+            )
             time.sleep(0.8)
             before_jump_memory = read_memory(game.pid, 0, R0_MEMORY_SIZE)
 
             runner = task_module.CczReRandTask(0)
             runner.savePos = slot
             runner.initWind()
+            update_diagnostic_context(phase="inspection_story_trigger")
             post_key_to_game(game.pid, "z")
+            diagnostic_log(
+                "inspection_acceleration_enabled",
+                pid=game.pid,
+                key="z",
+            )
             native_wake_game(game.pid, game.main_window, 500)
             time.sleep(0.3)
-            if not runner.jumpR0():
+            diagnostic_log(
+                "inspection_jump_started",
+                pid=game.pid,
+                click_strategy=click_strategy,
+                state=game_state_diagnostic(game.pid, game.main_window),
+            )
+            jump_result = runner.jumpR0()
+            diagnostic_log(
+                "inspection_jump_returned",
+                pid=game.pid,
+                result=bool(jump_result),
+                click_strategy=click_strategy,
+                state=game_state_diagnostic(game.pid, game.main_window),
+            )
+            if not jump_result:
                 raise RuntimeError("候选存档未能进入完整武将检查阶段")
             time.sleep(0.5)
+            update_diagnostic_context(phase="inspection_story_progress")
             advance_seven_member_story(
                 game.pid,
                 game.main_window,
             )
+            after_jump_path = output_dir / "after-jump.png"
             write_cv_image(
-                output_dir / "after-jump.png",
+                after_jump_path,
                 print_window_mat(game.main_window),
             )
+            diagnostic_log(
+                "inspection_story_progress_completed",
+                pid=game.pid,
+                screenshot=str(after_jump_path),
+                state=game_state_diagnostic(game.pid, game.main_window),
+            )
+            update_diagnostic_context(phase="inspection_roster_open")
+            diagnostic_log(
+                "inspection_roster_open_started",
+                pid=game.pid,
+            )
             runner.openPeople()
+            people_window_path = output_dir / "people-window.png"
             write_cv_image(
-                output_dir / "people-window.png",
+                people_window_path,
                 print_window_mat(runner.peopleWind.hwnd),
+            )
+            diagnostic_log(
+                "inspection_roster_opened",
+                pid=game.pid,
+                roster_hwnd=runner.peopleWind.hwnd,
+                roster_initialized=runner.peopleWind.isInitSuccess(),
+                screenshot=str(people_window_path),
+                state=game_state_diagnostic(game.pid, game.main_window),
             )
             print(
                 "候选检查窗口: "
@@ -4776,6 +5016,15 @@ def inspect_saved_slot(
             job_ids = read_job_ids(game.pid, JOB_POSITIONS_R1)
             if any(job_id not in JOB_MAP for job_id in job_ids):
                 raise RuntimeError(f"候选存档包含未知兵种编号：{job_ids}")
+            diagnostic_log(
+                "inspection_roster_snapshot",
+                pid=game.pid,
+                job_ids=list(job_ids),
+                job_names=[JOB_MAP[job_id][0] for job_id in job_ids],
+                windows=game_state_diagnostic(
+                    game.pid, game.main_window
+                ).get("windows", []),
+            )
             for member, job_id in zip(
                 task_module.TEAM_MEMBER_LIST, job_ids
             ):
@@ -4798,7 +5047,6 @@ def inspect_saved_slot(
             member_names = tuple(
                 item.name for item in task_module.TEAM_MEMBER_LIST
             )
-            captured_names: set[str] = set()
             next_info_hwnd = 0
             next_shown_name = ""
             for index, member in members_to_read:
@@ -4830,6 +5078,15 @@ def inspect_saved_slot(
                             break
                         time.sleep(0.05)
                 if not info_hwnd:
+                    diagnostic_log(
+                        "inspection_member_open_failed",
+                        pid=game.pid,
+                        requested_index=requested_index,
+                        captured_members=sorted(captured_names),
+                        state=game_state_diagnostic(
+                            game.pid, game.main_window
+                        ),
+                    )
                     raise RuntimeError(
                         f"第 {index + 1} 个武将能力窗口未能打开"
                     )
@@ -4876,6 +5133,20 @@ def inspect_saved_slot(
                 write_cv_image(
                     output_dir / f"member-{panel_index + 1}.png",
                     panel,
+                )
+                diagnostic_log(
+                    "inspection_member_captured",
+                    pid=game.pid,
+                    requested_index=requested_index,
+                    panel_index=panel_index,
+                    member=member.name,
+                    job=member.job.name,
+                    skills=[skill.name for skill in member.skillList],
+                    captured_members=sorted(captured_names),
+                    panel_path=str(
+                        output_dir / f"member-{panel_index + 1}.png"
+                    ),
+                    info_hwnd=info_hwnd,
                 )
                 if member_index is not None:
                     carry_count = 0
@@ -4996,17 +5267,31 @@ def inspect_saved_slot(
                             hwnd=info_hwnd,
                             error=repr(transition_error),
                         )
-                        (
-                            next_info_hwnd,
-                            next_shown_name,
-                        ) = open_uncaptured_member_from_roster(
-                            game.pid,
-                            game.main_window,
-                            runner,
-                            info_hwnd,
-                            member_names,
-                            captured_names,
-                        )
+                        try:
+                            (
+                                next_info_hwnd,
+                                next_shown_name,
+                            ) = open_uncaptured_member_from_roster(
+                                game.pid,
+                                game.main_window,
+                                runner,
+                                info_hwnd,
+                                member_names,
+                                captured_names,
+                            )
+                        except RuntimeError as roster_error:
+                            diagnostic_log(
+                                "member_roster_fallback_failed",
+                                pid=game.pid,
+                                current_member=member.name,
+                                captured_members=sorted(captured_names),
+                                traversal_index=index,
+                                error=repr(roster_error),
+                                state=game_state_diagnostic(
+                                    game.pid, game.main_window
+                                ),
+                            )
+                            raise
                     diagnostic_log(
                         "member_transition_succeeded",
                         pid=game.pid,
@@ -5067,7 +5352,43 @@ def inspect_saved_slot(
                 json.dumps(result, ensure_ascii=False, indent=2),
                 encoding="utf-8",
             )
+            diagnostic_log(
+                "inspection_completed",
+                slot=slot,
+                qualified=result["qualified"],
+                captured_members=sorted(captured_names),
+                job_names=result["job_names"],
+                result_path=str(output_dir / "inspection.json"),
+                elapsed_seconds=round(
+                    time.perf_counter() - started_at, 3
+                ),
+            )
         return 0
+    except Exception as exc:
+        initial_member_names = {member[0] for member in INITIAL_TEAM_MEMBERS}
+        category = (
+            "story_not_triggered_or_incomplete"
+            if captured_names
+            and captured_names.issubset(initial_member_names)
+            and len(captured_names) <= len(initial_member_names)
+            else "inspection_failure"
+        )
+        diagnostic_error(
+            "inspection_failed",
+            exc,
+            game=game_for_diagnostics,
+            slot=slot,
+            category=category,
+            click_strategy=click_strategy,
+            captured_members=sorted(captured_names),
+            expected_members=list(member_names),
+            elapsed_seconds=round(time.perf_counter() - started_at, 3),
+            screenshots={
+                "after_jump": str(output_dir / "after-jump.png"),
+                "people_window": str(output_dir / "people-window.png"),
+            },
+        )
+        raise
     finally:
         for target, content in backups.items():
             if content is None:
@@ -5075,6 +5396,13 @@ def inspect_saved_slot(
                     target.unlink()
             else:
                 target.write_bytes(content)
+        diagnostic_log(
+            "inspection_script_restored",
+            targets=[
+                file_diagnostic(target) for target in script_targets
+            ],
+            elapsed_seconds=round(time.perf_counter() - started_at, 3),
+        )
 
 
 def patch_runtime(
@@ -7807,6 +8135,80 @@ def main() -> int:
             DIAGNOSTIC_LOG_WRITER = None
 
 
+def run_inspection_cli_with_diagnostics(
+    stage: str,
+    operation,
+) -> int:
+    global DIAGNOSTIC_LOG_PATH, DIAGNOSTIC_LOG_WRITER
+    global DIAGNOSTIC_SUMMARY_PATH
+    log_value = os.environ.get("CCZ_INSPECTION_LOG_PATH", "")
+    diagnostic_value = os.environ.get(
+        "CCZ_INSPECTION_DIAGNOSTIC_PATH", ""
+    )
+    log_path = Path(log_value) if log_value else None
+    diagnostic_path = Path(diagnostic_value) if diagnostic_value else None
+    original_stdout = sys.stdout
+    original_stderr = sys.stderr
+    log_writer = RotatingTextWriter(log_path) if log_path else None
+    if diagnostic_path:
+        DIAGNOSTIC_LOG_PATH = diagnostic_path
+        DIAGNOSTIC_LOG_WRITER = RotatingTextWriter(diagnostic_path)
+    DIAGNOSTIC_SUMMARY_PATH = None
+    start_diagnostic_run(
+        run_type="inspection_child",
+        inspection_stage=stage,
+        inspection_attempt=os.environ.get("CCZ_INSPECTION_ATTEMPT", "1"),
+        click_strategy=os.environ.get(
+            "CCZ_INSPECTION_CLICK_STRATEGY", "post_message"
+        ),
+        parent_diagnostic_path=os.environ.get(
+            "CCZ_PARENT_DIAGNOSTIC_PATH", ""
+        ),
+        process_id=os.getpid(),
+    )
+    if log_writer is not None:
+        sys.stdout = Tee(original_stdout, log_writer)
+        sys.stderr = Tee(original_stderr, log_writer)
+    diagnostic_log(
+        "inspection_child_started",
+        stage=stage,
+        argv=sys.argv,
+        cwd=str(Path.cwd()),
+        process_id=os.getpid(),
+    )
+    inspect_code = 1
+    try:
+        inspect_code = int(operation())
+        diagnostic_log(
+            "inspection_child_completed",
+            stage=stage,
+            return_code=inspect_code,
+        )
+    except Exception as exc:
+        diagnostic_error(
+            "inspection_child_failed",
+            exc,
+            stage=stage,
+        )
+        traceback.print_exc()
+        inspect_code = 1
+    finally:
+        diagnostic_log(
+            "inspection_child_exiting",
+            stage=stage,
+            return_code=inspect_code,
+        )
+        sys.stdout = original_stdout
+        sys.stderr = original_stderr
+        if log_writer is not None:
+            log_writer.close()
+        if DIAGNOSTIC_LOG_WRITER is not None:
+            DIAGNOSTIC_LOG_WRITER.close()
+        DIAGNOSTIC_LOG_PATH = None
+        DIAGNOSTIC_LOG_WRITER = None
+    return inspect_code
+
+
 def run_cli() -> int:
     if "--smoke-startup" in sys.argv:
         return 0
@@ -7829,19 +8231,17 @@ def run_cli() -> int:
             if "--job-score" in sys.argv
             else -1
         )
-        try:
-            inspect_code = inspect_initial_saved_slot(
+        return run_inspection_cli_with_diagnostics(
+            "initial",
+            lambda: inspect_initial_saved_slot(
                 Path(sys.argv[game_index + 1]),
                 int(sys.argv[slot_index + 1]),
                 Path(sys.argv[output_index + 1]),
                 float(sys.argv[score_index + 1])
                 if score_index >= 0
                 else 0.0,
-            )
-        except Exception:
-            traceback.print_exc()
-            inspect_code = 1
-        return inspect_code
+            ),
+        )
     if "--inspect-slot" in sys.argv:
         slot_index = sys.argv.index("--inspect-slot")
         output_index = sys.argv.index("--inspect-output")
@@ -7856,8 +8256,9 @@ def run_cli() -> int:
             if "--inspect-member" in sys.argv
             else -1
         )
-        try:
-            inspect_code = inspect_saved_slot(
+        return run_inspection_cli_with_diagnostics(
+            "full",
+            lambda: inspect_saved_slot(
                 Path(sys.argv[game_index + 1]),
                 int(sys.argv[slot_index + 1]),
                 Path(sys.argv[output_index + 1]),
@@ -7867,11 +8268,8 @@ def run_cli() -> int:
                     if member_index >= 0
                     else None
                 ),
-            )
-        except Exception:
-            traceback.print_exc()
-            inspect_code = 1
-        return inspect_code
+            ),
+        )
     if "--worker" in sys.argv:
         return main()
     return gui_main()

@@ -68,13 +68,25 @@ class CleanupLogDirectoryTests(unittest.TestCase):
                 root
                 / "fast_20260801_120000_diagnostic_summary.json"
             )
+            old_inspection = (
+                root
+                / "fast_20260801_120000_inspection_slot1_"
+                "attempt-1_abc_diagnostic.jsonl"
+            )
             unrelated = root / "notes.log"
-            for path in (old_log, old_image, old_summary, unrelated):
+            for path in (
+                old_log,
+                old_image,
+                old_summary,
+                old_inspection,
+                unrelated,
+            ):
                 path.write_bytes(b"x" * 5)
             old_timestamp = dt.datetime(2026, 8, 1).timestamp()
             os.utime(old_log, (old_timestamp, old_timestamp))
             os.utime(old_image, (old_timestamp, old_timestamp))
             os.utime(old_summary, (old_timestamp, old_timestamp))
+            os.utime(old_inspection, (old_timestamp, old_timestamp))
             os.utime(unrelated, (old_timestamp, old_timestamp))
 
             result = cleanup_log_directory(
@@ -82,10 +94,11 @@ class CleanupLogDirectoryTests(unittest.TestCase):
                 now=dt.datetime(2026, 9, 26),
             )
 
-            self.assertEqual(result.removed_files, 3)
+            self.assertEqual(result.removed_files, 4)
             self.assertFalse(old_log.exists())
             self.assertFalse(old_image.exists())
             self.assertFalse(old_summary.exists())
+            self.assertFalse(old_inspection.exists())
             self.assertTrue(unrelated.exists())
 
     def test_reduces_managed_directory_size_to_target(self) -> None:

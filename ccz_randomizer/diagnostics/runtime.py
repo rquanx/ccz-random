@@ -105,6 +105,11 @@ def exception_diagnostic(exc: BaseException) -> dict[str, Any]:
             "subprocess_returncode",
             "inner_error_type",
             "native_timeout",
+            "child_log_path",
+            "child_diagnostic_path",
+            "child_stdout_path",
+            "click_strategy",
+            "elapsed_seconds",
         ):
             value = getattr(current, name, None)
             if value is not None:

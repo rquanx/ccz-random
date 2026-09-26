@@ -3244,12 +3244,8 @@ def click_dialog_button(
         return "send_bm_click"
 
     if button and force_coordinate:
-        button_rect = wintypes.RECT()
         screen_rect = wintypes.RECT()
-        if (
-            user32.GetClientRect(button, ctypes.byref(button_rect))
-            and user32.GetWindowRect(button, ctypes.byref(screen_rect))
-        ):
+        if user32.GetWindowRect(button, ctypes.byref(screen_rect)):
             click_pid = pid
             if click_pid is None:
                 process_id = wintypes.DWORD()
@@ -3258,19 +3254,18 @@ def click_dialog_button(
                 )
                 click_pid = int(process_id.value)
             if click_pid:
-                client_x = max(
-                    0, (button_rect.right - button_rect.left) // 2
+                point = Point(
+                    (screen_rect.left + screen_rect.right) // 2,
+                    (screen_rect.top + screen_rect.bottom) // 2,
                 )
-                client_y = max(
-                    0, (button_rect.bottom - button_rect.top) // 2
-                )
+                user32.ScreenToClient(hwnd, ctypes.byref(point))
                 diagnostic_log(
                     "dialog_button_click",
                     hwnd=hwnd,
                     button_hwnd=button,
                     button_text=text,
-                    method="injected_button_mouse",
-                    client_point=(client_x, client_y),
+                    method="injected_dialog_button_mouse",
+                    client_point=(point.x, point.y),
                     button_rect=(
                         screen_rect.left,
                         screen_rect.top,
@@ -3280,12 +3275,12 @@ def click_dialog_button(
                 )
                 native_silent_click(
                     click_pid,
-                    button,
-                    client_x,
-                    client_y,
+                    hwnd,
+                    point.x,
+                    point.y,
                     tail_delay_ms=120,
                 )
-                return "injected_button_mouse"
+                return "injected_dialog_button_mouse"
 
     fallback_rects = {
         "上一武将": (290, 350, 18, 56),
@@ -3541,21 +3536,172 @@ def advance_people_info_in_game_order(
     )
 
 
-def close_member_dialog(pid: int, main_window: int, info_hwnd: int) -> None:
-    button = find_dialog_button(info_hwnd, "确定")
-    if button:
-        control_id = user32.GetDlgCtrlID(button)
-        user32.SendMessageW(
-            info_hwnd,
-            0x0111,
-            control_id,
-            button,
-        )
-    if wait_for_window_state(info_hwnd, exists=False, timeout=1.5):
+def capture_roster_fallback_debug(
+    pid: int,
+    hwnd: int,
+    stage: str,
+) -> None:
+    output_value = os.environ.get("CCZ_ROSTER_TEST_OUTPUT", "").strip()
+    if not output_value:
         return
-    native_end_dialog(pid, info_hwnd)
-    if not wait_for_window_state(info_hwnd, exists=False, timeout=3.0):
-        raise RuntimeError("武将能力窗口未能关闭")
+    output_dir = Path(output_value)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    state = {
+        "stage": stage,
+        "target_hwnd": hwnd,
+        "target_valid": bool(hwnd and user32.IsWindow(hwnd)),
+        "target_visible": bool(hwnd and user32.IsWindowVisible(hwnd)),
+        "target_enabled": bool(hwnd and user32.IsWindowEnabled(hwnd)),
+        "target_class": window_class(hwnd) if hwnd else "",
+        "target_title": window_text(hwnd) if hwnd else "",
+        "windows": [
+            {
+                "hwnd": candidate,
+                "class": window_class(candidate),
+                "title": window_text(candidate),
+                "visible": bool(user32.IsWindowVisible(candidate)),
+                "enabled": bool(user32.IsWindowEnabled(candidate)),
+            }
+            for candidate in process_windows(pid, visible_only=False)
+        ],
+    }
+    with (output_dir / "roster-state.jsonl").open(
+        "a", encoding="utf-8"
+    ) as stream:
+        stream.write(json.dumps(state, ensure_ascii=False) + "\n")
+    if hwnd and user32.IsWindow(hwnd):
+        try:
+            write_cv_image(
+                output_dir / f"{stage}.png",
+                print_window_mat(hwnd, strip_client=False),
+            )
+        except Exception:
+            pass
+
+
+def wait_for_member_dialog_closed(hwnd: int, timeout: float = 2.0) -> bool:
+    deadline = time.perf_counter() + timeout
+    while time.perf_counter() < deadline:
+        if (
+            not user32.IsWindow(hwnd)
+            or not user32.IsWindowVisible(hwnd)
+            or window_text(hwnd) != "武将情报"
+        ):
+            return True
+        time.sleep(0.05)
+    return False
+
+
+def close_member_dialog(pid: int, main_window: int, info_hwnd: int) -> None:
+    owner_hwnd = int(user32.GetWindow(info_hwnd, 4) or 0)
+
+    def restore_owner() -> None:
+        for hwnd in (owner_hwnd, main_window):
+            if hwnd and user32.IsWindow(hwnd):
+                user32.EnableWindow(hwnd, True)
+        if owner_hwnd and user32.IsWindow(owner_hwnd):
+            user32.ShowWindow(owner_hwnd, 5)
+        diagnostic_log(
+            "member_dialog_owner_restored",
+            pid=pid,
+            info_hwnd=info_hwnd,
+            owner_hwnd=owner_hwnd,
+            main_window=main_window,
+            owner_valid=bool(owner_hwnd and user32.IsWindow(owner_hwnd)),
+            main_window_enabled=bool(
+                main_window and user32.IsWindowEnabled(main_window)
+            ),
+        )
+
+    user32.PostMessageW(info_hwnd, 0x0010, 0, 0)
+    if wait_for_member_dialog_closed(info_hwnd, timeout=2.0):
+        restore_owner()
+        return
+    click_dialog_button(
+        info_hwnd,
+        "确定",
+        pid=pid,
+        force_coordinate=True,
+    )
+    if wait_for_member_dialog_closed(info_hwnd, timeout=2.0):
+        restore_owner()
+        return
+    raise RuntimeError("武将能力窗口点击“确定”后未能关闭")
+
+
+def ensure_people_roster_open(
+    pid: int,
+    main_window: int,
+    runner,
+    preferred_list_window: int = 0,
+) -> int:
+    """Reuse or reopen the roster without rediscovering the hidden game."""
+    if preferred_list_window and user32.IsWindow(preferred_list_window):
+        user32.EnableWindow(preferred_list_window, True)
+        user32.ShowWindow(preferred_list_window, 5)
+        diagnostic_log(
+            "member_roster_fallback_reused",
+            pid=pid,
+            list_hwnd=preferred_list_window,
+        )
+        return preferred_list_window
+
+    restore_deadline = time.perf_counter() + 1.5
+    while time.perf_counter() < restore_deadline:
+        runner.initPeopleWind()
+        if runner.peopleWind.isInitSuccess():
+            user32.EnableWindow(runner.peopleWind.hwnd, True)
+            diagnostic_log(
+                "member_roster_fallback_restored",
+                pid=pid,
+                list_hwnd=runner.peopleWind.hwnd,
+            )
+            return runner.peopleWind.hwnd
+        time.sleep(0.05)
+    if not main_window or not user32.IsWindow(main_window):
+        raise RuntimeError("列表备用路径中的后台游戏窗口已失效")
+
+    diagnostic_log(
+        "member_roster_fallback_open_start",
+        pid=pid,
+        main_window=main_window,
+        main_window_enabled=bool(user32.IsWindowEnabled(main_window)),
+        windows=[
+            {
+                "hwnd": hwnd,
+                "class": window_class(hwnd),
+                "title": window_text(hwnd),
+                "visible": bool(user32.IsWindowVisible(hwnd)),
+                "enabled": bool(user32.IsWindowEnabled(hwnd)),
+            }
+            for hwnd in process_windows(pid, visible_only=False)
+        ],
+    )
+    for attempt in range(1, 4):
+        native_wake_game(pid, main_window, 600)
+        point = Point(138, 18)
+        user32.ClientToScreen(main_window, ctypes.byref(point))
+        post_click(main_window, point.x, point.y)
+        deadline = time.perf_counter() + 2.0
+        while time.perf_counter() < deadline:
+            runner.initPeopleWind()
+            if runner.peopleWind.isInitSuccess():
+                user32.EnableWindow(runner.peopleWind.hwnd, True)
+                diagnostic_log(
+                    "member_roster_fallback_opened",
+                    pid=pid,
+                    list_hwnd=runner.peopleWind.hwnd,
+                    attempt=attempt,
+                )
+                return runner.peopleWind.hwnd
+            time.sleep(0.05)
+        diagnostic_log(
+            "member_roster_fallback_open_retry",
+            pid=pid,
+            main_window=main_window,
+            attempt=attempt,
+        )
+    raise RuntimeError("列表备用路径未能重新打开部队情报一览")
 
 
 def open_uncaptured_member_from_roster(
@@ -3567,38 +3713,88 @@ def open_uncaptured_member_from_roster(
     captured_names: set[str],
 ) -> tuple[int, str]:
     """Find an unread member from the roster without assuming row order."""
+    list_hwnd = int(
+        getattr(getattr(runner, "peopleWind", None), "hwnd", 0) or 0
+    )
+    capture_roster_fallback_debug(pid, list_hwnd, "before-close-list")
+    capture_roster_fallback_debug(pid, info_hwnd, "before-close-info")
     close_member_dialog(pid, main_window, info_hwnd)
+    capture_roster_fallback_debug(pid, list_hwnd, "after-close-list")
     observed: list[str] = []
-    for row_index in range(len(member_names)):
-        runner.openPeople()
-        if not runner.peopleWind.isInitSuccess():
+    unread_rows = [
+        index
+        for index, name in enumerate(member_names)
+        if name not in captured_names
+    ]
+    captured_rows = [
+        index
+        for index, name in enumerate(member_names)
+        if name in captured_names
+    ]
+    for row_index in unread_rows + captured_rows:
+        try:
+            list_hwnd = ensure_people_roster_open(
+                pid,
+                main_window,
+                runner,
+                preferred_list_window=list_hwnd,
+            )
+        except RuntimeError as exc:
             diagnostic_log(
                 "member_roster_fallback_list_unavailable",
                 pid=pid,
                 row_index=row_index,
                 captured_members=sorted(captured_names),
+                error=repr(exc),
             )
             continue
-        user32.EnableWindow(runner.peopleWind.hwnd, True)
         diagnostic_log(
             "member_roster_fallback_click",
             pid=pid,
             row_index=row_index,
-            list_hwnd=runner.peopleWind.hwnd,
+            list_hwnd=list_hwnd,
             captured_members=sorted(captured_names),
         )
-        runner.peopleWind.clickPeople(row_index)
-        deadline = time.perf_counter() + 8.0
         next_hwnd = 0
         shown_name = ""
-        while time.perf_counter() < deadline:
-            runner.initPeopleInfoWind()
-            next_hwnd, shown_name = find_any_member_dialog(
-                pid, member_names
+        for click_method in ("list_window_command", "injected_row_click"):
+            capture_roster_fallback_debug(
+                pid,
+                list_hwnd,
+                f"row-{row_index}-{click_method}-before",
             )
+            if click_method == "list_window_command":
+                run_native_control(
+                    pid,
+                    ["list-window", str(list_hwnd), str(row_index)],
+                )
+            else:
+                native_background_click(
+                    list_hwnd,
+                    54,
+                    129 + 60 * row_index,
+                    1,
+                    False,
+                )
+                native_wake_game(pid, main_window, 800)
+            deadline = time.perf_counter() + 3.0
+            while time.perf_counter() < deadline:
+                runner.initPeopleInfoWind()
+                next_hwnd, shown_name = find_any_member_dialog(
+                    pid, member_names
+                )
+                if next_hwnd:
+                    break
+                time.sleep(0.05)
             if next_hwnd:
                 break
-            time.sleep(0.05)
+            diagnostic_log(
+                "member_roster_fallback_click_no_dialog",
+                pid=pid,
+                row_index=row_index,
+                list_hwnd=list_hwnd,
+                method=click_method,
+            )
         if not next_hwnd:
             diagnostic_log(
                 "member_roster_fallback_row_failed",
@@ -4195,6 +4391,21 @@ def inspect_saved_slot(
                         hwnd=info_hwnd,
                     )
                     try:
+                        if (
+                            os.environ.get(
+                                "CCZ_FORCE_ROSTER_FALLBACK"
+                            )
+                            == "1"
+                        ):
+                            diagnostic_log(
+                                "member_transition_forced_roster_fallback",
+                                pid=game.pid,
+                                current_member=member.name,
+                                captured_members=sorted(captured_names),
+                            )
+                            raise RuntimeError(
+                                "测试模式强制使用武将列表备用路径"
+                            )
                         (
                             next_info_hwnd,
                             next_shown_name,

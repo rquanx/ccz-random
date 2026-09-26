@@ -14,8 +14,10 @@ from fast_randomizer import (
     Tee,
     advance_people_info_in_game_order,
     click_dialog_button,
+    close_member_dialog,
     decode_equipment_effect,
     decode_subprocess_output,
+    ensure_people_roster_open,
     finish_reused_load_confirmation,
     format_user_log,
     initial_team_members,
@@ -102,6 +104,7 @@ class SessionManagementTests(unittest.TestCase):
             'f"切换到第 {index + 2} 个武将失败"',
             source,
         )
+        self.assertIn("CCZ_FORCE_ROSTER_FALLBACK", source)
 
     def test_full_inspection_accepts_actual_game_member_order(self):
         member_names = (
@@ -300,24 +303,30 @@ class SessionManagementTests(unittest.TestCase):
             )
         )
 
-    def test_forced_dialog_click_uses_injected_button_mouse(self):
+    def test_forced_dialog_click_uses_dialog_relative_mouse(self):
         def set_rect(_hwnd, rect_pointer):
             rect = rect_pointer._obj
-            rect.left = 0
-            rect.top = 0
-            rect.right = 18
-            rect.bottom = 56
+            rect.left = 400
+            rect.top = 500
+            rect.right = 418
+            rect.bottom = 556
+            return True
+
+        def to_client(_hwnd, point_pointer):
+            point = point_pointer._obj
+            point.x -= 100
+            point.y -= 200
             return True
 
         with (
             patch("fast_randomizer.find_dialog_button", return_value=789),
             patch(
-                "fast_randomizer.user32.GetClientRect",
+                "fast_randomizer.user32.GetWindowRect",
                 side_effect=set_rect,
             ),
             patch(
-                "fast_randomizer.user32.GetWindowRect",
-                side_effect=set_rect,
+                "fast_randomizer.user32.ScreenToClient",
+                side_effect=to_client,
             ),
             patch("fast_randomizer.user32.SendMessageW") as send_message,
             patch("fast_randomizer.native_silent_click") as native_click,
@@ -330,17 +339,17 @@ class SessionManagementTests(unittest.TestCase):
                 force_coordinate=True,
             )
 
-        self.assertEqual("injected_button_mouse", method)
+        self.assertEqual("injected_dialog_button_mouse", method)
         native_click.assert_called_once_with(
             123,
-            789,
-            9,
-            28,
+            456,
+            309,
+            328,
             tail_delay_ms=120,
         )
         send_message.assert_not_called()
         self.assertEqual(
-            "injected_button_mouse",
+            "injected_dialog_button_mouse",
             diagnostic.call_args.kwargs["method"],
         )
 
@@ -406,12 +415,11 @@ class SessionManagementTests(unittest.TestCase):
                     (999, "曹仁"),
                 ],
             ),
-            patch(
-                "fast_randomizer.time.perf_counter",
-                side_effect=[0.0, 0.1, 1.0, 1.1],
-            ),
             patch("fast_randomizer.time.sleep"),
             patch("fast_randomizer.user32.EnableWindow"),
+            patch("fast_randomizer.user32.ShowWindow"),
+            patch("fast_randomizer.user32.IsWindow", return_value=True),
+            patch("fast_randomizer.run_native_control") as native_control,
             patch("fast_randomizer.diagnostic_log") as diagnostic,
         ):
             result = open_uncaptured_member_from_roster(
@@ -425,8 +433,15 @@ class SessionManagementTests(unittest.TestCase):
 
         self.assertEqual((999, "曹仁"), result)
         self.assertEqual(
-            [unittest.mock.call(0), unittest.mock.call(1)],
-            runner.peopleWind.clickPeople.call_args_list,
+            [
+                unittest.mock.call(
+                    123, ["list-window", "777", "3"]
+                ),
+                unittest.mock.call(
+                    123, ["list-window", "777", "0"]
+                ),
+            ],
+            native_control.call_args_list,
         )
         self.assertEqual(
             [
@@ -441,6 +456,74 @@ class SessionManagementTests(unittest.TestCase):
                 for call in diagnostic.call_args_list
             )
         )
+
+    def test_roster_fallback_reopens_list_from_known_main_window(self):
+        runner = unittest.mock.Mock()
+        runner.peopleWind.isInitSuccess.side_effect = [False, True]
+        runner.peopleWind.hwnd = 777
+        with (
+            patch(
+                "fast_randomizer.user32.IsWindow",
+                return_value=True,
+            ),
+            patch("fast_randomizer.user32.IsWindowEnabled"),
+            patch("fast_randomizer.user32.EnableWindow") as enable_window,
+            patch(
+                "fast_randomizer.time.perf_counter",
+                side_effect=[0.0, 0.1, 0.2],
+            ),
+            patch("fast_randomizer.time.sleep"),
+            patch("fast_randomizer.diagnostic_log"),
+        ):
+            result = ensure_people_roster_open(123, 456, runner)
+
+        self.assertEqual(777, result)
+        enable_window.assert_called_once_with(777, True)
+
+    def test_roster_fallback_reuses_saved_list_window(self):
+        runner = unittest.mock.Mock()
+        with (
+            patch("fast_randomizer.user32.IsWindow", return_value=True),
+            patch("fast_randomizer.user32.EnableWindow") as enable_window,
+            patch("fast_randomizer.user32.ShowWindow") as show_window,
+            patch("fast_randomizer.diagnostic_log"),
+        ):
+            result = ensure_people_roster_open(
+                123,
+                456,
+                runner,
+                preferred_list_window=777,
+            )
+
+        self.assertEqual(777, result)
+        runner.initPeopleWind.assert_not_called()
+        enable_window.assert_called_once_with(777, True)
+        show_window.assert_called_once_with(777, 5)
+
+    def test_closing_member_dialog_restores_its_owner(self):
+        with (
+            patch("fast_randomizer.user32.GetWindow", return_value=654),
+            patch("fast_randomizer.user32.IsWindow", return_value=True),
+            patch("fast_randomizer.user32.IsWindowEnabled", return_value=True),
+            patch("fast_randomizer.user32.EnableWindow") as enable_window,
+            patch("fast_randomizer.user32.ShowWindow") as show_window,
+            patch("fast_randomizer.user32.PostMessageW") as post_message,
+            patch("fast_randomizer.click_dialog_button") as click_button,
+            patch(
+                "fast_randomizer.wait_for_member_dialog_closed",
+                return_value=True,
+            ),
+            patch("fast_randomizer.diagnostic_log"),
+        ):
+            close_member_dialog(123, 456, 789)
+
+        post_message.assert_called_once_with(789, 0x0010, 0, 0)
+        click_button.assert_not_called()
+        self.assertEqual(
+            [unittest.mock.call(654, True), unittest.mock.call(456, True)],
+            enable_window.call_args_list,
+        )
+        show_window.assert_called_once_with(654, 5)
 
     def test_unverified_skill_memory_reader_is_not_patched_into_runtime(self):
         source = (

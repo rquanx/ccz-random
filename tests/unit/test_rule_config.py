@@ -146,6 +146,33 @@ class RuleConfigTests(unittest.TestCase):
         self.assertTrue(result.qualified)
         self.assertEqual(7.4, result.metrics["average"])
 
+    def test_job_type_override_changes_affinity_and_balance(self):
+        config = default_rule_config()
+        profile = config["profiles"][DEFAULT_PROFILE_NAME]
+        profile["jobScoring"]["jobTypeOverrides"] = {
+            "群雄": "MASTER",
+        }
+        jobs = [
+            {"name": "群雄", "score": 8, "type": "ALL_ROUNDER"},
+        ]
+        result = evaluate_job_rules(
+            config,
+            "three",
+            jobs,
+            [{"name": "曹操"}],
+        )
+        self.assertEqual(1, result.metrics["masterCount"])
+        self.assertEqual(8, result.metrics["average"])
+
+    def test_job_type_override_rejects_unknown_type(self):
+        config = default_rule_config()
+        profile = config["profiles"][DEFAULT_PROFILE_NAME]
+        profile["jobScoring"]["jobTypeOverrides"] = {
+            "群雄": "UNKNOWN",
+        }
+        with self.assertRaisesRegex(ValueError, "群雄所属类型"):
+            validate_rule_config(config)
+
     def test_duplicate_skills_are_counted_per_occurrence(self):
         config = default_rule_config()
         result = evaluate_skill_rules(

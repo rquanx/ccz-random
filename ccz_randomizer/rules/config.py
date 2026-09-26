@@ -23,6 +23,7 @@ TEAM_MEMBER_NAMES = (
     "曹洪",
 )
 AFFINITY_TYPES = ("ALL_ROUNDER", "WARRIOR", "MASTER", "NONE")
+JOB_AFFINITY_TYPES = ("ALL_ROUNDER", "WARRIOR", "MASTER")
 
 DEFAULT_MEMBER_AFFINITY = {
     "曹操": {"primaryType": "ALL_ROUNDER", "secondaryType": "WARRIOR"},
@@ -103,6 +104,7 @@ def _default_profile() -> dict[str, Any]:
         "jobScoring": {
             "baseScoreWeight": 1.0,
             "jobBaseScores": {},
+            "jobTypeOverrides": {},
             "affinityEnabled": True,
             "affinityMinBaseScore": 7.0,
             "primaryBonusRate": 0.06,
@@ -444,6 +446,18 @@ def validate_rule_config(config: dict[str, Any]) -> dict[str, Any]:
             for job_name, score in base_scores.items()
             if str(job_name).strip()
         }
+        type_overrides = scoring["jobTypeOverrides"]
+        if not isinstance(type_overrides, dict):
+            raise ValueError(f"{name}.兵种所属类型必须是映射")
+        scoring["jobTypeOverrides"] = {
+            str(job_name): _require_choice(
+                job_type,
+                f"{name}.{job_name}所属类型",
+                JOB_AFFINITY_TYPES,
+            )
+            for job_name, job_type in type_overrides.items()
+            if str(job_name).strip()
+        }
 
         affinity = profile["memberAffinity"]
         if not isinstance(affinity, dict):
@@ -608,7 +622,9 @@ def evaluate_job_rules(
         raw_score = float(job["score"])
         score = float(scoring["jobBaseScores"].get(name, raw_score))
         weighted_score = score * scoring["baseScoreWeight"]
-        job_type = str(job["type"])
+        job_type = str(
+            scoring["jobTypeOverrides"].get(name, job["type"])
+        )
         member_name = fallback_member["name"]
         member = affinity.get(member_name, fallback_member)
         attach_score = 0.0

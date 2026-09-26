@@ -11,6 +11,7 @@ from typing import Callable
 from ccz_randomizer.rules.config import (
     AFFINITY_TYPES,
     DEFAULT_PROFILE_NAME,
+    JOB_AFFINITY_TYPES,
     SIMPLE_PRESET_OPTIONS,
     apply_simple_settings,
     build_rule_export,
@@ -121,6 +122,10 @@ ADVANCED_HELP_SECTIONS = (
 
 【选择“无”】
 表示不设置该项倾向，也不会产生对应的加成。
+
+【兵种所属类型】
+点击“设置兵种所属类型”可以查看全部兵种当前所属的类型，也可以在规则副本中调整。
+修改后，人物倾向加成、夏侯惇文官型扣分和文官型兵种过多扣分都会按照新类型计算。
 
 提示：如果不希望人物倾向影响结果，可以关闭“人物兵种适配加成”，不需要逐个人改成“无”。""",
     ),
@@ -531,6 +536,114 @@ def show_advanced_help(parent, selected_index: int) -> None:
     dialog.grab_set()
 
 
+def show_job_type_editor(
+    parent,
+    job_map: dict,
+    current_values: dict[str, str],
+    editable: bool,
+    on_apply: Callable[[dict[str, str]], None],
+) -> None:
+    dialog = tk.Toplevel(parent)
+    dialog.withdraw()
+    dialog.title("兵种所属类型")
+    dialog.geometry("820x500")
+    dialog.minsize(700, 420)
+    dialog.transient(parent)
+
+    header = tk.Frame(dialog, padx=16, pady=12)
+    header.pack(fill="x")
+    tk.Label(
+        header,
+        text="兵种所属类型",
+        font=("Microsoft YaHei UI", 11, "bold"),
+        anchor="w",
+    ).pack(fill="x")
+    tk.Label(
+        header,
+        text=(
+            "类型会影响人物倾向加成和文官型相关扣分。"
+            + ("" if editable else "内置规则仅供查看，请先新建副本再修改。")
+        ),
+        fg="#666666",
+        anchor="w",
+    ).pack(fill="x", pady=(4, 0))
+
+    body = ScrollableFrame(dialog)
+    body.pack(fill="both", expand=True, padx=16)
+    options = tuple(TYPE_LABELS[value] for value in JOB_AFFINITY_TYPES)
+    variables: dict[str, tk.StringVar] = {}
+    jobs = [job for _job_id, job in sorted(job_map.items())]
+    column_count = 3
+    rows_per_column = (len(jobs) + column_count - 1) // column_count
+    for index, (job_name, _score, default_type) in enumerate(jobs):
+        group = index // rows_per_column
+        row = index % rows_per_column
+        label_column = group * 2
+        value_column = label_column + 1
+        variable = tk.StringVar(
+            value=TYPE_LABELS[current_values.get(job_name, default_type)]
+        )
+        variables[job_name] = variable
+        tk.Label(body.body, text=job_name, anchor="w", width=9).grid(
+            row=row,
+            column=label_column,
+            sticky="w",
+            padx=(0 if group == 0 else 18, 6),
+            pady=4,
+        )
+        combo = ttk.Combobox(
+            body.body,
+            textvariable=variable,
+            values=options,
+            state="readonly" if editable else "disabled",
+            width=10,
+        )
+        combo.grid(
+            row=row,
+            column=value_column,
+            sticky="w",
+            pady=4,
+        )
+
+    footer = tk.Frame(dialog, padx=16, pady=12)
+    footer.pack(fill="x")
+
+    def apply_changes() -> None:
+        on_apply(
+            {
+                job_name: TYPE_VALUES[variable.get()]
+                for job_name, variable in variables.items()
+            }
+        )
+        dialog.destroy()
+
+    tk.Button(
+        footer,
+        text="取消" if editable else "关闭",
+        command=dialog.destroy,
+        width=10,
+    ).pack(side="right")
+    if editable:
+        tk.Button(
+            footer,
+            text="确定",
+            command=apply_changes,
+            width=10,
+        ).pack(side="right", padx=(0, 8))
+
+    dialog.update_idletasks()
+    width = max(820, dialog.winfo_reqwidth())
+    height = max(500, dialog.winfo_reqheight())
+    x = parent.winfo_rootx() + (parent.winfo_width() - width) // 2
+    y = parent.winfo_rooty() + (parent.winfo_height() - height) // 2
+    x = max(0, min(x, dialog.winfo_screenwidth() - width))
+    y = max(0, min(y, dialog.winfo_screenheight() - height))
+    dialog.geometry(f"{width}x{height}+{x}+{y}")
+    dialog.deiconify()
+    dialog.lift()
+    dialog.grab_set()
+
+
 def show_rule_editor(
     parent,
     base_dir: Path,
@@ -876,6 +989,56 @@ def show_rule_editor(
         secondary.grid(row=row, column=2, padx=(18, 0), pady=4)
         editable_widgets.extend((primary, secondary))
 
+    job_default_types = {
+        job_name: job_type
+        for job_name, _score, job_type in job_map.values()
+    }
+    job_type_vars = {
+        job_name: tk.StringVar(value=job_type)
+        for job_name, job_type in job_default_types.items()
+    }
+
+    def apply_job_types(values: dict[str, str]) -> None:
+        for job_name, job_type in values.items():
+            job_type_vars[job_name].set(job_type)
+
+    def open_job_type_editor() -> None:
+        show_job_type_editor(
+            editor,
+            job_map,
+            {
+                job_name: variable.get()
+                for job_name, variable in job_type_vars.items()
+            },
+            not is_builtin(selected_name),
+            apply_job_types,
+        )
+
+    tk.Button(
+        affinity_tab,
+        text="设置兵种所属类型",
+        command=open_job_type_editor,
+        width=18,
+    ).grid(
+        row=len(team_members) + 2,
+        column=0,
+        columnspan=2,
+        sticky="w",
+        pady=(14, 0),
+    )
+    tk.Label(
+        affinity_tab,
+        text="查看并调整全能型、武将型、文官型的兵种归类",
+        fg="#666666",
+        anchor="w",
+    ).grid(
+        row=len(team_members) + 3,
+        column=0,
+        columnspan=3,
+        sticky="w",
+        pady=(4, 0),
+    )
+
     job_score_vars: dict[str, tk.StringVar] = {}
     job_score_items = []
     for _job_id, job in sorted(job_map.items()):
@@ -1123,6 +1286,11 @@ def show_rule_editor(
                     job_name: float(variable.get())
                     for job_name, variable in job_score_vars.items()
                 },
+                "jobTypeOverrides": {
+                    job_name: variable.get()
+                    for job_name, variable in job_type_vars.items()
+                    if variable.get() != job_default_types[job_name]
+                },
             }
         )
         profile["memberAffinity"] = {
@@ -1183,11 +1351,19 @@ def show_rule_editor(
                 primary.set(TYPE_LABELS[row["primaryType"]])
                 secondary.set(TYPE_LABELS[row["secondaryType"]])
             overrides = scoring["jobBaseScores"]
+            type_overrides = scoring["jobTypeOverrides"]
             defaults = {
                 job[0]: job[1] for job in job_map.values()
             }
             for job_name, variable in job_score_vars.items():
                 variable.set(f"{overrides.get(job_name, defaults[job_name]):g}")
+            for job_name, variable in job_type_vars.items():
+                variable.set(
+                    type_overrides.get(
+                        job_name,
+                        job_default_types[job_name],
+                    )
+                )
             skill_overrides = seven["skillBaseScores"]
             category_scores = {
                 "优质": seven["ordinarySkillWeight"],

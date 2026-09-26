@@ -4937,16 +4937,21 @@ def format_user_log(line: str) -> str:
     if text.startswith("第 ") and "回读校验通过" in text:
         prefix = text.split("号", 1)[0] if "号" in text else text
         return f"{prefix}号存档回读：合格"
+    if text.startswith(
+        (
+            "当前设备不兼容后台快速读档",
+            "兼容模式：正在刷新后台游戏实例",
+        )
+    ):
+        return ""
     if (
         text.startswith("第 ")
-        and "号存档已保存，但结果图生成失败" in text
+        and (
+            "号存档已保存，但结果图生成失败" in text
+            or "号存档已保存，但回读复查失败" in text
+        )
     ):
-        return text
-    if (
-        text.startswith("第 ")
-        and "号存档已保存，但回读复查失败" in text
-    ):
-        return text
+        return ""
     if text.startswith("宝物内存读取完成"):
         return ""
     if text.startswith("随机兵种已更新:"):

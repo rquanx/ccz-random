@@ -57,7 +57,7 @@ class BuildInfoTests(unittest.TestCase):
 
         self.assertIn("abcdef+dirty", text)
         self.assertEqual(
-            "工具版本：" + text,
+            "",
             format_user_log("工具版本：" + text),
         )
 

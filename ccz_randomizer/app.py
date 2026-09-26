@@ -4386,7 +4386,7 @@ def format_user_log(line: str) -> str:
     if not text:
         return ""
     if text.startswith("工具版本："):
-        return text
+        return ""
     if text.startswith("环境处理提示："):
         return text.removeprefix("环境处理提示：").strip()
     if (

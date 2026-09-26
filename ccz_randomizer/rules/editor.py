@@ -690,6 +690,7 @@ def show_rule_editor(
     team_members: tuple,
     skill_catalog: tuple,
     on_saved: Callable[[dict], None],
+    is_random_running: Callable[[], bool] | None = None,
 ) -> None:
     working = copy.deepcopy(validate_rule_config(config))
     saved_snapshot = json.dumps(
@@ -1863,7 +1864,15 @@ def show_rule_editor(
             return
         on_saved(normalized)
         editor.destroy()
-        show_toast(parent, "规则已保存")
+        if is_random_running is not None and is_random_running():
+            show_toast(
+                parent,
+                "规则已保存\n"
+                "当前随机仍使用开始时的规则，新规则将在下次开始随机时生效。",
+                3600,
+            )
+        else:
+            show_toast(parent, "规则已保存")
 
     new_button = tk.Button(action_frame, text="新建副本", command=new_profile)
     rename_button = tk.Button(

@@ -6068,6 +6068,7 @@ def gui_main() -> int:
             TEAM_MEMBERS,
             skill_score_catalog(),
             rules_saved,
+            lambda: worker is not None and worker.poll() is None,
         )
 
     def select_rule_profile(_event=None) -> None:
@@ -6307,7 +6308,7 @@ def gui_main() -> int:
         three_mode_button.configure(state="disabled")
         loop_check.configure(state="disabled")
         rule_profile_combo.configure(state="disabled")
-        rule_button.configure(state="disabled")
+        rule_button.configure(state="normal")
         status.set("循环运行中" if loop_var.get() else "运行中")
 
     def stop() -> None:

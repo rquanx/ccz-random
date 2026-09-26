@@ -277,6 +277,49 @@ class RuleEditorTests(unittest.TestCase):
         finally:
             root.destroy()
 
+    def test_saving_while_random_is_running_shows_next_run_notice(self):
+        root = tk.Tk()
+        root.withdraw()
+        try:
+            with tempfile.TemporaryDirectory() as directory:
+                with (
+                    patch("rule_editor.messagebox.showerror") as show_error,
+                    patch("rule_editor.show_toast") as show_toast,
+                ):
+                    show_rule_editor(
+                        root,
+                        Path(directory),
+                        default_rule_config(),
+                        JOB_MAP,
+                        TEAM_MEMBERS,
+                        SKILL_CATALOG,
+                        lambda _config: None,
+                        is_random_running=lambda: True,
+                    )
+                    root.update()
+                    editor = next(
+                        child
+                        for child in root.winfo_children()
+                        if isinstance(child, tk.Toplevel)
+                    )
+                    buttons = {
+                        widget.cget("text"): widget
+                        for widget in descendants(editor)
+                        if isinstance(widget, tk.Button)
+                    }
+                    buttons["保存规则"].invoke()
+                    root.update()
+
+                self.assertFalse(show_error.called)
+                show_toast.assert_called_once_with(
+                    root,
+                    "规则已保存\n"
+                    "当前随机仍使用开始时的规则，新规则将在下次开始随机时生效。",
+                    3600,
+                )
+        finally:
+            root.destroy()
+
     def test_job_type_dialog_edits_profile_override(self):
         root = tk.Tk()
         root.withdraw()

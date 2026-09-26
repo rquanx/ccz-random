@@ -846,8 +846,8 @@ class NativeControlTimeout(RuntimeError):
     pass
 
 
-class SessionRefreshRequired(RuntimeError):
-    """Request a clean game scene before the next random attempt."""
+class InteractionNotTriggered(RuntimeError):
+    """The game accepted background input without advancing randomization."""
 
 
 def run_native_control(pid: int, arguments: list[str]) -> None:
@@ -865,6 +865,7 @@ def run_native_control(pid: int, arguments: list[str]) -> None:
         str(control_dll),
         *arguments,
     ]
+    started = time.perf_counter()
     try:
         result = subprocess.run(
             command,
@@ -874,11 +875,13 @@ def run_native_control(pid: int, arguments: list[str]) -> None:
             timeout=timeout,
         )
     except subprocess.TimeoutExpired as exc:
+        elapsed_ms = round((time.perf_counter() - started) * 1000)
         diagnostic_log(
             "native_control_timeout",
             pid=pid,
             action=arguments,
             timeout_seconds=timeout,
+            elapsed_ms=elapsed_ms,
             running_as_admin=is_running_as_admin(),
             windows=sys.getwindowsversion(),
             injector=file_diagnostic(injector),
@@ -890,6 +893,7 @@ def run_native_control(pid: int, arguments: list[str]) -> None:
             "静默控件模块响应超时"
             + native_control_error_hint(-1)
         ) from exc
+    elapsed_ms = round((time.perf_counter() - started) * 1000)
     if result.returncode != 0:
         stdout = result.stdout.decode(errors="replace").strip()
         details = result.stderr.decode(errors="replace").strip()
@@ -898,6 +902,7 @@ def run_native_control(pid: int, arguments: list[str]) -> None:
             pid=pid,
             action=arguments,
             return_code=result.returncode,
+            elapsed_ms=elapsed_ms,
             stdout=stdout,
             stderr=details,
             running_as_admin=is_running_as_admin(),
@@ -909,6 +914,14 @@ def run_native_control(pid: int, arguments: list[str]) -> None:
             control_dll=file_diagnostic(control_dll),
         )
         raise NativeControlError(result.returncode, details)
+    diagnostic_log(
+        "native_control_completed",
+        pid=pid,
+        action=arguments,
+        elapsed_ms=elapsed_ms,
+        stdout=result.stdout.decode(errors="replace").strip(),
+        stderr=result.stderr.decode(errors="replace").strip(),
+    )
 
 
 def activate_save_list_item(pid: int, index: int) -> None:
@@ -2393,6 +2406,92 @@ def window_text(hwnd: int) -> str:
     buffer = ctypes.create_unicode_buffer(length + 1)
     user32.GetWindowTextW(hwnd, buffer, length + 1)
     return buffer.value.strip()
+
+
+def game_state_diagnostic(
+    pid: int,
+    game: int,
+    *,
+    jobs: tuple[int, ...] = (),
+    source_memory: bytes | None = None,
+) -> dict[str, object]:
+    windows = []
+    for hwnd in process_windows(pid, visible_only=False):
+        rect = wintypes.RECT()
+        has_rect = bool(user32.GetWindowRect(hwnd, ctypes.byref(rect)))
+        windows.append(
+            {
+                "hwnd": hwnd,
+                "class": window_class(hwnd),
+                "text": window_text(hwnd),
+                "visible": bool(user32.IsWindowVisible(hwnd)),
+                "enabled": bool(user32.IsWindowEnabled(hwnd)),
+                "iconic": bool(user32.IsIconic(hwnd)),
+                "rect": (
+                    [rect.left, rect.top, rect.right, rect.bottom]
+                    if has_rect
+                    else None
+                ),
+            }
+        )
+
+    memory: dict[str, object] = {}
+    try:
+        current = read_memory(pid, 0, R0_MEMORY_SIZE)
+        memory = {
+            "size": len(current),
+            "sha256": hashlib.sha256(current).hexdigest(),
+            "source_equal": (
+                current == source_memory
+                if source_memory is not None
+                else None
+            ),
+            "job_region": current[
+                JOB_OFFSET : JOB_OFFSET + (max(JOB_POSITIONS_R1) + 1) * 4
+            ].hex(),
+        }
+    except Exception as exc:
+        memory = {"error": repr(exc)}
+
+    foreground = user32.GetForegroundWindow()
+    return {
+        "pid": pid,
+        "game_hwnd": game,
+        "game_window_valid": bool(user32.IsWindow(game)),
+        "game_window_visible": bool(user32.IsWindowVisible(game)),
+        "game_window_enabled": bool(user32.IsWindowEnabled(game)),
+        "game_window_iconic": bool(user32.IsIconic(game)),
+        "last_active_popup": int(user32.GetLastActivePopup(game)) if game else 0,
+        "foreground_hwnd": int(foreground),
+        "foreground_pid": window_process_id(foreground),
+        "jobs": list(jobs),
+        "memory": memory,
+        "windows": windows,
+    }
+
+
+def capture_interaction_failure(pid: int, game: int) -> str | None:
+    if DIAGNOSTIC_LOG_PATH is None:
+        return None
+    output = DIAGNOSTIC_LOG_PATH.with_name(
+        f"{DIAGNOSTIC_LOG_PATH.stem}_interaction_failure_"
+        f"{pid}_{time.time_ns()}.png"
+    )
+    try:
+        image = print_window_mat(game, strip_client=False)
+        if image.size == 0:
+            raise RuntimeError("后台游戏窗口截图为空")
+        load_media_modules()
+        Image.fromarray(image[:, :, ::-1]).save(output, "PNG")
+        return str(output)
+    except Exception as exc:
+        diagnostic_log(
+            "interaction_failure_capture_failed",
+            pid=pid,
+            hwnd=game,
+            error=repr(exc),
+        )
+        return None
 
 
 def click_leftmost_dialog_button(hwnd: int) -> bool:
@@ -4000,8 +4099,10 @@ def patch_runtime(
         # the game is ready to accept another scripted interaction.
         time.sleep(1.5)
         load_started = time.perf_counter()
-        if getattr(self, "_source_loaded", False):
-            diagnostic_log("source_load_start", pid=pid, mode="direct")
+        reused_session = bool(getattr(self, "_source_loaded", False))
+        if reused_session:
+            load_mode = "direct"
+            diagnostic_log("source_load_start", pid=pid, mode=load_mode)
             native_direct_load(pid, SOURCE_TITLE_LIST_INDEX)
             reload_deadline = time.perf_counter() + 8
             while time.perf_counter() < reload_deadline:
@@ -4025,7 +4126,8 @@ def patch_runtime(
                     )
             scene_ready_delay = 1.2
         else:
-            diagnostic_log("source_load_start", pid=pid, mode="title")
+            load_mode = "title"
+            diagnostic_log("source_load_start", pid=pid, mode=load_mode)
             if not title_load_verified(
                 pid, SOURCE_TITLE_LIST_INDEX, source_save
             ):
@@ -4074,11 +4176,20 @@ def patch_runtime(
             ),
             scene_ready_delay_ms=round(scene_ready_delay * 1000),
             window_valid=bool(user32.IsWindow(game)),
+            load_mode=load_mode,
+            reused_session=reused_session,
+            state=game_state_diagnostic(
+                pid,
+                game,
+                jobs=before,
+                source_memory=source_memory,
+            ),
         )
         time.sleep(scene_ready_delay)
 
         current = before
-        for interaction_attempt in range(1, 4):
+        interaction_limit = 1 if reused_session else 3
+        for interaction_attempt in range(1, interaction_limit + 1):
             interaction_started = time.perf_counter()
             diagnostic_log(
                 "interaction_start",
@@ -4087,6 +4198,14 @@ def patch_runtime(
                 attempt=interaction_attempt,
                 before_jobs=before,
                 window_valid=bool(user32.IsWindow(game)),
+                load_mode=load_mode,
+                reused_session=reused_session,
+                state=game_state_diagnostic(
+                    pid,
+                    game,
+                    jobs=before,
+                    source_memory=source_memory,
+                ),
             )
             run_native_control(
                 pid,
@@ -4105,6 +4224,14 @@ def patch_runtime(
                 attempt=interaction_attempt,
                 jobs=after_npc,
                 window_valid=bool(user32.IsWindow(game)),
+                load_mode=load_mode,
+                reused_session=reused_session,
+                state=game_state_diagnostic(
+                    pid,
+                    game,
+                    jobs=after_npc,
+                    source_memory=source_memory,
+                ),
             )
             run_native_control(
                 pid,
@@ -4142,30 +4269,43 @@ def patch_runtime(
                 ),
                 process_alive=find_process_id(GAME_EXE_NAME) == pid,
                 window_valid=bool(user32.IsWindow(game)),
+                load_mode=load_mode,
+                reused_session=reused_session,
+                state=game_state_diagnostic(
+                    pid,
+                    game,
+                    jobs=current,
+                    source_memory=source_memory,
+                ),
             )
-            print(
-                "许子将后台交互未触发随机，"
-                f"重试 {interaction_attempt}/3"
-            )
-            native_wake_game(pid, game, 900)
+            if interaction_attempt < interaction_limit:
+                print(
+                    "许子将后台交互未触发随机，"
+                    f"重试 {interaction_attempt}/{interaction_limit}"
+                )
+                native_wake_game(pid, game, 900)
+            else:
+                print("许子将后台交互未触发随机，正在记录现场")
         else:
+            failure_state = game_state_diagnostic(
+                pid,
+                game,
+                jobs=current,
+                source_memory=source_memory,
+            )
+            failure_capture = capture_interaction_failure(pid, game)
             diagnostic_log(
                 "interaction_failed",
                 pid=pid,
                 before_jobs=before,
                 final_jobs=current,
-                windows=[
-                    {
-                        "hwnd": hwnd,
-                        "class": window_class(hwnd),
-                        "text": window_text(hwnd),
-                        "visible": bool(user32.IsWindowVisible(hwnd)),
-                    }
-                    for hwnd in process_windows(pid, visible_only=False)
-                ],
+                load_mode=load_mode,
+                reused_session=reused_session,
+                state=failure_state,
+                screenshot=failure_capture,
             )
-            raise RuntimeError(
-                "连续 3 次点击许子将并选择第一项后，"
+            raise InteractionNotTriggered(
+                f"连续 {interaction_limit} 次点击许子将并选择第一项后，"
                 f"{'初始三人' if three_person_mode else '七人'}"
                 "兵种内存仍未发生变化"
             )
@@ -4482,7 +4622,7 @@ def activate_rule_profile(
 def session_failure_requires_restart(
     game: HiddenGameSession, exc: BaseException
 ) -> bool:
-    if isinstance(exc, SessionRefreshRequired):
+    if isinstance(exc, InteractionNotTriggered):
         return True
     if not game.is_healthy():
         return True
@@ -5502,13 +5642,6 @@ def main() -> int:
                 _round_index: int,
                 loaded: bool,
             ) -> AttemptResult:
-                if loaded:
-                    # A direct memory reload restores the save bytes but does
-                    # not reliably reset the game's scene/event state. Start
-                    # the next attempt from a clean hidden process instead.
-                    raise SessionRefreshRequired(
-                        "下一轮随机需要刷新后台游戏场景"
-                    )
                 runner = task_module.CczReRandTask(0)
                 runner._target_save_pos = result_slot
                 runner._source_loaded = loaded
@@ -5528,21 +5661,17 @@ def main() -> int:
             ) -> None:
                 nonlocal game
                 diagnostic_log(
-                    "game_session_refresh"
-                    if isinstance(exc, SessionRefreshRequired)
-                    else "game_session_recovery",
+                    "game_session_recovery",
                     pid=game.pid,
                     result_slot=result_slot,
                     round_index=round_index,
                     error=repr(exc),
                 )
-                routine_refresh = isinstance(exc, SessionRefreshRequired)
-                if not routine_refresh:
-                    print("后台游戏运行异常，正在自动重新启动……")
+                print("后台游戏运行异常，正在自动重新启动……")
                 close_game_session(game)
                 game = start_game_session(
                     restarted=True,
-                    announce=not routine_refresh,
+                    announce=True,
                 )
 
             def attempt_started(

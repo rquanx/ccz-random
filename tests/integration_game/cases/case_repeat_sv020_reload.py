@@ -58,17 +58,29 @@ def main() -> int:
 
     try:
         shutil.copy2(TEST_SAVE, game_save)
-        for attempt in range(1, 6):
-            with fast.HiddenGameSession(GAME) as game:
+        with fast.HiddenGameSession(GAME) as game:
+            for attempt in range(1, 6):
                 time.sleep(1.5)
-                if not fast.title_load_verified(
-                    game.pid,
-                    fast.SOURCE_TITLE_LIST_INDEX,
-                    game_save,
-                ):
-                    raise RuntimeError(
-                        f"第 {attempt} 次标题界面读取第 20 号存档失败"
+                load_started = time.perf_counter()
+                if attempt == 1:
+                    loaded = fast.title_load_verified(
+                        game.pid,
+                        fast.SOURCE_TITLE_LIST_INDEX,
+                        game_save,
                     )
+                    load_mode = "标题界面"
+                else:
+                    loaded = fast.direct_load_verified(
+                        game.pid,
+                        fast.SOURCE_TITLE_LIST_INDEX,
+                        game_save,
+                    )
+                    load_mode = "同进程直读"
+                if not loaded:
+                    raise RuntimeError(
+                        f"第 {attempt} 次{load_mode}读取第 20 号存档失败"
+                    )
+                load_elapsed = time.perf_counter() - load_started
                 time.sleep(1.5)
                 before = fast.read_job_ids(
                     game.pid, fast.JOB_POSITIONS_R1
@@ -77,8 +89,14 @@ def main() -> int:
                     raise RuntimeError(
                         f"第 {attempt} 轮随机前兵种异常：{before}"
                     )
+                random_started = time.perf_counter()
                 after = trigger_random(game.pid, game.main_window)
-                print(f"第 {attempt} 轮触发成功：{before}->{after}")
+                random_elapsed = time.perf_counter() - random_started
+                print(
+                    f"第 {attempt} 轮（{load_mode}）触发成功："
+                    f"{before}->{after}；"
+                    f"读档 {load_elapsed:.3f}s，交互 {random_elapsed:.3f}s"
+                )
         return 0
     finally:
         if original_exists:

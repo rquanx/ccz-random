@@ -143,8 +143,9 @@ class RuleEditorTests(unittest.TestCase):
         try:
             with tempfile.TemporaryDirectory() as directory:
                 with (
-                    patch("rule_editor.messagebox.showinfo"),
+                    patch("rule_editor.messagebox.showinfo") as show_info,
                     patch("rule_editor.messagebox.showerror") as show_error,
+                    patch("rule_editor.show_toast") as show_toast,
                 ):
                     show_rule_editor(
                         root,
@@ -198,6 +199,8 @@ class RuleEditorTests(unittest.TestCase):
                     root.update()
 
                 self.assertFalse(show_error.called)
+                self.assertFalse(show_info.called)
+                show_toast.assert_called_once_with(root, "规则已保存")
                 self.assertEqual(1, len(saved))
                 loaded = load_rule_config(Path(directory))
                 self.assertEqual(2, len(loaded.config["profiles"]))

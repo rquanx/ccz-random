@@ -573,7 +573,7 @@ def show_job_type_editor(
     options = tuple(TYPE_LABELS[value] for value in JOB_AFFINITY_TYPES)
     variables: dict[str, tk.StringVar] = {}
     jobs = [job for _job_id, job in sorted(job_map.items())]
-    column_count = 3
+    column_count = 4
     rows_per_column = (len(jobs) + column_count - 1) // column_count
     for index, (job_name, _score, default_type) in enumerate(jobs):
         group = index // rows_per_column
@@ -642,6 +642,34 @@ def show_job_type_editor(
     dialog.deiconify()
     dialog.lift()
     dialog.grab_set()
+
+
+def show_toast(parent, message: str, duration_ms: int = 1800) -> None:
+    toast = tk.Toplevel(parent)
+    toast.withdraw()
+    toast.overrideredirect(True)
+    toast.transient(parent)
+    toast.configure(bg="#242424")
+    tk.Label(
+        toast,
+        text=message,
+        bg="#242424",
+        fg="#ffffff",
+        padx=18,
+        pady=10,
+        font=("Microsoft YaHei UI", 10),
+    ).pack()
+    toast.update_idletasks()
+    width = toast.winfo_reqwidth()
+    height = toast.winfo_reqheight()
+    x = parent.winfo_rootx() + (parent.winfo_width() - width) // 2
+    y = parent.winfo_rooty() + parent.winfo_height() - height - 28
+    x = max(0, min(x, toast.winfo_screenwidth() - width))
+    y = max(0, min(y, toast.winfo_screenheight() - height))
+    toast.geometry(f"{width}x{height}+{x}+{y}")
+    toast.deiconify()
+    toast.lift()
+    toast.after(duration_ms, toast.destroy)
 
 
 def show_rule_editor(
@@ -1653,7 +1681,7 @@ def show_rule_editor(
         try:
             store_profile(selected_name)
             normalized = validate_rule_config(working)
-            path = save_rule_config(base_dir, normalized)
+            save_rule_config(base_dir, normalized)
         except Exception as exc:
             messagebox.showerror(
                 "规则无法保存",
@@ -1662,12 +1690,8 @@ def show_rule_editor(
             )
             return
         on_saved(normalized)
-        messagebox.showinfo(
-            "规则已保存",
-            f"规则已保存到工具目录：\n{path.name}",
-            parent=editor,
-        )
         editor.destroy()
+        show_toast(parent, "规则已保存")
 
     new_button = tk.Button(action_frame, text="新建副本", command=new_profile)
     rename_button = tk.Button(

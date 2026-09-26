@@ -4286,6 +4286,34 @@ def open_uncaptured_member_from_roster(
     )
 
 
+def advance_seven_member_story(
+    pid: int,
+    main_window: int,
+    *,
+    rounds: int = 5,
+    clicks_per_round: int = 20,
+) -> None:
+    """Pace dialogue advancement so slower clients reach the seven-member roster."""
+    for round_index in range(1, rounds + 1):
+        native_silent_click_burst(
+            main_window,
+            360,
+            400,
+            clicks_per_round,
+        )
+        native_wake_game(pid, main_window, 1000)
+        diagnostic_log(
+            "seven_member_story_progress",
+            pid=pid,
+            main_window=main_window,
+            round=round_index,
+            rounds=rounds,
+            clicks=clicks_per_round,
+        )
+        time.sleep(0.8)
+    time.sleep(1.0)
+
+
 def capture_initial_member_panels(
     task_module,
     pid: int,
@@ -4647,11 +4675,10 @@ def inspect_saved_slot(
             if not runner.jumpR0():
                 raise RuntimeError("候选存档未能进入完整武将检查阶段")
             time.sleep(0.5)
-            native_silent_click_burst(
-                game.main_window, 360, 400, 80
+            advance_seven_member_story(
+                game.pid,
+                game.main_window,
             )
-            native_wake_game(game.pid, game.main_window, 500)
-            time.sleep(0.5)
             write_cv_image(
                 output_dir / "after-jump.png",
                 print_window_mat(game.main_window),

@@ -15,6 +15,7 @@ from fast_randomizer import (
     NativeControlTimeout,
     NormalReloadUnsupported,
     Tee,
+    advance_seven_member_story,
     advance_people_info_in_game_order,
     click_dialog_button,
     close_member_dialog,
@@ -229,6 +230,42 @@ class SessionManagementTests(unittest.TestCase):
         )
         self.assertIn("CCZ_FORCE_ROSTER_FALLBACK", source)
         self.assertIn("CCZ_DISABLE_ROSTER_FALLBACK", source)
+        self.assertIn("advance_seven_member_story(", source)
+
+    def test_seven_member_story_progress_is_paced(self):
+        with (
+            patch("fast_randomizer.native_silent_click_burst") as click_burst,
+            patch("fast_randomizer.native_wake_game") as wake_game,
+            patch("fast_randomizer.time.sleep") as sleep,
+            patch("fast_randomizer.diagnostic_log") as diagnostic,
+        ):
+            advance_seven_member_story(
+                123,
+                456,
+                rounds=3,
+                clicks_per_round=12,
+            )
+
+        self.assertEqual(3, click_burst.call_count)
+        click_burst.assert_called_with(456, 360, 400, 12)
+        self.assertEqual(
+            [
+                unittest.mock.call(123, 456, 1000),
+                unittest.mock.call(123, 456, 1000),
+                unittest.mock.call(123, 456, 1000),
+            ],
+            wake_game.call_args_list,
+        )
+        self.assertEqual(
+            [
+                unittest.mock.call(0.8),
+                unittest.mock.call(0.8),
+                unittest.mock.call(0.8),
+                unittest.mock.call(1.0),
+            ],
+            sleep.call_args_list,
+        )
+        self.assertEqual(3, diagnostic.call_count)
 
     def test_full_inspection_accepts_actual_game_member_order(self):
         member_names = (

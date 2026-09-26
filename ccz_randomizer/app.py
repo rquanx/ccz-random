@@ -2734,10 +2734,9 @@ def finish_reused_load_confirmation(pid: int, game: int) -> bool:
 
     close_deadline = time.perf_counter() + 3.0
     while time.perf_counter() < close_deadline:
-        if (
-            not user32.IsWindow(dialog)
-            and user32.IsWindowEnabled(game)
-        ):
+        dialog_valid = bool(user32.IsWindow(dialog))
+        game_enabled = bool(user32.IsWindowEnabled(game))
+        if not dialog_valid and game_enabled:
             diagnostic_log(
                 "reused_load_confirmation_closed",
                 pid=pid,
@@ -2745,6 +2744,23 @@ def finish_reused_load_confirmation(pid: int, game: int) -> bool:
                 dialog_hwnd=dialog,
             )
             return True
+        if not dialog_valid and not game_enabled:
+            diagnostic_log(
+                "reused_load_owner_disabled",
+                pid=pid,
+                game_hwnd=game,
+                dialog_hwnd=dialog,
+                state=game_state_diagnostic(pid, game),
+            )
+            user32.EnableWindow(game, True)
+            if user32.IsWindowEnabled(game):
+                diagnostic_log(
+                    "reused_load_owner_reenabled",
+                    pid=pid,
+                    game_hwnd=game,
+                    dialog_hwnd=dialog,
+                )
+                return True
         time.sleep(0.05)
 
     diagnostic_log(
@@ -3352,6 +3368,34 @@ def advance_people_info_in_game_order(
     )
 
 
+def open_member_from_roster_index(
+    pid: int,
+    runner,
+    roster_index: int,
+    member_names: tuple[str, ...],
+    captured_names: set[str],
+) -> tuple[int, str]:
+    runner.openPeople()
+    if not runner.peopleWind.isInitSuccess():
+        raise RuntimeError("武将列表未能重新打开")
+    user32.EnableWindow(runner.peopleWind.hwnd, True)
+    runner.peopleWind.clickPeople(roster_index)
+    deadline = time.perf_counter() + 10.0
+    while time.perf_counter() < deadline:
+        runner.initPeopleInfoWind()
+        info_hwnd, shown_name = find_any_member_dialog(pid, member_names)
+        if (
+            info_hwnd
+            and shown_name
+            and shown_name not in captured_names
+        ):
+            return info_hwnd, shown_name
+        time.sleep(0.05)
+    raise RuntimeError(
+        f"从武将列表重新打开第 {roster_index + 1} 行失败"
+    )
+
+
 def close_member_dialog(pid: int, main_window: int, info_hwnd: int) -> None:
     button = find_dialog_button(info_hwnd, "确定")
     if button:
@@ -3931,16 +3975,46 @@ def inspect_saved_slot(
                         traversal_index=index,
                         hwnd=info_hwnd,
                     )
-                    (
-                        next_info_hwnd,
-                        next_shown_name,
-                    ) = advance_people_info_in_game_order(
-                        game.pid,
-                        info_hwnd,
-                        member.name,
-                        member_names,
-                        captured_names,
-                    )
+                    try:
+                        (
+                            next_info_hwnd,
+                            next_shown_name,
+                        ) = advance_people_info_in_game_order(
+                            game.pid,
+                            info_hwnd,
+                            member.name,
+                            member_names,
+                            captured_names,
+                        )
+                    except RuntimeError as transition_error:
+                        diagnostic_log(
+                            "member_transition_roster_fallback",
+                            pid=game.pid,
+                            current_member=member.name,
+                            captured_members=sorted(captured_names),
+                            traversal_index=index,
+                            hwnd=info_hwnd,
+                            error=repr(transition_error),
+                        )
+                        print(
+                            f"切换下一武将未生效，改从武将列表读取第 "
+                            f"{index + 2} 行"
+                        )
+                        close_member_dialog(
+                            game.pid,
+                            game.main_window,
+                            info_hwnd,
+                        )
+                        (
+                            next_info_hwnd,
+                            next_shown_name,
+                        ) = open_member_from_roster_index(
+                            game.pid,
+                            runner,
+                            index + 1,
+                            member_names,
+                            captured_names,
+                        )
                     diagnostic_log(
                         "member_transition_succeeded",
                         pid=game.pid,

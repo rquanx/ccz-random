@@ -20,6 +20,7 @@ from fast_randomizer import (
     native_background_click,
     native_control_error_hint,
     native_silent_click,
+    open_member_from_roster_index,
     run_initial_inspection_process,
     run_inspection_process,
     session_failure_requires_restart,
@@ -148,7 +149,7 @@ class SessionManagementTests(unittest.TestCase):
             ),
             patch(
                 "fast_randomizer.user32.IsWindowEnabled",
-                side_effect=[False, True],
+                side_effect=[False, True, True],
             ),
             patch(
                 "fast_randomizer.user32.IsWindow",
@@ -178,6 +179,79 @@ class SessionManagementTests(unittest.TestCase):
             self.assertFalse(
                 finish_reused_load_confirmation(123, 789)
             )
+
+    def test_reused_load_reenables_owner_after_dialog_disappears(self):
+        enabled = False
+
+        def enable_window(_hwnd, value):
+            nonlocal enabled
+            enabled = bool(value)
+            return True
+
+        with (
+            patch(
+                "fast_randomizer.process_windows",
+                return_value=[456],
+            ),
+            patch(
+                "fast_randomizer.window_class",
+                return_value="#32770",
+            ),
+            patch(
+                "fast_randomizer.window_text",
+                return_value="确认",
+            ),
+            patch(
+                "fast_randomizer.user32.IsWindowVisible",
+                return_value=True,
+            ),
+            patch(
+                "fast_randomizer.user32.IsWindowEnabled",
+                side_effect=lambda _hwnd: enabled,
+            ),
+            patch(
+                "fast_randomizer.user32.IsWindow",
+                return_value=False,
+            ),
+            patch(
+                "fast_randomizer.user32.EnableWindow",
+                side_effect=enable_window,
+            ) as restore,
+            patch(
+                "fast_randomizer.click_leftmost_dialog_button",
+                return_value=True,
+            ),
+            patch("fast_randomizer.game_state_diagnostic", return_value={}),
+            patch("fast_randomizer.diagnostic_log"),
+        ):
+            closed = finish_reused_load_confirmation(123, 789)
+
+        self.assertTrue(closed)
+        restore.assert_called_once_with(789, True)
+
+    def test_member_transition_can_reopen_next_roster_row(self):
+        runner = unittest.mock.Mock()
+        runner.peopleWind.isInitSuccess.return_value = True
+        runner.peopleWind.hwnd = 456
+        with (
+            patch(
+                "fast_randomizer.find_any_member_dialog",
+                return_value=(789, "曹仁"),
+            ),
+            patch("fast_randomizer.user32.EnableWindow") as enable,
+        ):
+            result = open_member_from_roster_index(
+                123,
+                runner,
+                3,
+                ("曹操", "夏侯惇", "夏侯渊", "曹仁"),
+                {"曹操", "夏侯惇", "夏侯渊"},
+            )
+
+        self.assertEqual((789, "曹仁"), result)
+        runner.openPeople.assert_called_once_with()
+        enable.assert_called_once_with(456, True)
+        runner.peopleWind.clickPeople.assert_called_once_with(3)
 
     def test_unverified_skill_memory_reader_is_not_patched_into_runtime(self):
         source = (

@@ -50,7 +50,7 @@ class RoundArchiveTests(unittest.TestCase):
             self.assertEqual("complete", info["status"])
             self.assertEqual(list(range(1, 16)), info["completedSlots"])
 
-    def test_complete_round_rejects_missing_panel(self):
+    def test_complete_round_preserves_saves_when_images_are_missing(self):
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)
             save_dir = base / "SV"
@@ -62,15 +62,22 @@ class RoundArchiveTests(unittest.TestCase):
                 "2026-09-26 15.30.00",
                 1,
             )
-            workspace.grid_file.write_bytes(b"grid")
-            with self.assertRaisesRegex(RuntimeError, "缺少第1"):
-                finalize_round(
-                    workspace,
-                    save_dir=save_dir,
-                    completed_slots=range(1, 16),
-                    metadata={},
-                    complete=True,
-                )
+            target = finalize_round(
+                workspace,
+                save_dir=save_dir,
+                completed_slots=range(1, 16),
+                metadata={},
+                complete=True,
+            )
+            info = json.loads(
+                (target / "round-info.json").read_text(encoding="utf-8")
+            )
+            self.assertTrue((target / "saves" / "SV015.E5S").is_file())
+            self.assertFalse(info["resultArtifacts"]["gridGenerated"])
+            self.assertEqual(
+                list(range(1, 16)),
+                info["resultArtifacts"]["missingPanels"],
+            )
 
     def test_incomplete_round_preserves_only_completed_saves(self):
         with tempfile.TemporaryDirectory() as directory:

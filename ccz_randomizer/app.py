@@ -2266,6 +2266,43 @@ def save_result_image(runner, equip_info, save_slot: int = 1) -> Path:
     return output
 
 
+def save_result_failure_image(save_slot: int, detail: str) -> Path:
+    """Keep the result set complete when optional rendering fails."""
+    load_media_modules()
+    image = Image.new("RGB", (740, 1028), "#f5f5f5")
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((0, 0, 739, 86), fill="#234f7d")
+    draw.text(
+        (28, 24),
+        f"第 {save_slot} 号存档",
+        font=result_font(28, bold=True),
+        fill="white",
+    )
+    draw.text(
+        (36, 132),
+        "存档已保存",
+        font=result_font(30, bold=True),
+        fill="#173c61",
+    )
+    draw.text(
+        (36, 190),
+        "结果图生成失败，请查看本轮日志。",
+        font=result_font(22),
+        fill="#333333",
+    )
+    safe_detail = " ".join(str(detail).split())[:180]
+    if safe_detail:
+        draw.text(
+            (36, 244),
+            safe_detail,
+            font=result_font(16),
+            fill="#666666",
+        )
+    output = result_panel_dir() / f"save{save_slot}.png"
+    image.save(output, "PNG")
+    return output
+
+
 def compose_result_grid(panel_paths: dict[int, Path]) -> Path:
     load_media_modules()
     panel_width, panel_height = 740, 1028
@@ -4900,6 +4937,16 @@ def format_user_log(line: str) -> str:
     if text.startswith("第 ") and "回读校验通过" in text:
         prefix = text.split("号", 1)[0] if "号" in text else text
         return f"{prefix}号存档回读：合格"
+    if (
+        text.startswith("第 ")
+        and "号存档已保存，但结果图生成失败" in text
+    ):
+        return text
+    if (
+        text.startswith("第 ")
+        and "号存档已保存，但回读复查失败" in text
+    ):
+        return text
     if text.startswith("宝物内存读取完成"):
         return ""
     if text.startswith("随机兵种已更新:"):
@@ -4920,6 +4967,8 @@ def format_user_log(line: str) -> str:
         return "已完成一次随机"
     if "个结果存档全部生成并通过回读校验" in text:
         return text.replace("结果存档全部生成并通过回读校验", "存档结果已完成")
+    if "个结果存档已全部保存；其中" in text:
+        return text
     if text.startswith("Traceback"):
         return ""
     if text.startswith("  File "):
@@ -6024,6 +6073,7 @@ def main() -> int:
                 workspace = None
                 expected_results = {}
                 panel_paths: dict[int, Path] = {}
+                postprocess_issues: dict[int, list[str]] = {}
                 round_started_at = dt.datetime.now()
                 if loop_random:
                     ensure_loop_disk_space(app)
@@ -6057,6 +6107,10 @@ def main() -> int:
                         "finishedAt": status_time.isoformat(
                             timespec="seconds"
                         ),
+                        "postProcessingIssues": {
+                            str(slot): issues
+                            for slot, issues in postprocess_issues.items()
+                        },
                     }
 
                 def archive_incomplete_round() -> Path | None:
@@ -6156,6 +6210,20 @@ def main() -> int:
                     ) -> None:
                         runner = result.payload
                         result_slot = result.result_slot
+                        expected_results[result_slot] = (
+                            tuple(runner._r0_job_ids),
+                            tuple(runner._r0_initial_three),
+                        )
+                        diagnostic_log(
+                            "result_committed",
+                            result_slot=result_slot,
+                            round_index=result.round_index,
+                            save_path=(
+                                game_executable.parent
+                                / "SV"
+                                / f"SV{result_slot:03}.E5S"
+                            ),
+                        )
                         equip_info = runner.collect_equipment()
                         panel_paths[result_slot] = save_result_image(
                             runner, equip_info, result_slot
@@ -6165,10 +6233,44 @@ def main() -> int:
                             f"第 {result_slot} 号结果图已生成，"
                             f"总图已更新：{current_grid}"
                         )
-                        expected_results[result_slot] = (
-                            tuple(runner._r0_job_ids),
-                            tuple(runner._r0_initial_three),
+
+                    def accepted_result_error(
+                        exc: BaseException,
+                        result: AcceptedResult,
+                    ) -> None:
+                        result_slot = result.result_slot
+                        issue = f"结果图处理失败：{exc}"
+                        postprocess_issues.setdefault(
+                            result_slot, []
+                        ).append(issue)
+                        diagnostic_log(
+                            "accepted_postprocess_failed",
+                            result_slot=result_slot,
+                            round_index=result.round_index,
+                            error=repr(exc),
+                            traceback=traceback.format_exc(),
                         )
+                        print(
+                            f"第 {result_slot} 号存档已保存，"
+                            "但结果图生成失败；将继续处理下一个存档"
+                        )
+                        try:
+                            panel_paths[result_slot] = (
+                                save_result_failure_image(
+                                    result_slot, str(exc)
+                                )
+                            )
+                            compose_result_grid(panel_paths)
+                        except Exception as fallback_exc:
+                            postprocess_issues[result_slot].append(
+                                f"备用结果图生成失败：{fallback_exc}"
+                            )
+                            diagnostic_log(
+                                "fallback_result_image_failed",
+                                result_slot=result_slot,
+                                error=repr(fallback_exc),
+                                traceback=traceback.format_exc(),
+                            )
 
                     run_random_workflow(
                         result_count=result_count,
@@ -6182,6 +6284,7 @@ def main() -> int:
                         ),
                         on_attempt_started=attempt_started,
                         on_accepted=accepted_result,
+                        on_accepted_error=accepted_result_error,
                         check_stop=check_stop_requested,
                     )
                     if panel_paths:
@@ -6199,11 +6302,13 @@ def main() -> int:
                         )
 
                     verify_on_title = False
-                    for output_slot, (
-                        expected_jobs,
-                        expected_initial_three,
-                    ) in expected_results.items():
-                        check_stop_requested()
+
+                    def verify_saved_result(
+                        output_slot: int,
+                        expected_jobs: tuple[int, ...],
+                        expected_initial_three: tuple[int, ...],
+                    ) -> tuple[int, ...]:
+                        nonlocal game, verify_on_title
                         saved_path = (
                             game_executable.parent
                             / "SV"
@@ -6233,12 +6338,13 @@ def main() -> int:
                                 initial_three = read_job_ids(
                                     game.pid, JOB_POSITIONS_R0
                                 )
-                                if not three_person_mode:
-                                    reloaded_jobs = read_job_ids(
+                                reloaded_jobs = (
+                                    read_job_ids(
                                         game.pid, JOB_POSITIONS_R1
                                     )
-                                else:
-                                    reloaded_jobs = initial_three
+                                    if not three_person_mode
+                                    else initial_three
+                                )
                                 validate_reloaded_jobs(
                                     output_slot=output_slot,
                                     expected_jobs=expected_jobs,
@@ -6247,11 +6353,9 @@ def main() -> int:
                                     ),
                                     reloaded_jobs=reloaded_jobs,
                                     initial_three=initial_three,
-                                    three_person_mode=(
-                                        three_person_mode
-                                    ),
+                                    three_person_mode=three_person_mode,
                                 )
-                                break
+                                return reloaded_jobs
                             except Exception as exc:
                                 if (
                                     recovery_attempt == 0
@@ -6281,10 +6385,37 @@ def main() -> int:
                                     verify_on_title = True
                                     continue
                                 raise
-                        else:
-                            raise RuntimeError(
-                                "后台游戏恢复后仍无法完成回读校验"
+                        raise RuntimeError(
+                            "后台游戏恢复后仍无法完成回读校验"
+                        )
+
+                    for output_slot, (
+                        expected_jobs,
+                        expected_initial_three,
+                    ) in expected_results.items():
+                        check_stop_requested()
+                        try:
+                            reloaded_jobs = verify_saved_result(
+                                output_slot,
+                                expected_jobs,
+                                expected_initial_three,
                             )
+                        except Exception as exc:
+                            issue = f"回读复查失败：{exc}"
+                            postprocess_issues.setdefault(
+                                output_slot, []
+                            ).append(issue)
+                            diagnostic_log(
+                                "saved_result_verification_failed",
+                                output_slot=output_slot,
+                                error=repr(exc),
+                                traceback=traceback.format_exc(),
+                            )
+                            print(
+                                f"第 {output_slot} 号存档已保存，"
+                                "但回读复查失败；存档将保留"
+                            )
+                            continue
 
                         print(
                             f"第 {output_slot} 号存档回读校验通过："
@@ -6323,9 +6454,16 @@ def main() -> int:
         finally:
             close_game_session(game)
         if not loop_random:
-            print(
-                f"{result_count} 个结果存档全部生成并通过回读校验。"
-            )
+            if postprocess_issues:
+                print(
+                    f"{result_count} 个结果存档已全部保存；"
+                    f"其中 {len(postprocess_issues)} 个存档的"
+                    "结果图或回读复查存在异常，详情请查看日志。"
+                )
+            else:
+                print(
+                    f"{result_count} 个结果存档全部生成并通过回读校验。"
+                )
         return 0
     except KeyboardInterrupt:
         diagnostic_log("worker_stopped", reason="keyboard_interrupt")

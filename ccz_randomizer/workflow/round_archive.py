@@ -128,19 +128,11 @@ def finalize_round(
         return None
     if complete and slots != tuple(range(1, 16)):
         raise RuntimeError("循环轮次归档前没有完整的15个结果存档")
-    if complete and not workspace.grid_file.is_file():
-        raise RuntimeError("循环轮次归档前未生成本轮结果总图")
-    if complete:
-        missing_panels = [
-            slot
-            for slot in slots
-            if not (workspace.panels_dir / f"save{slot}.png").is_file()
-        ]
-        if missing_panels:
-            missing_text = "、".join(str(slot) for slot in missing_panels)
-            raise RuntimeError(
-                f"循环轮次归档前缺少第{missing_text}号结果图"
-            )
+    missing_panels = [
+        slot
+        for slot in slots
+        if not (workspace.panels_dir / f"save{slot}.png").is_file()
+    ]
 
     save_files = _copy_saves(
         save_dir,
@@ -155,6 +147,10 @@ def finalize_round(
             "roundNumber": workspace.round_number,
             "completedSlots": list(slots),
             "saveFiles": save_files,
+            "resultArtifacts": {
+                "gridGenerated": workspace.grid_file.is_file(),
+                "missingPanels": missing_panels,
+            },
         }
     )
     (workspace.staging_dir / "round-info.json").write_text(

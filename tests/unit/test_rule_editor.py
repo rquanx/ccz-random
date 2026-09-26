@@ -66,6 +66,23 @@ class RuleEditorTests(unittest.TestCase):
             ),
         )
 
+    def test_saved_result_postprocess_failure_is_visible(self):
+        image_message = (
+            "第 3 号存档已保存，但结果图生成失败；"
+            "将继续处理下一个存档"
+        )
+        self.assertEqual(
+            image_message,
+            format_user_log(image_message),
+        )
+        verify_message = (
+            "第 3 号存档已保存，但回读复查失败；存档将保留"
+        )
+        self.assertEqual(
+            verify_message,
+            format_user_log(verify_message),
+        )
+
     def test_score_grid_uses_one_canvas_and_edits_values(self):
         root = tk.Tk()
         root.withdraw()

@@ -106,7 +106,7 @@ class WorkflowTests(unittest.TestCase):
             )
         self.assertEqual([], recoveries)
 
-    def test_save_callback_failure_stops_workflow(self):
+    def test_accepted_callback_failure_stops_without_error_handler(self):
         with self.assertRaisesRegex(RuntimeError, "save failed"):
             run_random_workflow(
                 result_count=2,
@@ -120,6 +120,31 @@ class WorkflowTests(unittest.TestCase):
                     RuntimeError("save failed")
                 ),
             )
+
+    def test_accepted_callback_failure_keeps_result_and_advances(self):
+        errors = []
+        calls = []
+        results = run_random_workflow(
+            result_count=2,
+            max_attempts=1,
+            run_attempt=lambda slot, *_args: AttemptResult(
+                True, True, slot
+            ),
+            recover_session=lambda *_args: None,
+            should_recover=lambda _exc: False,
+            on_accepted=lambda result: (
+                (_ for _ in ()).throw(RuntimeError("image failed"))
+                if result.result_slot == 1
+                else calls.append(result.result_slot)
+            ),
+            on_accepted_error=lambda exc, result: errors.append(
+                (str(exc), result.result_slot)
+            ),
+        )
+
+        self.assertEqual([("image failed", 1)], errors)
+        self.assertEqual([2], calls)
+        self.assertEqual([1, 2], [result.result_slot for result in results])
 
     def test_stop_request_interrupts_before_next_attempt(self):
         checks = 0

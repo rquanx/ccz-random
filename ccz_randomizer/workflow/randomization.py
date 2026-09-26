@@ -30,6 +30,9 @@ def run_random_workflow(
     should_recover: Callable[[BaseException], bool],
     on_attempt_started: Callable[[int, int], None] | None = None,
     on_accepted: Callable[[AcceptedResult[T]], None] | None = None,
+    on_accepted_error: (
+        Callable[[BaseException, AcceptedResult[T]], None] | None
+    ) = None,
     check_stop: Callable[[], None] | None = None,
 ) -> list[AcceptedResult[T]]:
     """Run the result/attempt state machine without depending on the game."""
@@ -73,9 +76,14 @@ def run_random_workflow(
                     round_index=round_index,
                     payload=attempt.payload,
                 )
-                if on_accepted is not None:
-                    on_accepted(accepted)
                 accepted_results.append(accepted)
+                if on_accepted is not None:
+                    try:
+                        on_accepted(accepted)
+                    except Exception as exc:
+                        if on_accepted_error is None:
+                            raise
+                        on_accepted_error(exc, accepted)
                 break
         else:
             raise RuntimeError(

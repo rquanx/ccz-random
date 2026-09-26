@@ -14,6 +14,7 @@ from fast_randomizer import (
     advance_people_info_in_game_order,
     decode_equipment_effect,
     decode_subprocess_output,
+    finish_reused_load_confirmation,
     format_user_log,
     initial_team_members,
     native_background_click,
@@ -125,6 +126,58 @@ class SessionManagementTests(unittest.TestCase):
             )
         self.assertEqual((456, "夏侯渊"), result)
         click.assert_called_once_with(456, "下一武将")
+
+    def test_reused_load_delayed_confirmation_is_closed(self):
+        dialog_states = iter([True, False])
+        with (
+            patch(
+                "fast_randomizer.process_windows",
+                return_value=[456],
+            ),
+            patch(
+                "fast_randomizer.window_class",
+                return_value="#32770",
+            ),
+            patch(
+                "fast_randomizer.window_text",
+                return_value="确认",
+            ),
+            patch(
+                "fast_randomizer.user32.IsWindowVisible",
+                return_value=True,
+            ),
+            patch(
+                "fast_randomizer.user32.IsWindowEnabled",
+                side_effect=[False, True],
+            ),
+            patch(
+                "fast_randomizer.user32.IsWindow",
+                side_effect=lambda _hwnd: next(dialog_states),
+            ),
+            patch(
+                "fast_randomizer.click_leftmost_dialog_button",
+                return_value=True,
+            ) as click,
+            patch("fast_randomizer.diagnostic_log"),
+        ):
+            closed = finish_reused_load_confirmation(123, 789)
+        self.assertTrue(closed)
+        click.assert_called_once_with(456)
+
+    def test_reused_load_without_confirmation_continues_when_ready(self):
+        with (
+            patch(
+                "fast_randomizer.process_windows",
+                return_value=[],
+            ),
+            patch(
+                "fast_randomizer.user32.IsWindowEnabled",
+                return_value=True,
+            ),
+        ):
+            self.assertFalse(
+                finish_reused_load_confirmation(123, 789)
+            )
 
     def test_unverified_skill_memory_reader_is_not_patched_into_runtime(self):
         source = (

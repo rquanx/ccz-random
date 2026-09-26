@@ -81,7 +81,12 @@ def main() -> int:
                         f"第 {attempt} 次{load_mode}读取第 20 号存档失败"
                     )
                 load_elapsed = time.perf_counter() - load_started
-                time.sleep(1.5)
+                time.sleep(2.0 if attempt > 1 else 1.5)
+                if attempt > 1:
+                    fast.finish_reused_load_confirmation(
+                        game.pid,
+                        game.main_window,
+                    )
                 before = fast.read_job_ids(
                     game.pid, fast.JOB_POSITIONS_R1
                 )

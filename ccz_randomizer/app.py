@@ -2681,6 +2681,79 @@ def click_leftmost_dialog_button(hwnd: int) -> bool:
     )
 
 
+def finish_reused_load_confirmation(pid: int, game: int) -> bool:
+    """Complete a delayed confirmation left by the direct-load path."""
+    deadline = time.perf_counter() + 1.5
+    dialog = 0
+    while time.perf_counter() < deadline:
+        for hwnd in process_windows(pid):
+            if (
+                window_class(hwnd) == "#32770"
+                and window_text(hwnd) == "确认"
+                and user32.IsWindowVisible(hwnd)
+            ):
+                dialog = hwnd
+                break
+        if dialog:
+            break
+        if user32.IsWindowEnabled(game):
+            return False
+        time.sleep(0.05)
+
+    if not dialog:
+        diagnostic_log(
+            "reused_load_not_ready",
+            pid=pid,
+            game_hwnd=game,
+            game_enabled=bool(user32.IsWindowEnabled(game)),
+            state=game_state_diagnostic(pid, game),
+        )
+        raise InteractionNotTriggered(
+            "后台读档后游戏主窗口未恢复，且未找到确认窗口"
+        )
+
+    diagnostic_log(
+        "reused_load_confirmation_found",
+        pid=pid,
+        game_hwnd=game,
+        dialog_hwnd=dialog,
+        game_enabled=bool(user32.IsWindowEnabled(game)),
+    )
+    if not click_leftmost_dialog_button(dialog):
+        diagnostic_log(
+            "reused_load_confirmation_click_failed",
+            pid=pid,
+            game_hwnd=game,
+            dialog_hwnd=dialog,
+        )
+        raise InteractionNotTriggered("后台读档确认窗口未能关闭")
+
+    close_deadline = time.perf_counter() + 3.0
+    while time.perf_counter() < close_deadline:
+        if (
+            not user32.IsWindow(dialog)
+            and user32.IsWindowEnabled(game)
+        ):
+            diagnostic_log(
+                "reused_load_confirmation_closed",
+                pid=pid,
+                game_hwnd=game,
+                dialog_hwnd=dialog,
+            )
+            return True
+        time.sleep(0.05)
+
+    diagnostic_log(
+        "reused_load_confirmation_close_timeout",
+        pid=pid,
+        game_hwnd=game,
+        dialog_hwnd=dialog,
+        dialog_valid=bool(user32.IsWindow(dialog)),
+        game_enabled=bool(user32.IsWindowEnabled(game)),
+    )
+    raise InteractionNotTriggered("后台读档确认后游戏主窗口未恢复")
+
+
 def bundled_random_s00() -> Path:
     if getattr(sys, "frozen", False):
         return Path(sys._MEIPASS) / "random_s00.eex"
@@ -4365,6 +4438,8 @@ def patch_runtime(
             ),
         )
         time.sleep(scene_ready_delay)
+        if reused_session:
+            finish_reused_load_confirmation(pid, game)
 
         current = before
         interaction_limit = 1 if reused_session else 3

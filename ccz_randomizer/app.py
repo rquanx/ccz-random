@@ -30,6 +30,11 @@ from ccz_randomizer.rules.config import (
 )
 from ccz_randomizer.rules.editor import show_rule_editor
 from ccz_randomizer.diagnostics.skill_storage import write_skill_evidence
+from ccz_randomizer.runtime.log_retention import (
+    RotatingTextWriter,
+    cleanup_log_directory,
+    trim_text_widget,
+)
 from ccz_randomizer.runtime.loader import install
 from ccz_randomizer.workflow.randomization import (
     AcceptedResult,
@@ -438,6 +443,7 @@ RESULT_GRID_FILE: Path | None = None
 STOP_REQUESTED = False
 RESULT_BASE_DIR: Path | None = None
 DIAGNOSTIC_LOG_PATH: Path | None = None
+DIAGNOSTIC_LOG_WRITER: RotatingTextWriter | None = None
 DIAGNOSTIC_LOCK = threading.Lock()
 UNKNOWN_EQUIPMENT_EFFECTS: set[tuple[int, int]] = set()
 CWP_SKIPINVISIBLE = 0x0001
@@ -648,7 +654,7 @@ class Tee:
 
 
 def diagnostic_log(event: str, **fields) -> None:
-    if DIAGNOSTIC_LOG_PATH is None:
+    if DIAGNOSTIC_LOG_PATH is None or DIAGNOSTIC_LOG_WRITER is None:
         return
     record = {
         "time": dt.datetime.now().isoformat(timespec="milliseconds"),
@@ -663,10 +669,8 @@ def diagnostic_log(event: str, **fields) -> None:
             separators=(",", ":"),
         )
         with DIAGNOSTIC_LOCK:
-            with DIAGNOSTIC_LOG_PATH.open(
-                "a", encoding="utf-8", newline="\n"
-            ) as file:
-                file.write(line + "\n")
+            DIAGNOSTIC_LOG_WRITER.write(line + "\n")
+            DIAGNOSTIC_LOG_WRITER.flush()
     except Exception:
         pass
 
@@ -5573,6 +5577,7 @@ def gui_main() -> int:
             return
         output.configure(state="normal")
         output.insert("end", text + "\n")
+        trim_text_widget(output)
         output.see("end")
         output.configure(state="disabled")
 
@@ -5828,7 +5833,7 @@ def gui_main() -> int:
 
 
 def main() -> int:
-    global RESULT_BASE_DIR, DIAGNOSTIC_LOG_PATH
+    global RESULT_BASE_DIR, DIAGNOSTIC_LOG_PATH, DIAGNOSTIC_LOG_WRITER
     load_media_modules()
     RESULT_BASE_DIR = app_dir()
     stop_file_value = os.environ.get("CCZ_STOP_FILE", "")
@@ -5845,11 +5850,13 @@ def main() -> int:
     app = app_dir()
     log_dir = app / "ccz_fast_logs"
     log_dir.mkdir(parents=True, exist_ok=True)
+    cleanup_result = cleanup_log_directory(log_dir)
     log_path = log_dir / f"fast_{dt.datetime.now():%Y%m%d_%H%M%S}.log"
     DIAGNOSTIC_LOG_PATH = log_path.with_name(
         f"{log_path.stem}_diagnostic.jsonl"
     )
-    log_file = log_path.open("w", encoding="utf-8")
+    log_file = RotatingTextWriter(log_path)
+    DIAGNOSTIC_LOG_WRITER = RotatingTextWriter(DIAGNOSTIC_LOG_PATH)
     original_stdout = sys.stdout
     original_stderr = sys.stderr
     sys.stdout = Tee(original_stdout, log_file)
@@ -5897,6 +5904,11 @@ def main() -> int:
         rule_name=rules["activeProfile"],
         rule_source=rule_load.source,
         rule_warning=rule_load.warning,
+        log_cleanup={
+            "removed_files": cleanup_result.removed_files,
+            "removed_bytes": cleanup_result.removed_bytes,
+            "remaining_bytes": cleanup_result.remaining_bytes,
+        },
     )
 
     try:
@@ -6281,6 +6293,9 @@ def main() -> int:
         sys.stdout = original_stdout
         sys.stderr = original_stderr
         log_file.close()
+        if DIAGNOSTIC_LOG_WRITER is not None:
+            DIAGNOSTIC_LOG_WRITER.close()
+            DIAGNOSTIC_LOG_WRITER = None
 
 
 def run_cli() -> int:

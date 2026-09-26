@@ -445,7 +445,8 @@ RESULT_BASE_DIR: Path | None = None
 DIAGNOSTIC_LOG_PATH: Path | None = None
 DIAGNOSTIC_LOG_WRITER: RotatingTextWriter | None = None
 DIAGNOSTIC_LOCK = threading.Lock()
-INTERACTION_FAILURE_SCREENSHOT_LIMIT = 5
+DIAGNOSTIC_SCREENSHOT_LIMIT = 10
+DIAGNOSTIC_SCREENSHOT_TYPES: set[str] = set()
 UNKNOWN_EQUIPMENT_EFFECTS: set[tuple[int, int]] = set()
 CWP_SKIPINVISIBLE = 0x0001
 CWP_SKIPDISABLED = 0x0002
@@ -2654,20 +2655,54 @@ def click_geometry_diagnostic(game: int) -> dict[str, object]:
     }
 
 
-def capture_interaction_failure(pid: int, game: int) -> str | None:
+def interaction_failure_type(
+    pid: int,
+    state: dict[str, object],
+    *,
+    load_mode: str,
+    reused_session: bool,
+) -> str:
+    if find_process_id(GAME_EXE_NAME) != pid:
+        return "interaction:process-exited"
+    if not state.get("game_window_valid"):
+        return "interaction:window-invalid"
+    if not state.get("game_window_enabled"):
+        popup = state.get("last_active_popup")
+        for window in state.get("windows", []):
+            if not isinstance(window, dict) or window.get("hwnd") != popup:
+                continue
+            return (
+                "interaction:window-disabled:"
+                f"{window.get('class', '')}:{window.get('text', '')}"
+            )
+        return "interaction:window-disabled:unknown-popup"
+    session_type = "reused" if reused_session else "fresh"
+    return f"interaction:no-change:{load_mode}:{session_type}"
+
+
+def reserve_diagnostic_screenshot(error_type: str) -> bool:
+    with DIAGNOSTIC_LOCK:
+        if error_type in DIAGNOSTIC_SCREENSHOT_TYPES:
+            return False
+        if len(DIAGNOSTIC_SCREENSHOT_TYPES) >= DIAGNOSTIC_SCREENSHOT_LIMIT:
+            return False
+        DIAGNOSTIC_SCREENSHOT_TYPES.add(error_type)
+        return True
+
+
+def capture_interaction_failure(
+    pid: int,
+    game: int,
+    error_type: str,
+) -> str | None:
     if DIAGNOSTIC_LOG_PATH is None:
         return None
-    screenshot_pattern = (
-        f"{DIAGNOSTIC_LOG_PATH.stem}_interaction_failure_*.png"
-    )
-    existing_count = sum(
-        1 for _path in DIAGNOSTIC_LOG_PATH.parent.glob(screenshot_pattern)
-    )
-    if existing_count >= INTERACTION_FAILURE_SCREENSHOT_LIMIT:
+    if not reserve_diagnostic_screenshot(error_type):
         return None
+    error_hash = hashlib.sha256(error_type.encode("utf-8")).hexdigest()[:12]
     output = DIAGNOSTIC_LOG_PATH.with_name(
         f"{DIAGNOSTIC_LOG_PATH.stem}_interaction_failure_"
-        f"{pid}_{time.time_ns()}.png"
+        f"{error_hash}_{pid}_{time.time_ns()}.png"
     )
     try:
         image = print_window_mat(game, strip_client=False)
@@ -2677,10 +2712,13 @@ def capture_interaction_failure(pid: int, game: int) -> str | None:
         Image.fromarray(image[:, :, ::-1]).save(output, "PNG")
         return str(output)
     except Exception as exc:
+        with DIAGNOSTIC_LOCK:
+            DIAGNOSTIC_SCREENSHOT_TYPES.discard(error_type)
         diagnostic_log(
             "interaction_failure_capture_failed",
             pid=pid,
             hwnd=game,
+            error_type=error_type,
             error=repr(exc),
         )
         return None
@@ -5094,7 +5132,17 @@ def patch_runtime(
                 jobs=current,
                 source_memory=source_memory,
             )
-            failure_capture = capture_interaction_failure(pid, game)
+            failure_type = interaction_failure_type(
+                pid,
+                failure_state,
+                load_mode=load_mode,
+                reused_session=reused_session,
+            )
+            failure_capture = capture_interaction_failure(
+                pid,
+                game,
+                failure_type,
+            )
             diagnostic_log(
                 "interaction_failed",
                 pid=pid,
@@ -5104,6 +5152,7 @@ def patch_runtime(
                 reused_session=reused_session,
                 geometry=click_geometry_diagnostic(game),
                 state=failure_state,
+                error_type=failure_type,
                 screenshot=failure_capture,
             )
             raise InteractionNotTriggered(

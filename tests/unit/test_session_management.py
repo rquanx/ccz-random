@@ -42,31 +42,36 @@ class FakeGameSession:
 
 
 class SessionManagementTests(unittest.TestCase):
-    def test_interaction_failure_screenshots_are_limited_per_run(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            diagnostic_path = (
-                root / "fast_20260926_120000_diagnostic.jsonl"
+    def test_diagnostic_screenshots_keep_only_one_per_error_type(self):
+        with patch.object(
+            app_module,
+            "DIAGNOSTIC_SCREENSHOT_TYPES",
+            set(),
+        ):
+            self.assertTrue(
+                app_module.reserve_diagnostic_screenshot("interaction:a")
             )
-            for index in range(
-                app_module.INTERACTION_FAILURE_SCREENSHOT_LIMIT
-            ):
-                (
-                    root
-                    / (
-                        f"{diagnostic_path.stem}_interaction_failure_"
-                        f"{index}.png"
+            self.assertFalse(
+                app_module.reserve_diagnostic_screenshot("interaction:a")
+            )
+
+    def test_diagnostic_screenshots_are_limited_per_run(self):
+        with patch.object(
+            app_module,
+            "DIAGNOSTIC_SCREENSHOT_TYPES",
+            set(),
+        ):
+            for index in range(app_module.DIAGNOSTIC_SCREENSHOT_LIMIT):
+                self.assertTrue(
+                    app_module.reserve_diagnostic_screenshot(
+                        f"interaction:{index}"
                     )
-                ).write_bytes(b"png")
-
-            with patch.object(
-                app_module,
-                "DIAGNOSTIC_LOG_PATH",
-                diagnostic_path,
-            ):
-                result = app_module.capture_interaction_failure(1, 2)
-
-            self.assertIsNone(result)
+                )
+            self.assertFalse(
+                app_module.reserve_diagnostic_screenshot(
+                    "interaction:overflow"
+                )
+            )
 
     def test_tee_ignores_missing_windowed_stream(self):
         output = tempfile.SpooledTemporaryFile(mode="w+", encoding="utf-8")

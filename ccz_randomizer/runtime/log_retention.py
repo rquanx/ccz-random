@@ -18,9 +18,9 @@ CONSOLE_TRIM_NOTICE = "较早信息已从界面隐藏，完整记录请查看日
 
 _MANAGED_LOG_PATTERN = re.compile(
     r"^fast_\d{8}_\d{6}"
-    r"(?:_diagnostic)?"
+    r"(?:_diagnostic(?:_summary)?)?"
     r"(?:\.part\d+)?"
-    r"\.(?:log|jsonl)$",
+    r"\.(?:log|jsonl|json)$",
     re.IGNORECASE,
 )
 _MANAGED_SCREENSHOT_PATTERN = re.compile(

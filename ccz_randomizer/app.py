@@ -29,6 +29,14 @@ from ccz_randomizer.rules.config import (
     validate_rule_config,
 )
 from ccz_randomizer.rules.editor import show_rule_editor, show_toast
+from ccz_randomizer.diagnostics.runtime import (
+    build_diagnostic_record,
+    clear_diagnostic_context,
+    environment_diagnostic,
+    exception_diagnostic,
+    start_diagnostic_run,
+    update_diagnostic_context,
+)
 from ccz_randomizer.diagnostics.skill_storage import write_skill_evidence
 from ccz_randomizer.runtime.log_retention import (
     RotatingTextWriter,
@@ -459,6 +467,10 @@ STOP_REQUESTED = False
 RESULT_BASE_DIR: Path | None = None
 DIAGNOSTIC_LOG_PATH: Path | None = None
 DIAGNOSTIC_LOG_WRITER: RotatingTextWriter | None = None
+DIAGNOSTIC_SUMMARY_PATH: Path | None = None
+DIAGNOSTIC_FAILURE_COUNTS: dict[str, int] = {}
+DIAGNOSTIC_FAILURE_HISTORY: list[dict[str, object]] = []
+DIAGNOSTIC_SUMMARY_FIELDS: dict[str, object] = {}
 DIAGNOSTIC_LOCK = threading.Lock()
 DIAGNOSTIC_SCREENSHOT_LIMIT = 10
 DIAGNOSTIC_SCREENSHOT_TYPES: set[str] = set()
@@ -689,8 +701,7 @@ def diagnostic_log(event: str, **fields) -> None:
         return
     record = {
         "time": dt.datetime.now().isoformat(timespec="milliseconds"),
-        "event": event,
-        **fields,
+        **build_diagnostic_record(event, **fields),
     }
     try:
         line = json.dumps(
@@ -704,6 +715,94 @@ def diagnostic_log(event: str, **fields) -> None:
             DIAGNOSTIC_LOG_WRITER.flush()
     except Exception:
         pass
+
+
+def diagnostic_error(
+    event: str,
+    exc: BaseException,
+    *,
+    game: object | None = None,
+    **fields,
+) -> str:
+    details = exception_diagnostic(exc)
+    if game is not None:
+        try:
+            pid = int(getattr(game, "pid", 0))
+            hwnd = int(getattr(game, "main_window", 0))
+            if pid:
+                details["game_state"] = game_state_diagnostic(pid, hwnd)
+                details["game_healthy"] = bool(game.is_healthy())
+        except Exception as snapshot_exc:
+            details["game_state_error"] = repr(snapshot_exc)
+    diagnostic_log(event, failure=details, **fields)
+    update_diagnostic_summary(
+        status="failed",
+        latest_failure={
+            "event": event,
+            "time": dt.datetime.now().isoformat(timespec="milliseconds"),
+            "failure": details,
+            "fields": fields,
+        },
+    )
+    return str(details["error_id"])
+
+
+def update_diagnostic_summary(
+    *,
+    status: str | None = None,
+    latest_failure: dict[str, object] | None = None,
+    **fields,
+) -> None:
+    if DIAGNOSTIC_SUMMARY_PATH is None:
+        return
+    with DIAGNOSTIC_LOCK:
+        DIAGNOSTIC_SUMMARY_FIELDS.update(
+            {key: value for key, value in fields.items() if value is not None}
+        )
+        if latest_failure is not None:
+            failure = latest_failure.get("failure", {})
+            fingerprint = (
+                failure.get("fingerprint")
+                if isinstance(failure, dict)
+                else None
+            )
+            if fingerprint:
+                DIAGNOSTIC_FAILURE_COUNTS[fingerprint] = (
+                    DIAGNOSTIC_FAILURE_COUNTS.get(fingerprint, 0) + 1
+                )
+            DIAGNOSTIC_FAILURE_HISTORY.append(latest_failure)
+            del DIAGNOSTIC_FAILURE_HISTORY[:-20]
+        payload = {
+            "schema": 1,
+            "updated_at": dt.datetime.now().isoformat(
+                timespec="milliseconds"
+            ),
+            "status": status,
+            "failure_counts": dict(DIAGNOSTIC_FAILURE_COUNTS),
+            "latest_failure": (
+                DIAGNOSTIC_FAILURE_HISTORY[-1]
+                if DIAGNOSTIC_FAILURE_HISTORY
+                else None
+            ),
+            "recent_failures": list(DIAGNOSTIC_FAILURE_HISTORY),
+            **DIAGNOSTIC_SUMMARY_FIELDS,
+        }
+        temporary = DIAGNOSTIC_SUMMARY_PATH.with_suffix(
+            DIAGNOSTIC_SUMMARY_PATH.suffix + ".tmp"
+        )
+        try:
+            temporary.write_text(
+                json.dumps(
+                    payload,
+                    ensure_ascii=False,
+                    default=str,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            os.replace(temporary, DIAGNOSTIC_SUMMARY_PATH)
+        except Exception:
+            temporary.unlink(missing_ok=True)
 
 
 def is_running_as_admin() -> bool:
@@ -6572,6 +6671,7 @@ def gui_main() -> int:
 
 def main() -> int:
     global RESULT_BASE_DIR, DIAGNOSTIC_LOG_PATH, DIAGNOSTIC_LOG_WRITER
+    global DIAGNOSTIC_SUMMARY_PATH
     load_media_modules()
     RESULT_BASE_DIR = app_dir()
     stop_file_value = os.environ.get("CCZ_STOP_FILE", "")
@@ -6593,6 +6693,12 @@ def main() -> int:
     DIAGNOSTIC_LOG_PATH = log_path.with_name(
         f"{log_path.stem}_diagnostic.jsonl"
     )
+    DIAGNOSTIC_SUMMARY_PATH = log_path.with_name(
+        f"{log_path.stem}_diagnostic_summary.json"
+    )
+    DIAGNOSTIC_FAILURE_COUNTS.clear()
+    DIAGNOSTIC_FAILURE_HISTORY.clear()
+    DIAGNOSTIC_SUMMARY_FIELDS.clear()
     log_file = RotatingTextWriter(log_path)
     DIAGNOSTIC_LOG_WRITER = RotatingTextWriter(DIAGNOSTIC_LOG_PATH)
     original_stdout = sys.stdout
@@ -6617,6 +6723,11 @@ def main() -> int:
         if loop_random
         else requested_run_stamp
     )
+    run_id = start_diagnostic_run(
+        phase="startup",
+        random_mode="three" if three_person_mode else "seven",
+        loop_random=loop_random,
+    )
     print(
         "运行模式："
         + ("只随机初始3人" if three_person_mode else "完整7人")
@@ -6626,9 +6737,17 @@ def main() -> int:
     print(f"诊断日志: {DIAGNOSTIC_LOG_PATH}")
     rule_load = load_rule_config(app)
     rules = rule_load.config
+    active_rule_snapshot = active_profile(rules)
+    active_rule_json = json.dumps(
+        active_rule_snapshot,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
     print(f"当前规则：{rules['activeProfile']}")
     if rule_load.warning:
         print(f"规则提示：{rule_load.warning}")
+    environment = environment_diagnostic(app, log_dir, tempfile.gettempdir())
     diagnostic_log(
         "worker_start",
         executable=sys.executable,
@@ -6640,17 +6759,44 @@ def main() -> int:
         loop_random=loop_random,
         loop_run_stamp=loop_run_stamp if loop_random else None,
         rule_name=rules["activeProfile"],
+        rule_config_sha256=hashlib.sha256(
+            active_rule_json.encode("utf-8")
+        ).hexdigest(),
+        active_rule=active_rule_snapshot,
         rule_source=rule_load.source,
         rule_warning=rule_load.warning,
+        run_id=run_id,
+        environment=environment,
+        available_memory_bytes=available_physical_memory_bytes(),
+        detected_360_processes=detect_360_security_processes(),
         log_cleanup={
             "removed_files": cleanup_result.removed_files,
             "removed_bytes": cleanup_result.removed_bytes,
             "remaining_bytes": cleanup_result.remaining_bytes,
         },
     )
+    update_diagnostic_summary(
+        status="running",
+        run_id=run_id,
+        build=build_info,
+        mode="three" if three_person_mode else "seven",
+        loop_random=loop_random,
+        rule_name=rules["activeProfile"],
+        environment=environment,
+        diagnostic_log=DIAGNOSTIC_LOG_PATH,
+        regular_log=log_path,
+    )
 
     try:
+        update_diagnostic_context(phase="environment_check")
         game_executable = locate_game_executable()
+        diagnostic_log(
+            "runtime_files_ready",
+            game_executable=file_diagnostic(game_executable),
+            injector=file_diagnostic(native_dir() / "ccz_injector.exe"),
+            control_dll=file_diagnostic(native_dir() / "ccz_control.dll"),
+            source_bundle=str(bundle_root()),
+        )
         if os.environ.get("CCZ_AUTOSTART") != "1":
             input("按回车启动静默测试...")
         running_pid = find_process_id(GAME_EXE_NAME)
@@ -6662,6 +6808,7 @@ def main() -> int:
                 "未找到第 20 号源存档 SV020.E5S"
             )
         source_hash = hashlib.sha256(source_save.read_bytes()).hexdigest()
+        update_diagnostic_context(phase="source_validation")
         diagnostic_log(
             "source_save_ready",
             path=source_save,
@@ -6680,17 +6827,26 @@ def main() -> int:
         game: HiddenGameSession | None = None
         compatibility_restart_mode = False
         consecutive_direct_reload_failures = 0
+        session_generation = 0
 
         def start_game_session(
             restarted: bool = False,
             announce: bool = True,
         ) -> HiddenGameSession:
+            nonlocal session_generation
+            update_diagnostic_context(phase="game_start")
             session = HiddenGameSession(
                 game_executable,
                 restarted=restarted,
                 announce=announce,
             )
             session.__enter__()
+            session_generation += 1
+            update_diagnostic_context(
+                pid=session.pid,
+                game_hwnd=session.main_window,
+                session_generation=session_generation,
+            )
             try:
                 diagnostic_log(
                     "game_session_restarted"
@@ -6698,6 +6854,7 @@ def main() -> int:
                     else "game_session_started",
                     pid=session.pid,
                     hwnd=session.main_window,
+                    session_generation=session_generation,
                 )
                 patch_runtime(
                     task_module,
@@ -6705,7 +6862,14 @@ def main() -> int:
                     three_person_mode=three_person_mode,
                     rules=rules,
                 )
-            except Exception:
+            except Exception as exc:
+                diagnostic_error(
+                    "game_session_setup_failed",
+                    exc,
+                    game=session,
+                    restarted=restarted,
+                    session_generation=session_generation,
+                )
                 session.__exit__(None, None, None)
                 raise
             return session
@@ -6720,10 +6884,18 @@ def main() -> int:
         try:
             round_number = 1
             while True:
+                update_diagnostic_context(
+                    phase="round_setup",
+                    loop_round=round_number,
+                    result_slot=None,
+                    attempt=None,
+                    recovery_attempt=None,
+                )
                 workspace = None
                 expected_results = {}
                 panel_paths: dict[int, Path] = {}
                 postprocess_issues: dict[int, list[str]] = {}
+                attempt_started_at: dict[tuple[int, int], float] = {}
                 round_started_at = dt.datetime.now()
                 if loop_random:
                     ensure_loop_disk_space(app)
@@ -6788,6 +6960,14 @@ def main() -> int:
                         loaded: bool,
                     ) -> AttemptResult:
                         nonlocal game, consecutive_direct_reload_failures
+                        update_diagnostic_context(
+                            phase="randomization",
+                            result_slot=result_slot,
+                            attempt=_round_index,
+                            source_loaded=loaded,
+                            recovery_attempt=None,
+                            compatibility_mode=compatibility_restart_mode,
+                        )
                         if compatibility_restart_mode and loaded:
                             diagnostic_log(
                                 "compatibility_restart_before_attempt",
@@ -6807,6 +6987,14 @@ def main() -> int:
                         runner._target_save_pos = result_slot
                         runner._source_loaded = loaded
                         accepted = runner.run()
+                        update_diagnostic_context(
+                            source_loaded=bool(
+                                getattr(runner, "_source_loaded", False)
+                            ),
+                            attempt_result=(
+                                "accepted" if accepted else "rejected"
+                            ),
+                        )
                         if reused_session:
                             consecutive_direct_reload_failures = 0
                         return AttemptResult(
@@ -6852,6 +7040,13 @@ def main() -> int:
                             ),
                             error=repr(exc),
                         )
+                        update_diagnostic_summary(
+                            status="recovering",
+                            pid=game.pid,
+                            result_slot=result_slot,
+                            attempt=round_index,
+                            compatibility_mode=compatibility_restart_mode,
+                        )
                         print(
                             "后台游戏运行异常，正在自动重新启动……"
                         )
@@ -6860,11 +7055,29 @@ def main() -> int:
                             restarted=True,
                             announce=True,
                         )
+                        update_diagnostic_summary(
+                            status="running",
+                            pid=game.pid,
+                            compatibility_mode=compatibility_restart_mode,
+                        )
 
                     def attempt_started(
                         result_slot: int,
                         round_index: int,
                     ) -> None:
+                        update_diagnostic_context(
+                            phase="attempt_start",
+                            result_slot=result_slot,
+                            attempt=round_index,
+                            recovery_attempt=None,
+                        )
+                        attempt_started_at[(result_slot, round_index)] = (
+                            time.perf_counter()
+                        )
+                        diagnostic_log(
+                            "attempt_started",
+                            result_count=result_count,
+                        )
                         print(
                             f"========== 结果 {result_slot}/"
                             f"{result_count}，原生随机第 "
@@ -6874,6 +7087,11 @@ def main() -> int:
                     def accepted_result(
                         result: AcceptedResult,
                     ) -> None:
+                        update_diagnostic_context(
+                            phase="accepted_postprocess",
+                            result_slot=result.result_slot,
+                            attempt=result.round_index,
+                        )
                         runner = result.payload
                         result_slot = result.result_slot
                         expected_results[result_slot] = (
@@ -6899,6 +7117,12 @@ def main() -> int:
                             f"第 {result_slot} 号结果图已生成，"
                             f"总图已更新：{current_grid}"
                         )
+                        diagnostic_log(
+                            "accepted_postprocess_completed",
+                            result_slot=result_slot,
+                            panel_path=panel_paths[result_slot],
+                            grid_path=current_grid,
+                        )
 
                     def accepted_result_error(
                         exc: BaseException,
@@ -6909,12 +7133,12 @@ def main() -> int:
                         postprocess_issues.setdefault(
                             result_slot, []
                         ).append(issue)
-                        diagnostic_log(
+                        diagnostic_error(
                             "accepted_postprocess_failed",
+                            exc,
+                            game=game,
                             result_slot=result_slot,
                             round_index=result.round_index,
-                            error=repr(exc),
-                            traceback=traceback.format_exc(),
                         )
                         print(
                             f"第 {result_slot} 号存档已保存，"
@@ -6931,12 +7155,71 @@ def main() -> int:
                             postprocess_issues[result_slot].append(
                                 f"备用结果图生成失败：{fallback_exc}"
                             )
-                            diagnostic_log(
+                            diagnostic_error(
                                 "fallback_result_image_failed",
+                                fallback_exc,
+                                game=game,
                                 result_slot=result_slot,
-                                error=repr(fallback_exc),
-                                traceback=traceback.format_exc(),
                             )
+
+                    def attempt_error(
+                        exc: BaseException,
+                        result_slot: int,
+                        round_index: int,
+                        recovery_attempt: int,
+                        source_loaded: bool,
+                        will_recover: bool,
+                    ) -> None:
+                        started = attempt_started_at.get(
+                            (result_slot, round_index)
+                        )
+                        update_diagnostic_context(
+                            phase="attempt_failed",
+                            result_slot=result_slot,
+                            attempt=round_index,
+                            recovery_attempt=recovery_attempt,
+                            source_loaded=source_loaded,
+                        )
+                        diagnostic_error(
+                            "attempt_failed",
+                            exc,
+                            game=game,
+                            will_recover=will_recover,
+                            compatibility_mode=compatibility_restart_mode,
+                            direct_reload_failure_count=(
+                                consecutive_direct_reload_failures
+                            ),
+                            attempt_elapsed_ms=(
+                                round(
+                                    (time.perf_counter() - started) * 1000
+                                )
+                                if started is not None
+                                else None
+                            ),
+                        )
+
+                    def attempt_finished(
+                        result_slot: int,
+                        round_index: int,
+                        attempt: AttemptResult,
+                    ) -> None:
+                        started = attempt_started_at.pop(
+                            (result_slot, round_index), None
+                        )
+                        diagnostic_log(
+                            "attempt_finished",
+                            result_slot=result_slot,
+                            round_index=round_index,
+                            accepted=attempt.accepted,
+                            source_loaded=attempt.source_loaded,
+                            elapsed_ms=(
+                                round(
+                                    (time.perf_counter() - started) * 1000
+                                )
+                                if started is not None
+                                else None
+                            ),
+                        )
 
                     run_random_workflow(
                         result_count=result_count,
@@ -6951,6 +7234,8 @@ def main() -> int:
                         on_attempt_started=attempt_started,
                         on_accepted=accepted_result,
                         on_accepted_error=accepted_result_error,
+                        on_attempt_error=attempt_error,
+                        on_attempt_finished=attempt_finished,
                         check_stop=check_stop_requested,
                     )
                     if panel_paths:
@@ -6975,6 +7260,11 @@ def main() -> int:
                         expected_initial_three: tuple[int, ...],
                     ) -> tuple[int, ...]:
                         nonlocal game, verify_on_title
+                        update_diagnostic_context(
+                            phase="saved_result_verification",
+                            result_slot=output_slot,
+                            attempt=None,
+                        )
                         saved_path = (
                             game_executable.parent
                             / "SV"
@@ -7029,8 +7319,10 @@ def main() -> int:
                                         game, exc
                                     )
                                 ):
-                                    diagnostic_log(
+                                    diagnostic_error(
                                         "verify_session_recovery",
+                                        exc,
+                                        game=game,
                                         pid=game.pid,
                                         output_slot=output_slot,
                                         loop_round=(
@@ -7038,7 +7330,6 @@ def main() -> int:
                                             if loop_random
                                             else None
                                         ),
-                                        error=repr(exc),
                                     )
                                     print(
                                         "后台游戏校验异常，"
@@ -7071,11 +7362,11 @@ def main() -> int:
                             postprocess_issues.setdefault(
                                 output_slot, []
                             ).append(issue)
-                            diagnostic_log(
+                            diagnostic_error(
                                 "saved_result_verification_failed",
+                                exc,
+                                game=game,
                                 output_slot=output_slot,
-                                error=repr(exc),
-                                traceback=traceback.format_exc(),
                             )
                             print(
                                 f"第 {output_slot} 号存档已保存，"
@@ -7086,6 +7377,11 @@ def main() -> int:
                         print(
                             f"第 {output_slot} 号存档回读校验通过："
                             f"{reloaded_jobs}"
+                        )
+                        diagnostic_log(
+                            "saved_result_verification_completed",
+                            output_slot=output_slot,
+                            reloaded_jobs=reloaded_jobs,
                         )
                 except KeyboardInterrupt:
                     archive_incomplete_round()
@@ -7130,17 +7426,21 @@ def main() -> int:
                 print(
                     f"{result_count} 个结果存档全部生成并通过回读校验。"
                 )
+        update_diagnostic_summary(
+            status="completed",
+            completed_results=len(expected_results),
+            result_count=result_count,
+        )
         return 0
     except KeyboardInterrupt:
+        update_diagnostic_context(phase="stopped")
         diagnostic_log("worker_stopped", reason="keyboard_interrupt")
+        update_diagnostic_summary(status="stopped")
         print("测试已中断。")
         return 130
     except Exception as exc:
-        diagnostic_log(
-            "worker_failed",
-            error=repr(exc),
-            traceback=traceback.format_exc(),
-        )
+        update_diagnostic_context(phase="worker_failed")
+        diagnostic_error("worker_failed", exc, game=locals().get("game"))
         if isinstance(exc, NativeControlError):
             for message_line in str(exc).splitlines():
                 if message_line.strip():
@@ -7148,7 +7448,15 @@ def main() -> int:
         traceback.print_exc()
         return 1
     finally:
+        update_diagnostic_context(phase="worker_exit")
         diagnostic_log("worker_exit")
+        clear_diagnostic_context(
+            "pid",
+            "game_hwnd",
+            "result_slot",
+            "attempt",
+            "recovery_attempt",
+        )
         if stop_file is not None:
             stop_file.unlink(missing_ok=True)
         if os.environ.get("CCZ_NO_PAUSE") != "1":

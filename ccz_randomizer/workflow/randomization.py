@@ -33,6 +33,12 @@ def run_random_workflow(
     on_accepted_error: (
         Callable[[BaseException, AcceptedResult[T]], None] | None
     ) = None,
+    on_attempt_error: (
+        Callable[[BaseException, int, int, int, bool, bool], None] | None
+    ) = None,
+    on_attempt_finished: (
+        Callable[[int, int, AttemptResult[T]], None] | None
+    ) = None,
     check_stop: Callable[[], None] | None = None,
 ) -> list[AcceptedResult[T]]:
     """Run the result/attempt state machine without depending on the game."""
@@ -62,7 +68,19 @@ def run_random_workflow(
                     source_loaded = attempt.source_loaded
                     break
                 except Exception as exc:
-                    if recovery_attempt == 0 and should_recover(exc):
+                    will_recover = (
+                        recovery_attempt == 0 and should_recover(exc)
+                    )
+                    if on_attempt_error is not None:
+                        on_attempt_error(
+                            exc,
+                            result_slot,
+                            round_index,
+                            recovery_attempt,
+                            source_loaded,
+                            will_recover,
+                        )
+                    if will_recover:
                         recover_session(exc, result_slot, round_index)
                         source_loaded = False
                         continue
@@ -70,6 +88,8 @@ def run_random_workflow(
             else:
                 raise RuntimeError("后台游戏恢复后仍无法继续随机")
 
+            if on_attempt_finished is not None:
+                on_attempt_finished(result_slot, round_index, attempt)
             if attempt.accepted:
                 accepted = AcceptedResult(
                     result_slot=result_slot,

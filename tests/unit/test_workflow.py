@@ -52,6 +52,7 @@ class WorkflowTests(unittest.TestCase):
     def test_recoverable_failure_restarts_once_and_resets_source_state(self):
         calls = []
         recoveries = []
+        errors = []
 
         def run_attempt(slot, attempt, source_loaded):
             calls.append((slot, attempt, source_loaded))
@@ -67,6 +68,7 @@ class WorkflowTests(unittest.TestCase):
                 (str(exc), slot, attempt)
             ),
             should_recover=lambda exc: "unavailable" in str(exc),
+            on_attempt_error=lambda *args: errors.append(args[1:]),
         )
 
         self.assertEqual(
@@ -74,6 +76,29 @@ class WorkflowTests(unittest.TestCase):
             calls,
         )
         self.assertEqual([("game unavailable", 1, 2)], recoveries)
+        self.assertEqual([(1, 2, 0, True, True)], errors)
+
+    def test_attempt_finished_reports_rejected_and_accepted_results(self):
+        finished = []
+        outcomes = iter([False, True])
+
+        run_random_workflow(
+            result_count=1,
+            max_attempts=2,
+            run_attempt=lambda *_args: AttemptResult(
+                next(outcomes), True, "payload"
+            ),
+            recover_session=lambda *_args: None,
+            should_recover=lambda _exc: False,
+            on_attempt_finished=lambda slot, attempt, result: finished.append(
+                (slot, attempt, result.accepted, result.source_loaded)
+            ),
+        )
+
+        self.assertEqual(
+            [(1, 1, False, True), (1, 2, True, True)],
+            finished,
+        )
 
     def test_second_failure_after_recovery_is_raised(self):
         recoveries = []

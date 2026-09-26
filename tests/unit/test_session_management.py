@@ -9,6 +9,7 @@ from fast_randomizer import (
     INITIAL_TEAM_MEMBERS,
     NativeControlError,
     NativeControlTimeout,
+    SessionRefreshRequired,
     Tee,
     decode_equipment_effect,
     decode_subprocess_output,
@@ -166,6 +167,14 @@ class SessionManagementTests(unittest.TestCase):
             session_failure_requires_restart(
                 FakeGameSession(),
                 NativeControlTimeout("静默控件模块响应超时"),
+            )
+        )
+
+    def test_routine_scene_refresh_restarts_game(self):
+        self.assertTrue(
+            session_failure_requires_restart(
+                FakeGameSession(),
+                SessionRefreshRequired("refresh"),
             )
         )
 

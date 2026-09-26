@@ -846,6 +846,10 @@ class NativeControlTimeout(RuntimeError):
     pass
 
 
+class SessionRefreshRequired(RuntimeError):
+    """Request a clean game scene before the next random attempt."""
+
+
 def run_native_control(pid: int, arguments: list[str]) -> None:
     injector = native_dir() / "ccz_injector.exe"
     control_dll = native_dir() / "ccz_control.dll"
@@ -1204,10 +1208,12 @@ class HiddenGameSession:
         executable: Path,
         arguments: tuple[str, ...] = (),
         restarted: bool = False,
+        announce: bool = True,
     ):
         self.executable = executable.resolve()
         self.arguments = arguments
         self.restarted = restarted
+        self.announce = announce
         self.process = 0
         self.job = 0
         self.pid = 0
@@ -1371,11 +1377,12 @@ class HiddenGameSession:
             raise RuntimeError(
                 "静默游戏抢占了前台窗口，已停止测试"
             )
-        print(
-            f"隐藏游戏实例已{'重新' if self.restarted else ''}启动，"
-            f"PID={self.pid}；"
-            "游戏未取得前台，系统鼠标未被程序控制。"
-        )
+        if self.announce:
+            print(
+                f"隐藏游戏实例已{'重新' if self.restarted else ''}启动，"
+                f"PID={self.pid}；"
+                "游戏未取得前台，系统鼠标未被程序控制。"
+            )
         return self
 
     def is_healthy(self) -> bool:
@@ -4475,6 +4482,8 @@ def activate_rule_profile(
 def session_failure_requires_restart(
     game: HiddenGameSession, exc: BaseException
 ) -> bool:
+    if isinstance(exc, SessionRefreshRequired):
+        return True
     if not game.is_healthy():
         return True
     if isinstance(exc, NativeControlError):
@@ -5453,10 +5462,12 @@ def main() -> int:
 
         def start_game_session(
             restarted: bool = False,
+            announce: bool = True,
         ) -> HiddenGameSession:
             session = HiddenGameSession(
                 game_executable,
                 restarted=restarted,
+                announce=announce,
             )
             session.__enter__()
             try:
@@ -5491,6 +5502,13 @@ def main() -> int:
                 _round_index: int,
                 loaded: bool,
             ) -> AttemptResult:
+                if loaded:
+                    # A direct memory reload restores the save bytes but does
+                    # not reliably reset the game's scene/event state. Start
+                    # the next attempt from a clean hidden process instead.
+                    raise SessionRefreshRequired(
+                        "下一轮随机需要刷新后台游戏场景"
+                    )
                 runner = task_module.CczReRandTask(0)
                 runner._target_save_pos = result_slot
                 runner._source_loaded = loaded
@@ -5510,15 +5528,22 @@ def main() -> int:
             ) -> None:
                 nonlocal game
                 diagnostic_log(
-                    "game_session_recovery",
+                    "game_session_refresh"
+                    if isinstance(exc, SessionRefreshRequired)
+                    else "game_session_recovery",
                     pid=game.pid,
                     result_slot=result_slot,
                     round_index=round_index,
                     error=repr(exc),
                 )
-                print("后台游戏运行异常，正在自动重新启动……")
+                routine_refresh = isinstance(exc, SessionRefreshRequired)
+                if not routine_refresh:
+                    print("后台游戏运行异常，正在自动重新启动……")
                 close_game_session(game)
-                game = start_game_session(restarted=True)
+                game = start_game_session(
+                    restarted=True,
+                    announce=not routine_refresh,
+                )
 
             def attempt_started(
                 result_slot: int,

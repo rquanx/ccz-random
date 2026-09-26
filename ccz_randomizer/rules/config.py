@@ -82,9 +82,13 @@ def _default_profile() -> dict[str, Any]:
         },
         "threePerson": {
             "minJobAverage": 7.4,
+            "jobQualificationMode": "average",
+            "minQualifiedCount": 2,
         },
         "sevenPerson": {
             "minJobAverage": 7.4,
+            "jobQualificationMode": "average",
+            "minQualifiedCount": 4,
             "normalJobAverage": 7.6,
             "highJobAverage": 7.8,
             "mediumMinSkillScore": 4.0,
@@ -189,6 +193,18 @@ def _require_number(
     return number
 
 
+def _require_integer(
+    value: Any,
+    path: str,
+    minimum: int,
+    maximum: int,
+) -> int:
+    number = _require_number(value, path, minimum, maximum)
+    if not number.is_integer():
+        raise ValueError(f"{path} 必须是整数")
+    return int(number)
+
+
 def _require_bool(value: Any, path: str) -> bool:
     if not isinstance(value, bool):
         raise ValueError(f"{path} 必须为开启或关闭")
@@ -215,7 +231,9 @@ def apply_simple_settings(profile: dict[str, Any]) -> dict[str, Any]:
         settings["affinityImportance"]
     ]
     profile["threePerson"]["minJobAverage"] = job_quality["three"]
+    profile["threePerson"]["jobQualificationMode"] = "average"
     profile["sevenPerson"]["minJobAverage"] = job_quality["seven"]
+    profile["sevenPerson"]["jobQualificationMode"] = "average"
     profile["jobScoring"]["primaryBonusRate"] = affinity["primary"]
     profile["jobScoring"]["secondaryBonusRate"] = affinity["secondary"]
     profile["jobScoring"]["extraMasterPenaltyWeight"] = (
@@ -338,6 +356,17 @@ def validate_rule_config(config: dict[str, Any]) -> dict[str, Any]:
         three["minJobAverage"] = _require_number(
             three["minJobAverage"], f"{name}.三人兵种门槛", 0, 20
         )
+        three["jobQualificationMode"] = _require_choice(
+            three["jobQualificationMode"],
+            f"{name}.三人兵种合格方式",
+            ("average", "count"),
+        )
+        three["minQualifiedCount"] = _require_integer(
+            three["minQualifiedCount"],
+            f"{name}.三人兵种合格人数",
+            1,
+            3,
+        )
         for key, label in (
             ("minJobAverage", "七人兵种门槛"),
             ("normalJobAverage", "普通兵种分界"),
@@ -349,6 +378,17 @@ def validate_rule_config(config: dict[str, Any]) -> dict[str, Any]:
             ("specialSkillWeight", "特殊特技权重"),
         ):
             seven[key] = _require_number(seven[key], f"{name}.{label}", 0, 20)
+        seven["jobQualificationMode"] = _require_choice(
+            seven["jobQualificationMode"],
+            f"{name}.七人兵种合格方式",
+            ("average", "count"),
+        )
+        seven["minQualifiedCount"] = _require_integer(
+            seven["minQualifiedCount"],
+            f"{name}.七人兵种合格人数",
+            1,
+            7,
+        )
         if not (
             seven["ordinarySkillWeight"]
             <= seven["strongSkillWeight"]
@@ -561,6 +601,7 @@ def evaluate_job_rules(
     total_score = 0.0
     master_count = 0
     job_names = [str(job["name"]) for job in jobs]
+    member_scores: list[float] = []
 
     for index, (job, fallback_member) in enumerate(zip(jobs, members)):
         name = str(job["name"])
@@ -583,19 +624,30 @@ def evaluate_job_rules(
             master_count += 1
             if index == 1:
                 attach_score -= scoring["xiahouDunMasterPenalty"]
-        total_score += weighted_score + attach_score
+        member_score = weighted_score + attach_score
+        member_scores.append(member_score)
+        total_score += member_score
 
     if scoring["extraMasterPenaltyEnabled"] and master_count > 1:
         total_score -= (
             (master_count - 1) ** 2
         ) * scoring["extraMasterPenaltyWeight"]
     average = total_score / max(1, len(jobs))
-    threshold = profile[
+    mode_settings = profile[
         "threePerson" if mode == "three" else "sevenPerson"
-    ]["minJobAverage"]
+    ]
+    threshold = mode_settings["minJobAverage"]
+    qualification_mode = mode_settings["jobQualificationMode"]
+    qualified_count = sum(score >= threshold for score in member_scores)
+    required_count = int(mode_settings["minQualifiedCount"])
+    qualified = (
+        average >= threshold
+        if qualification_mode == "average"
+        else qualified_count >= required_count
+    )
     reasons = (
         ()
-        if average >= threshold
+        if qualified
         else ("兵种综合评价未达到当前规则要求",)
     )
     return RuleEvaluation(
@@ -606,6 +658,10 @@ def evaluate_job_rules(
             "masterCount": master_count,
             "jobNames": job_names,
             "threshold": threshold,
+            "qualificationMode": qualification_mode,
+            "qualifiedCount": qualified_count,
+            "requiredCount": required_count,
+            "memberScores": member_scores,
         },
     )
 

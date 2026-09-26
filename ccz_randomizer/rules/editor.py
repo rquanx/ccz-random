@@ -58,13 +58,17 @@ ADVANCED_HELP_SECTIONS = (
     (
         "阶段门槛",
         """【初始3人兵种合格门槛】
-只随机3人时使用。曹操、夏侯惇、夏侯渊的兵种平均分达到该数值，才会继续检查三人的特技。
+只随机3人时使用。默认按三人的兵种平均分判断，也可以改为按达到门槛的人数判断。
 调高：兵种要求更严格，进入特技检查的结果更少。
 调低：兵种要求更宽松，但仍然需要通过特技检查。
 
 【完整7人兵种合格门槛】
-完整7人时使用。7人的兵种平均分达到该数值，才会继续检查7人的特技。
+完整7人时使用。默认按7人的兵种平均分判断，也可以改为按达到门槛的人数判断。
 调高：更难通过。调低：更容易进入特技检查。
+
+【兵种合格方式】
+平均分达到门槛：队伍兵种平均分大于或等于门槛时合格。
+任意人数达到门槛：达到门槛的个人数量大于或等于指定人数时合格。例如门槛为7、人数为3，表示至少3人的个人兵种分大于或等于7。
 
 【普通兵种质量分界】
 决定本轮使用哪一个特技合格门槛，3人和7人模式都会使用。
@@ -666,6 +670,12 @@ def show_rule_editor(
 
     number_vars: dict[str, tk.StringVar] = {}
     bool_vars: dict[str, tk.BooleanVar] = {}
+    qualification_mode_vars: dict[str, tk.StringVar] = {}
+    qualification_count_vars: dict[str, tk.StringVar] = {}
+    qualification_controls: dict[
+        str,
+        tuple[ttk.Combobox, ttk.Combobox, tk.Label],
+    ] = {}
 
     def add_number(
         tab,
@@ -694,6 +704,73 @@ def show_rule_editor(
         "初始3人兵种合格门槛",
         "只随机初始3人时使用",
     )
+    qualification_mode_labels = {
+        "按平均分判断": "average",
+        "按达标人数判断": "count",
+    }
+    qualification_mode_values = {
+        value: label for label, value in qualification_mode_labels.items()
+    }
+
+    def add_qualification_control(
+        row: int,
+        key: str,
+        maximum: int,
+    ) -> None:
+        mode_var = tk.StringVar()
+        count_var = tk.StringVar()
+        qualification_mode_vars[key] = mode_var
+        qualification_count_vars[key] = count_var
+        mode_combo = ttk.Combobox(
+            threshold_tab,
+            textvariable=mode_var,
+            values=tuple(qualification_mode_labels),
+            state="readonly",
+            width=18,
+        )
+        mode_combo.grid(
+            row=row,
+            column=3,
+            sticky="w",
+            padx=(20, 8),
+            pady=5,
+        )
+        count_combo = ttk.Combobox(
+            threshold_tab,
+            textvariable=count_var,
+            values=tuple(str(value) for value in range(1, maximum + 1)),
+            state="readonly",
+            width=4,
+        )
+        count_combo.grid(row=row, column=4, sticky="w", pady=5)
+        count_label = tk.Label(
+            threshold_tab,
+            text="人达到门槛",
+            anchor="w",
+        )
+        count_label.grid(row=row, column=5, sticky="w", padx=(5, 0), pady=5)
+        qualification_controls[key] = (
+            mode_combo,
+            count_combo,
+            count_label,
+        )
+        editable_widgets.extend((mode_combo, count_combo))
+
+        def refresh_count_control(_event=None) -> None:
+            enabled = (
+                mode_var.get() == "按达标人数判断"
+                and str(mode_combo.cget("state")) != "disabled"
+            )
+            count_combo.configure(state="readonly" if enabled else "disabled")
+            count_label.configure(fg="#222222" if enabled else "#999999")
+
+        mode_combo.bind(
+            "<<ComboboxSelected>>",
+            refresh_count_control,
+            add="+",
+        )
+
+    add_qualification_control(0, "three", 3)
     add_number(
         threshold_tab,
         1,
@@ -701,6 +778,7 @@ def show_rule_editor(
         "完整7人兵种合格门槛",
         "低于门槛时直接重新随机",
     )
+    add_qualification_control(1, "seven", 7)
     add_number(
         threshold_tab,
         2,
@@ -923,6 +1001,23 @@ def show_rule_editor(
     def is_builtin(name: str) -> bool:
         return bool(working["profiles"][name].get("builtin"))
 
+    def refresh_qualification_controls(enabled: bool) -> None:
+        for key, (mode_combo, count_combo, count_label) in (
+            qualification_controls.items()
+        ):
+            count_enabled = (
+                enabled
+                and qualification_mode_vars[key].get()
+                == "按达标人数判断"
+            )
+            mode_combo.configure(state="readonly" if enabled else "disabled")
+            count_combo.configure(
+                state="readonly" if count_enabled else "disabled"
+            )
+            count_label.configure(
+                fg="#222222" if count_enabled else "#999999"
+            )
+
     def set_editable(enabled: bool) -> None:
         for widget in editable_widgets:
             try:
@@ -932,6 +1027,7 @@ def show_rule_editor(
                     widget.configure(state="normal" if enabled else "disabled")
             except tk.TclError:
                 pass
+        refresh_qualification_controls(enabled)
         for score_grid in score_grids:
             score_grid.set_enabled(enabled)
         reset_button.configure(state="normal" if enabled else "disabled")
@@ -952,6 +1048,12 @@ def show_rule_editor(
         profile["threePerson"]["minJobAverage"] = float(
             number_vars["three_min"].get()
         )
+        profile["threePerson"]["jobQualificationMode"] = (
+            qualification_mode_labels[qualification_mode_vars["three"].get()]
+        )
+        profile["threePerson"]["minQualifiedCount"] = int(
+            qualification_count_vars["three"].get()
+        )
         category_scores = {
             "优质": float(number_vars["ordinary_weight"].get()),
             "强力": float(number_vars["strong_weight"].get()),
@@ -961,6 +1063,12 @@ def show_rule_editor(
         profile["sevenPerson"].update(
             {
                 "minJobAverage": float(number_vars["seven_min"].get()),
+                "jobQualificationMode": qualification_mode_labels[
+                    qualification_mode_vars["seven"].get()
+                ],
+                "minQualifiedCount": int(
+                    qualification_count_vars["seven"].get()
+                ),
                 "normalJobAverage": float(
                     number_vars["normal_average"].get()
                 ),
@@ -1057,6 +1165,15 @@ def show_rule_editor(
             }
             for key, value in values.items():
                 number_vars[key].set(f"{value:g}")
+            for key, settings in (("three", three), ("seven", seven)):
+                qualification_mode_vars[key].set(
+                    qualification_mode_values[
+                        settings["jobQualificationMode"]
+                    ]
+                )
+                qualification_count_vars[key].set(
+                    str(settings["minQualifiedCount"])
+                )
             special_auto.set(seven["specialSkillAutoPass"])
             high_auto.set(seven["highJobAutoPass"])
             affinity_enabled.set(scoring["affinityEnabled"])

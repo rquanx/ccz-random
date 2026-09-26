@@ -69,6 +69,47 @@ class RuleConfigTests(unittest.TestCase):
             ("兵种综合评价未达到当前规则要求",), result.reasons
         )
 
+    def test_job_count_rule_uses_inclusive_threshold(self):
+        config = default_rule_config()
+        profile = config["profiles"][DEFAULT_PROFILE_NAME]
+        profile["jobScoring"]["affinityEnabled"] = False
+        profile["threePerson"].update(
+            {
+                "minJobAverage": 7,
+                "jobQualificationMode": "count",
+                "minQualifiedCount": 2,
+            }
+        )
+        jobs = [
+            {"name": "甲", "score": 7, "type": "ALL_ROUNDER"},
+            {"name": "乙", "score": 7, "type": "WARRIOR"},
+            {"name": "丙", "score": 1, "type": "MASTER"},
+        ]
+        result = evaluate_job_rules(config, "three", jobs, MEMBERS)
+        self.assertTrue(result.qualified)
+        self.assertEqual(2, result.metrics["qualifiedCount"])
+        self.assertEqual(2, result.metrics["requiredCount"])
+
+    def test_job_count_rule_fails_when_too_few_members_reach_threshold(self):
+        config = default_rule_config()
+        profile = config["profiles"][DEFAULT_PROFILE_NAME]
+        profile["jobScoring"]["affinityEnabled"] = False
+        profile["threePerson"].update(
+            {
+                "minJobAverage": 7,
+                "jobQualificationMode": "count",
+                "minQualifiedCount": 3,
+            }
+        )
+        jobs = [
+            {"name": "甲", "score": 9, "type": "ALL_ROUNDER"},
+            {"name": "乙", "score": 8, "type": "WARRIOR"},
+            {"name": "丙", "score": 1, "type": "MASTER"},
+        ]
+        result = evaluate_job_rules(config, "three", jobs, MEMBERS)
+        self.assertFalse(result.qualified)
+        self.assertEqual(2, result.metrics["qualifiedCount"])
+
     def test_member_affinity_is_configurable_by_type(self):
         config = default_rule_config()
         profile = config["profiles"][DEFAULT_PROFILE_NAME]

@@ -47,6 +47,11 @@ CASES = (
         "验证七人随机与正常读档复用",
     ),
     GameCase(
+        "seven-member-inspection",
+        "case_seven_member_inspection.py",
+        "验证七人候选存档的剧情推进与能力读取",
+    ),
+    GameCase(
         "native-confirm",
         "case_native_confirm_flow.py",
         "验证确认对话流程",

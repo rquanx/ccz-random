@@ -267,6 +267,34 @@ class SessionManagementTests(unittest.TestCase):
         )
         self.assertEqual(3, diagnostic.call_count)
 
+    def test_initial_three_roster_reaches_seven_after_paced_progress(self):
+        state = {"member_count": 3, "processed_rounds": 0}
+
+        def process_click_round(_hwnd, _x, _y, _count):
+            state["processed_rounds"] += 1
+            if state["processed_rounds"] >= 3:
+                state["member_count"] = 7
+
+        self.assertEqual(3, state["member_count"])
+        with (
+            patch(
+                "fast_randomizer.native_silent_click_burst",
+                side_effect=process_click_round,
+            ),
+            patch("fast_randomizer.native_wake_game"),
+            patch("fast_randomizer.time.sleep"),
+            patch("fast_randomizer.diagnostic_log"),
+        ):
+            advance_seven_member_story(
+                123,
+                456,
+                rounds=5,
+                clicks_per_round=20,
+            )
+
+        self.assertEqual(7, state["member_count"])
+        self.assertGreaterEqual(state["processed_rounds"], 3)
+
     def test_full_inspection_accepts_actual_game_member_order(self):
         member_names = (
             "曹操",

@@ -490,6 +490,55 @@ class SessionManagementTests(unittest.TestCase):
             )
         )
 
+    def test_roster_fallback_uses_injected_click_after_list_command_error(self):
+        runner = unittest.mock.Mock()
+        runner.peopleWind.isInitSuccess.return_value = True
+        runner.peopleWind.hwnd = 777
+        with (
+            patch("fast_randomizer.close_member_dialog"),
+            patch(
+                "fast_randomizer.find_any_member_dialog",
+                return_value=(999, "曹仁"),
+            ),
+            patch("fast_randomizer.user32.EnableWindow"),
+            patch("fast_randomizer.user32.ShowWindow"),
+            patch("fast_randomizer.user32.IsWindow", return_value=True),
+            patch(
+                "fast_randomizer.run_native_control",
+                side_effect=NativeControlError(162),
+            ),
+            patch(
+                "fast_randomizer.native_background_click"
+            ) as background_click,
+            patch("fast_randomizer.native_wake_game") as wake_game,
+            patch("fast_randomizer.diagnostic_log") as diagnostic,
+        ):
+            result = open_uncaptured_member_from_roster(
+                123,
+                456,
+                runner,
+                321,
+                ("曹操", "夏侯惇", "夏侯渊", "曹仁"),
+                {"曹操", "夏侯惇", "夏侯渊"},
+            )
+
+        self.assertEqual((999, "曹仁"), result)
+        background_click.assert_called_once_with(
+            777,
+            54,
+            129 + 60 * 3,
+            1,
+            False,
+        )
+        wake_game.assert_called_once_with(123, 456, 800)
+        self.assertTrue(
+            any(
+                call.args[0] == "member_roster_fallback_click_failed"
+                and call.kwargs["method"] == "list_window_command"
+                for call in diagnostic.call_args_list
+            )
+        )
+
     def test_roster_fallback_reopens_list_from_known_main_window(self):
         runner = unittest.mock.Mock()
         runner.peopleWind.isInitSuccess.side_effect = [False, True]

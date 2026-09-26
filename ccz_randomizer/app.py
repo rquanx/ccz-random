@@ -4000,20 +4000,31 @@ def open_uncaptured_member_from_roster(
                 list_hwnd,
                 f"row-{row_index}-{click_method}-before",
             )
-            if click_method == "list_window_command":
-                run_native_control(
-                    pid,
-                    ["list-window", str(list_hwnd), str(row_index)],
+            try:
+                if click_method == "list_window_command":
+                    run_native_control(
+                        pid,
+                        ["list-window", str(list_hwnd), str(row_index)],
+                    )
+                else:
+                    native_background_click(
+                        list_hwnd,
+                        54,
+                        129 + 60 * row_index,
+                        1,
+                        False,
+                    )
+                    native_wake_game(pid, main_window, 800)
+            except (NativeControlError, NativeControlTimeout) as exc:
+                diagnostic_log(
+                    "member_roster_fallback_click_failed",
+                    pid=pid,
+                    row_index=row_index,
+                    list_hwnd=list_hwnd,
+                    method=click_method,
+                    error=repr(exc),
                 )
-            else:
-                native_background_click(
-                    list_hwnd,
-                    54,
-                    129 + 60 * row_index,
-                    1,
-                    False,
-                )
-                native_wake_game(pid, main_window, 800)
+                continue
             deadline = time.perf_counter() + 3.0
             while time.perf_counter() < deadline:
                 runner.initPeopleInfoWind()

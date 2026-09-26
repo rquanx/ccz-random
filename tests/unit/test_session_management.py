@@ -174,6 +174,21 @@ class SessionManagementTests(unittest.TestCase):
             hint = native_control_error_hint(5)
         self.assertIn("当前已使用管理员权限运行", hint)
         self.assertIn("ccz_control.dll", hint)
+        self.assertIn("360", hint)
+        self.assertIn("Windows 安全中心", hint)
+        self.assertIn("游戏目录加入信任区", hint)
+
+    def test_non_admin_security_hint_recommends_admin_mode(self):
+        with patch("fast_randomizer.is_running_as_admin", return_value=False):
+            hint = native_control_error_hint(5)
+        self.assertIn("以管理员身份运行", hint)
+        self.assertNotIn("无需再次尝试管理员模式", hint)
+
+    def test_environment_guidance_is_visible_in_user_log(self):
+        self.assertEqual(
+            "2. 检查安全软件拦截记录",
+            format_user_log("环境处理提示：2. 检查安全软件拦截记录"),
+        )
 
     def test_restart_message_is_distinct(self):
         self.assertEqual(

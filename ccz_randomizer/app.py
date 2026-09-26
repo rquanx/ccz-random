@@ -770,38 +770,64 @@ def ui_asset_path(name: str) -> Path:
 
 def native_control_error_hint(return_code: int) -> str:
     if return_code == 2:
+        if is_running_as_admin():
+            return (
+                "\n工具已使用管理员权限，但仍无法连接后台游戏。"
+                "\n请先退出已经打开的 Ekd5.exe，再重新运行工具；"
+                "如果仍然失败，请按安全软件拦截问题处理。"
+            )
         return (
-            "\n电脑没有允许本工具控制后台游戏。请先关闭工具和游戏，"
-            "然后右键本工具选择“以管理员身份运行”。"
+            "\n工具没有足够权限连接后台游戏。"
+            "\n请关闭工具和 Ekd5.exe，然后右键本工具选择“以管理员身份运行”。"
         )
     if return_code in (3, 4, 9):
         return (
-            "\n电脑的安全防护阻止了后台操作。请检查 Windows 安全中心"
-            "或杀毒软件的拦截、隔离记录，并允许本工具和 Ekd5.exe 运行。"
+            "\n电脑的安全软件阻止了工具与后台游戏通信。"
+            + native_control_security_steps()
         )
     if return_code in (5, 10):
-        privilege_step = (
-            "\n1. 当前已使用管理员权限运行，无需重复尝试管理员模式；"
-            if is_running_as_admin()
-            else "\n1. 关闭本工具和游戏后，右键本工具选择“以管理员身份运行”；"
-        )
         return (
-            "\n电脑的安全防护已阻止本工具控制后台游戏。请按顺序处理："
-            + privilege_step
-            + "\n2. 检查 Windows 安全中心或杀毒软件的拦截、隔离记录，"
-            + "允许本工具、Ekd5.exe 和 ccz_control.dll；"
-            + "\n3. 不要从压缩包内直接运行，请先完整解压到普通游戏目录；"
-            + "\n4. 如果单位电脑启用了应用控制或安全策略，请联系管理员放行；"
-            + "\n5. 处理后重新运行。仍然失败时，请把普通日志和诊断日志一起发回。"
+            "\n电脑拒绝加载后台控制组件。最常见原因是 360、火绒、"
+            "电脑管家、Windows 安全中心或单位安全软件进行了拦截。"
+            + native_control_security_steps()
         )
     if return_code in (6, 7, 8):
         return (
-            "\n工具的后台组件没有正常加载。请重新下载完整的 EXE，"
-            "放到游戏目录后再运行；同时检查杀毒软件是否隔离了相关文件。"
+            "\n后台控制组件没有完整加载，文件可能被拦截、隔离或损坏。"
+            + native_control_security_steps()
         )
     return (
         "\n后台游戏未能正常响应。请先关闭游戏和本工具后重试；"
         "若再次失败，请把普通日志和诊断日志一起发给工具作者。"
+    )
+
+
+def native_control_security_steps() -> str:
+    steps = []
+    if is_running_as_admin():
+        steps.append("当前已使用管理员权限运行，无需再次尝试管理员模式。")
+    else:
+        steps.append(
+            "关闭工具和 Ekd5.exe，右键本工具，选择“以管理员身份运行”。"
+        )
+    steps.extend(
+        (
+            "如果安装了 360、火绒或电脑管家，请打开拦截记录或隔离区，"
+            "恢复被拦截的文件，并把整个游戏目录加入信任区。"
+            "也可以暂时完全退出安全软件做一次验证；验证后请重新开启。",
+            "打开“Windows 安全中心 > 病毒和威胁防护 > 保护历史记录”，"
+            "允许与本工具、Ekd5.exe 或 ccz_control.dll 有关的拦截；"
+            "必要时把整个游戏目录加入排除项。",
+            "确认已经完整解压，并把工具放在游戏目录中运行；"
+            "不要直接从压缩包、网盘预览目录或临时目录启动。",
+            "如果是公司、学校或网吧电脑，可能启用了应用控制或终端防护策略，"
+            "普通用户无法自行解除，需要联系电脑管理员放行。",
+            "处理后关闭残留的工具和 Ekd5.exe，再重新运行。"
+            "仍然失败时，请把普通日志和诊断日志一起发回。",
+        )
+    )
+    return "\n请按顺序处理：\n" + "\n".join(
+        f"{index}. {step}" for index, step in enumerate(steps, start=1)
     )
 
 
@@ -1279,6 +1305,8 @@ class HiddenGameSession:
                         pid=self.pid,
                         error=repr(exc),
                     )
+                    if isinstance(exc, NativeControlError):
+                        raise
                     print(
                         "提示：后台游戏静音设置未生效，"
                         "本次运行可能仍会有游戏声音。"
@@ -4359,6 +4387,8 @@ def format_user_log(line: str) -> str:
         return ""
     if text.startswith("工具版本："):
         return text
+    if text.startswith("环境处理提示："):
+        return text.removeprefix("环境处理提示：").strip()
     if (
         text.startswith("R0 七人兵种筛选:")
         or text.startswith("R0 三人兵种筛选:")
@@ -5630,6 +5660,10 @@ def main() -> int:
             error=repr(exc),
             traceback=traceback.format_exc(),
         )
+        if isinstance(exc, NativeControlError):
+            for message_line in str(exc).splitlines():
+                if message_line.strip():
+                    print(f"环境处理提示：{message_line}")
         traceback.print_exc()
         return 1
     finally:

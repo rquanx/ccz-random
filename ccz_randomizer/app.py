@@ -37,6 +37,12 @@ from ccz_randomizer.workflow.randomization import (
     run_random_workflow,
     validate_reloaded_jobs,
 )
+from ccz_randomizer.workflow.round_archive import (
+    ensure_loop_disk_space,
+    finalize_round,
+    prepare_round_workspace,
+    resolve_loop_run_stamp,
+)
 
 
 cv2 = None
@@ -1784,6 +1790,30 @@ def initialize_result_output() -> tuple[Path, Path]:
     RESULT_PANEL_DIR = panel_dir
     RESULT_GRID_FILE = grid_file
     return panel_dir, grid_file
+
+
+def configure_result_output(
+    panel_dir: Path,
+    grid_file: Path,
+    run_stamp: str,
+) -> tuple[Path, Path]:
+    global RESULT_RUN_STAMP, RESULT_ROOT, RESULT_PANEL_DIR, RESULT_GRID_FILE
+    panel_dir.mkdir(parents=True, exist_ok=True)
+    grid_file.parent.mkdir(parents=True, exist_ok=True)
+    RESULT_RUN_STAMP = run_stamp
+    RESULT_ROOT = grid_file.parent
+    RESULT_PANEL_DIR = panel_dir
+    RESULT_GRID_FILE = grid_file
+    return panel_dir, grid_file
+
+
+def relocate_result_output(round_dir: Path) -> Path:
+    global RESULT_ROOT, RESULT_PANEL_DIR, RESULT_GRID_FILE
+    assert RESULT_GRID_FILE is not None
+    RESULT_ROOT = round_dir
+    RESULT_PANEL_DIR = round_dir / "panels"
+    RESULT_GRID_FILE = round_dir / RESULT_GRID_FILE.name
+    return RESULT_GRID_FILE
 
 
 def result_panel_dir() -> Path:
@@ -4669,6 +4699,14 @@ def format_user_log(line: str) -> str:
         return ""
     if text.startswith("规则提示："):
         return text
+    if text.startswith("循环轮次开始："):
+        return "\n" + text.replace("循环轮次开始：", "开始")
+    if text.startswith("循环轮次完成："):
+        return text.replace("循环轮次完成：", "")
+    if text.startswith("循环轮次未完成结果："):
+        return text.replace("循环轮次未完成结果：", "未完成结果已保留：")
+    if text.startswith("循环轮次结果目录："):
+        return ""
     if text.startswith("R1 七人特技内存读取:"):
         return "正在检查特技条件……"
     if text.startswith("初始三人兵种合格，正在检查特技条件"):
@@ -4792,6 +4830,7 @@ def gui_main() -> int:
     stop_requested_by_user = False
     last_formatted_line = ""
     mode_var = tk.StringVar(value="seven")
+    loop_var = tk.BooleanVar(value=False)
     rule_load = load_rule_config(app_dir())
     current_rules = rule_load.config
     rule_profile_var = tk.StringVar(
@@ -4898,14 +4937,11 @@ def gui_main() -> int:
     slot_help.bind("<Enter>", show_slot_help)
     slot_help.bind("<Leave>", hide_slot_help)
 
-    toolbar = tk.Frame(outer)
-    toolbar.pack(fill="x", pady=(0, 8))
-    status = tk.StringVar(value="等待开始")
-    tk.Label(toolbar, textvariable=status, anchor="w").pack(
-        side="left", fill="x", expand=True
-    )
-    mode_frame = tk.Frame(toolbar)
-    mode_frame.pack(side="left", padx=(8, 18))
+    settings_bar = tk.Frame(outer)
+    settings_bar.pack(fill="x", pady=(0, 6))
+    tk.Label(settings_bar, text="运行模式").pack(side="left", padx=(0, 6))
+    mode_frame = tk.Frame(settings_bar)
+    mode_frame.pack(side="left", padx=(0, 18))
     seven_mode_button = tk.Radiobutton(
         mode_frame,
         text="完整7人",
@@ -4920,21 +4956,32 @@ def gui_main() -> int:
     )
     seven_mode_button.pack(side="left")
     three_mode_button.pack(side="left", padx=(8, 0))
-    tk.Label(toolbar, text="规则").pack(side="left", padx=(0, 6))
+    loop_check = tk.Checkbutton(
+        settings_bar,
+        text="循环随机（每轮15个）",
+        variable=loop_var,
+    )
+    loop_check.pack(side="left", padx=(0, 18))
+    tk.Label(settings_bar, text="规则").pack(side="left", padx=(0, 6))
     rule_profile_combo = ttk.Combobox(
-        toolbar,
+        settings_bar,
         textvariable=rule_profile_var,
         values=tuple(current_rules["profiles"]),
         state="readonly",
         width=18,
     )
     rule_profile_combo.pack(side="left", padx=(0, 8))
-    rule_button = tk.Button(toolbar, text="规则设置", width=10)
-    rule_button.pack(side="left", padx=(0, 8))
-    start_button = tk.Button(toolbar, text="开始随机", width=12)
-    stop_button = tk.Button(toolbar, text="停止随机", width=12, state="disabled")
-    stop_button.pack(side="right", padx=(8, 0))
-    start_button.pack(side="right")
+    rule_button = tk.Button(settings_bar, text="规则设置", width=10)
+    rule_button.pack(side="left")
+
+    action_bar = tk.Frame(outer)
+    action_bar.pack(fill="x", pady=(0, 8))
+    status = tk.StringVar(value="等待开始")
+    tk.Label(action_bar, textvariable=status, anchor="w").pack(
+        side="left", fill="x", expand=True
+    )
+    action_button = tk.Button(action_bar, text="开始随机", width=14)
+    action_button.pack(side="right")
 
     output = scrolledtext.ScrolledText(
         outer,
@@ -5474,7 +5521,13 @@ def gui_main() -> int:
             except queue.Empty:
                 break
             if line.startswith("本轮总图路径："):
-                result_image_path = Path(line.split("：", 1)[1].strip())
+                candidate = Path(line.split("：", 1)[1].strip())
+                if candidate.is_file() or not loop_var.get():
+                    result_image_path = candidate
+            elif "总图已更新：" in line:
+                candidate = Path(line.split("总图已更新：", 1)[1].strip())
+                if candidate.is_file():
+                    result_image_path = candidate
             formatted = format_user_log(line)
             if formatted:
                 if (
@@ -5487,10 +5540,14 @@ def gui_main() -> int:
         if worker is not None and worker.poll() is not None:
             code = worker.returncode
             worker = None
-            start_button.configure(state="normal")
-            stop_button.configure(state="disabled")
+            action_button.configure(
+                text="开始随机",
+                command=start,
+                state="normal",
+            )
             seven_mode_button.configure(state="normal")
             three_mode_button.configure(state="normal")
+            loop_check.configure(state="normal")
             rule_profile_combo.configure(state="readonly")
             rule_button.configure(state="normal")
             stopped = stop_requested_by_user or code == 130
@@ -5550,6 +5607,7 @@ def gui_main() -> int:
                 else "完整7人"
             )
         )
+        append("循环随机：" + ("开启" if loop_var.get() else "关闭"))
         append("环境检查：通过")
         env = os.environ.copy()
         stop_file = (
@@ -5563,6 +5621,10 @@ def gui_main() -> int:
         env["CCZ_NO_PAUSE"] = "1"
         env["CCZ_STOP_FILE"] = str(stop_file)
         env["CCZ_RANDOM_MODE"] = mode_var.get()
+        env["CCZ_LOOP_RANDOM"] = "1" if loop_var.get() else "0"
+        env["CCZ_RUN_STAMP"] = dt.datetime.now().strftime(
+            "%Y-%m-%d %H.%M.%S"
+        )
         env["PYTHONIOENCODING"] = "utf-8"
         if getattr(sys, "frozen", False):
             command = [sys.executable, "--worker"]
@@ -5584,20 +5646,24 @@ def gui_main() -> int:
             args=(worker.stdout,),
             daemon=True,
         ).start()
-        start_button.configure(state="disabled")
-        stop_button.configure(state="normal")
+        action_button.configure(
+            text="停止随机",
+            command=stop,
+            state="normal",
+        )
         seven_mode_button.configure(state="disabled")
         three_mode_button.configure(state="disabled")
+        loop_check.configure(state="disabled")
         rule_profile_combo.configure(state="disabled")
         rule_button.configure(state="disabled")
-        status.set("运行中")
+        status.set("循环运行中" if loop_var.get() else "运行中")
 
     def stop() -> None:
         nonlocal stop_requested_by_user
         if worker is not None and worker.poll() is None:
             status.set("正在停止……")
             stop_requested_by_user = True
-            stop_button.configure(state="disabled")
+            action_button.configure(state="disabled")
             if stop_file is not None:
                 stop_file.write_text("stop", encoding="ascii")
 
@@ -5608,8 +5674,7 @@ def gui_main() -> int:
             worker.terminate()
         root.destroy()
 
-    start_button.configure(command=start)
-    stop_button.configure(command=stop)
+    action_button.configure(command=start)
     rule_button.configure(command=open_rule_editor)
     rule_profile_combo.bind("<<ComboboxSelected>>", select_rule_profile)
     root.protocol("WM_DELETE_WINDOW", close)
@@ -5670,10 +5735,21 @@ def main() -> int:
     print("默认生成第 1-15 号结果存档；第 20 号存档仍作为源存档。")
     print("游戏将在独立后台桌面运行，不会占用当前鼠标或抢前台。")
     three_person_mode = os.environ.get("CCZ_RANDOM_MODE") == "three"
+    loop_random = os.environ.get("CCZ_LOOP_RANDOM") == "1"
+    requested_run_stamp = os.environ.get(
+        "CCZ_RUN_STAMP",
+        dt.datetime.now().strftime("%Y-%m-%d %H.%M.%S"),
+    )
+    loop_run_stamp = (
+        resolve_loop_run_stamp(app, requested_run_stamp)
+        if loop_random
+        else requested_run_stamp
+    )
     print(
         "运行模式："
         + ("只随机初始3人" if three_person_mode else "完整7人")
     )
+    print("循环随机：" + ("开启" if loop_random else "关闭"))
     print(f"日志: {log_path}")
     print(f"诊断日志: {DIAGNOSTIC_LOG_PATH}")
     rule_load = load_rule_config(app)
@@ -5689,6 +5765,8 @@ def main() -> int:
         platform=sys.platform,
         build=build_info,
         random_mode="three" if three_person_mode else "seven",
+        loop_random=loop_random,
+        loop_run_stamp=loop_run_stamp if loop_random else None,
         rule_name=rules["activeProfile"],
         rule_source=rule_load.source,
         rule_warning=rule_load.warning,
@@ -5717,12 +5795,11 @@ def main() -> int:
         import task.CczReRandTask as task_module
 
         task_module.SAVE_NUM = 1
-        result_count = int(os.environ.get("CCZ_RESULT_COUNT", "15"))
-        expected_results = {}
-        panel_paths: dict[int, Path] = {}
-        panel_dir, grid_file = initialize_result_output()
-        print(f"本轮结果目录：{panel_dir}")
-        print(f"本轮总图路径：{grid_file}")
+        result_count = (
+            15
+            if loop_random
+            else int(os.environ.get("CCZ_RESULT_COUNT", "15"))
+        )
         game: HiddenGameSession | None = None
 
         def start_game_session(
@@ -5762,172 +5839,292 @@ def main() -> int:
 
         game = start_game_session()
         try:
-            def run_attempt(
-                result_slot: int,
-                _round_index: int,
-                loaded: bool,
-            ) -> AttemptResult:
-                runner = task_module.CczReRandTask(0)
-                runner._target_save_pos = result_slot
-                runner._source_loaded = loaded
-                accepted = runner.run()
-                return AttemptResult(
-                    accepted=accepted,
-                    source_loaded=bool(
-                        getattr(runner, "_source_loaded", False)
-                    ),
-                    payload=runner,
-                )
-
-            def recover_session(
-                exc: BaseException,
-                result_slot: int,
-                round_index: int,
-            ) -> None:
-                nonlocal game
-                diagnostic_log(
-                    "game_session_recovery",
-                    pid=game.pid,
-                    result_slot=result_slot,
-                    round_index=round_index,
-                    error=repr(exc),
-                )
-                print("后台游戏运行异常，正在自动重新启动……")
-                close_game_session(game)
-                game = start_game_session(
-                    restarted=True,
-                    announce=True,
-                )
-
-            def attempt_started(
-                result_slot: int,
-                round_index: int,
-            ) -> None:
-                print(
-                    f"========== 结果 {result_slot}/{result_count}，"
-                    f"原生随机第 {round_index} 轮 =========="
-                )
-
-            def accepted_result(
-                result: AcceptedResult,
-            ) -> None:
-                runner = result.payload
-                result_slot = result.result_slot
-                equip_info = runner.collect_equipment()
-                panel_paths[result_slot] = save_result_image(
-                    runner, equip_info, result_slot
-                )
-                current_grid = compose_result_grid(panel_paths)
-                print(
-                    f"第 {result_slot} 号结果图已生成，"
-                    f"总图已更新：{current_grid}"
-                )
-                expected_results[result_slot] = (
-                    tuple(runner._r0_job_ids),
-                    tuple(runner._r0_initial_three),
-                )
-
-            run_random_workflow(
-                result_count=result_count,
-                max_attempts=10000,
-                run_attempt=run_attempt,
-                recover_session=recover_session,
-                should_recover=lambda exc: session_failure_requires_restart(
-                    game, exc
-                ),
-                on_attempt_started=attempt_started,
-                on_accepted=accepted_result,
-                check_stop=check_stop_requested,
-            )
-            if panel_paths:
-                print(
-                    f"{result_count} 个存档结果图已完成："
-                    f"{result_grid_path()}"
-                )
-
-            if (
-                hashlib.sha256(source_save.read_bytes()).hexdigest()
-                != source_hash
-            ):
-                raise RuntimeError("第 20 号源存档在随机过程中被修改")
-
-            verify_on_title = False
-            for output_slot, (
-                expected_jobs,
-                expected_initial_three,
-            ) in expected_results.items():
-                check_stop_requested()
-                saved_path = (
-                    game_executable.parent
-                    / "SV"
-                    / f"SV{output_slot:03}.E5S"
-                )
-                for recovery_attempt in range(2):
-                    try:
-                        if verify_on_title:
-                            loaded = title_load_verified(
-                                game.pid, output_slot - 1, saved_path
-                            )
-                            verify_on_title = False
-                        else:
-                            loaded = direct_load_verified(
-                                game.pid, output_slot - 1, saved_path
-                            )
-                        if not loaded:
-                            raise RuntimeError(
-                                f"第 {output_slot} 号存档回读时"
-                                "未能完成后台读取"
-                            )
-
-                        initial_three = read_job_ids(
-                            game.pid, JOB_POSITIONS_R0
-                        )
-                        if not three_person_mode:
-                            reloaded_jobs = read_job_ids(
-                                game.pid, JOB_POSITIONS_R1
-                            )
-                        else:
-                            reloaded_jobs = initial_three
-                        validate_reloaded_jobs(
-                            output_slot=output_slot,
-                            expected_jobs=expected_jobs,
-                            expected_initial_three=expected_initial_three,
-                            reloaded_jobs=reloaded_jobs,
-                            initial_three=initial_three,
-                            three_person_mode=three_person_mode,
-                        )
-                        break
-                    except Exception as exc:
-                        if (
-                            recovery_attempt == 0
-                            and session_failure_requires_restart(game, exc)
-                        ):
-                            diagnostic_log(
-                                "verify_session_recovery",
-                                pid=game.pid,
-                                output_slot=output_slot,
-                                error=repr(exc),
-                            )
-                            print(
-                                "后台游戏校验异常，正在自动重新启动……"
-                            )
-                            close_game_session(game)
-                            game = start_game_session(restarted=True)
-                            verify_on_title = True
-                            continue
-                        raise
-                else:
-                    raise RuntimeError(
-                        "后台游戏恢复后仍无法完成回读校验"
+            round_number = 1
+            while True:
+                workspace = None
+                expected_results = {}
+                panel_paths: dict[int, Path] = {}
+                round_started_at = dt.datetime.now()
+                if loop_random:
+                    ensure_loop_disk_space(app)
+                    workspace = prepare_round_workspace(
+                        app,
+                        loop_run_stamp,
+                        round_number,
                     )
+                    panel_dir, grid_file = configure_result_output(
+                        workspace.panels_dir,
+                        workspace.grid_file,
+                        workspace.round_name,
+                    )
+                    print(f"循环轮次开始：第 {round_number} 轮")
+                else:
+                    panel_dir, grid_file = initialize_result_output()
+                print(f"本轮结果目录：{panel_dir}")
+                print(f"本轮总图路径：{grid_file}")
 
-                print(
-                    f"第 {output_slot} 号存档回读校验通过："
-                    f"{reloaded_jobs}"
+                def round_metadata(status_time: dt.datetime) -> dict:
+                    return {
+                        "mode": (
+                            "three" if three_person_mode else "seven"
+                        ),
+                        "ruleName": rules["activeProfile"],
+                        "toolVersion": build_version_text(build_info),
+                        "build": build_info,
+                        "startedAt": round_started_at.isoformat(
+                            timespec="seconds"
+                        ),
+                        "finishedAt": status_time.isoformat(
+                            timespec="seconds"
+                        ),
+                    }
+
+                def archive_incomplete_round() -> Path | None:
+                    if workspace is None:
+                        return None
+                    target = finalize_round(
+                        workspace,
+                        save_dir=game_executable.parent / "SV",
+                        completed_slots=expected_results,
+                        metadata=round_metadata(dt.datetime.now()),
+                        complete=False,
+                    )
+                    if target is None:
+                        return None
+                    final_grid = relocate_result_output(target)
+                    print(f"循环轮次未完成结果：{target}")
+                    if final_grid.is_file():
+                        print(f"本轮总图路径：{final_grid}")
+                    return target
+
+                try:
+                    def run_attempt(
+                        result_slot: int,
+                        _round_index: int,
+                        loaded: bool,
+                    ) -> AttemptResult:
+                        runner = task_module.CczReRandTask(0)
+                        runner._target_save_pos = result_slot
+                        runner._source_loaded = loaded
+                        accepted = runner.run()
+                        return AttemptResult(
+                            accepted=accepted,
+                            source_loaded=bool(
+                                getattr(runner, "_source_loaded", False)
+                            ),
+                            payload=runner,
+                        )
+
+                    def recover_session(
+                        exc: BaseException,
+                        result_slot: int,
+                        round_index: int,
+                    ) -> None:
+                        nonlocal game
+                        diagnostic_log(
+                            "game_session_recovery",
+                            pid=game.pid,
+                            result_slot=result_slot,
+                            round_index=round_index,
+                            loop_round=(
+                                round_number if loop_random else None
+                            ),
+                            error=repr(exc),
+                        )
+                        print(
+                            "后台游戏运行异常，正在自动重新启动……"
+                        )
+                        close_game_session(game)
+                        game = start_game_session(
+                            restarted=True,
+                            announce=True,
+                        )
+
+                    def attempt_started(
+                        result_slot: int,
+                        round_index: int,
+                    ) -> None:
+                        print(
+                            f"========== 结果 {result_slot}/"
+                            f"{result_count}，原生随机第 "
+                            f"{round_index} 轮 =========="
+                        )
+
+                    def accepted_result(
+                        result: AcceptedResult,
+                    ) -> None:
+                        runner = result.payload
+                        result_slot = result.result_slot
+                        equip_info = runner.collect_equipment()
+                        panel_paths[result_slot] = save_result_image(
+                            runner, equip_info, result_slot
+                        )
+                        current_grid = compose_result_grid(panel_paths)
+                        print(
+                            f"第 {result_slot} 号结果图已生成，"
+                            f"总图已更新：{current_grid}"
+                        )
+                        expected_results[result_slot] = (
+                            tuple(runner._r0_job_ids),
+                            tuple(runner._r0_initial_three),
+                        )
+
+                    run_random_workflow(
+                        result_count=result_count,
+                        max_attempts=10000,
+                        run_attempt=run_attempt,
+                        recover_session=recover_session,
+                        should_recover=(
+                            lambda exc: session_failure_requires_restart(
+                                game, exc
+                            )
+                        ),
+                        on_attempt_started=attempt_started,
+                        on_accepted=accepted_result,
+                        check_stop=check_stop_requested,
+                    )
+                    if panel_paths:
+                        print(
+                            f"{result_count} 个存档结果图已完成："
+                            f"{result_grid_path()}"
+                        )
+
+                    if (
+                        hashlib.sha256(source_save.read_bytes()).hexdigest()
+                        != source_hash
+                    ):
+                        raise RuntimeError(
+                            "第 20 号源存档在随机过程中被修改"
+                        )
+
+                    verify_on_title = False
+                    for output_slot, (
+                        expected_jobs,
+                        expected_initial_three,
+                    ) in expected_results.items():
+                        check_stop_requested()
+                        saved_path = (
+                            game_executable.parent
+                            / "SV"
+                            / f"SV{output_slot:03}.E5S"
+                        )
+                        for recovery_attempt in range(2):
+                            try:
+                                if verify_on_title:
+                                    loaded = title_load_verified(
+                                        game.pid,
+                                        output_slot - 1,
+                                        saved_path,
+                                    )
+                                    verify_on_title = False
+                                else:
+                                    loaded = direct_load_verified(
+                                        game.pid,
+                                        output_slot - 1,
+                                        saved_path,
+                                    )
+                                if not loaded:
+                                    raise RuntimeError(
+                                        f"第 {output_slot} 号存档"
+                                        "回读时未能完成后台读取"
+                                    )
+
+                                initial_three = read_job_ids(
+                                    game.pid, JOB_POSITIONS_R0
+                                )
+                                if not three_person_mode:
+                                    reloaded_jobs = read_job_ids(
+                                        game.pid, JOB_POSITIONS_R1
+                                    )
+                                else:
+                                    reloaded_jobs = initial_three
+                                validate_reloaded_jobs(
+                                    output_slot=output_slot,
+                                    expected_jobs=expected_jobs,
+                                    expected_initial_three=(
+                                        expected_initial_three
+                                    ),
+                                    reloaded_jobs=reloaded_jobs,
+                                    initial_three=initial_three,
+                                    three_person_mode=(
+                                        three_person_mode
+                                    ),
+                                )
+                                break
+                            except Exception as exc:
+                                if (
+                                    recovery_attempt == 0
+                                    and session_failure_requires_restart(
+                                        game, exc
+                                    )
+                                ):
+                                    diagnostic_log(
+                                        "verify_session_recovery",
+                                        pid=game.pid,
+                                        output_slot=output_slot,
+                                        loop_round=(
+                                            round_number
+                                            if loop_random
+                                            else None
+                                        ),
+                                        error=repr(exc),
+                                    )
+                                    print(
+                                        "后台游戏校验异常，"
+                                        "正在自动重新启动……"
+                                    )
+                                    close_game_session(game)
+                                    game = start_game_session(
+                                        restarted=True
+                                    )
+                                    verify_on_title = True
+                                    continue
+                                raise
+                        else:
+                            raise RuntimeError(
+                                "后台游戏恢复后仍无法完成回读校验"
+                            )
+
+                        print(
+                            f"第 {output_slot} 号存档回读校验通过："
+                            f"{reloaded_jobs}"
+                        )
+                except KeyboardInterrupt:
+                    archive_incomplete_round()
+                    raise
+
+                if not loop_random:
+                    break
+
+                assert workspace is not None
+                completed_dir = finalize_round(
+                    workspace,
+                    save_dir=game_executable.parent / "SV",
+                    completed_slots=expected_results,
+                    metadata=round_metadata(dt.datetime.now()),
+                    complete=True,
                 )
+                assert completed_dir is not None
+                final_grid = relocate_result_output(completed_dir)
+                print(
+                    f"循环轮次完成：第 {round_number} 轮已完成，"
+                    "共保存15个存档"
+                )
+                print(f"循环轮次结果目录：{completed_dir}")
+                print(f"本轮总图路径：{final_grid}")
+                diagnostic_log(
+                    "loop_round_completed",
+                    round_number=round_number,
+                    path=completed_dir,
+                )
+                round_number += 1
+                check_stop_requested()
         finally:
             close_game_session(game)
-        print(f"{result_count} 个结果存档全部生成并通过回读校验。")
+        if not loop_random:
+            print(
+                f"{result_count} 个结果存档全部生成并通过回读校验。"
+            )
         return 0
     except KeyboardInterrupt:
         diagnostic_log("worker_stopped", reason="keyboard_interrupt")

@@ -266,12 +266,22 @@ int wmain(int argc, wchar_t **argv) {
         process, NULL, dll_bytes, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE
     );
     if (remote_path == NULL) {
+        fwprintf(
+            stderr,
+            L"VirtualAllocEx(dll path) failed: win32=%lu\n",
+            GetLastError()
+        );
         CloseHandle(process);
         return 3;
     }
     if (!WriteProcessMemory(
             process, remote_path, argv[2], dll_bytes, NULL
         )) {
+        fwprintf(
+            stderr,
+            L"WriteProcessMemory(dll path) failed: win32=%lu\n",
+            GetLastError()
+        );
         VirtualFreeEx(process, remote_path, 0, MEM_RELEASE);
         CloseHandle(process);
         return 4;
@@ -338,6 +348,11 @@ int wmain(int argc, wchar_t **argv) {
         PAGE_READWRITE
     );
     if (remote_request == NULL) {
+        fwprintf(
+            stderr,
+            L"VirtualAllocEx(request) failed: win32=%lu\n",
+            GetLastError()
+        );
         FreeLibrary(local_module);
         CloseHandle(process);
         return 9;

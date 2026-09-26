@@ -445,6 +445,7 @@ RESULT_BASE_DIR: Path | None = None
 DIAGNOSTIC_LOG_PATH: Path | None = None
 DIAGNOSTIC_LOG_WRITER: RotatingTextWriter | None = None
 DIAGNOSTIC_LOCK = threading.Lock()
+INTERACTION_FAILURE_SCREENSHOT_LIMIT = 5
 UNKNOWN_EQUIPMENT_EFFECTS: set[tuple[int, int]] = set()
 CWP_SKIPINVISIBLE = 0x0001
 CWP_SKIPDISABLED = 0x0002
@@ -2655,6 +2656,14 @@ def click_geometry_diagnostic(game: int) -> dict[str, object]:
 
 def capture_interaction_failure(pid: int, game: int) -> str | None:
     if DIAGNOSTIC_LOG_PATH is None:
+        return None
+    screenshot_pattern = (
+        f"{DIAGNOSTIC_LOG_PATH.stem}_interaction_failure_*.png"
+    )
+    existing_count = sum(
+        1 for _path in DIAGNOSTIC_LOG_PATH.parent.glob(screenshot_pattern)
+    )
+    if existing_count >= INTERACTION_FAILURE_SCREENSHOT_LIMIT:
         return None
     output = DIAGNOSTIC_LOG_PATH.with_name(
         f"{DIAGNOSTIC_LOG_PATH.stem}_interaction_failure_"
@@ -4970,15 +4979,29 @@ def patch_runtime(
                 ),
             )
             npc_click_started = time.perf_counter()
-            run_native_control(
-                pid,
-                [
-                    "silent-click",
-                    str(game),
-                    str(XU_CLIENT_POSITION[0]),
-                    str(XU_CLIENT_POSITION[1]),
-                ],
-            )
+            try:
+                run_native_control(
+                    pid,
+                    [
+                        "silent-click",
+                        str(game),
+                        str(XU_CLIENT_POSITION[0]),
+                        str(XU_CLIENT_POSITION[1]),
+                    ],
+                )
+            except NativeControlError as exc:
+                if reused_session:
+                    diagnostic_log(
+                        "direct_reload_native_control_failed",
+                        pid=pid,
+                        hwnd=game,
+                        return_code=exc.return_code,
+                        error=repr(exc),
+                    )
+                    raise DirectReloadUnsupported(
+                        "当前设备的后台快速读档会导致后续交互组件失效"
+                    ) from exc
+                raise
             time.sleep(0.5)
             after_npc = read_job_ids(pid, active_positions)
             diagnostic_log(

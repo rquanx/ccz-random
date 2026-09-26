@@ -4,6 +4,7 @@ import ast
 from pathlib import Path
 from unittest.mock import patch
 
+import ccz_randomizer.app as app_module
 from fast_randomizer import (
     EQUIPMENT_NAMES,
     INITIAL_TEAM_MEMBERS,
@@ -41,6 +42,32 @@ class FakeGameSession:
 
 
 class SessionManagementTests(unittest.TestCase):
+    def test_interaction_failure_screenshots_are_limited_per_run(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            diagnostic_path = (
+                root / "fast_20260926_120000_diagnostic.jsonl"
+            )
+            for index in range(
+                app_module.INTERACTION_FAILURE_SCREENSHOT_LIMIT
+            ):
+                (
+                    root
+                    / (
+                        f"{diagnostic_path.stem}_interaction_failure_"
+                        f"{index}.png"
+                    )
+                ).write_bytes(b"png")
+
+            with patch.object(
+                app_module,
+                "DIAGNOSTIC_LOG_PATH",
+                diagnostic_path,
+            ):
+                result = app_module.capture_interaction_failure(1, 2)
+
+            self.assertIsNone(result)
+
     def test_tee_ignores_missing_windowed_stream(self):
         output = tempfile.SpooledTemporaryFile(mode="w+", encoding="utf-8")
         tee = Tee(None, output)

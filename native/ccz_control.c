@@ -83,6 +83,7 @@ static HWND synthetic_root = NULL;
 static HWND synthetic_focus = NULL;
 static volatile LONG synthetic_left_down = 0;
 static volatile LONG synthetic_right_down = 0;
+static volatile LONG input_hook_update_lock = 0;
 static InlineHook key_state_hook;
 static InlineHook async_key_state_hook;
 static InlineHook cursor_pos_hook;
@@ -1913,6 +1914,9 @@ static HWND WINAPI hooked_create_dialog_indirect_param_a(
 static BOOL install_hook(
     InlineHook *hook, const char *name, const void *replacement
 ) {
+    if (hook->installed) {
+        return TRUE;
+    }
     HMODULE user = GetModuleHandleW(L"user32.dll");
     BYTE *target = (BYTE *)GetProcAddress(user, name);
     if (target == NULL) {
@@ -1996,6 +2000,43 @@ static void remove_input_hooks(void) {
     remove_hook(&cursor_pos_hook);
     remove_hook(&async_key_state_hook);
     remove_hook(&key_state_hook);
+}
+
+static void update_input_hooks_safely(HWND window, BOOL install) {
+    while (InterlockedCompareExchange(
+            &input_hook_update_lock, 1, 0
+        ) != 0) {
+        Sleep(1);
+    }
+
+    HANDLE window_thread = NULL;
+    DWORD window_thread_id = GetWindowThreadProcessId(window, NULL);
+    if (
+        window_thread_id != 0 &&
+        window_thread_id != GetCurrentThreadId()
+    ) {
+        window_thread = OpenThread(
+            THREAD_SUSPEND_RESUME, FALSE, window_thread_id
+        );
+        if (window_thread != NULL) {
+            if (SuspendThread(window_thread) == (DWORD)-1) {
+                CloseHandle(window_thread);
+                window_thread = NULL;
+            }
+        }
+    }
+
+    if (install) {
+        install_input_hooks();
+    } else {
+        remove_input_hooks();
+    }
+
+    if (window_thread != NULL) {
+        ResumeThread(window_thread);
+        CloseHandle(window_thread);
+    }
+    InterlockedExchange(&input_hook_update_lock, 0);
 }
 
 static HWND find_list_dialog(void) {
@@ -2210,7 +2251,7 @@ static void post_synthetic_click(
     remove_hook(&foreground_window_hook);
     SetForegroundWindow(root);
     activate_control(window);
-    install_input_hooks();
+    update_input_hooks_safely(window, TRUE);
     SendMessageW(
         root,
         WM_ACTIVATEAPP,
@@ -2256,7 +2297,7 @@ static void post_synthetic_click(
     }
 
     Sleep(1800);
-    remove_input_hooks();
+    update_input_hooks_safely(window, FALSE);
     if (
         previous_foreground != NULL &&
         previous_foreground != root &&
@@ -2289,7 +2330,7 @@ static DWORD post_silent_click_timed(
         return 81;
     }
 
-    install_input_hooks();
+    update_input_hooks_safely(window, TRUE);
     PostMessageW(
         synthetic_root,
         WM_ACTIVATEAPP,
@@ -2319,7 +2360,7 @@ static DWORD post_silent_click_timed(
         window, WM_LBUTTONUP, 0, MAKELPARAM(x, y)
     );
     Sleep((DWORD)tail_delay_ms);
-    remove_input_hooks();
+    update_input_hooks_safely(window, FALSE);
     return 0;
 }
 
@@ -2344,7 +2385,7 @@ static DWORD post_silent_click_burst(
         return 149;
     }
 
-    install_input_hooks();
+    update_input_hooks_safely(window, TRUE);
     PostMessageW(
         synthetic_root,
         WM_ACTIVATEAPP,
@@ -2379,7 +2420,7 @@ static DWORD post_silent_click_burst(
         );
         Sleep(95);
     }
-    remove_input_hooks();
+    update_input_hooks_safely(window, FALSE);
     return 0;
 }
 

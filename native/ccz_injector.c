@@ -27,6 +27,19 @@ typedef LONG (NTAPI *NtCreateThreadExFunction)(
     PVOID
 );
 
+enum InjectorError {
+    ERROR_INJECTOR_LOAD_WAIT_FAILED = 200,
+    ERROR_INJECTOR_LOAD_TIMEOUT = 201,
+    ERROR_INJECTOR_LOAD_EXIT_FAILED = 202,
+    ERROR_INJECTOR_LOAD_STILL_ACTIVE = 203,
+    ERROR_INJECTOR_REMOTE_MODULE_INVALID = 204,
+    ERROR_INJECTOR_REQUEST_WRITE_FAILED = 205,
+    ERROR_INJECTOR_CONTROL_WAIT_FAILED = 206,
+    ERROR_INJECTOR_CONTROL_TIMEOUT = 207,
+    ERROR_INJECTOR_CONTROL_EXIT_FAILED = 208,
+    ERROR_INJECTOR_CONTROL_STILL_ACTIVE = 209
+};
+
 static HANDLE create_remote_thread_compatible(
     HANDLE process,
     LPTHREAD_START_ROUTINE start_routine,
@@ -71,6 +84,25 @@ static HANDLE create_remote_thread_compatible(
         return NULL;
     }
     return thread;
+}
+
+static BOOL is_remote_module_valid(HANDLE process, DWORD module) {
+    IMAGE_DOS_HEADER dos_header;
+    SIZE_T bytes_read = 0;
+    if (module == 0 || module == STILL_ACTIVE) {
+        return FALSE;
+    }
+    if (!ReadProcessMemory(
+            process,
+            (LPCVOID)(ULONG_PTR)module,
+            &dos_header,
+            sizeof(dos_header),
+            &bytes_read
+        )) {
+        return FALSE;
+    }
+    return bytes_read == sizeof(dos_header) &&
+        dos_header.e_magic == IMAGE_DOS_SIGNATURE;
 }
 
 int wmain(int argc, wchar_t **argv) {
@@ -310,15 +342,64 @@ int wmain(int argc, wchar_t **argv) {
         CloseHandle(process);
         return 5;
     }
-    WaitForSingleObject(load_thread, 5000);
+    DWORD load_wait = WaitForSingleObject(load_thread, 5000);
+    if (load_wait == WAIT_TIMEOUT) {
+        fwprintf(
+            stderr,
+            L"LoadLibrary remote thread timed out: wait=%lu, timeout_ms=5000\n",
+            load_wait
+        );
+        CloseHandle(load_thread);
+        CloseHandle(process);
+        return ERROR_INJECTOR_LOAD_TIMEOUT;
+    }
+    if (load_wait != WAIT_OBJECT_0) {
+        fwprintf(
+            stderr,
+            L"LoadLibrary remote thread wait failed: wait=%lu, win32=%lu\n",
+            load_wait,
+            GetLastError()
+        );
+        CloseHandle(load_thread);
+        CloseHandle(process);
+        return ERROR_INJECTOR_LOAD_WAIT_FAILED;
+    }
 
     DWORD remote_module = 0;
-    GetExitCodeThread(load_thread, &remote_module);
+    if (!GetExitCodeThread(load_thread, &remote_module)) {
+        fwprintf(
+            stderr,
+            L"GetExitCodeThread(LoadLibrary) failed: win32=%lu\n",
+            GetLastError()
+        );
+        CloseHandle(load_thread);
+        VirtualFreeEx(process, remote_path, 0, MEM_RELEASE);
+        CloseHandle(process);
+        return ERROR_INJECTOR_LOAD_EXIT_FAILED;
+    }
     CloseHandle(load_thread);
     VirtualFreeEx(process, remote_path, 0, MEM_RELEASE);
+    if (remote_module == STILL_ACTIVE) {
+        fwprintf(
+            stderr,
+            L"LoadLibrary remote thread still active after signaled wait\n"
+        );
+        CloseHandle(process);
+        return ERROR_INJECTOR_LOAD_STILL_ACTIVE;
+    }
     if (remote_module == 0) {
         CloseHandle(process);
         return 6;
+    }
+    if (!is_remote_module_valid(process, remote_module)) {
+        fwprintf(
+            stderr,
+            L"LoadLibrary returned invalid module: module=0x%08lX, win32=%lu\n",
+            remote_module,
+            GetLastError()
+        );
+        CloseHandle(process);
+        return ERROR_INJECTOR_REMOTE_MODULE_INVALID;
     }
 
     HMODULE local_module = LoadLibraryExW(
@@ -357,9 +438,26 @@ int wmain(int argc, wchar_t **argv) {
         CloseHandle(process);
         return 9;
     }
-    WriteProcessMemory(
-        process, remote_request, &request, sizeof(request), NULL
-    );
+    SIZE_T request_bytes_written = 0;
+    if (!WriteProcessMemory(
+            process,
+            remote_request,
+            &request,
+            sizeof(request),
+            &request_bytes_written
+        ) || request_bytes_written != sizeof(request)) {
+        fwprintf(
+            stderr,
+            L"WriteProcessMemory(request) failed: win32=%lu, written=%Iu, expected=%Iu\n",
+            GetLastError(),
+            request_bytes_written,
+            sizeof(request)
+        );
+        VirtualFreeEx(process, remote_request, 0, MEM_RELEASE);
+        FreeLibrary(local_module);
+        CloseHandle(process);
+        return ERROR_INJECTOR_REQUEST_WRITE_FAILED;
+    }
 
     DWORD control_thread_error = ERROR_SUCCESS;
     LONG control_nt_status = 0;
@@ -386,17 +484,84 @@ int wmain(int argc, wchar_t **argv) {
     DWORD control_timeout = (
         request.action == 15 || request.action == 25 ||
         request.action == 41
-    ) ? 70000 : 20000;
-    WaitForSingleObject(control_thread, control_timeout);
+    ) ? 65000 : 7000;
+    DWORD control_wait = WaitForSingleObject(
+        control_thread, control_timeout
+    );
+    if (control_wait == WAIT_TIMEOUT) {
+        fwprintf(
+            stderr,
+            L"ControlAction remote thread timed out: action=%d, "
+            L"wait=%lu, timeout_ms=%lu, remote_module=0x%08lX, "
+            L"remote_export=0x%08lX\n",
+            request.action,
+            control_wait,
+            control_timeout,
+            remote_module,
+            (DWORD)(ULONG_PTR)remote_export
+        );
+        CloseHandle(control_thread);
+        FreeLibrary(local_module);
+        CloseHandle(process);
+        return ERROR_INJECTOR_CONTROL_TIMEOUT;
+    }
+    if (control_wait != WAIT_OBJECT_0) {
+        fwprintf(
+            stderr,
+            L"ControlAction remote thread wait failed: action=%d, "
+            L"wait=%lu, win32=%lu\n",
+            request.action,
+            control_wait,
+            GetLastError()
+        );
+        CloseHandle(control_thread);
+        FreeLibrary(local_module);
+        CloseHandle(process);
+        return ERROR_INJECTOR_CONTROL_WAIT_FAILED;
+    }
+
     DWORD result = 11;
-    GetExitCodeThread(control_thread, &result);
+    if (!GetExitCodeThread(control_thread, &result)) {
+        fwprintf(
+            stderr,
+            L"GetExitCodeThread(ControlAction) failed: action=%d, win32=%lu\n",
+            request.action,
+            GetLastError()
+        );
+        CloseHandle(control_thread);
+        VirtualFreeEx(process, remote_request, 0, MEM_RELEASE);
+        FreeLibrary(local_module);
+        CloseHandle(process);
+        return ERROR_INJECTOR_CONTROL_EXIT_FAILED;
+    }
     CloseHandle(control_thread);
     VirtualFreeEx(process, remote_request, 0, MEM_RELEASE);
     FreeLibrary(local_module);
     CloseHandle(process);
+    if (result == STILL_ACTIVE) {
+        fwprintf(
+            stderr,
+            L"ControlAction remote thread still active after signaled wait: "
+            L"action=%d\n",
+            request.action
+        );
+        return ERROR_INJECTOR_CONTROL_STILL_ACTIVE;
+    }
     if (request.action == 9 || request.action == 10) {
         wprintf(L"%lu\n", result);
         return 0;
+    }
+    if (result != 0) {
+        fwprintf(
+            stderr,
+            L"ControlAction returned failure: action=%d, result=%lu "
+            L"(0x%08lX), remote_module=0x%08lX, remote_export=0x%08lX\n",
+            request.action,
+            result,
+            result,
+            remote_module,
+            (DWORD)(ULONG_PTR)remote_export
+        );
     }
     return (int)result;
 }

@@ -50,6 +50,7 @@ from ccz_randomizer.runtime.log_retention import (
     trim_text_widget,
 )
 from ccz_randomizer.runtime.loader import install
+from ccz_randomizer.preferences import load_random_mode, save_random_mode
 from ccz_randomizer.workflow.randomization import (
     AcceptedResult,
     AttemptResult,
@@ -7086,7 +7087,7 @@ def gui_main() -> int:
     stop_file: Path | None = None
     stop_requested_by_user = False
     last_formatted_line = ""
-    mode_var = tk.StringVar(value="seven")
+    mode_var = tk.StringVar(value=load_random_mode(app_dir()))
     loop_var = tk.BooleanVar(value=False)
     rule_load = load_rule_config(app_dir())
     current_rules = rule_load.config
@@ -7199,17 +7200,26 @@ def gui_main() -> int:
     tk.Label(settings_bar, text="运行模式").pack(side="left", padx=(0, 6))
     mode_frame = tk.Frame(settings_bar)
     mode_frame.pack(side="left", padx=(0, 18))
+
+    def persist_random_mode() -> None:
+        try:
+            save_random_mode(app_dir(), mode_var.get())
+        except (OSError, ValueError):
+            show_toast(root, "运行模式保存失败，请检查工具目录是否可写。")
+
     seven_mode_button = tk.Radiobutton(
         mode_frame,
         text="完整7人",
         variable=mode_var,
         value="seven",
+        command=persist_random_mode,
     )
     three_mode_button = tk.Radiobutton(
         mode_frame,
         text="只随机初始3人",
         variable=mode_var,
         value="three",
+        command=persist_random_mode,
     )
     seven_mode_button.pack(side="left")
     three_mode_button.pack(side="left", padx=(8, 0))

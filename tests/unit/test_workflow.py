@@ -190,6 +190,31 @@ class WorkflowTests(unittest.TestCase):
                 check_stop=check_stop,
             )
 
+    def test_stop_request_prevents_recovery_after_attempt_error(self):
+        recoveries = []
+        stop_requested = False
+
+        def run_attempt(*_args):
+            nonlocal stop_requested
+            stop_requested = True
+            raise RuntimeError("game unavailable")
+
+        def check_stop():
+            if stop_requested:
+                raise KeyboardInterrupt
+
+        with self.assertRaises(KeyboardInterrupt):
+            run_random_workflow(
+                result_count=1,
+                max_attempts=1,
+                run_attempt=run_attempt,
+                recover_session=lambda *_args: recoveries.append("restart"),
+                should_recover=lambda _exc: True,
+                check_stop=check_stop,
+            )
+
+        self.assertEqual([], recoveries)
+
     def test_attempt_limit_has_clear_error(self):
         with self.assertRaisesRegex(
             RuntimeError,

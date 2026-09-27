@@ -41,6 +41,7 @@ from fast_randomizer import (
     run_initial_inspection_process_once,
     run_inspection_cli_with_diagnostics,
     run_inspection_process,
+    run_native_control,
     session_failure_requires_restart,
     trigger_seven_member_story,
     trigger_random_choice_click,
@@ -56,6 +57,53 @@ class FakeGameSession:
 
 
 class SessionManagementTests(unittest.TestCase):
+    def test_native_control_stops_without_waiting_for_timeout(self):
+        class FakeProcess:
+            returncode = None
+
+            def __init__(self):
+                self.terminated = False
+
+            def poll(self):
+                return self.returncode
+
+            def terminate(self):
+                self.terminated = True
+                self.returncode = 130
+
+            def wait(self, timeout=None):
+                return self.returncode
+
+            def kill(self):
+                self.returncode = 130
+
+            def communicate(self):
+                return b"", b""
+
+        with tempfile.TemporaryDirectory() as temporary:
+            native_dir = Path(temporary)
+            (native_dir / "ccz_injector.exe").write_bytes(b"test")
+            (native_dir / "ccz_control.dll").write_bytes(b"test")
+            stop_file = native_dir / "stop"
+            stop_file.write_text("stop", encoding="ascii")
+            process = FakeProcess()
+            with (
+                patch("fast_randomizer.native_dir", return_value=native_dir),
+                patch("fast_randomizer.subprocess.Popen", return_value=process),
+                patch("fast_randomizer.STOP_FILE_PATH", stop_file),
+                patch("fast_randomizer.diagnostic_log") as diagnostic,
+            ):
+                with self.assertRaises(KeyboardInterrupt):
+                    run_native_control(123, ["silent-burst"])
+
+        self.assertTrue(process.terminated)
+        self.assertTrue(
+            any(
+                call.args[0] == "native_control_cancelled"
+                for call in diagnostic.call_args_list
+            )
+        )
+
     def test_normal_load_uses_game_menu_and_verifies_memory(self):
         with tempfile.TemporaryDirectory() as temporary:
             save_path = Path(temporary) / "SV020.E5S"
@@ -341,7 +389,9 @@ class SessionManagementTests(unittest.TestCase):
                 "fast_randomizer.read_memory",
                 return_value=bytes(ready_state),
             ),
-            patch("fast_randomizer.time.sleep") as sleep,
+            patch(
+                "fast_randomizer.interruptible_sleep"
+            ) as interruptible_sleep,
             patch("fast_randomizer.diagnostic_log") as diagnostic,
             patch(
                 "fast_randomizer.capture_interaction_failure",
@@ -372,7 +422,7 @@ class SessionManagementTests(unittest.TestCase):
                 unittest.mock.call(0.5),
                 unittest.mock.call(0.5),
             ],
-            sleep.call_args_list,
+            interruptible_sleep.call_args_list,
         )
         self.assertFalse(ready)
         capture_failure.assert_called_once()
@@ -398,7 +448,7 @@ class SessionManagementTests(unittest.TestCase):
                 "fast_randomizer.read_memory",
                 side_effect=[bytes(pending), bytes(ready)],
             ),
-            patch("fast_randomizer.time.sleep"),
+            patch("fast_randomizer.interruptible_sleep"),
             patch("fast_randomizer.diagnostic_log") as diagnostic,
         ):
             result = advance_seven_member_story(123, 456)

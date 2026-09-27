@@ -65,9 +65,11 @@ def run_random_workflow(
                         round_index,
                         source_loaded,
                     )
+                    stop_check()
                     source_loaded = attempt.source_loaded
                     break
                 except Exception as exc:
+                    stop_check()
                     will_recover = (
                         recovery_attempt == 0 and should_recover(exc)
                     )
@@ -81,7 +83,9 @@ def run_random_workflow(
                             will_recover,
                         )
                     if will_recover:
+                        stop_check()
                         recover_session(exc, result_slot, round_index)
+                        stop_check()
                         source_loaded = False
                         continue
                     raise
@@ -89,6 +93,7 @@ def run_random_workflow(
                 raise RuntimeError("后台游戏恢复后仍无法继续随机")
 
             if on_attempt_finished is not None:
+                stop_check()
                 on_attempt_finished(result_slot, round_index, attempt)
             if attempt.accepted:
                 accepted = AcceptedResult(
@@ -98,8 +103,10 @@ def run_random_workflow(
                 )
                 accepted_results.append(accepted)
                 if on_accepted is not None:
+                    stop_check()
                     try:
                         on_accepted(accepted)
+                        stop_check()
                     except Exception as exc:
                         if on_accepted_error is None:
                             raise

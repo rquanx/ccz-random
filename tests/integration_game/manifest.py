@@ -92,6 +92,11 @@ CASES = (
         "验证游戏启动和循环状态",
     ),
     GameCase(
+        "stop-during-randomization",
+        "case_stop_during_randomization.py",
+        "验证停止请求可中断当前步骤且不会触发异常重启",
+    ),
+    GameCase(
         "tick-transition",
         "case_tick_transition.py",
         "记录游戏主循环状态切换",

@@ -516,6 +516,7 @@ RESULT_ROOT: Path | None = None
 RESULT_PANEL_DIR: Path | None = None
 RESULT_GRID_FILE: Path | None = None
 STOP_REQUESTED = False
+STOP_FILE_PATH: Path | None = None
 RESULT_BASE_DIR: Path | None = None
 DIAGNOSTIC_LOG_PATH: Path | None = None
 DIAGNOSTIC_LOG_WRITER: RotatingTextWriter | None = None
@@ -1105,6 +1106,27 @@ class SecuritySoftwareDetected(RuntimeError):
     """A known incompatible security product is currently active."""
 
 
+def stop_is_requested() -> bool:
+    return STOP_REQUESTED or (
+        STOP_FILE_PATH is not None and STOP_FILE_PATH.exists()
+    )
+
+
+def check_stop_requested() -> None:
+    if stop_is_requested():
+        raise KeyboardInterrupt
+
+
+def interruptible_sleep(seconds: float, interval: float = 0.05) -> None:
+    deadline = time.perf_counter() + max(0.0, seconds)
+    while True:
+        check_stop_requested()
+        remaining = deadline - time.perf_counter()
+        if remaining <= 0:
+            return
+        time.sleep(min(interval, remaining))
+
+
 def run_native_control(pid: int, arguments: list[str]) -> None:
     injector = native_dir() / "ccz_injector.exe"
     control_dll = native_dir() / "ccz_control.dll"
@@ -1128,33 +1150,64 @@ def run_native_control(pid: int, arguments: list[str]) -> None:
         *arguments,
     ]
     started = time.perf_counter()
-    try:
-        result = subprocess.run(
-            command,
-            check=False,
-            capture_output=True,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-            timeout=timeout,
-        )
-    except subprocess.TimeoutExpired as exc:
+    process = subprocess.Popen(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    )
+    deadline = time.perf_counter() + timeout
+    while process.poll() is None:
+        if stop_is_requested():
+            process.terminate()
+            try:
+                process.wait(timeout=1)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=1)
+            diagnostic_log(
+                "native_control_cancelled",
+                pid=pid,
+                action=arguments,
+                elapsed_ms=round(
+                    (time.perf_counter() - started) * 1000
+                ),
+            )
+            raise KeyboardInterrupt
+        if time.perf_counter() >= deadline:
+            process.kill()
+            stdout, stderr = process.communicate()
+            elapsed_ms = round((time.perf_counter() - started) * 1000)
+            diagnostic_log(
+                "native_control_timeout",
+                pid=pid,
+                action=arguments,
+                timeout_seconds=timeout,
+                elapsed_ms=elapsed_ms,
+                running_as_admin=is_running_as_admin(),
+                windows=sys.getwindowsversion(),
+                injector=file_diagnostic(injector),
+                control_dll=file_diagnostic(control_dll),
+                stdout=stdout.decode(errors="replace"),
+                stderr=stderr.decode(errors="replace"),
+            )
+            raise NativeControlTimeout(
+                "静默控件模块响应超时"
+                + native_control_error_hint(-1)
+            )
+        time.sleep(0.05)
+    stdout, stderr = process.communicate()
+    result = subprocess.CompletedProcess(
+        command,
+        process.returncode,
+        stdout,
+        stderr,
+    )
+    if process.returncode is None:
         elapsed_ms = round((time.perf_counter() - started) * 1000)
-        diagnostic_log(
-            "native_control_timeout",
-            pid=pid,
-            action=arguments,
-            timeout_seconds=timeout,
-            elapsed_ms=elapsed_ms,
-            running_as_admin=is_running_as_admin(),
-            windows=sys.getwindowsversion(),
-            injector=file_diagnostic(injector),
-            control_dll=file_diagnostic(control_dll),
-            stdout=(exc.stdout or b"").decode(errors="replace"),
-            stderr=(exc.stderr or b"").decode(errors="replace"),
+        raise RuntimeError(
+            f"静默控件模块未返回退出状态，已等待 {elapsed_ms} 毫秒"
         )
-        raise NativeControlTimeout(
-            "静默控件模块响应超时"
-            + native_control_error_hint(-1)
-        ) from exc
     elapsed_ms = round((time.perf_counter() - started) * 1000)
     if result.returncode != 0:
         stdout = result.stdout.decode(errors="replace").strip()
@@ -1572,6 +1625,7 @@ class HiddenGameSession:
 
     def __enter__(self) -> "HiddenGameSession":
         global WINDOW_DESKTOP
+        check_stop_requested()
         self.foreground_before = user32.GetForegroundWindow()
         if self.use_isolated_desktop:
             self.desktop = user32.CreateDesktopW(
@@ -1661,7 +1715,7 @@ class HiddenGameSession:
                     )
             if kernel32.ResumeThread(process_info.hThread) == 0xFFFFFFFF:
                 raise ctypes.WinError(ctypes.get_last_error())
-        except Exception:
+        except BaseException:
             if self.process:
                 kernel32.TerminateProcess(self.process, 1)
                 kernel32.WaitForSingleObject(self.process, 3000)
@@ -1680,6 +1734,7 @@ class HiddenGameSession:
 
         deadline = time.perf_counter() + 15
         while time.perf_counter() < deadline:
+            check_stop_requested()
             for hwnd in process_windows(self.pid, visible_only=False):
                 if window_class(hwnd) == "SOUSOU":
                     self.main_window = hwnd
@@ -1688,7 +1743,7 @@ class HiddenGameSession:
                 break
             if kernel32.WaitForSingleObject(self.process, 0) == 0:
                 raise RuntimeError("静默游戏实例启动后立即退出")
-            time.sleep(0.01)
+            interruptible_sleep(0.01)
         if not self.main_window:
             raise RuntimeError("静默游戏实例启动超时")
 
@@ -1712,7 +1767,7 @@ class HiddenGameSession:
             and user32.IsWindow(self.foreground_before)
         ):
             user32.SetForegroundWindow(self.foreground_before)
-        time.sleep(0.25)
+        interruptible_sleep(0.25)
 
         foreground_after = user32.GetForegroundWindow()
         if window_process_id(foreground_after) == self.pid:
@@ -3707,6 +3762,7 @@ def trigger_seven_member_story(
     before = print_window_mat(main_window)
     last_difference = 0.0
     for attempt in range(1, 4):
+        check_stop_requested()
         method = "silent_click"
         try:
             native_silent_click(
@@ -3733,7 +3789,7 @@ def trigger_seven_member_story(
                 False,
             )
         native_wake_game(pid, main_window, 800)
-        time.sleep(0.35)
+        interruptible_sleep(0.35)
         after = print_window_mat(main_window)
         if (
             before.shape == after.shape
@@ -4672,6 +4728,7 @@ def advance_seven_member_story(
 ) -> bool:
     """Advance helper dialogue and the skipped-battle deployment screen."""
     for round_index in range(1, rounds + 1):
+        check_stop_requested()
         native_silent_click_burst(
             main_window,
             360,
@@ -4679,7 +4736,8 @@ def advance_seven_member_story(
             clicks_per_round,
         )
         native_wake_game(pid, main_window, 500)
-        time.sleep(0.5)
+        interruptible_sleep(0.5)
+        check_stop_requested()
         ready = seven_member_scene_ready(pid)
         diagnostic_log(
             "seven_member_story_progress",
@@ -4741,11 +4799,12 @@ def capture_initial_member_panels(
     member_names = tuple(member[0] for member in INITIAL_TEAM_MEMBERS)
     info_hwnd = 0
     for attempt in range(1, 5):
+        check_stop_requested()
         runner.openPeople()
         if runner.peopleWind.isInitSuccess():
             break
         native_wake_game(pid, main_window, 600)
-        time.sleep(0.2)
+        interruptible_sleep(0.2)
     else:
         raise RuntimeError("初始三人检查未能打开武将列表")
     try:
@@ -4753,23 +4812,25 @@ def capture_initial_member_panels(
             pid,
             ["list-window", str(runner.peopleWind.hwnd), "0"],
         )
-        time.sleep(0.6)
+        interruptible_sleep(0.6)
         deadline = time.perf_counter() + 8.0
         shown_name = ""
         while time.perf_counter() < deadline:
+            check_stop_requested()
             runner.initPeopleInfoWind()
             info_hwnd, shown_name = find_any_member_dialog(
                 pid, member_names
             )
             if info_hwnd:
                 break
-            time.sleep(0.05)
+            interruptible_sleep(0.05)
         if not info_hwnd:
             raise RuntimeError("初始三人检查未能打开曹操能力窗口")
 
         panels = []
         members = initial_team_members(task_module.TEAM_MEMBER_LIST)
         for index, expected_name in enumerate(member_names):
+            check_stop_requested()
             shown_name = current_dialog_member(info_hwnd, member_names)
             if shown_name != expected_name:
                 raise RuntimeError(
@@ -4808,6 +4869,7 @@ def capture_initial_member_panels(
                 skills=[skill.name for skill in members[index].skillList],
             )
             if index + 1 < len(member_names):
+                check_stop_requested()
                 info_hwnd = advance_people_info(
                     pid,
                     main_window,
@@ -4825,7 +4887,7 @@ def capture_initial_member_panels(
         )
         if people_hwnd and user32.IsWindow(people_hwnd):
             runner.closePeopleWindow()
-            time.sleep(0.3)
+            interruptible_sleep(0.3)
         current_main = find_process_window_by_class(pid, "SOUSOU")
         if current_main:
             try:
@@ -5721,6 +5783,7 @@ def patch_runtime(
         )
 
     def robust_load_and_confirm(self, index: int) -> None:
+        check_stop_requested()
         if not getattr(self, "wind", None):
             self.initWind()
         game = self.wind.hwnd if getattr(self, "wind", None) else 0
@@ -5736,6 +5799,7 @@ def patch_runtime(
 
         deadline = time.perf_counter() + 10
         while time.perf_counter() < deadline:
+            check_stop_requested()
             alerts = [
                 row
                 for row in visible_owned_windows(game)
@@ -5749,12 +5813,12 @@ def patch_runtime(
                 and user32.IsWindowEnabled(game)
             ):
                 native_wake_game(pid, game, 1800)
-                time.sleep(0.3)
+                interruptible_sleep(0.3)
                 return
             for alert, _title, _rect in alerts:
                 activate_hidden_window(alert)
                 click_leftmost_dialog_button(alert)
-            time.sleep(0.2)
+            interruptible_sleep(0.2)
         remaining = [
             (window_class(hwnd), window_text(hwnd))
             for hwnd in process_windows(pid)
@@ -5765,18 +5829,21 @@ def patch_runtime(
         )
 
     def robust_save_and_confirm(self, index: int) -> None:
+        check_stop_requested()
         output = app_dir() / "SV" / f"SV{index:03}.E5S"
         before_mtime = output.stat().st_mtime_ns if output.is_file() else None
         native_direct_save(pid, index - 1)
         deadline = time.perf_counter() + 5
         while time.perf_counter() < deadline:
+            check_stop_requested()
             if output.is_file() and output.stat().st_mtime_ns != before_mtime:
-                time.sleep(0.3)
+                interruptible_sleep(0.3)
                 return
-            time.sleep(0.1)
+            interruptible_sleep(0.1)
         raise RuntimeError(f"第 {index} 号存档未能完成游戏原生保存")
 
     def fast_check_people_at_r0(self) -> bool:
+        check_stop_requested()
         positions = (
             JOB_POSITIONS_R0 if three_person_mode else JOB_POSITIONS_R1
         )
@@ -5902,6 +5969,7 @@ def patch_runtime(
         return success
 
     def collect_equipment(self):
+        check_stop_requested()
         records = read_equipment_records(pid)
         equip_info, effects = decode_equipment_records(records)
         self._equip_info = equip_info
@@ -5960,8 +6028,10 @@ def patch_runtime(
         return original_version_check(self)
 
     def direct_open_people(self) -> None:
+        check_stop_requested()
         self.initWind()
         for attempt in range(1, 5):
+            check_stop_requested()
             self.initPeopleWind()
             if self.peopleWind.isInitSuccess():
                 return
@@ -6029,12 +6099,13 @@ def patch_runtime(
             )
             deadline = time.perf_counter() + 3.0
             while time.perf_counter() < deadline:
-                time.sleep(0.15)
+                interruptible_sleep(0.15)
                 self.initPeopleWind()
                 if self.peopleWind.isInitSuccess():
                     return
 
     def direct_click_people(self, index: int) -> None:
+        check_stop_requested()
         main_window = find_process_window_by_class(pid, "SOUSOU")
         for hwnd in process_windows(pid, visible_only=False):
             if window_text(hwnd) == "武将情报":
@@ -6044,6 +6115,7 @@ def patch_runtime(
             member.name for member in task_module.TEAM_MEMBER_LIST
         )
         for method in ("list_window_command", "injected_row_click"):
+            check_stop_requested()
             try:
                 if method == "list_window_command":
                     run_native_control(
@@ -6071,6 +6143,7 @@ def patch_runtime(
                 native_wake_game(pid, main_window, 800)
             deadline = time.perf_counter() + 4.0
             while time.perf_counter() < deadline:
+                check_stop_requested()
                 info_hwnd, shown_name = find_any_member_dialog(
                     pid,
                     member_names,
@@ -6085,7 +6158,7 @@ def patch_runtime(
                         info_hwnd=info_hwnd,
                     )
                     return
-                time.sleep(0.1)
+                interruptible_sleep(0.1)
             diagnostic_log(
                 "same_session_member_row_no_dialog",
                 pid=pid,
@@ -6097,6 +6170,7 @@ def patch_runtime(
         )
 
     def inspect_current_seven_members(self) -> dict:
+        check_stop_requested()
         main_window = find_process_window_by_class(pid, "SOUSOU")
         if not main_window:
             raise RuntimeError("同一游戏实例检查前未找到游戏主窗口")
@@ -6112,6 +6186,7 @@ def patch_runtime(
         if not advance_seven_member_story(pid, main_window):
             return {"completed": False}
         self.openPeople()
+        check_stop_requested()
         if not self.peopleWind.isInitSuccess():
             raise RuntimeError("同一游戏实例未能打开完整武将列表")
 
@@ -6134,18 +6209,20 @@ def patch_runtime(
         shown_name = ""
         deadline = time.perf_counter() + 10.0
         while time.perf_counter() < deadline:
+            check_stop_requested()
             self.initPeopleInfoWind()
             info_hwnd, shown_name = find_any_member_dialog(
                 pid, member_names
             )
             if info_hwnd:
                 break
-            time.sleep(0.05)
+            interruptible_sleep(0.05)
         if not info_hwnd:
             raise RuntimeError("同一游戏实例未能打开首个武将能力窗口")
 
         try:
             while len(captured_names) < TEAM_MEMBER_NUM:
+                check_stop_requested()
                 if shown_name in captured_names:
                     raise RuntimeError(
                         f"同一游戏实例重复读取武将能力面板：{shown_name}"
@@ -6169,6 +6246,7 @@ def patch_runtime(
                 skill_list = []
                 panel = None
                 for capture_attempt in range(1, 4):
+                    check_stop_requested()
                     skill_list = []
                     for skill_mat in self.peopleInfoWind.getSkillMatList():
                         skill = task_module.CczUtils.getCczSkillWithMat(
@@ -6200,7 +6278,7 @@ def patch_runtime(
                     if skill_list:
                         break
                     native_wake_game(pid, main_window, 500)
-                    time.sleep(0.25)
+                    interruptible_sleep(0.25)
                 if not skill_list:
                     raise InteractionNotTriggered(
                         f"{shown_name}能力窗口已打开，但特技连续三次识别为空"
@@ -6301,6 +6379,7 @@ def patch_runtime(
         return result
 
     def r0_only_run(self) -> bool:
+        check_stop_requested()
         print(f"{self.name} 原生随机内存快筛流程 start")
         self._three_person_mode = three_person_mode
         self._normal_load_succeeded = False
@@ -6362,10 +6441,11 @@ def patch_runtime(
         load_deadline = time.perf_counter() + 8
         before = ()
         while time.perf_counter() < load_deadline:
+            check_stop_requested()
             before = read_job_ids(pid, active_positions)
             if before == (0,) * len(active_positions):
                 break
-            time.sleep(0.1)
+            interruptible_sleep(0.1)
         else:
             diagnostic_log(
                 "source_jobs_invalid",
@@ -6406,11 +6486,12 @@ def patch_runtime(
             load_mode=load_mode,
             reused_session=reused_session,
         )
-        time.sleep(scene_ready_delay)
+        interruptible_sleep(scene_ready_delay)
 
         current = before
         interaction_limit = 3
         for interaction_attempt in range(1, interaction_limit + 1):
+            check_stop_requested()
             interaction_started = time.perf_counter()
             diagnostic_log(
                 "interaction_start",
@@ -6453,7 +6534,7 @@ def patch_runtime(
                         "正常读档后，后台交互组件未能继续响应"
                     ) from exc
                 raise
-            time.sleep(0.5)
+            interruptible_sleep(0.5)
             after_npc = read_job_ids(pid, active_positions)
             diagnostic_log(
                 "interaction_npc_clicked",
@@ -6496,10 +6577,11 @@ def patch_runtime(
             )
             random_deadline = time.perf_counter() + 3
             while time.perf_counter() < random_deadline:
+                check_stop_requested()
                 current = read_job_ids(pid, active_positions)
                 if current != before and any(current):
                     break
-                time.sleep(0.05)
+                interruptible_sleep(0.05)
             if current != before and any(current):
                 diagnostic_log(
                     "interaction_succeeded",
@@ -6588,6 +6670,7 @@ def patch_runtime(
         diagnostic_log("job_filter_accepted", pid=pid, jobs=current)
 
         if three_person_mode:
+            check_stop_requested()
             print("初始三人兵种合格，正在检查特技条件")
             panels, members = capture_initial_member_panels(
                 task_module,
@@ -6631,6 +6714,7 @@ def patch_runtime(
                 return False
             print("R1 特技界面筛选: 通过")
         else:
+            check_stop_requested()
             scratch_slot = 16
             scratch_path = (
                 game_path.parent / "SV" / f"SV{scratch_slot:03}.E5S"
@@ -6641,6 +6725,7 @@ def patch_runtime(
             inspection_dir = None
             try:
                 native_direct_save(pid, scratch_slot - 1)
+                check_stop_requested()
                 memory_after_save = read_memory(pid, 0, R0_MEMORY_SIZE)
                 if not scratch_path.is_file():
                     raise RuntimeError("游戏报告保存成功，但未找到候选存档")
@@ -6705,15 +6790,17 @@ def patch_runtime(
             else None
         )
         if three_person_mode:
+            check_stop_requested()
             native_direct_save(pid, self.savePos - 1)
             save_deadline = time.perf_counter() + 5
             while time.perf_counter() < save_deadline:
+                check_stop_requested()
                 if (
                     target_path.is_file()
                     and target_path.stat().st_mtime_ns != target_mtime
                 ):
                     break
-                time.sleep(0.1)
+                interruptible_sleep(0.1)
             if (
                 not target_path.is_file()
                 or target_path.stat().st_mtime_ns == target_mtime
@@ -7992,15 +8079,12 @@ def gui_main() -> int:
 
 def main() -> int:
     global RESULT_BASE_DIR, DIAGNOSTIC_LOG_PATH, DIAGNOSTIC_LOG_WRITER
-    global DIAGNOSTIC_SUMMARY_PATH
+    global DIAGNOSTIC_SUMMARY_PATH, STOP_FILE_PATH
     load_media_modules()
     RESULT_BASE_DIR = app_dir()
     stop_file_value = os.environ.get("CCZ_STOP_FILE", "")
     stop_file = Path(stop_file_value) if stop_file_value else None
-
-    def check_stop_requested() -> None:
-        if stop_file is not None and stop_file.exists():
-            raise KeyboardInterrupt
+    STOP_FILE_PATH = stop_file
 
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -8179,6 +8263,7 @@ def main() -> int:
             announce: bool = True,
         ) -> HiddenGameSession:
             nonlocal session_generation
+            check_stop_requested()
             update_diagnostic_context(phase="game_start")
             session = HiddenGameSession(
                 game_executable,
@@ -8186,6 +8271,7 @@ def main() -> int:
                 announce=announce,
             )
             session.__enter__()
+            check_stop_requested()
             session_generation += 1
             update_diagnostic_context(
                 pid=session.pid,
@@ -8207,14 +8293,15 @@ def main() -> int:
                     three_person_mode=three_person_mode,
                     rules=rules,
                 )
-            except Exception as exc:
-                diagnostic_error(
-                    "game_session_setup_failed",
-                    exc,
-                    game=session,
-                    restarted=restarted,
-                    session_generation=session_generation,
-                )
+            except BaseException as exc:
+                if isinstance(exc, Exception):
+                    diagnostic_error(
+                        "game_session_setup_failed",
+                        exc,
+                        game=session,
+                        restarted=restarted,
+                        session_generation=session_generation,
+                    )
                 session.__exit__(None, None, None)
                 raise
             return session
@@ -8306,6 +8393,7 @@ def main() -> int:
                     ) -> AttemptResult:
                         nonlocal game, consecutive_normal_reload_failures
                         nonlocal refresh_consumed_session
+                        check_stop_requested()
                         update_diagnostic_context(
                             phase="randomization",
                             result_slot=result_slot,
@@ -8386,6 +8474,7 @@ def main() -> int:
                         nonlocal game, compatibility_restart_mode
                         nonlocal consecutive_normal_reload_failures
                         nonlocal refresh_consumed_session
+                        check_stop_requested()
                         if isinstance(exc, NormalReloadUnsupported):
                             consecutive_normal_reload_failures += 1
                             diagnostic_log(
@@ -8424,7 +8513,9 @@ def main() -> int:
                         print(
                             "后台游戏运行异常，正在自动重新启动……"
                         )
+                        check_stop_requested()
                         close_game_session(game)
+                        check_stop_requested()
                         game = start_game_session(
                             restarted=True,
                             announce=True,
@@ -8462,6 +8553,7 @@ def main() -> int:
                     def accepted_result(
                         result: AcceptedResult,
                     ) -> None:
+                        check_stop_requested()
                         update_diagnostic_context(
                             phase="accepted_postprocess",
                             result_slot=result.result_slot,
@@ -8484,10 +8576,12 @@ def main() -> int:
                             ),
                         )
                         equip_info = runner.collect_equipment()
+                        check_stop_requested()
                         panel_paths[result_slot] = save_result_image(
                             runner, equip_info, result_slot
                         )
                         current_grid = compose_result_grid(panel_paths)
+                        check_stop_requested()
                         print(
                             f"第 {result_slot} 号结果图已生成，"
                             f"总图已更新：{current_grid}"
@@ -8545,6 +8639,7 @@ def main() -> int:
                         source_loaded: bool,
                         will_recover: bool,
                     ) -> None:
+                        check_stop_requested()
                         started = attempt_started_at.get(
                             (result_slot, round_index)
                         )
@@ -8609,9 +8704,10 @@ def main() -> int:
                         run_attempt=run_attempt,
                         recover_session=recover_session,
                         should_recover=(
-                            lambda exc: session_failure_requires_restart(
-                                game, exc
-                            )
+                            lambda exc: (
+                                check_stop_requested(),
+                                session_failure_requires_restart(game, exc),
+                            )[1]
                         ),
                         on_attempt_started=attempt_started,
                         on_accepted=accepted_result,
@@ -8653,6 +8749,7 @@ def main() -> int:
                             / f"SV{output_slot:03}.E5S"
                         )
                         for recovery_attempt in range(2):
+                            check_stop_requested()
                             try:
                                 if verify_on_title:
                                     loaded = title_load_verified(
@@ -8698,6 +8795,7 @@ def main() -> int:
                                 )
                                 return reloaded_jobs
                             except Exception as exc:
+                                check_stop_requested()
                                 if (
                                     recovery_attempt == 0
                                     and session_failure_requires_restart(
@@ -8720,7 +8818,9 @@ def main() -> int:
                                         "后台游戏校验异常，"
                                         "正在自动重新启动……"
                                     )
+                                    check_stop_requested()
                                     close_game_session(game)
+                                    check_stop_requested()
                                     game = start_game_session(
                                         restarted=True
                                     )
@@ -8861,6 +8961,7 @@ def main() -> int:
         )
         if stop_file is not None:
             stop_file.unlink(missing_ok=True)
+        STOP_FILE_PATH = None
         if os.environ.get("CCZ_NO_PAUSE") != "1":
             try:
                 input("按回车退出...")

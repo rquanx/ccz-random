@@ -40,6 +40,7 @@ from fast_randomizer import (
     run_inspection_cli_with_diagnostics,
     run_inspection_process,
     session_failure_requires_restart,
+    trigger_seven_member_story,
     trigger_random_choice_click,
 )
 
@@ -289,6 +290,7 @@ class SessionManagementTests(unittest.TestCase):
     def test_seven_member_story_progress_is_paced(self):
         with (
             patch("fast_randomizer.native_silent_click_burst") as click_burst,
+            patch("fast_randomizer.run_native_control") as native_control,
             patch("fast_randomizer.native_wake_game") as wake_game,
             patch("fast_randomizer.time.sleep") as sleep,
             patch("fast_randomizer.diagnostic_log") as diagnostic,
@@ -302,6 +304,11 @@ class SessionManagementTests(unittest.TestCase):
 
         self.assertEqual(3, click_burst.call_count)
         click_burst.assert_called_with(456, 360, 400, 12)
+        self.assertEqual(3, native_control.call_count)
+        native_control.assert_called_with(
+            123,
+            ["frame-click", "466", "418"],
+        )
         self.assertEqual(
             [
                 unittest.mock.call(123, 456, 1000),
@@ -320,6 +327,64 @@ class SessionManagementTests(unittest.TestCase):
             sleep.call_args_list,
         )
         self.assertEqual(3, diagnostic.call_count)
+
+    def test_seven_member_story_clicks_xu_without_selecting_option(self):
+        runner = unittest.mock.Mock()
+        runner.jumpR0.return_value = True
+        with (
+            patch("fast_randomizer.trigger_random_choice_click") as choice,
+            patch("fast_randomizer.native_wake_game") as wake,
+            patch("fast_randomizer.diagnostic_log") as diagnostic,
+        ):
+            method = trigger_seven_member_story(
+                runner,
+                123,
+                456,
+                click_strategy="injected_background_mouse",
+            )
+
+        self.assertEqual("injected_background_mouse", method)
+        runner.jumpR0.assert_called_once_with()
+        choice.assert_not_called()
+        wake.assert_called_once_with(123, 456, 1000)
+        self.assertEqual(
+            "inspection_story_npc_clicked",
+            diagnostic.call_args.args[0],
+        )
+
+    def test_inspection_failure_screenshot_is_kept_once_per_category(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            output_dir = root / "temporary-inspection"
+            output_dir.mkdir()
+            (output_dir / "people-window.png").write_bytes(b"image")
+            child_diagnostic = (
+                root / "fast_20260927_120000_inspection_slot1_diagnostic.jsonl"
+            )
+            parent_diagnostic = (
+                root / "fast_20260927_120000_diagnostic.jsonl"
+            )
+            with patch.dict(
+                os.environ,
+                {
+                    "CCZ_INSPECTION_DIAGNOSTIC_PATH": str(child_diagnostic),
+                    "CCZ_PARENT_DIAGNOSTIC_PATH": str(parent_diagnostic),
+                },
+                clear=False,
+            ):
+                first = app_module.persist_inspection_failure_screenshot(
+                    output_dir,
+                    category="story_not_advanced",
+                    slot=1,
+                )
+                second = app_module.persist_inspection_failure_screenshot(
+                    output_dir,
+                    category="story_not_advanced",
+                    slot=2,
+                )
+
+        self.assertIsNotNone(first)
+        self.assertIsNone(second)
 
     def test_full_inspection_accepts_actual_game_member_order(self):
         member_names = (

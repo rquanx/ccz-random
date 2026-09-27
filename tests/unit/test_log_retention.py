@@ -56,6 +56,37 @@ class RotatingTextWriterTests(unittest.TestCase):
 
 
 class CleanupLogDirectoryTests(unittest.TestCase):
+    def test_keeps_only_newest_diagnostic_screenshots_per_run(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            screenshots = []
+            for index in range(14):
+                path = root / (
+                    "fast_20260926_145744_"
+                    f"diagnostic_interaction_failure_{index}.png"
+                )
+                path.write_bytes(bytes([index]) * 5)
+                timestamp = dt.datetime(2026, 9, 26, 12, 0, index).timestamp()
+                os.utime(path, (timestamp, timestamp))
+                screenshots.append(path)
+            other_run = root / (
+                "fast_20260926_161050_"
+                "inspection_failure_roster_slot1.png"
+            )
+            other_run.write_bytes(b"other")
+
+            result = cleanup_log_directory(
+                root,
+                now=dt.datetime(2026, 9, 27),
+                retention_days=30,
+                screenshots_per_run=10,
+            )
+
+            self.assertEqual(result.removed_files, 4)
+            self.assertTrue(all(not path.exists() for path in screenshots[:4]))
+            self.assertTrue(all(path.exists() for path in screenshots[4:]))
+            self.assertTrue(other_run.exists())
+
     def test_removes_expired_managed_files_only(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

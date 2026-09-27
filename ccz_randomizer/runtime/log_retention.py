@@ -12,6 +12,7 @@ DEFAULT_LOG_PARTS = 5
 DEFAULT_RETENTION_DAYS = 30
 DEFAULT_DIRECTORY_LIMIT_BYTES = 1024 * 1024 * 1024
 DEFAULT_DIRECTORY_TARGET_BYTES = 750 * 1024 * 1024
+DEFAULT_SCREENSHOTS_PER_RUN = 10
 CONSOLE_MAX_LINES = 12_000
 CONSOLE_TARGET_LINES = 10_000
 CONSOLE_TRIM_NOTICE = "较早信息已从界面隐藏，完整记录请查看日志文件。"
@@ -24,7 +25,8 @@ _MANAGED_LOG_PATTERN = re.compile(
     re.IGNORECASE,
 )
 _MANAGED_SCREENSHOT_PATTERN = re.compile(
-    r"^fast_\d{8}_\d{6}_diagnostic_interaction_failure_.*\.png$",
+    r"^(fast_\d{8}_\d{6})_"
+    r"(?:diagnostic_interaction_failure|inspection_failure)_.*\.png$",
     re.IGNORECASE,
 )
 
@@ -144,9 +146,12 @@ def cleanup_log_directory(
     retention_days: int = DEFAULT_RETENTION_DAYS,
     limit_bytes: int = DEFAULT_DIRECTORY_LIMIT_BYTES,
     target_bytes: int = DEFAULT_DIRECTORY_TARGET_BYTES,
+    screenshots_per_run: int = DEFAULT_SCREENSHOTS_PER_RUN,
 ) -> CleanupResult:
     if limit_bytes <= 0 or target_bytes < 0 or target_bytes > limit_bytes:
         raise ValueError("invalid directory size limits")
+    if screenshots_per_run < 0:
+        raise ValueError("screenshots_per_run must not be negative")
     now = now or dt.datetime.now()
     cutoff = now.timestamp() - retention_days * 24 * 60 * 60
     candidates = [
@@ -157,7 +162,30 @@ def cleanup_log_directory(
     removed_files = 0
     removed_bytes = 0
 
+    screenshots_by_run: dict[str, list[Path]] = {}
     for path in candidates:
+        match = _MANAGED_SCREENSHOT_PATTERN.fullmatch(path.name)
+        if match:
+            screenshots_by_run.setdefault(match.group(1).casefold(), []).append(
+                path
+            )
+    for screenshots in screenshots_by_run.values():
+        screenshots.sort(
+            key=lambda path: path.stat().st_mtime,
+            reverse=True,
+        )
+        for path in screenshots[screenshots_per_run:]:
+            try:
+                stat = path.stat()
+                path.unlink()
+                removed_files += 1
+                removed_bytes += stat.st_size
+            except OSError:
+                continue
+
+    for path in candidates:
+        if not path.exists():
+            continue
         try:
             stat = path.stat()
             if stat.st_mtime >= cutoff:

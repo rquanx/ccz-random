@@ -3623,6 +3623,69 @@ def inspection_background_click(
     return method
 
 
+def trigger_seven_member_story(
+    runner,
+    pid: int,
+    main_window: int,
+    *,
+    click_strategy: str,
+) -> str:
+    """Click Xu Zijiang again after randomization to start story progress."""
+    if not runner.jumpR0():
+        raise RuntimeError("候选存档未能再次点击许子将触发剧情")
+    method = click_strategy
+    native_wake_game(pid, main_window, 1000)
+    diagnostic_log(
+        "inspection_story_npc_clicked",
+        pid=pid,
+        main_window=main_window,
+        client_rect=[356, 251, 32, 58],
+        client_point=[372, 280],
+        method=method,
+        note="候选存档已完成随机，本次仅再次点击许子将触发剧情推进，无选项",
+    )
+    return method
+
+
+def persist_inspection_failure_screenshot(
+    output_dir: Path,
+    *,
+    category: str,
+    slot: int,
+) -> str | None:
+    diagnostic_value = os.environ.get(
+        "CCZ_INSPECTION_DIAGNOSTIC_PATH", ""
+    )
+    if not diagnostic_value:
+        return None
+    diagnostic_path = Path(diagnostic_value)
+    log_dir = diagnostic_path.parent
+    parent_name = os.environ.get("CCZ_PARENT_DIAGNOSTIC_PATH", "")
+    parent_stem = (
+        Path(parent_name).stem.removesuffix("_diagnostic")
+        if parent_name
+        else diagnostic_path.stem.split("_inspection_", 1)[0]
+    )
+    safe_category = re.sub(r"[^a-z0-9_-]+", "_", category.casefold())
+    pattern = f"{parent_stem}_inspection_failure_*.png"
+    existing = list(log_dir.glob(pattern))
+    if any(f"_{safe_category}_" in path.name for path in existing):
+        return None
+    if len(existing) >= DIAGNOSTIC_SCREENSHOT_LIMIT:
+        return None
+    source = output_dir / "people-window.png"
+    if not source.is_file():
+        source = output_dir / "after-jump.png"
+    if not source.is_file():
+        return None
+    destination = log_dir / (
+        f"{parent_stem}_inspection_failure_{safe_category}_"
+        f"slot{slot}.png"
+    )
+    shutil.copyfile(source, destination)
+    return str(destination)
+
+
 def patch_inspection_runtime(task_module, pid: int, panel_dir: Path):
     from window.BaseWindow import BaseWindow
     from window.CczWindow import CczPeopleWindow
@@ -4487,16 +4550,20 @@ def advance_seven_member_story(
     pid: int,
     main_window: int,
     *,
-    rounds: int = 5,
+    rounds: int = 10,
     clicks_per_round: int = 20,
 ) -> None:
-    """Advance residual helper dialogue while the Z acceleration is active."""
+    """Advance helper dialogue and the skipped-battle deployment screen."""
     for round_index in range(1, rounds + 1):
         native_silent_click_burst(
             main_window,
             360,
             400,
             clicks_per_round,
+        )
+        run_native_control(
+            pid,
+            ["frame-click", "466", "418"],
         )
         native_wake_game(pid, main_window, 1000)
         diagnostic_log(
@@ -4506,6 +4573,7 @@ def advance_seven_member_story(
             round=round_index,
             rounds=rounds,
             clicks=clicks_per_round,
+            deployment_click=[466, 418],
         )
         time.sleep(0.8)
     time.sleep(1.0)
@@ -4946,31 +5014,26 @@ def inspect_saved_slot(
             runner.savePos = slot
             runner.initWind()
             update_diagnostic_context(phase="inspection_story_trigger")
+            diagnostic_log(
+                "inspection_randomized_candidate_confirmed",
+                pid=game.pid,
+                note="候选存档在主流程中已完成随机；检查流程不再选择随机选项",
+            )
+            trigger_seven_member_story(
+                runner,
+                game.pid,
+                game.main_window,
+                click_strategy=click_strategy,
+            )
             post_key_to_game(game.pid, "z")
             diagnostic_log(
                 "inspection_acceleration_enabled",
                 pid=game.pid,
                 key="z",
+                note="再次点击许子将后启用加速并推进剧情",
             )
             native_wake_game(game.pid, game.main_window, 500)
             time.sleep(0.3)
-            diagnostic_log(
-                "inspection_jump_started",
-                pid=game.pid,
-                click_strategy=click_strategy,
-                state=game_state_diagnostic(game.pid, game.main_window),
-            )
-            jump_result = runner.jumpR0()
-            diagnostic_log(
-                "inspection_jump_returned",
-                pid=game.pid,
-                result=bool(jump_result),
-                click_strategy=click_strategy,
-                state=game_state_diagnostic(game.pid, game.main_window),
-            )
-            if not jump_result:
-                raise RuntimeError("候选存档未能进入完整武将检查阶段")
-            time.sleep(0.5)
             update_diagnostic_context(phase="inspection_story_progress")
             advance_seven_member_story(
                 game.pid,
@@ -5373,6 +5436,11 @@ def inspect_saved_slot(
             and len(captured_names) <= len(initial_member_names)
             else "inspection_failure"
         )
+        persisted_screenshot = persist_inspection_failure_screenshot(
+            output_dir,
+            category=category,
+            slot=slot,
+        )
         diagnostic_error(
             "inspection_failed",
             exc,
@@ -5386,6 +5454,7 @@ def inspect_saved_slot(
             screenshots={
                 "after_jump": str(output_dir / "after-jump.png"),
                 "people_window": str(output_dir / "people-window.png"),
+                "persisted": persisted_screenshot,
             },
         )
         raise

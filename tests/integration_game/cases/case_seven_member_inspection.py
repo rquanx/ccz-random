@@ -2,22 +2,44 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from pathlib import Path
 
 import fast_randomizer as fast
+from runtime_loader import install
+from tests.integration_game.cases.full_randomizer_normal_load import (
+    trigger_random,
+)
 
 
 def main() -> None:
     game_executable = Path(os.environ["CCZ_GAME_EXE"])
     artifact_dir = Path(os.environ["CCZ_GAME_TEST_ARTIFACT_DIR"])
     output_dir = artifact_dir / "inspection"
-    save_path = game_executable.parent / "SV" / "SV001.E5S"
-    if not save_path.is_file():
-        raise FileNotFoundError("七人检查测试需要第 1 号结果存档")
+    source_save = game_executable.parent / "SV" / "SV020.E5S"
+    if not source_save.is_file():
+        raise FileNotFoundError("七人检查测试需要第 20 号源存档")
+
+    install(fast.bundle_root())
+    import task.CczReRandTask as task_module
+
+    candidate_slot = 16
+    with fast.HiddenGameSession(game_executable) as game:
+        fast.patch_runtime(task_module, game.pid)
+        if not fast.title_load_verified(
+            game.pid,
+            fast.SOURCE_TITLE_LIST_INDEX,
+            source_save,
+        ):
+            raise RuntimeError("标题界面读取第20号存档失败")
+        time.sleep(1.5)
+        trigger_random(game.pid, game.main_window, fast.JOB_POSITIONS_R1)
+        time.sleep(2.0)
+        fast.native_direct_save(game.pid, candidate_slot - 1)
 
     fast.inspect_saved_slot(
         game_executable,
-        1,
+        candidate_slot,
         output_dir,
         7.5,
     )

@@ -343,8 +343,12 @@ class SessionManagementTests(unittest.TestCase):
             ),
             patch("fast_randomizer.time.sleep") as sleep,
             patch("fast_randomizer.diagnostic_log") as diagnostic,
+            patch(
+                "fast_randomizer.capture_interaction_failure",
+                return_value="failure.png",
+            ) as capture_failure,
         ):
-            advance_seven_member_story(
+            ready = advance_seven_member_story(
                 123,
                 456,
                 rounds=3,
@@ -356,22 +360,28 @@ class SessionManagementTests(unittest.TestCase):
         native_control.assert_not_called()
         self.assertEqual(
             [
-                unittest.mock.call(123, 456, 1000),
-                unittest.mock.call(123, 456, 1000),
-                unittest.mock.call(123, 456, 1000),
+                unittest.mock.call(123, 456, 500),
+                unittest.mock.call(123, 456, 500),
+                unittest.mock.call(123, 456, 500),
             ],
             wake_game.call_args_list,
         )
         self.assertEqual(
             [
-                unittest.mock.call(0.8),
-                unittest.mock.call(0.8),
-                unittest.mock.call(0.8),
-                unittest.mock.call(1.0),
+                unittest.mock.call(0.5),
+                unittest.mock.call(0.5),
+                unittest.mock.call(0.5),
             ],
             sleep.call_args_list,
         )
-        self.assertEqual(3, diagnostic.call_count)
+        self.assertFalse(ready)
+        capture_failure.assert_called_once()
+        self.assertTrue(
+            any(
+                call.args[0] == "seven_member_story_not_ready"
+                for call in diagnostic.call_args_list
+            )
+        )
 
     def test_seven_member_story_stops_when_scene_is_ready(self):
         pending = bytearray(0x30000)
@@ -391,15 +401,44 @@ class SessionManagementTests(unittest.TestCase):
             patch("fast_randomizer.time.sleep"),
             patch("fast_randomizer.diagnostic_log") as diagnostic,
         ):
-            advance_seven_member_story(123, 456)
+            result = advance_seven_member_story(123, 456)
 
         self.assertEqual(2, click_burst.call_count)
+        click_burst.assert_called_with(456, 360, 400, 80)
+        self.assertTrue(result)
         native_control.assert_not_called()
         self.assertTrue(
             any(
                 call.args[0] == "seven_member_story_ready"
                 for call in diagnostic.call_args_list
             )
+        )
+
+    def test_three_person_flow_uses_same_session_skill_capture(self):
+        source = (
+            Path(__file__).resolve().parents[2]
+            / "ccz_randomizer"
+            / "app.py"
+        ).read_text(encoding="utf-8")
+        three_flow = source.split(
+            "        if three_person_mode:", 1
+        )[1].split("        else:", 1)[0]
+
+        self.assertIn("capture_initial_member_panels(", three_flow)
+        self.assertIn("evaluate_task_skill_rules(", three_flow)
+        self.assertNotIn("run_candidate_inspection(", three_flow)
+
+    def test_random_flow_enables_acceleration_before_xu_interaction(self):
+        source = (
+            Path(__file__).resolve().parents[2]
+            / "ccz_randomizer"
+            / "app.py"
+        ).read_text(encoding="utf-8")
+        run_flow = source.split("    def r0_only_run(self)", 1)[1]
+
+        self.assertLess(
+            run_flow.index('post_key_to_game(pid, "z")'),
+            run_flow.index('"interaction_start"'),
         )
 
     def test_seven_member_story_clicks_xu_without_selecting_option(self):

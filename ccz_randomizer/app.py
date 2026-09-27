@@ -30,6 +30,11 @@ from ccz_randomizer.rules.config import (
     validate_rule_config,
 )
 from ccz_randomizer.rules.editor import show_rule_editor, show_toast
+from ccz_randomizer.ui.result_details import (
+    decode_result_detail,
+    encode_result_detail,
+    format_result_detail,
+)
 from ccz_randomizer.diagnostics.runtime import (
     build_diagnostic_record,
     clear_diagnostic_context,
@@ -455,6 +460,52 @@ def evaluate_task_skill_rules(
         special_names,
         effective_member_skill_names(task_module, members),
     )
+
+
+def skill_result_detail(evaluation, members) -> dict:
+    member_scores = evaluation.metrics.get("memberSkillScores", {})
+    return {
+        "qualified": bool(evaluation.qualified),
+        "reasons": list(evaluation.reasons),
+        "metrics": evaluation.metrics,
+        "members": [
+            {
+                "name": member.name,
+                "skills": [skill.name for skill in member.skillList],
+                "score": member_scores.get(member.name, 0.0),
+            }
+            for member in members
+        ],
+    }
+
+
+def result_detail_for_runner(
+    runner,
+    result_slot: int,
+    round_index: int,
+) -> dict | None:
+    outcome = getattr(runner, "_result_outcome", "")
+    labels = {
+        "job_failed": "兵种不合格",
+        "skill_failed": "特技不合格",
+        "accepted": "合格",
+    }
+    label = labels.get(outcome)
+    if label is None:
+        return None
+    return {
+        "resultSlot": result_slot,
+        "attempt": round_index,
+        "status": outcome,
+        "label": label,
+        "mode": (
+            "three"
+            if getattr(runner, "_three_person_mode", False)
+            else "seven"
+        ),
+        "job": getattr(runner, "_job_evaluation_detail", None),
+        "skill": getattr(runner, "_skill_evaluation_detail", None),
+    }
 
 
 kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
@@ -4616,9 +4667,9 @@ def advance_seven_member_story(
     pid: int,
     main_window: int,
     *,
-    rounds: int = 10,
-    clicks_per_round: int = 20,
-) -> None:
+    rounds: int = 3,
+    clicks_per_round: int = 80,
+) -> bool:
     """Advance helper dialogue and the skipped-battle deployment screen."""
     for round_index in range(1, rounds + 1):
         native_silent_click_burst(
@@ -4627,8 +4678,8 @@ def advance_seven_member_story(
             400,
             clicks_per_round,
         )
-        native_wake_game(pid, main_window, 1000)
-        time.sleep(0.8)
+        native_wake_game(pid, main_window, 500)
+        time.sleep(0.5)
         ready = seven_member_scene_ready(pid)
         diagnostic_log(
             "seven_member_story_progress",
@@ -4646,24 +4697,24 @@ def advance_seven_member_story(
                 main_window=main_window,
                 round=round_index,
             )
-            break
-        if round_index >= 5:
-            run_native_control(
-                pid,
-                ["frame-click", "466", "418"],
-            )
-            native_wake_game(pid, main_window, 500)
-            time.sleep(0.3)
-            if seven_member_scene_ready(pid):
-                diagnostic_log(
-                    "seven_member_story_ready",
-                    pid=pid,
-                    main_window=main_window,
-                    round=round_index,
-                    method="deployment_fallback",
-                )
-                break
-    time.sleep(1.0)
+            return True
+    failure_type = "seven-member-story:not-ready-after-three-batches"
+    screenshot = capture_interaction_failure(
+        pid,
+        main_window,
+        failure_type,
+    )
+    diagnostic_log(
+        "seven_member_story_not_ready",
+        pid=pid,
+        main_window=main_window,
+        rounds=rounds,
+        clicks_per_round=clicks_per_round,
+        scene_ready=False,
+        state=game_state_diagnostic(pid, main_window),
+        screenshot=screenshot,
+    )
+    return False
 
 
 def seven_member_scene_ready(pid: int) -> bool:
@@ -5768,6 +5819,24 @@ def patch_runtime(
         self._r0_average = average
         self._r0_summaries = summaries
         self._r0_rule_reasons = evaluation.reasons
+        member_scores = evaluation.metrics.get("memberScores", [])
+        self._job_evaluation_detail = {
+            "qualified": success,
+            "reasons": [] if success else list(evaluation.reasons),
+            "metrics": evaluation.metrics,
+            "members": [
+                {
+                    "name": member[0],
+                    "job": job["name"],
+                    "score": (
+                        member_scores[index]
+                        if index < len(member_scores)
+                        else job["score"]
+                    ),
+                }
+                for index, (member, job) in enumerate(zip(members, jobs))
+            ],
+        }
         print(
             f"R0 {'三人' if three_person_mode else '七人'}兵种筛选: "
             + "; ".join(summaries)
@@ -6040,13 +6109,8 @@ def patch_runtime(
             main_window,
             click_strategy="same_session",
         )
-        post_key_to_game(pid, "z")
-        diagnostic_log(
-            "same_session_inspection_acceleration_enabled",
-            pid=pid,
-            key="z",
-        )
-        advance_seven_member_story(pid, main_window)
+        if not advance_seven_member_story(pid, main_window):
+            return {"completed": False}
         self.openPeople()
         if not self.peopleWind.isInitSuccess():
             raise RuntimeError("同一游戏实例未能打开完整武将列表")
@@ -6211,6 +6275,7 @@ def patch_runtime(
             self._r0_average,
         )
         result = {
+            "completed": True,
             "qualified": evaluation.qualified,
             "reasons": list(evaluation.reasons),
             "job_names": [JOB_MAP[job_id][0] for job_id in job_ids],
@@ -6220,6 +6285,10 @@ def patch_runtime(
             ],
             "panels": ordered_panels,
             "metrics": evaluation.metrics,
+            "skill_detail": skill_result_detail(
+                evaluation,
+                task_module.TEAM_MEMBER_LIST,
+            ),
         }
         diagnostic_log(
             "same_session_seven_member_inspection_completed",
@@ -6235,6 +6304,9 @@ def patch_runtime(
         print(f"{self.name} 原生随机内存快筛流程 start")
         self._three_person_mode = three_person_mode
         self._normal_load_succeeded = False
+        self._result_outcome = ""
+        self._job_evaluation_detail = None
+        self._skill_evaluation_detail = None
         diagnostic_log(
             "random_run_start",
             pid=pid,
@@ -6325,6 +6397,14 @@ def patch_runtime(
                 jobs=before,
                 source_memory=source_memory,
             ),
+        )
+        post_key_to_game(pid, "z")
+        diagnostic_log(
+            "randomization_acceleration_enabled",
+            pid=pid,
+            key="z",
+            load_mode=load_mode,
+            reused_session=reused_session,
         )
         time.sleep(scene_ready_delay)
 
@@ -6502,76 +6582,54 @@ def patch_runtime(
                 pid=pid,
                 jobs=current,
             )
+            self._result_outcome = "job_failed"
             print("用户进度: 本轮最终结果=兵种不合格")
             return False
         diagnostic_log("job_filter_accepted", pid=pid, jobs=current)
 
         if three_person_mode:
-            scratch_slot = 16
-            scratch_path = (
-                game_path.parent / "SV" / f"SV{scratch_slot:03}.E5S"
+            print("初始三人兵种合格，正在检查特技条件")
+            panels, members = capture_initial_member_panels(
+                task_module,
+                pid,
+                game,
+                self,
             )
-            scratch_backup = (
-                scratch_path.read_bytes() if scratch_path.is_file() else None
+            evaluation = evaluate_task_skill_rules(
+                rules,
+                task_module,
+                members,
+                self._r0_average,
             )
-            inspection_dir = None
-            try:
-                native_direct_save(pid, scratch_slot - 1)
-                memory_after_save = read_memory(pid, 0, R0_MEMORY_SIZE)
-                if not scratch_path.is_file():
-                    raise RuntimeError("游戏报告保存成功，但未找到候选存档")
-                saved = scratch_path.read_bytes()
-                if saved[:R0_MEMORY_SIZE] != memory_after_save:
-                    raise RuntimeError("初始三人候选存档与游戏内存不一致")
-                self._candidate_save = saved
-                print("初始三人兵种合格，正在检查特技条件")
-                inspection_dir = Path(
-                    tempfile.mkdtemp(
-                        prefix="ccz-initial-inspect-",
-                        dir=app_dir(),
-                    )
-                )
-                inspection = run_candidate_inspection(
-                    game_path,
-                    scratch_slot,
-                    inspection_dir,
-                    self._r0_average,
-                    mode="three",
-                )
-                if inspection is None:
-                    print("用户进度: 本轮最终结果=检查未完成")
-                    return False
-                self._job_names = tuple(
-                    JOB_MAP[job_id][0] for job_id in self._r0_job_ids
-                )
-                self._member_panels = tuple(
-                    Image.open(panel_path).convert("RGB").copy()
-                    for panel_path in inspection["panels"]
-                )
-                self._team_members = initial_team_members(
-                    task_module.TEAM_MEMBER_LIST
-                )
-                diagnostic_log(
-                    "initial_skill_rule_evaluation",
-                    qualified=inspection["qualified"],
-                    reasons=inspection.get("reasons", []),
-                    skills=inspection.get("skills", []),
-                    metrics=inspection.get("metrics", {}),
-                )
-                if not inspection["qualified"]:
-                    reasons = inspection.get("reasons", [])
-                    if reasons:
-                        print("规则原因: " + "；".join(reasons))
-                    print("用户进度: 本轮最终结果=特技不合格")
-                    return False
-                print("R1 特技界面筛选: 通过")
-            finally:
-                if inspection_dir is not None:
-                    shutil.rmtree(inspection_dir, ignore_errors=True)
-                if scratch_backup is None:
-                    scratch_path.unlink(missing_ok=True)
-                else:
-                    scratch_path.write_bytes(scratch_backup)
+            self._job_names = tuple(
+                JOB_MAP[job_id][0] for job_id in self._r0_job_ids
+            )
+            self._member_panels = panels
+            self._team_members = members
+            self.teamJobAndSkillInfoMat = np.vstack(panels)
+            self._skill_evaluation_detail = skill_result_detail(
+                evaluation,
+                members,
+            )
+            diagnostic_log(
+                "initial_skill_rule_evaluation",
+                qualified=evaluation.qualified,
+                reasons=evaluation.reasons,
+                skills={
+                    member.name: [
+                        skill.name for skill in member.skillList
+                    ]
+                    for member in members
+                },
+                metrics=evaluation.metrics,
+            )
+            if not evaluation.qualified:
+                self._result_outcome = "skill_failed"
+                if evaluation.reasons:
+                    print("规则原因: " + "；".join(evaluation.reasons))
+                print("用户进度: 本轮最终结果=特技不合格")
+                return False
+            print("R1 特技界面筛选: 通过")
         else:
             scratch_slot = 16
             scratch_path = (
@@ -6609,10 +6667,20 @@ def patch_runtime(
                 print("候选存档已由游戏原生保存")
 
                 inspection = inspect_current_seven_members(self)
+                if not inspection.get("completed", True):
+                    self._result_outcome = "inspection_abandoned"
+                    diagnostic_log(
+                        "seven_member_attempt_abandoned",
+                        pid=pid,
+                        reason="story_scene_not_ready",
+                    )
+                    return False
                 self._job_names = tuple(inspection["job_names"])
                 self._member_panels = tuple(inspection["panels"])
                 self._team_members = task_module.TEAM_MEMBER_LIST
+                self._skill_evaluation_detail = inspection["skill_detail"]
                 if not inspection["qualified"]:
+                    self._result_outcome = "skill_failed"
                     reasons = inspection.get("reasons", [])
                     if reasons:
                         print("规则原因: " + "；".join(reasons))
@@ -6626,6 +6694,7 @@ def patch_runtime(
                 else:
                     scratch_path.write_bytes(scratch_backup)
 
+        self._result_outcome = "accepted"
         print("用户进度: 本轮最终结果=合格，开始保存")
         target_path = (
             game_path.parent / "SV" / f"SV{self.savePos:03}.E5S"
@@ -6712,10 +6781,7 @@ def format_user_log(line: str) -> str:
     if "R1 特技内存快筛:" in text:
         return "" if text.endswith("通过") else "特技筛选：不合格"
     if text.startswith("用户进度:"):
-        progress = text.replace("用户进度: ", "")
-        progress = progress.replace("本轮最终结果=", "本轮结果：")
-        progress = progress.replace("，开始保存", "")
-        return progress
+        return ""
     if text.startswith("规则原因:"):
         return ""
     if text.startswith("规则提示："):
@@ -7535,6 +7601,117 @@ def gui_main() -> int:
         output.see("end")
         output.configure(state="disabled")
 
+    def show_result_detail(detail: dict) -> None:
+        view = format_result_detail(detail)
+        dialog = tk.Toplevel(root)
+        dialog.title("评分详情")
+        dialog.geometry("720x590")
+        dialog.minsize(620, 460)
+        dialog.transient(root)
+
+        body = tk.Frame(dialog, padx=18, pady=16)
+        body.pack(fill="both", expand=True)
+        tk.Label(
+            body,
+            text=view["title"],
+            font=("Microsoft YaHei UI", 13, "bold"),
+            anchor="w",
+        ).pack(fill="x")
+        tk.Label(
+            body,
+            text=f"{view['mode']}　结果：{view['status']}",
+            font=("Microsoft YaHei UI", 10),
+            fg=(
+                "#16794b"
+                if view["status"] == "合格"
+                else "#b42318"
+            ),
+            anchor="w",
+        ).pack(fill="x", pady=(5, 12))
+
+        detail_text = scrolledtext.ScrolledText(
+            body,
+            wrap="word",
+            font=("Microsoft YaHei UI", 10),
+            bg="#ffffff",
+            relief="solid",
+            borderwidth=1,
+            padx=12,
+            pady=10,
+        )
+        detail_text.pack(fill="both", expand=True)
+        detail_text.tag_configure(
+            "section",
+            font=("Microsoft YaHei UI", 11, "bold"),
+            spacing1=10,
+            spacing3=5,
+        )
+        detail_text.tag_configure("pass", foreground="#16794b")
+        detail_text.tag_configure("fail", foreground="#b42318")
+        detail_text.tag_configure("muted", foreground="#666666")
+        for section in view["sections"]:
+            detail_text.insert("end", section["title"] + "\n", "section")
+            for row in section["rows"]:
+                detail_text.insert("end", row + "\n")
+            state = section["qualified"]
+            if state is None:
+                detail_text.insert(
+                    "end",
+                    section["explanation"] + "\n",
+                    "muted",
+                )
+            else:
+                detail_text.insert(
+                    "end",
+                    ("通过： " if state else "未通过： ")
+                    + section["explanation"]
+                    + "\n",
+                    "pass" if state else "fail",
+                )
+            detail_text.insert("end", "\n")
+        detail_text.configure(state="disabled")
+
+        tk.Button(
+            body,
+            text="关闭",
+            width=10,
+            command=dialog.destroy,
+        ).pack(anchor="e", pady=(12, 0))
+        dialog.update_idletasks()
+        x = root.winfo_rootx() + max(
+            0, (root.winfo_width() - dialog.winfo_width()) // 2
+        )
+        y = root.winfo_rooty() + max(
+            0, (root.winfo_height() - dialog.winfo_height()) // 2
+        )
+        dialog.geometry(f"+{x}+{y}")
+
+    def append_attempt_result(detail: dict) -> None:
+        label = str(detail.get("label") or "未知")
+        output.configure(state="normal")
+        output.insert("end", f"结果：{label}（")
+        tag = f"detail-link-{output.index('end')}"
+        output.insert("end", "点击查看详情", tag)
+        output.insert("end", "）\n")
+        output.tag_configure(tag, foreground="#0563c1", underline=True)
+        output.tag_bind(
+            tag,
+            "<Button-1>",
+            lambda _event, value=detail: show_result_detail(value),
+        )
+        output.tag_bind(
+            tag,
+            "<Enter>",
+            lambda _event: output.configure(cursor="hand2"),
+        )
+        output.tag_bind(
+            tag,
+            "<Leave>",
+            lambda _event: output.configure(cursor=""),
+        )
+        output.see("end")
+        output.configure(state="disabled")
+
     def append_result_link() -> None:
         if result_image_path is None or not result_image_path.is_file():
             return
@@ -7607,6 +7784,21 @@ def gui_main() -> int:
                 line = output_queue.get_nowait()
             except queue.Empty:
                 break
+            try:
+                result_detail = decode_result_detail(line)
+            except (TypeError, ValueError, json.JSONDecodeError) as exc:
+                result_detail = None
+                diagnostic_log(
+                    "result_detail_decode_failed",
+                    line=line[:300],
+                    error=repr(exc),
+                )
+            if result_detail is not None:
+                append_attempt_result(result_detail)
+                last_formatted_line = (
+                    f"结果：{result_detail.get('label', '未知')}"
+                )
+                continue
             if line.startswith("本轮总图路径："):
                 candidate = Path(line.split("：", 1)[1].strip())
                 if candidate.is_file() or not loop_var.get():
@@ -8403,6 +8595,13 @@ def main() -> int:
                                 else None
                             ),
                         )
+                        detail = result_detail_for_runner(
+                            attempt.payload,
+                            result_slot,
+                            round_index,
+                        )
+                        if detail is not None:
+                            print(encode_result_detail(detail))
 
                     run_random_workflow(
                         result_count=result_count,

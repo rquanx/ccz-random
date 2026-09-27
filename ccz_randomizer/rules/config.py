@@ -772,43 +772,60 @@ def evaluate_skill_rules(
     carry_count = 0
     strong_count = 0
     special_count = 0
-    for skill in all_skill_items:
-        if skill in special_skill_names:
-            default_score = seven["specialSkillWeight"]
-        elif skill in strong_skill_names:
-            default_score = seven["strongSkillWeight"]
-        elif skill in carry_skill_names:
-            default_score = seven["ordinarySkillWeight"]
-        else:
-            default_score = 0.0
-        score = float(overrides.get(skill, default_score))
-        category = classify_skill_score(
-            score,
-            seven["ordinarySkillWeight"],
-            seven["strongSkillWeight"],
-            seven["specialSkillWeight"],
-        )
-        if category == "special":
-            special_count += 1
-            skill_score += score
-            continue
-        if category == "other":
-            continue
-        if effective_remaining.get(skill, 0) <= 0:
-            continue
-        effective_remaining[skill] -= 1
-        if category == "strong":
-            strong_count += 1
-        else:
-            carry_count += 1
-        skill_score += score
+    member_skill_scores = {
+        member_name: 0.0 for member_name in member_skills
+    }
+    skill_details: list[dict[str, Any]] = []
+    for member_name, skills in member_skills.items():
+        for skill in skills:
+            if skill in special_skill_names:
+                default_score = seven["specialSkillWeight"]
+            elif skill in strong_skill_names:
+                default_score = seven["strongSkillWeight"]
+            elif skill in carry_skill_names:
+                default_score = seven["ordinarySkillWeight"]
+            else:
+                default_score = 0.0
+            score = float(overrides.get(skill, default_score))
+            category = classify_skill_score(
+                score,
+                seven["ordinarySkillWeight"],
+                seven["strongSkillWeight"],
+                seven["specialSkillWeight"],
+            )
+            counted = False
+            if category == "special":
+                special_count += 1
+                counted = True
+            elif category != "other" and effective_remaining.get(skill, 0) > 0:
+                effective_remaining[skill] -= 1
+                counted = True
+                if category == "strong":
+                    strong_count += 1
+                else:
+                    carry_count += 1
+            if counted:
+                skill_score += score
+                member_skill_scores[member_name] += score
+            skill_details.append(
+                {
+                    "member": member_name,
+                    "name": skill,
+                    "score": score if counted else 0.0,
+                    "category": category,
+                    "counted": counted,
+                }
+            )
 
+    auto_pass_reason = ""
     if seven["specialSkillAutoPass"] and special_count > 0:
         qualified = True
         minimum = 0.0
+        auto_pass_reason = "special_skill"
     elif seven["highJobAutoPass"] and job_average >= seven["highJobAverage"]:
         qualified = True
         minimum = 0.0
+        auto_pass_reason = "high_job_average"
     else:
         minimum = (
             seven["mediumMinSkillScore"]
@@ -832,5 +849,9 @@ def evaluate_skill_rules(
             "effectiveCount": skill_score,
             "requiredSkillScore": minimum,
             "jobAverage": job_average,
+            "highJobAverage": seven["highJobAverage"],
+            "autoPassReason": auto_pass_reason,
+            "memberSkillScores": member_skill_scores,
+            "skillDetails": skill_details,
         },
     )

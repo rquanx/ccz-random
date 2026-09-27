@@ -42,6 +42,11 @@ CASES = (
         "验证三人随机与正常读档复用",
     ),
     GameCase(
+        "three-member-inspection",
+        "case_three_member_inspection.py",
+        "验证初始三人同实例特技检查与保存",
+    ),
+    GameCase(
         "randomizer-seven-normal-load",
         "case_randomizer_seven_normal_load.py",
         "验证七人随机与正常读档复用",

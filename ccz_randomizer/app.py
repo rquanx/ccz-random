@@ -4627,11 +4627,9 @@ def advance_seven_member_story(
             400,
             clicks_per_round,
         )
-        run_native_control(
-            pid,
-            ["frame-click", "466", "418"],
-        )
         native_wake_game(pid, main_window, 1000)
+        time.sleep(0.8)
+        ready = seven_member_scene_ready(pid)
         diagnostic_log(
             "seven_member_story_progress",
             pid=pid,
@@ -4639,10 +4637,48 @@ def advance_seven_member_story(
             round=round_index,
             rounds=rounds,
             clicks=clicks_per_round,
-            deployment_click=[466, 418],
+            ready=ready,
         )
-        time.sleep(0.8)
+        if ready:
+            diagnostic_log(
+                "seven_member_story_ready",
+                pid=pid,
+                main_window=main_window,
+                round=round_index,
+            )
+            break
+        if round_index >= 5:
+            run_native_control(
+                pid,
+                ["frame-click", "466", "418"],
+            )
+            native_wake_game(pid, main_window, 500)
+            time.sleep(0.3)
+            if seven_member_scene_ready(pid):
+                diagnostic_log(
+                    "seven_member_story_ready",
+                    pid=pid,
+                    main_window=main_window,
+                    round=round_index,
+                    method="deployment_fallback",
+                )
+                break
     time.sleep(1.0)
+
+
+def seven_member_scene_ready(pid: int) -> bool:
+    try:
+        state = read_memory(pid, 0, R0_MEMORY_SIZE)
+    except OSError:
+        return False
+    if len(state) < 0x5830:
+        return False
+    if state[0x0FFF] != 1 or state[0x4F64:0x4F66] != b"\x01\x00":
+        return False
+    return all(
+        any(state[offset : offset + 3])
+        for offset in range(0x5800, 0x5815, 3)
+    )
 
 
 def capture_initial_member_panels(
@@ -5860,9 +5896,29 @@ def patch_runtime(
             self.initPeopleWind()
             if self.peopleWind.isInitSuccess():
                 return
-            method = "silent_click"
+            method = "deepest_child_message"
             try:
                 if attempt == 1:
+                    point = Point(138, 18)
+                    user32.ClientToScreen(
+                        self.wind.hwnd,
+                        ctypes.byref(point),
+                    )
+                    target, client_x, client_y = deepest_child_at(
+                        self.wind.hwnd,
+                        point.x,
+                        point.y,
+                    )
+                    lparam = (client_y << 16) | (client_x & 0xFFFF)
+                    user32.PostMessageW(
+                        target,
+                        0x0201,
+                        0x0001,
+                        lparam,
+                    )
+                    user32.PostMessageW(target, 0x0202, 0, lparam)
+                elif attempt == 2:
+                    method = "silent_click"
                     native_silent_click(
                         pid,
                         self.wind.hwnd,
@@ -5870,7 +5926,7 @@ def patch_runtime(
                         18,
                         tail_delay_ms=350,
                     )
-                elif attempt == 2:
+                elif attempt == 3:
                     method = "silent_burst"
                     native_silent_click_burst(
                         self.wind.hwnd,
@@ -5878,7 +5934,7 @@ def patch_runtime(
                         18,
                         2,
                     )
-                elif attempt == 3:
+                else:
                     method = "screen_message"
                     point = Point(138, 18)
                     user32.ClientToScreen(
@@ -5886,21 +5942,6 @@ def patch_runtime(
                         ctypes.byref(point),
                     )
                     post_click(self.wind.hwnd, point.x, point.y)
-                else:
-                    method = "client_message"
-                    lparam = (18 << 16) | 138
-                    user32.PostMessageW(
-                        self.wind.hwnd,
-                        0x0201,
-                        0x0001,
-                        lparam,
-                    )
-                    user32.PostMessageW(
-                        self.wind.hwnd,
-                        0x0202,
-                        0,
-                        lparam,
-                    )
             except (NativeControlError, NativeControlTimeout) as exc:
                 diagnostic_log(
                     "same_session_roster_open_click_failed",

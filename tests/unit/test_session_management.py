@@ -332,10 +332,15 @@ class SessionManagementTests(unittest.TestCase):
         )
 
     def test_seven_member_story_progress_is_paced(self):
+        ready_state = bytearray(0x30000)
         with (
             patch("fast_randomizer.native_silent_click_burst") as click_burst,
             patch("fast_randomizer.run_native_control") as native_control,
             patch("fast_randomizer.native_wake_game") as wake_game,
+            patch(
+                "fast_randomizer.read_memory",
+                return_value=bytes(ready_state),
+            ),
             patch("fast_randomizer.time.sleep") as sleep,
             patch("fast_randomizer.diagnostic_log") as diagnostic,
         ):
@@ -348,11 +353,7 @@ class SessionManagementTests(unittest.TestCase):
 
         self.assertEqual(3, click_burst.call_count)
         click_burst.assert_called_with(456, 360, 400, 12)
-        self.assertEqual(3, native_control.call_count)
-        native_control.assert_called_with(
-            123,
-            ["frame-click", "466", "418"],
-        )
+        native_control.assert_not_called()
         self.assertEqual(
             [
                 unittest.mock.call(123, 456, 1000),
@@ -371,6 +372,35 @@ class SessionManagementTests(unittest.TestCase):
             sleep.call_args_list,
         )
         self.assertEqual(3, diagnostic.call_count)
+
+    def test_seven_member_story_stops_when_scene_is_ready(self):
+        pending = bytearray(0x30000)
+        ready = bytearray(pending)
+        ready[0x0FFF] = 1
+        ready[0x4F64:0x4F66] = b"\x01\x00"
+        for offset in range(0x5800, 0x5815, 3):
+            ready[offset] = 1
+        with (
+            patch("fast_randomizer.native_silent_click_burst") as click_burst,
+            patch("fast_randomizer.run_native_control") as native_control,
+            patch("fast_randomizer.native_wake_game"),
+            patch(
+                "fast_randomizer.read_memory",
+                side_effect=[bytes(pending), bytes(ready)],
+            ),
+            patch("fast_randomizer.time.sleep"),
+            patch("fast_randomizer.diagnostic_log") as diagnostic,
+        ):
+            advance_seven_member_story(123, 456)
+
+        self.assertEqual(2, click_burst.call_count)
+        native_control.assert_not_called()
+        self.assertTrue(
+            any(
+                call.args[0] == "seven_member_story_ready"
+                for call in diagnostic.call_args_list
+            )
+        )
 
     def test_seven_member_story_clicks_xu_without_selecting_option(self):
         runner = unittest.mock.Mock()

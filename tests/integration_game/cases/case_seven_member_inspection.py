@@ -56,4 +56,16 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    artifact_dir = Path(os.environ["CCZ_GAME_TEST_ARTIFACT_DIR"])
+    os.environ["CCZ_INSPECTION_LOG_PATH"] = str(
+        artifact_dir / "inspection.log"
+    )
+    os.environ["CCZ_INSPECTION_DIAGNOSTIC_PATH"] = str(
+        artifact_dir / "inspection_diagnostic.jsonl"
+    )
+    raise SystemExit(
+        fast.run_inspection_cli_with_diagnostics(
+            "seven-member-integration",
+            lambda: (main(), 0)[1],
+        )
+    )

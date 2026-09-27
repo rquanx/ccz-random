@@ -70,6 +70,19 @@ class StartEnvironmentTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "未找到第20栏存档"):
                     validate_start_environment(game)
 
+    def test_missing_injector_explains_antivirus_quarantine(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            game, _source_save = self.make_game_directory(root)
+            patches = self.runtime_patches(root)
+            (root / "native" / "ccz_injector.exe").unlink()
+            with patches[0], patches[1], patches[2], patches[3], patches[4]:
+                with self.assertRaisesRegex(
+                    RuntimeError,
+                    "可能已被杀毒软件误报并隔离.*ccz_injector.exe",
+                ):
+                    validate_start_environment(game)
+
     def test_randomized_source_save_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

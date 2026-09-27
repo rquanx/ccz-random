@@ -974,6 +974,18 @@ def native_control_security_steps() -> str:
     )
 
 
+def missing_native_components_message(component_names: list[str]) -> str:
+    return (
+        "后台控制组件缺失，可能已被杀毒软件误报并隔离："
+        + "、".join(component_names)
+        + "。\n\n"
+        "请打开 Windows 安全中心、360、火绒或电脑管家的"
+        "保护历史记录/隔离区，恢复与本工具有关的文件，"
+        "并把整个游戏目录加入信任区。\n"
+        "处理完成后，请重新获取完整的工具程序并放到游戏目录运行。"
+    )
+
+
 class NativeControlError(RuntimeError):
     def __init__(self, return_code: int, details: str = "") -> None:
         self.return_code = return_code
@@ -1045,8 +1057,15 @@ class SecuritySoftwareDetected(RuntimeError):
 def run_native_control(pid: int, arguments: list[str]) -> None:
     injector = native_dir() / "ccz_injector.exe"
     control_dll = native_dir() / "ccz_control.dll"
-    if not injector.is_file() or not control_dll.is_file():
-        raise FileNotFoundError("静默控件模块缺失")
+    missing_components = [
+        path.name
+        for path in (injector, control_dll)
+        if not path.is_file()
+    ]
+    if missing_components:
+        raise FileNotFoundError(
+            missing_native_components_message(missing_components)
+        )
     timeout = 70 if arguments and arguments[0] in {
         "openload", "real-load", "dispatch-state", "title-load",
         "silent-burst", "pulse-burst"
@@ -1429,7 +1448,7 @@ def validate_start_environment(game_executable: Path) -> Path:
             "在与许子将对话并选择第一项之前保存到第20栏。"
         )
 
-    missing_components = [
+    missing_native_components = [
         path.name
         for path in (
             native_dir() / "ccz_injector.exe",
@@ -1437,13 +1456,14 @@ def validate_start_environment(game_executable: Path) -> Path:
         )
         if not path.is_file()
     ]
-    if not bundle_root().is_dir():
-        missing_components.append("运行组件")
-    if missing_components:
+    if missing_native_components:
         raise RuntimeError(
-            "工具运行文件不完整，缺少："
-            + "、".join(missing_components)
-            + "。\n\n请重新获取完整的工具程序。"
+            missing_native_components_message(missing_native_components)
+        )
+    if not bundle_root().is_dir():
+        raise RuntimeError(
+            "工具运行文件不完整，缺少运行组件。\n\n"
+            "请重新获取完整的工具程序。"
         )
 
     ensure_directory_writable(game_dir, "游戏目录")

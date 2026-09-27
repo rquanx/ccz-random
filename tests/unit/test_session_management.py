@@ -240,6 +240,48 @@ class SessionManagementTests(unittest.TestCase):
         self.assertIn("CCZ_DISABLE_ROSTER_FALLBACK", source)
         self.assertIn("advance_seven_member_story(", source)
 
+    def test_same_session_skill_capture_uses_full_print_window_frame(self):
+        source = (
+            Path(__file__).resolve().parents[2]
+            / "ccz_randomizer"
+            / "app.py"
+        ).read_text(encoding="utf-8")
+        robust_get_mat = source.split(
+            "    def robust_get_mat(", 1
+        )[1].split("    def click_relative_hwnd(", 1)[0]
+
+        self.assertIn("strip_client=False", robust_get_mat)
+        self.assertLess(
+            robust_get_mat.index("print_window_mat("),
+            robust_get_mat.index("original_get_mat("),
+        )
+        self.assertIn(
+            "same_session_member_capture_attempt",
+            source,
+        )
+        self.assertIn(
+            "特技连续三次识别为空",
+            source,
+        )
+
+    def test_seven_member_inspection_refreshes_consumed_session_directly(self):
+        source = (
+            Path(__file__).resolve().parents[2]
+            / "ccz_randomizer"
+            / "app.py"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("self._session_consumed = True", source)
+        self.assertIn("refresh_consumed_session = False", source)
+        self.assertIn(
+            '"consumed_seven_member_session_refresh"',
+            source,
+        )
+        self.assertIn(
+            "and not refresh_consumed_session",
+            source,
+        )
+
     def test_inspection_npc_click_uses_injected_background_mouse(self):
         with (
             patch("fast_randomizer.native_silent_click") as native_click,

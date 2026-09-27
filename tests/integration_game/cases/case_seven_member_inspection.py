@@ -39,6 +39,16 @@ def main() -> None:
         raise RuntimeError("同一实例没有读取到完整七人能力面板")
     if len(getattr(runner, "_team_members", ())) != expected_count:
         raise RuntimeError("同一实例没有读取到完整七人特技")
+    empty_skill_members = [
+        member.name
+        for member in runner._team_members
+        if not getattr(member, "skillList", ())
+    ]
+    if empty_skill_members:
+        raise RuntimeError(
+            "同一实例读取到空特技："
+            + "、".join(empty_skill_members)
+        )
     print(
         "七人候选检查通过："
         + "、".join(runner._job_names)

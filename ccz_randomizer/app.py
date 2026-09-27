@@ -5602,15 +5602,23 @@ def patch_runtime(
         toGray: bool = False,
     ):
         try:
-            mat = original_get_mat(self, x, y, w, h, toGray)
+            # Hidden-desktop BitBlt can return a nonblank but stale frame.
+            # PrintWindow is the proven path used by the isolated inspector.
+            mat = print_window_mat(
+                self.hwnd,
+                x,
+                y,
+                w,
+                h,
+                strip_client=False,
+            )
             if mat.size and np.std(mat) > 1:
+                if toGray:
+                    task_module.CvUtils.transNotBlackToWhite(mat, 100)
                 return mat
         except Exception:
             pass
-        mat = print_window_mat(self.hwnd, x, y, w, h)
-        if toGray:
-            task_module.CvUtils.transNotBlackToWhite(mat, 100)
-        return mat
+        return original_get_mat(self, x, y, w, h, toGray)
 
     def click_relative_hwnd(
         hwnd: int, x: int, y: int, w: int, h: int, count: int = 1
@@ -5982,6 +5990,9 @@ def patch_runtime(
         main_window = find_process_window_by_class(pid, "SOUSOU")
         if not main_window:
             raise RuntimeError("同一游戏实例检查前未找到游戏主窗口")
+        # Advancing to the seven-member scene consumes this session. The
+        # source scene cannot be restored reliably through an in-game load.
+        self._session_consumed = True
         trigger_seven_member_story(
             self,
             pid,
@@ -6044,17 +6055,56 @@ def patch_runtime(
                     info_hwnd, exists=True, enabled=True, timeout=3.0
                 ):
                     raise RuntimeError(f"{shown_name}能力窗口不可用")
+                if not wait_for_dialog_text(
+                    info_hwnd, shown_name, timeout=3.0
+                ):
+                    raise RuntimeError(
+                        f"{shown_name}能力窗口内容未完成刷新"
+                    )
                 skill_list = []
-                for skill_mat in self.peopleInfoWind.getSkillMatList():
-                    skill = task_module.CczUtils.getCczSkillWithMat(skill_mat)
-                    if skill is not None:
-                        skill_list.append(skill)
+                panel = None
+                for capture_attempt in range(1, 4):
+                    skill_list = []
+                    for skill_mat in self.peopleInfoWind.getSkillMatList():
+                        skill = task_module.CczUtils.getCczSkillWithMat(
+                            skill_mat
+                        )
+                        if skill is not None:
+                            skill_list.append(skill)
+                    panel = self.peopleInfoWind.getAllSkillMat()
+                    diagnostic_log(
+                        "same_session_member_capture_attempt",
+                        pid=pid,
+                        member=shown_name,
+                        capture_attempt=capture_attempt,
+                        skills=[skill.name for skill in skill_list],
+                        panel_shape=getattr(panel, "shape", None),
+                        panel_mean=(
+                            round(float(np.mean(panel)), 3)
+                            if panel is not None
+                            and getattr(panel, "size", 0)
+                            else None
+                        ),
+                        panel_std=(
+                            round(float(np.std(panel)), 3)
+                            if panel is not None
+                            and getattr(panel, "size", 0)
+                            else None
+                        ),
+                    )
+                    if skill_list:
+                        break
+                    native_wake_game(pid, main_window, 500)
+                    time.sleep(0.25)
+                if not skill_list:
+                    raise InteractionNotTriggered(
+                        f"{shown_name}能力窗口已打开，但特技连续三次识别为空"
+                    )
                 member.skillList = sorted(
                     skill_list,
                     key=lambda skill: skill.score,
                     reverse=True,
                 )
-                panel = self.peopleInfoWind.getAllSkillMat()
                 if panel is None or not getattr(panel, "size", 0):
                     raise RuntimeError(f"{shown_name}能力信息未能读取")
                 panels_by_name[shown_name] = panel.copy()
@@ -7889,6 +7939,7 @@ def main() -> int:
         compatibility_restart_mode = False
         consecutive_normal_reload_failures = 0
         session_generation = 0
+        refresh_consumed_session = False
 
         def start_game_session(
             restarted: bool = False,
@@ -8021,6 +8072,7 @@ def main() -> int:
                         loaded: bool,
                     ) -> AttemptResult:
                         nonlocal game, consecutive_normal_reload_failures
+                        nonlocal refresh_consumed_session
                         update_diagnostic_context(
                             phase="randomization",
                             result_slot=result_slot,
@@ -8029,6 +8081,20 @@ def main() -> int:
                             recovery_attempt=None,
                             compatibility_mode=compatibility_restart_mode,
                         )
+                        if refresh_consumed_session:
+                            diagnostic_log(
+                                "consumed_seven_member_session_refresh",
+                                pid=game.pid,
+                                result_slot=result_slot,
+                                round_index=_round_index,
+                            )
+                            close_game_session(game)
+                            game = start_game_session(
+                                restarted=True,
+                                announce=False,
+                            )
+                            refresh_consumed_session = False
+                            loaded = False
                         if compatibility_restart_mode and loaded:
                             diagnostic_log(
                                 "compatibility_restart_before_attempt",
@@ -8052,6 +8118,12 @@ def main() -> int:
                         finally:
                             if getattr(
                                 runner,
+                                "_session_consumed",
+                                False,
+                            ):
+                                refresh_consumed_session = True
+                            if getattr(
+                                runner,
                                 "_normal_load_succeeded",
                                 False,
                             ):
@@ -8068,7 +8140,8 @@ def main() -> int:
                             accepted=accepted,
                             source_loaded=bool(
                                 getattr(runner, "_source_loaded", False)
-                            ),
+                            )
+                            and not refresh_consumed_session,
                             payload=runner,
                         )
 
@@ -8079,6 +8152,7 @@ def main() -> int:
                     ) -> None:
                         nonlocal game, compatibility_restart_mode
                         nonlocal consecutive_normal_reload_failures
+                        nonlocal refresh_consumed_session
                         if isinstance(exc, NormalReloadUnsupported):
                             consecutive_normal_reload_failures += 1
                             diagnostic_log(
@@ -8122,6 +8196,7 @@ def main() -> int:
                             restarted=True,
                             announce=True,
                         )
+                        refresh_consumed_session = False
                         update_diagnostic_summary(
                             status="running",
                             pid=game.pid,

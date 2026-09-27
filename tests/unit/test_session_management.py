@@ -6,6 +6,8 @@ import os
 from pathlib import Path
 from unittest.mock import patch
 
+import numpy as np
+
 import ccz_randomizer.app as app_module
 from fast_randomizer import (
     EQUIPMENT_NAMES,
@@ -330,10 +332,18 @@ class SessionManagementTests(unittest.TestCase):
 
     def test_seven_member_story_clicks_xu_without_selecting_option(self):
         runner = unittest.mock.Mock()
-        runner.jumpR0.return_value = True
         with (
             patch("fast_randomizer.trigger_random_choice_click") as choice,
+            patch("fast_randomizer.native_silent_click") as click,
             patch("fast_randomizer.native_wake_game") as wake,
+            patch(
+                "fast_randomizer.print_window_mat",
+                side_effect=[
+                    np.zeros((4, 4, 3), dtype=np.uint8),
+                    np.full((4, 4, 3), 10, dtype=np.uint8),
+                ],
+            ),
+            patch("fast_randomizer.time.sleep"),
             patch("fast_randomizer.diagnostic_log") as diagnostic,
         ):
             method = trigger_seven_member_story(
@@ -343,10 +353,10 @@ class SessionManagementTests(unittest.TestCase):
                 click_strategy="injected_background_mouse",
             )
 
-        self.assertEqual("injected_background_mouse", method)
-        runner.jumpR0.assert_called_once_with()
+        self.assertEqual("silent_click", method)
+        click.assert_called_once_with(123, 456, 369, 234, tail_delay_ms=350)
         choice.assert_not_called()
-        wake.assert_called_once_with(123, 456, 1000)
+        wake.assert_called_once_with(123, 456, 800)
         self.assertEqual(
             "inspection_story_npc_clicked",
             diagnostic.call_args.args[0],

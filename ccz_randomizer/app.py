@@ -3631,20 +3631,66 @@ def trigger_seven_member_story(
     click_strategy: str,
 ) -> str:
     """Click Xu Zijiang again after randomization to start story progress."""
-    if not runner.jumpR0():
-        raise RuntimeError("候选存档未能再次点击许子将触发剧情")
-    method = click_strategy
-    native_wake_game(pid, main_window, 1000)
-    diagnostic_log(
-        "inspection_story_npc_clicked",
-        pid=pid,
-        main_window=main_window,
-        client_rect=[356, 251, 32, 58],
-        client_point=[372, 280],
-        method=method,
-        note="候选存档已完成随机，本次仅再次点击许子将触发剧情推进，无选项",
+    del runner
+    load_media_modules()
+    before = print_window_mat(main_window)
+    last_difference = 0.0
+    for attempt in range(1, 4):
+        method = "silent_click"
+        try:
+            native_silent_click(
+                pid,
+                main_window,
+                XU_CLIENT_POSITION[0],
+                XU_CLIENT_POSITION[1],
+                tail_delay_ms=350,
+            )
+        except (NativeControlError, NativeControlTimeout) as exc:
+            method = "injected_background_mouse"
+            diagnostic_log(
+                "inspection_story_npc_primary_click_failed",
+                pid=pid,
+                main_window=main_window,
+                attempt=attempt,
+                error=repr(exc),
+            )
+            native_background_click(
+                main_window,
+                XU_CLIENT_POSITION[0],
+                XU_CLIENT_POSITION[1],
+                1,
+                False,
+            )
+        native_wake_game(pid, main_window, 800)
+        time.sleep(0.35)
+        after = print_window_mat(main_window)
+        if (
+            before.shape == after.shape
+            and before.size
+            and after.size
+        ):
+            last_difference = float(
+                np.mean(cv2.absdiff(before, after))
+            )
+        else:
+            last_difference = 255.0
+        diagnostic_log(
+            "inspection_story_npc_clicked",
+            pid=pid,
+            main_window=main_window,
+            attempt=attempt,
+            client_point=list(XU_CLIENT_POSITION),
+            method=method,
+            frame_difference=round(last_difference, 3),
+            requested_strategy=click_strategy,
+            note="候选存档已完成随机，本次仅再次点击许子将触发剧情推进，无选项",
+        )
+        if last_difference >= 1.0:
+            return method
+        time.sleep(0.3)
+    raise RuntimeError(
+        "候选存档再次点击许子将后画面没有变化，未能触发剧情推进"
     )
-    return method
 
 
 def persist_inspection_failure_screenshot(
@@ -5782,22 +5828,297 @@ def patch_runtime(
 
     def direct_open_people(self) -> None:
         self.initWind()
-        point = Point(138, 18)
-        user32.ClientToScreen(self.wind.hwnd, ctypes.byref(point))
-        post_click(self.wind.hwnd, point.x, point.y)
-        time.sleep(0.4)
-        self.initPeopleWind()
+        for attempt in range(1, 5):
+            self.initPeopleWind()
+            if self.peopleWind.isInitSuccess():
+                return
+            method = "silent_click"
+            try:
+                if attempt == 1:
+                    native_silent_click(
+                        pid,
+                        self.wind.hwnd,
+                        138,
+                        18,
+                        tail_delay_ms=350,
+                    )
+                elif attempt == 2:
+                    method = "silent_burst"
+                    native_silent_click_burst(
+                        self.wind.hwnd,
+                        138,
+                        18,
+                        2,
+                    )
+                elif attempt == 3:
+                    method = "screen_message"
+                    point = Point(138, 18)
+                    user32.ClientToScreen(
+                        self.wind.hwnd,
+                        ctypes.byref(point),
+                    )
+                    post_click(self.wind.hwnd, point.x, point.y)
+                else:
+                    method = "client_message"
+                    lparam = (18 << 16) | 138
+                    user32.PostMessageW(
+                        self.wind.hwnd,
+                        0x0201,
+                        0x0001,
+                        lparam,
+                    )
+                    user32.PostMessageW(
+                        self.wind.hwnd,
+                        0x0202,
+                        0,
+                        lparam,
+                    )
+            except (NativeControlError, NativeControlTimeout) as exc:
+                diagnostic_log(
+                    "same_session_roster_open_click_failed",
+                    pid=pid,
+                    attempt=attempt,
+                    method=method,
+                    error=repr(exc),
+                )
+                continue
+            native_wake_game(pid, self.wind.hwnd, 600)
+            diagnostic_log(
+                "same_session_roster_open_attempt",
+                pid=pid,
+                attempt=attempt,
+                method=method,
+            )
+            deadline = time.perf_counter() + 3.0
+            while time.perf_counter() < deadline:
+                time.sleep(0.15)
+                self.initPeopleWind()
+                if self.peopleWind.isInitSuccess():
+                    return
 
     def direct_click_people(self, index: int) -> None:
-        # The personnel window is a game-rendered list, not a SysListView32.
-        # The original tool clicks row rectangles at x=47, y=99+60*index.
-        client_x = 54
-        client_y = 129 + 60 * index
-        native_background_click(self.hwnd, client_x, client_y, 1, False)
-        game = find_process_window_by_class(pid, "SOUSOU")
-        if game:
-            native_wake_game(pid, game, 1600)
-        time.sleep(0.6)
+        main_window = find_process_window_by_class(pid, "SOUSOU")
+        for hwnd in process_windows(pid, visible_only=False):
+            if window_text(hwnd) == "武将情报":
+                close_member_dialog(pid, main_window, hwnd)
+        user32.EnableWindow(self.hwnd, True)
+        member_names = tuple(
+            member.name for member in task_module.TEAM_MEMBER_LIST
+        )
+        for method in ("list_window_command", "injected_row_click"):
+            try:
+                if method == "list_window_command":
+                    run_native_control(
+                        pid,
+                        ["list-window", str(self.hwnd), str(index)],
+                    )
+                else:
+                    native_background_click(
+                        self.hwnd,
+                        54,
+                        129 + 60 * index,
+                        1,
+                        False,
+                    )
+            except (NativeControlError, NativeControlTimeout) as exc:
+                diagnostic_log(
+                    "same_session_member_row_click_failed",
+                    pid=pid,
+                    index=index,
+                    method=method,
+                    error=repr(exc),
+                )
+                continue
+            if main_window:
+                native_wake_game(pid, main_window, 800)
+            deadline = time.perf_counter() + 4.0
+            while time.perf_counter() < deadline:
+                info_hwnd, shown_name = find_any_member_dialog(
+                    pid,
+                    member_names,
+                )
+                if info_hwnd:
+                    diagnostic_log(
+                        "same_session_member_dialog_opened",
+                        pid=pid,
+                        index=index,
+                        member=shown_name,
+                        method=method,
+                        info_hwnd=info_hwnd,
+                    )
+                    return
+                time.sleep(0.1)
+            diagnostic_log(
+                "same_session_member_row_no_dialog",
+                pid=pid,
+                index=index,
+                method=method,
+            )
+        raise RuntimeError(
+            f"同一游戏实例未能打开第 {index + 1} 个武将能力窗口"
+        )
+
+    def inspect_current_seven_members(self) -> dict:
+        main_window = find_process_window_by_class(pid, "SOUSOU")
+        if not main_window:
+            raise RuntimeError("同一游戏实例检查前未找到游戏主窗口")
+        trigger_seven_member_story(
+            self,
+            pid,
+            main_window,
+            click_strategy="same_session",
+        )
+        post_key_to_game(pid, "z")
+        diagnostic_log(
+            "same_session_inspection_acceleration_enabled",
+            pid=pid,
+            key="z",
+        )
+        advance_seven_member_story(pid, main_window)
+        self.openPeople()
+        if not self.peopleWind.isInitSuccess():
+            raise RuntimeError("同一游戏实例未能打开完整武将列表")
+
+        job_ids = read_job_ids(pid, JOB_POSITIONS_R1)
+        for member, job_id in zip(task_module.TEAM_MEMBER_LIST, job_ids):
+            job_name, score, job_type = JOB_MAP[job_id]
+            member.job = SimpleNamespace(
+                name=job_name,
+                score=score,
+                type=job_type,
+            )
+
+        member_names = tuple(
+            member.name for member in task_module.TEAM_MEMBER_LIST
+        )
+        captured_names: set[str] = set()
+        panels_by_name: dict[str, np.ndarray] = {}
+        self.peopleWind.clickPeople(0)
+        info_hwnd = 0
+        shown_name = ""
+        deadline = time.perf_counter() + 10.0
+        while time.perf_counter() < deadline:
+            self.initPeopleInfoWind()
+            info_hwnd, shown_name = find_any_member_dialog(
+                pid, member_names
+            )
+            if info_hwnd:
+                break
+            time.sleep(0.05)
+        if not info_hwnd:
+            raise RuntimeError("同一游戏实例未能打开首个武将能力窗口")
+
+        try:
+            while len(captured_names) < TEAM_MEMBER_NUM:
+                if shown_name in captured_names:
+                    raise RuntimeError(
+                        f"同一游戏实例重复读取武将能力面板：{shown_name}"
+                    )
+                member = next(
+                    item
+                    for item in task_module.TEAM_MEMBER_LIST
+                    if item.name == shown_name
+                )
+                self.peopleInfoWind._BaseWindow__hwnd = info_hwnd
+                if not wait_for_window_state(
+                    info_hwnd, exists=True, enabled=True, timeout=3.0
+                ):
+                    raise RuntimeError(f"{shown_name}能力窗口不可用")
+                skill_list = []
+                for skill_mat in self.peopleInfoWind.getSkillMatList():
+                    skill = task_module.CczUtils.getCczSkillWithMat(skill_mat)
+                    if skill is not None:
+                        skill_list.append(skill)
+                member.skillList = sorted(
+                    skill_list,
+                    key=lambda skill: skill.score,
+                    reverse=True,
+                )
+                panel = self.peopleInfoWind.getAllSkillMat()
+                if panel is None or not getattr(panel, "size", 0):
+                    raise RuntimeError(f"{shown_name}能力信息未能读取")
+                panels_by_name[shown_name] = panel.copy()
+                captured_names.add(shown_name)
+                diagnostic_log(
+                    "same_session_member_captured",
+                    pid=pid,
+                    member=shown_name,
+                    job=member.job.name,
+                    skills=[skill.name for skill in member.skillList],
+                    captured_members=sorted(captured_names),
+                    info_hwnd=info_hwnd,
+                )
+                if len(captured_names) >= TEAM_MEMBER_NUM:
+                    break
+                try:
+                    info_hwnd, shown_name = (
+                        advance_people_info_in_game_order(
+                            pid,
+                            info_hwnd,
+                            shown_name,
+                            member_names,
+                            captured_names,
+                        )
+                    )
+                except RuntimeError as transition_error:
+                    diagnostic_log(
+                        "same_session_member_roster_fallback",
+                        pid=pid,
+                        current_member=shown_name,
+                        captured_members=sorted(captured_names),
+                        error=repr(transition_error),
+                    )
+                    info_hwnd, shown_name = (
+                        open_uncaptured_member_from_roster(
+                            pid,
+                            main_window,
+                            self,
+                            info_hwnd,
+                            member_names,
+                            captured_names,
+                        )
+                    )
+        finally:
+            if info_hwnd and user32.IsWindow(info_hwnd):
+                close_member_dialog(pid, main_window, info_hwnd)
+        self.closePeopleWindow()
+        if len(panels_by_name) != TEAM_MEMBER_NUM:
+            raise RuntimeError(
+                "同一游戏实例读取七人能力面板不完整："
+                f"{len(panels_by_name)}/{TEAM_MEMBER_NUM}"
+            )
+        ordered_panels = tuple(
+            panels_by_name[member.name]
+            for member in task_module.TEAM_MEMBER_LIST
+        )
+        self.teamJobAndSkillInfoMat = np.vstack(ordered_panels)
+
+        evaluation = evaluate_task_skill_rules(
+            rules,
+            task_module,
+            task_module.TEAM_MEMBER_LIST,
+            self._r0_average,
+        )
+        result = {
+            "qualified": evaluation.qualified,
+            "reasons": list(evaluation.reasons),
+            "job_names": [JOB_MAP[job_id][0] for job_id in job_ids],
+            "skills": [
+                [skill.name for skill in member.skillList]
+                for member in task_module.TEAM_MEMBER_LIST
+            ],
+            "panels": ordered_panels,
+            "metrics": evaluation.metrics,
+        }
+        diagnostic_log(
+            "same_session_seven_member_inspection_completed",
+            pid=pid,
+            qualified=result["qualified"],
+            job_names=result["job_names"],
+            skills=result["skills"],
+            panel_count=len(result["panels"]),
+        )
+        return result
 
     def r0_only_run(self) -> bool:
         print(f"{self.name} 原生随机内存快筛流程 start")
@@ -6176,46 +6497,9 @@ def patch_runtime(
                 self._candidate_save = saved
                 print("候选存档已由游戏原生保存")
 
-                inspection_dir = Path(
-                    tempfile.mkdtemp(prefix="ccz-inspect-", dir=app_dir())
-                )
-                inspection = run_candidate_inspection(
-                    game_path,
-                    scratch_slot,
-                    inspection_dir,
-                    self._r0_average,
-                    mode="seven",
-                )
-                if inspection is None:
-                    print("用户进度: 本轮最终结果=检查未完成")
-                    return False
-                evidence_source = Path(
-                    inspection.get("skill_evidence", "")
-                )
-                if evidence_source.is_file():
-                    evidence_root = (
-                        DIAGNOSTIC_LOG_PATH.parent
-                        if DIAGNOSTIC_LOG_PATH is not None
-                        else app_dir() / "ccz_fast_logs"
-                    ) / "skill_evidence"
-                    evidence_root.mkdir(parents=True, exist_ok=True)
-                    evidence_name = (
-                        dt.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-                        + f"_slot{self.savePos}.zip"
-                    )
-                    archived_evidence = evidence_root / evidence_name
-                    shutil.copyfile(evidence_source, archived_evidence)
-                    diagnostic_log(
-                        "skill_evidence_archived",
-                        path=archived_evidence,
-                        target_slot=self.savePos,
-                        qualified=inspection["qualified"],
-                    )
+                inspection = inspect_current_seven_members(self)
                 self._job_names = tuple(inspection["job_names"])
-                self._member_panels = tuple(
-                    Image.open(panel_path).convert("RGB").copy()
-                    for panel_path in inspection["panels"]
-                )
+                self._member_panels = tuple(inspection["panels"])
                 self._team_members = task_module.TEAM_MEMBER_LIST
                 if not inspection["qualified"]:
                     reasons = inspection.get("reasons", [])
@@ -6240,31 +6524,42 @@ def patch_runtime(
             if target_path.is_file()
             else None
         )
-        native_direct_save(pid, self.savePos - 1)
-        save_deadline = time.perf_counter() + 5
-        while time.perf_counter() < save_deadline:
+        if three_person_mode:
+            native_direct_save(pid, self.savePos - 1)
+            save_deadline = time.perf_counter() + 5
+            while time.perf_counter() < save_deadline:
+                if (
+                    target_path.is_file()
+                    and target_path.stat().st_mtime_ns != target_mtime
+                ):
+                    break
+                time.sleep(0.1)
             if (
-                target_path.is_file()
-                and target_path.stat().st_mtime_ns != target_mtime
+                not target_path.is_file()
+                or target_path.stat().st_mtime_ns == target_mtime
             ):
-                break
-            time.sleep(0.1)
-        if (
-            not target_path.is_file()
-            or target_path.stat().st_mtime_ns == target_mtime
-        ):
-            raise RuntimeError(
-                f"第 {self.savePos} 号结果存档未能完成游戏原生保存"
+                raise RuntimeError(
+                    f"第 {self.savePos} 号结果存档未能完成游戏原生保存"
+                )
+        else:
+            temporary_target = target_path.with_name(
+                f".{target_path.name}.{os.getpid()}.tmp"
             )
+            temporary_target.write_bytes(self._candidate_save)
+            os.replace(temporary_target, target_path)
         target_saved = target_path.read_bytes()
-        memory_after_target_save = read_memory(pid, 0, R0_MEMORY_SIZE)
-        if target_saved[:R0_MEMORY_SIZE] != memory_after_target_save:
+        expected_target = (
+            read_memory(pid, 0, R0_MEMORY_SIZE)
+            if three_person_mode
+            else self._candidate_save[:R0_MEMORY_SIZE]
+        )
+        if target_saved[:R0_MEMORY_SIZE] != expected_target:
             raise RuntimeError(
                 f"第 {self.savePos} 号结果存档与保存时游戏内存不一致"
             )
         print(
-            f"第 {self.savePos} 号结果存档已由游戏原生保存，"
-            "并通过保存时内存逐字节校验"
+            f"第 {self.savePos} 号结果存档已保存，"
+            "并通过候选原生存档逐字节校验"
         )
         return True
 
@@ -7437,6 +7732,9 @@ def main() -> int:
     print("游戏将在独立后台桌面运行，不会占用当前鼠标或抢前台。")
     three_person_mode = os.environ.get("CCZ_RANDOM_MODE") == "three"
     loop_random = os.environ.get("CCZ_LOOP_RANDOM") == "1"
+    helper_script_target: Path | None = None
+    helper_script_backup: bytes | None = None
+    helper_script_existed = False
     requested_run_stamp = os.environ.get(
         "CCZ_RUN_STAMP",
         dt.datetime.now().strftime("%Y-%m-%d %H.%M.%S"),
@@ -7529,6 +7827,26 @@ def main() -> int:
         if not source_save.is_file():
             raise FileNotFoundError(
                 "未找到第 20 号源存档 SV020.E5S"
+            )
+        if not three_person_mode:
+            helper_script = bundled_random_s00()
+            if not helper_script.is_file():
+                raise FileNotFoundError("工具内缺少七人流程辅助文件")
+            helper_script_target = (
+                game_executable.parent / "RS" / "S_00.eex"
+            )
+            helper_script_target.parent.mkdir(parents=True, exist_ok=True)
+            helper_script_existed = helper_script_target.is_file()
+            helper_script_backup = (
+                helper_script_target.read_bytes()
+                if helper_script_existed
+                else None
+            )
+            shutil.copyfile(helper_script, helper_script_target)
+            diagnostic_log(
+                "main_session_helper_script_installed",
+                target=file_diagnostic(helper_script_target),
+                helper=file_diagnostic(helper_script),
             )
         source_hash = hashlib.sha256(source_save.read_bytes()).hexdigest()
         update_diagnostic_context(phase="source_validation")
@@ -8181,6 +8499,23 @@ def main() -> int:
         return 1
     finally:
         update_diagnostic_context(phase="worker_exit")
+        if helper_script_target is not None:
+            try:
+                if helper_script_existed:
+                    assert helper_script_backup is not None
+                    helper_script_target.write_bytes(helper_script_backup)
+                else:
+                    helper_script_target.unlink(missing_ok=True)
+                diagnostic_log(
+                    "main_session_helper_script_restored",
+                    target=str(helper_script_target),
+                )
+            except Exception as restore_exc:
+                diagnostic_error(
+                    "main_session_helper_script_restore_failed",
+                    restore_exc,
+                    target=str(helper_script_target),
+                )
         diagnostic_log("worker_exit")
         clear_diagnostic_context(
             "pid",

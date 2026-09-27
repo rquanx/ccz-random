@@ -245,6 +245,10 @@ int wmain(int argc, wchar_t **argv) {
         request.right = _wtoi(argv[8]);
         request.item_index = _wtoi(argv[9]);
     } else if (
+        wcscmp(argv[3], L"enable-acceleration") == 0 && argc == 4
+    ) {
+        request.action = 47;
+    } else if (
         wcscmp(argv[3], L"list-window") == 0 && argc == 6
     ) {
         request.action = 42;

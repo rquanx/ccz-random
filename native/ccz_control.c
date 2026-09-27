@@ -60,7 +60,8 @@ enum {
     ACTION_END_DIALOG = 43,
     ACTION_MUTE_AUDIO = 44,
     ACTION_TIMED_SILENT_CLICK = 45,
-    ACTION_TIMED_SILENT_CLICK_BURST = 46
+    ACTION_TIMED_SILENT_CLICK_BURST = 46,
+    ACTION_ENABLE_ACCELERATION = 47
 };
 
 typedef struct ControlRequest {
@@ -156,6 +157,7 @@ typedef struct TemporaryCodePatch {
 #define WM_CCZ_MARK_LOAD_READY (WM_APP + 0x4D0)
 #define WM_CCZ_START_GAME_LOOP (WM_APP + 0x4D1)
 #define WM_CCZ_END_DIALOG (WM_APP + 0x4D2)
+#define WM_CCZ_ENABLE_ACCELERATION (WM_APP + 0x4D3)
 #define GAME_LOAD_FUNCTION_ADDRESS 0x0041888D
 #define GAME_LOAD_MODAL_STATE_ADDRESS 0x0040B913
 #define GAME_LOAD_CONFIRM_FUNCTION_ADDRESS 0x00418C34
@@ -186,6 +188,8 @@ typedef struct TemporaryCodePatch {
 #define GAME_CHOICE_FINALIZE_ADDRESS 0x0042E11E
 #define GAME_CHOICE_FINALIZE_RETURN 0x0042E123
 #define GAME_CHOICE_FINALIZE_FUNCTION_ADDRESS 0x0041E5F6
+#define GAME_ACCELERATION_TOGGLE_FUNCTION_ADDRESS 0x004250B3
+#define GAME_ACCELERATION_ENABLED_ADDRESS 0x004CE7BF
 
 static HWND find_game_window(void);
 static HWND find_list_dialog(void);
@@ -1557,6 +1561,25 @@ static LRESULT CALLBACK control_game_wndproc(
         InterlockedExchange(&game_call_completed, 1);
         return 0;
     }
+    if (message == WM_CCZ_ENABLE_ACCELERATION) {
+        typedef void (__stdcall *GameAccelerationToggleFunction)(void);
+        GameAccelerationToggleFunction toggle_acceleration =
+            (GameAccelerationToggleFunction)
+                GAME_ACCELERATION_TOGGLE_FUNCTION_ADDRESS;
+        game_call_result = 0;
+        __try {
+            if (*(BYTE *)GAME_ACCELERATION_ENABLED_ADDRESS != 1) {
+                toggle_acceleration();
+            }
+            game_call_result =
+                *(BYTE *)GAME_ACCELERATION_ENABLED_ADDRESS == 1 ? 1 : 0;
+        } __except (EXCEPTION_EXECUTE_HANDLER) {
+            game_call_result = 0x10000000 |
+                (GetExceptionCode() & 0x0FFFFFFF);
+        }
+        InterlockedExchange(&game_call_completed, 1);
+        return 0;
+    }
     return CallWindowProcW(
         original_game_wndproc, window, message, wparam, lparam
     );
@@ -2597,7 +2620,12 @@ static DWORD run_game_call(int slot, UINT message, BOOL is_load) {
         InterlockedExchange(&allow_game_foreground, 0);
         return 16;
     }
-    Sleep(message == WM_CCZ_GAME_MOUSE ? 10 : 1800);
+    Sleep(
+        message == WM_CCZ_GAME_MOUSE ||
+        message == WM_CCZ_ENABLE_ACCELERATION
+            ? 10
+            : 1800
+    );
     if (
         guarded_foreground != NULL &&
         IsWindow(guarded_foreground)
@@ -3004,6 +3032,12 @@ static DWORD run_game_frame_click(int x, int y) {
     requested_mouse_x = x;
     requested_mouse_y = y;
     return run_game_call(0, WM_CCZ_GAME_FRAME_CLICK, FALSE);
+}
+
+static DWORD run_enable_acceleration(void) {
+    return run_game_call(
+        0, WM_CCZ_ENABLE_ACCELERATION, FALSE
+    );
 }
 
 static DWORD run_list_item(int item_index) {
@@ -3918,6 +3952,9 @@ __declspec(dllexport) DWORD WINAPI ControlAction(LPVOID parameter) {
     }
     if (request.action == ACTION_GAME_FRAME_CLICK) {
         return run_game_frame_click(request.x, request.y);
+    }
+    if (request.action == ACTION_ENABLE_ACCELERATION) {
+        return run_enable_acceleration();
     }
     if (request.action == ACTION_SILENT_CLICK) {
         HWND window = request.window != 0

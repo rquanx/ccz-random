@@ -22,6 +22,9 @@ TOTAL_DELAYS_MS = tuple(
 ROUNDS_PER_DELAY = int(os.environ.get("CCZ_STORY_BURST_ROUNDS", "4"))
 DOWN_DELAY_MS = int(os.environ.get("CCZ_STORY_BURST_DOWN_MS", "55"))
 MAX_CLICKS = int(os.environ.get("CCZ_STORY_BURST_MAX_CLICKS", "80"))
+USE_NATIVE_ACCELERATION = os.environ.get(
+    "CCZ_STORY_NATIVE_ACCELERATION", "0"
+) == "1"
 
 
 def trigger_random(game: fast.HiddenGameSession) -> tuple[int, ...]:
@@ -64,6 +67,8 @@ def run_round(total_delay_ms: int) -> float:
         raise ValueError("总点击间隔不能小于按下时间")
     with fast.HiddenGameSession(GAME) as game:
         trigger_random(game)
+        if USE_NATIVE_ACCELERATION:
+            fast.enable_game_acceleration(game.pid)
         fast.trigger_seven_member_story(
             None,
             game.pid,
@@ -71,14 +76,17 @@ def run_round(total_delay_ms: int) -> float:
             click_strategy="story-burst-benchmark",
         )
         started = time.perf_counter()
-        fast.native_silent_click_burst(
-            game.main_window,
-            360,
-            400,
-            MAX_CLICKS,
-            down_delay_ms=DOWN_DELAY_MS,
-            up_delay_ms=up_delay_ms,
-        )
+        if USE_NATIVE_ACCELERATION:
+            fast.wait_for_seven_member_scene(game.pid)
+        else:
+            fast.native_silent_click_burst(
+                game.main_window,
+                360,
+                400,
+                MAX_CLICKS,
+                down_delay_ms=DOWN_DELAY_MS,
+                up_delay_ms=up_delay_ms,
+            )
         elapsed = time.perf_counter() - started
         fast.native_wake_game(game.pid, game.main_window, 500)
         time.sleep(0.5)
@@ -96,6 +104,7 @@ def main() -> int:
         "roundsPerDelay": ROUNDS_PER_DELAY,
         "downDelayMs": DOWN_DELAY_MS,
         "maxClicks": MAX_CLICKS,
+        "nativeAcceleration": USE_NATIVE_ACCELERATION,
         "delays": {},
     }
     for total_delay_ms in TOTAL_DELAYS_MS:

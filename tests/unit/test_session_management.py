@@ -36,6 +36,7 @@ from fast_randomizer import (
     native_silent_click,
     normal_load_verified,
     open_uncaptured_member_from_roster,
+    process_is_alive,
     run_candidate_inspection,
     run_initial_inspection_process,
     run_initial_inspection_process_once,
@@ -57,6 +58,93 @@ class FakeGameSession:
 
 
 class SessionManagementTests(unittest.TestCase):
+    def test_audio_mute_monitor_targets_only_its_game_process(self):
+        session = app_module.HiddenGameSession(Path("Ekd5.exe"))
+        session.pid = 456
+        session.audio_mute_stop = unittest.mock.Mock()
+        session.audio_mute_stop.is_set.side_effect = [False, False]
+        with (
+            patch(
+                "ccz_randomizer.app.process_is_alive",
+                side_effect=[True, False],
+            ),
+            patch(
+                "ccz_randomizer.app.mute_process_audio_sessions",
+                return_value=1,
+            ) as mute_audio,
+            patch("ccz_randomizer.app.diagnostic_log") as diagnostic,
+        ):
+            session._maintain_audio_mute()
+
+        mute_audio.assert_called_once_with(456)
+        session.audio_mute_stop.wait.assert_called_once_with(0.5)
+        self.assertTrue(
+            any(
+                call.args[0] == "game_audio_session_muted"
+                for call in diagnostic.call_args_list
+            )
+        )
+
+    def test_process_alive_checks_the_requested_pid(self):
+        with (
+            patch(
+                "fast_randomizer.kernel32.OpenProcess",
+                return_value=987,
+            ) as open_process,
+            patch(
+                "fast_randomizer.kernel32.WaitForSingleObject",
+                return_value=0x00000102,
+            ) as wait_for_process,
+            patch(
+                "fast_randomizer.kernel32.CloseHandle",
+            ) as close_handle,
+        ):
+            self.assertTrue(process_is_alive(456))
+
+        open_process.assert_called_once_with(
+            app_module.SYNCHRONIZE
+            | app_module.PROCESS_QUERY_LIMITED_INFORMATION,
+            False,
+            456,
+        )
+        wait_for_process.assert_called_once_with(987, 0)
+        close_handle.assert_called_once_with(987)
+
+    def test_interaction_failure_ignores_other_same_name_processes(self):
+        healthy_state = {
+            "game_window_valid": True,
+            "game_window_enabled": True,
+        }
+        with patch(
+            "ccz_randomizer.app.process_is_alive",
+            return_value=True,
+        ):
+            result = app_module.interaction_failure_type(
+                456,
+                healthy_state,
+                load_mode="normal",
+                reused_session=True,
+            )
+
+        self.assertEqual("interaction:no-change:normal:reused", result)
+
+    def test_interaction_failure_detects_target_process_exit(self):
+        with patch(
+            "ccz_randomizer.app.process_is_alive",
+            return_value=False,
+        ):
+            result = app_module.interaction_failure_type(
+                456,
+                {
+                    "game_window_valid": True,
+                    "game_window_enabled": True,
+                },
+                load_mode="normal",
+                reused_session=True,
+            )
+
+        self.assertEqual("interaction:process-exited", result)
+
     def test_native_control_stops_without_waiting_for_timeout(self):
         class FakeProcess:
             returncode = None
@@ -287,6 +375,10 @@ class SessionManagementTests(unittest.TestCase):
         self.assertIn("CCZ_FORCE_ROSTER_FALLBACK", source)
         self.assertIn("CCZ_DISABLE_ROSTER_FALLBACK", source)
         self.assertIn("advance_seven_member_story(", source)
+        self.assertIn(
+            '"same_session_member_has_no_skills"',
+            source,
+        )
 
     def test_same_session_skill_capture_uses_full_print_window_frame(self):
         source = (
@@ -307,10 +399,44 @@ class SessionManagementTests(unittest.TestCase):
             "same_session_member_capture_attempt",
             source,
         )
-        self.assertIn(
-            "特技连续三次识别为空",
-            source,
+        self.assertIn("same_session_member_has_no_skills", source)
+
+    def test_window_capture_has_recoverable_fallbacks(self):
+        source = (
+            Path(__file__).resolve().parents[2]
+            / "ccz_randomizer"
+            / "app.py"
+        ).read_text(encoding="utf-8")
+        robust_get_mat = source.split(
+            "    def robust_get_mat(", 1
+        )[1].split("    def click_relative_hwnd(", 1)[0]
+
+        self.assertIn('(2, "print_window_full")', robust_get_mat)
+        self.assertIn('(0, "print_window")', robust_get_mat)
+        self.assertIn('"bitblt"', robust_get_mat)
+        self.assertIn("native_wake_game(", robust_get_mat)
+        self.assertIn("WindowCaptureUnavailable", robust_get_mat)
+        self.assertTrue(
+            issubclass(
+                app_module.WindowCaptureUnavailable,
+                InteractionNotTriggered,
+            )
         )
+
+    def test_text_panel_can_replace_failed_full_panel_capture(self):
+        skills = [
+            type("Skill", (), {"name": name})()
+            for name in ("特技一", "特技二", "特技三", "特技四")
+        ]
+
+        panel = app_module.render_member_text_panel(
+            "曹操",
+            "群雄",
+            skills,
+        )
+
+        self.assertEqual((130, 130, 3), panel.shape)
+        self.assertGreater(float(np.std(panel)), 1.0)
 
     def test_seven_member_inspection_refreshes_consumed_session_directly(self):
         source = (
@@ -512,7 +638,7 @@ class SessionManagementTests(unittest.TestCase):
         run_flow = source.split("    def r0_only_run(self)", 1)[1]
 
         self.assertLess(
-            run_flow.index('post_key_to_game(pid, "z")'),
+            run_flow.index("enable_game_acceleration(pid)"),
             run_flow.index('"interaction_start"'),
         )
 

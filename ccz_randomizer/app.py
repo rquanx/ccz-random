@@ -50,6 +50,7 @@ from ccz_randomizer.runtime.log_retention import (
     trim_text_widget,
 )
 from ccz_randomizer.runtime.loader import install
+from ccz_randomizer.runtime.audio import mute_process_audio_sessions
 from ccz_randomizer.preferences import load_random_mode, save_random_mode
 from ccz_randomizer.workflow.randomization import (
     AcceptedResult,
@@ -104,6 +105,7 @@ R0_MEMORY_SIZE = 0x30000
 PROCESS_QUERY_INFORMATION = 0x0400
 PROCESS_VM_READ = 0x0010
 PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+SYNCHRONIZE = 0x00100000
 MIN_AVAILABLE_MEMORY_BYTES = 768 * 1024 * 1024
 DESKTOP_ACCESS = 0x01CB
 STARTF_USESHOWWINDOW = 0x00000001
@@ -1058,6 +1060,10 @@ class InteractionNotTriggered(RuntimeError):
     """The game accepted background input without advancing randomization."""
 
 
+class WindowCaptureUnavailable(InteractionNotTriggered):
+    """All background capture methods failed for a game window region."""
+
+
 class DirectReloadUnsupported(InteractionNotTriggered):
     """The current machine cannot safely reuse a running game instance."""
 
@@ -1101,10 +1107,6 @@ class InspectionProcessError(RuntimeError):
         self.elapsed_seconds = elapsed_seconds
         label = "初始三人能力检查" if stage == "initial" else "候选结果界面检查"
         super().__init__(label + "失败" + (f"：{details}" if details else ""))
-
-
-class SecuritySoftwareDetected(RuntimeError):
-    """A known incompatible security product is currently active."""
 
 
 def stop_is_requested() -> bool:
@@ -1340,6 +1342,10 @@ def native_wake_game(pid: int, hwnd: int, duration_ms: int = 1500) -> None:
     )
 
 
+def native_enable_acceleration(pid: int) -> None:
+    run_native_control(pid, ["enable-acceleration"])
+
+
 def native_direct_load(pid: int, slot: int) -> None:
     run_native_control(pid, ["load", str(slot)])
 
@@ -1402,6 +1408,22 @@ def find_process_id(exe_name: str) -> int | None:
                 return None
     finally:
         kernel32.CloseHandle(snapshot)
+
+
+def process_is_alive(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    handle = kernel32.OpenProcess(
+        SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION,
+        False,
+        pid,
+    )
+    if not handle:
+        return False
+    try:
+        return kernel32.WaitForSingleObject(handle, 0) != 0
+    finally:
+        kernel32.CloseHandle(handle)
 
 
 def running_process_names() -> set[str]:
@@ -1524,17 +1546,6 @@ def validate_start_environment(game_executable: Path) -> Path:
             f"未找到 {GAME_EXE_NAME}。\n\n"
             "请把本工具放到游戏目录下，再双击运行。"
         )
-    if find_process_id(GAME_EXE_NAME) is not None:
-        raise RuntimeError(
-            "检测到游戏正在运行。\n\n"
-            "请先关闭游戏，再点击“开始随机”。"
-        )
-    security_processes = detect_360_security_processes()
-    if security_processes:
-        raise SecuritySoftwareDetected(
-            "检测到 360 安全软件正在运行，可能会阻止随机工具的后台操作。"
-            "请完全退出 360 后，再点击“开始随机”。"
-        )
     available_memory = available_physical_memory_bytes()
     if (
         available_memory is not None
@@ -1628,6 +1639,8 @@ class HiddenGameSession:
         self.main_window = 0
         self.foreground_before = 0
         self.desktop = 0
+        self.audio_mute_stop = threading.Event()
+        self.audio_mute_thread: threading.Thread | None = None
         self.use_isolated_desktop = (
             os.environ.get("CCZ_USE_ISOLATED_DESKTOP", "1") != "0"
         )
@@ -1710,7 +1723,10 @@ class HiddenGameSession:
                 and os.environ.get("CCZ_DISABLE_GUARD") != "1"
             ):
                 run_native_control(self.pid, ["guard"])
-            if os.environ.get("CCZ_DISABLE_AUDIO_MUTE") != "1":
+            if (
+                os.environ.get("CCZ_DISABLE_AUDIO_MUTE") != "1"
+                and os.environ.get("CCZ_DISABLE_AUDIO_FILE_HOOK") != "1"
+            ):
                 try:
                     run_native_control(self.pid, ["mute-audio"])
                     diagnostic_log("game_audio_muted", pid=self.pid)
@@ -1787,6 +1803,13 @@ class HiddenGameSession:
             raise RuntimeError(
                 "静默游戏抢占了前台窗口，已停止测试"
             )
+        if os.environ.get("CCZ_DISABLE_AUDIO_MUTE") != "1":
+            self.audio_mute_thread = threading.Thread(
+                target=self._maintain_audio_mute,
+                name=f"ccz-audio-mute-{self.pid}",
+                daemon=True,
+            )
+            self.audio_mute_thread.start()
         if self.announce:
             print(
                 f"隐藏游戏实例已{'重新' if self.restarted else ''}启动，"
@@ -1794,6 +1817,34 @@ class HiddenGameSession:
                 "游戏未取得前台，系统鼠标未被程序控制。"
             )
         return self
+
+    def _maintain_audio_mute(self) -> None:
+        muted_sessions = 0
+        last_error = None
+        reported = False
+        while (
+            not self.audio_mute_stop.is_set()
+            and process_is_alive(self.pid)
+        ):
+            try:
+                current_muted = mute_process_audio_sessions(self.pid)
+                muted_sessions = max(muted_sessions, current_muted)
+                if current_muted and not reported:
+                    diagnostic_log(
+                        "game_audio_session_muted",
+                        pid=self.pid,
+                        muted_sessions=current_muted,
+                    )
+                    reported = True
+            except Exception as exc:
+                last_error = repr(exc)
+            self.audio_mute_stop.wait(0.5)
+        diagnostic_log(
+            "game_audio_mute_monitor_stopped",
+            pid=self.pid,
+            muted_sessions=muted_sessions,
+            error=last_error,
+        )
 
     def is_healthy(self) -> bool:
         return bool(
@@ -1805,6 +1856,10 @@ class HiddenGameSession:
 
     def __exit__(self, exc_type, exc, tb) -> None:
         global WINDOW_DESKTOP
+        self.audio_mute_stop.set()
+        if self.audio_mute_thread is not None:
+            self.audio_mute_thread.join(timeout=2)
+            self.audio_mute_thread = None
         if self.process:
             if kernel32.WaitForSingleObject(self.process, 0) != 0:
                 kernel32.TerminateProcess(self.process, 0)
@@ -2122,7 +2177,7 @@ def title_load_verified(
         pid=pid,
         checks=checks,
         elapsed_ms=round((time.perf_counter() - started) * 1000),
-        process_alive=find_process_id(GAME_EXE_NAME) == pid,
+        process_alive=process_is_alive(pid),
     )
     return False
 
@@ -2317,6 +2372,7 @@ def print_window_mat(
     w: int = 0,
     h: int = 0,
     strip_client: bool = True,
+    flags: int = 2,
 ) -> np.ndarray:
     load_media_modules()
     rect = wintypes.RECT()
@@ -2334,7 +2390,7 @@ def print_window_mat(
     bitmap = gdi32.CreateCompatibleBitmap(window_dc, width, height)
     previous = gdi32.SelectObject(memory_dc, bitmap)
     try:
-        if not user32.PrintWindow(hwnd, memory_dc, 2):
+        if not user32.PrintWindow(hwnd, memory_dc, flags):
             raise ctypes.WinError(ctypes.get_last_error())
         info = BitmapInfo()
         info.bmiHeader.biSize = ctypes.sizeof(BitmapInfoHeader)
@@ -2383,6 +2439,43 @@ def print_window_mat(
     if h <= 0:
         h = image.shape[0] - y
     return image[y : y + h, x : x + w]
+
+
+def render_member_text_panel(
+    member_name: str,
+    job_name: str,
+    skills,
+) -> np.ndarray:
+    """Render a result panel when text was read but the full panel was not."""
+    load_media_modules()
+    image = Image.new("RGB", (130, 130), (211, 211, 211))
+    draw = ImageDraw.Draw(image)
+    font = result_font(12)
+    title_font = result_font(13)
+    skill_names = [
+        str(getattr(skill, "name", skill))
+        for skill in skills
+        if getattr(skill, "name", skill)
+    ]
+    lines = [("个人天赋:", title_font)]
+    lines.extend((name, font) for name in skill_names[:3])
+    lines.append(("兵种技能:", title_font))
+    lines.extend((name, font) for name in skill_names[3:6])
+    y = 3
+    for text, line_font in lines:
+        if y > 94:
+            break
+        draw.text((5, y), text, font=line_font, fill=(0, 0, 0))
+        y += 15
+    footer = f"{member_name}-{job_name}"
+    footer_width = draw.textlength(footer, font=font)
+    draw.text(
+        (max(3, 127 - footer_width), 112),
+        footer,
+        font=font,
+        fill=(128, 0, 0),
+    )
+    return cv2.cvtColor(np.asarray(image), cv2.COLOR_RGB2BGR)
 
 
 def save_result_image(runner, equip_info, save_slot: int = 1) -> Path:
@@ -2939,6 +3032,21 @@ def post_key_to_game(pid: int, key: str) -> None:
         time.sleep(0.15)
 
 
+def enable_game_acceleration(pid: int) -> str:
+    try:
+        native_enable_acceleration(pid)
+        return "native_state"
+    except (NativeControlError, NativeControlTimeout) as exc:
+        post_key_to_game(pid, "z")
+        diagnostic_log(
+            "acceleration_native_enable_failed",
+            pid=pid,
+            fallback="window_message",
+            error=repr(exc),
+        )
+        return "window_message"
+
+
 def visible_owned_windows(owner: int) -> list[tuple[int, str, tuple[int, int, int, int]]]:
     rows: list[tuple[int, str, tuple[int, int, int, int]]] = []
     owner_pid = wintypes.DWORD()
@@ -3118,7 +3226,7 @@ def interaction_failure_type(
     load_mode: str,
     reused_session: bool,
 ) -> str:
-    if find_process_id(GAME_EXE_NAME) != pid:
+    if not process_is_alive(pid):
         return "interaction:process-exited"
     if not state.get("game_window_valid"):
         return "interaction:window-invalid"
@@ -4805,6 +4913,20 @@ def advance_seven_member_story(
     return False
 
 
+def wait_for_seven_member_scene(
+    pid: int,
+    *,
+    timeout: float = 3.2,
+) -> bool:
+    deadline = time.perf_counter() + timeout
+    while time.perf_counter() < deadline:
+        check_stop_requested()
+        if seven_member_scene_ready(pid):
+            return True
+        interruptible_sleep(0.05)
+    return seven_member_scene_ready(pid)
+
+
 def seven_member_scene_ready(pid: int) -> bool:
     try:
         state = read_memory(pid, 0, R0_MEMORY_SIZE)
@@ -4875,19 +4997,77 @@ def capture_initial_member_panels(
                     f"{expected_name}能力窗口不可用"
                 )
             skill_list = []
-            for skill_mat in runner.peopleInfoWind.getSkillMatList():
-                skill = task_module.CczUtils.getCczSkillWithMat(skill_mat)
-                if skill is not None:
-                    skill_list.append(skill)
+            panel = None
+            last_capture_error = None
+            skills_captured = False
+            for capture_attempt in range(1, 4):
+                check_stop_requested()
+                try:
+                    skill_list = []
+                    for skill_mat in runner.peopleInfoWind.getSkillMatList():
+                        skill = task_module.CczUtils.getCczSkillWithMat(
+                            skill_mat
+                        )
+                        if skill is not None:
+                            skill_list.append(skill)
+                    skills_captured = True
+                    try:
+                        panel = runner.peopleInfoWind.getAllSkillMat()
+                    except WindowCaptureUnavailable as exc:
+                        last_capture_error = exc
+                        panel = None
+                    break
+                except WindowCaptureUnavailable as exc:
+                    last_capture_error = exc
+                    skill_list = []
+                    panel = None
+                    skills_captured = False
+                diagnostic_log(
+                    "initial_member_capture_retry",
+                    pid=pid,
+                    member=expected_name,
+                    capture_attempt=capture_attempt,
+                    error=repr(last_capture_error),
+                )
+                native_wake_game(pid, main_window, 500)
+                interruptible_sleep(0.2)
+                refreshed_hwnd, refreshed_name = find_any_member_dialog(
+                    pid, member_names
+                )
+                if refreshed_hwnd and refreshed_name == expected_name:
+                    info_hwnd = refreshed_hwnd
+                    runner.peopleInfoWind._BaseWindow__hwnd = info_hwnd
+            if not skills_captured:
+                raise InteractionNotTriggered(
+                    f"{expected_name}能力文字连续三次读取失败，"
+                    "已放弃当前候选并继续随机"
+                ) from last_capture_error
             members[index].skillList = sorted(
                 skill_list,
                 key=lambda skill: skill.score,
                 reverse=True,
             )
-            panel = runner.peopleInfoWind.getAllSkillMat()
             if panel is None or not getattr(panel, "size", 0):
-                raise RuntimeError(
-                    f"{expected_name}能力信息未能读取"
+                job_name = str(
+                    getattr(
+                        getattr(members[index], "job", None),
+                        "name",
+                        "",
+                    )
+                )
+                panel = render_member_text_panel(
+                    expected_name,
+                    job_name,
+                    members[index].skillList,
+                )
+                diagnostic_log(
+                    "initial_member_panel_rendered_from_text",
+                    pid=pid,
+                    member=expected_name,
+                    capture_error=repr(last_capture_error),
+                    skills=[
+                        skill.name for skill in members[index].skillList
+                    ],
                 )
             panels.append(panel.copy())
             diagnostic_log(
@@ -5264,26 +5444,36 @@ def inspect_saved_slot(
                 pid=game.pid,
                 note="候选存档在主流程中已完成随机；检查流程不再选择随机选项",
             )
+            acceleration_method = enable_game_acceleration(game.pid)
+            diagnostic_log(
+                "inspection_acceleration_enabled",
+                pid=game.pid,
+                key="z",
+                method=acceleration_method,
+                timing="before_story_trigger",
+                note="进入剧情前启用加速",
+            )
             trigger_seven_member_story(
                 runner,
                 game.pid,
                 game.main_window,
                 click_strategy=click_strategy,
             )
-            post_key_to_game(game.pid, "z")
-            diagnostic_log(
-                "inspection_acceleration_enabled",
-                pid=game.pid,
-                key="z",
-                note="再次点击许子将后启用加速并推进剧情",
-            )
             native_wake_game(game.pid, game.main_window, 500)
             time.sleep(0.3)
             update_diagnostic_context(phase="inspection_story_progress")
-            advance_seven_member_story(
-                game.pid,
-                game.main_window,
+            accelerated = wait_for_seven_member_scene(game.pid)
+            diagnostic_log(
+                "inspection_accelerated_story_result",
+                pid=game.pid,
+                ready=accelerated,
+                timeout_seconds=3.2,
             )
+            if not accelerated:
+                advance_seven_member_story(
+                    game.pid,
+                    game.main_window,
+                )
             after_jump_path = output_dir / "after-jump.png"
             write_cv_image(
                 after_jump_path,
@@ -5780,24 +5970,96 @@ def patch_runtime(
         h: int = 0,
         toGray: bool = False,
     ):
+        errors = []
+
+        def accept(mat, method: str, *, require_variance: bool = True):
+            if mat is None or not getattr(mat, "size", 0):
+                errors.append(f"{method}:empty")
+                return None
+            if require_variance and float(np.std(mat)) <= 1:
+                errors.append(f"{method}:blank")
+                return None
+            if toGray:
+                task_module.CvUtils.transNotBlackToWhite(mat, 100)
+            return mat
+
+        # PW_RENDERFULLCONTENT works on most systems. Some older display
+        # drivers only support the original PrintWindow mode, so try both.
+        for flags, method in ((2, "print_window_full"), (0, "print_window")):
+            try:
+                mat = accept(
+                    print_window_mat(
+                        self.hwnd,
+                        x,
+                        y,
+                        w,
+                        h,
+                        strip_client=False,
+                        flags=flags,
+                    ),
+                    method,
+                )
+                if mat is not None:
+                    return mat
+            except Exception as exc:
+                errors.append(f"{method}:{type(exc).__name__}:{exc}")
+
         try:
-            # Hidden-desktop BitBlt can return a nonblank but stale frame.
-            # PrintWindow is the proven path used by the isolated inspector.
-            mat = print_window_mat(
-                self.hwnd,
-                x,
-                y,
-                w,
-                h,
-                strip_client=False,
+            mat = accept(
+                original_get_mat(self, x, y, w, h, False),
+                "bitblt",
+                require_variance=False,
             )
-            if mat.size and np.std(mat) > 1:
-                if toGray:
-                    task_module.CvUtils.transNotBlackToWhite(mat, 100)
+            if mat is not None:
                 return mat
-        except Exception:
-            pass
-        return original_get_mat(self, x, y, w, h, toGray)
+        except Exception as exc:
+            errors.append(f"bitblt:{type(exc).__name__}:{exc}")
+
+        current_main = find_process_window_by_class(pid, "SOUSOU")
+        if current_main:
+            try:
+                native_wake_game(pid, current_main, 400)
+                interruptible_sleep(0.08)
+            except Exception as exc:
+                errors.append(f"wake:{type(exc).__name__}:{exc}")
+
+        for flags, method in (
+            (0, "print_window_after_wake"),
+            (2, "print_window_full_after_wake"),
+        ):
+            try:
+                mat = accept(
+                    print_window_mat(
+                        self.hwnd,
+                        x,
+                        y,
+                        w,
+                        h,
+                        strip_client=False,
+                        flags=flags,
+                    ),
+                    method,
+                )
+                if mat is not None:
+                    diagnostic_log(
+                        "window_capture_recovered",
+                        pid=pid,
+                        hwnd=self.hwnd,
+                        method=method,
+                        previous_errors=errors,
+                    )
+                    return mat
+            except Exception as exc:
+                errors.append(f"{method}:{type(exc).__name__}:{exc}")
+
+        diagnostic_log(
+            "window_capture_unavailable",
+            pid=pid,
+            hwnd=self.hwnd,
+            region=[x, y, w, h],
+            errors=errors,
+        )
+        raise WindowCaptureUnavailable("后台能力窗口截图暂时不可用")
 
     def click_relative_hwnd(
         hwnd: int, x: int, y: int, w: int, h: int, count: int = 1
@@ -6213,7 +6475,16 @@ def patch_runtime(
             main_window,
             click_strategy="same_session",
         )
-        if not advance_seven_member_story(pid, main_window):
+        accelerated = wait_for_seven_member_scene(pid)
+        diagnostic_log(
+            "same_session_accelerated_story_result",
+            pid=pid,
+            ready=accelerated,
+            timeout_seconds=3.2,
+        )
+        if not accelerated and not advance_seven_member_story(
+            pid, main_window
+        ):
             return {"completed": False}
         self.openPeople()
         check_stop_requested()
@@ -6275,16 +6546,26 @@ def patch_runtime(
                     )
                 skill_list = []
                 panel = None
+                last_capture_error = None
                 for capture_attempt in range(1, 4):
                     check_stop_requested()
-                    skill_list = []
-                    for skill_mat in self.peopleInfoWind.getSkillMatList():
-                        skill = task_module.CczUtils.getCczSkillWithMat(
-                            skill_mat
-                        )
-                        if skill is not None:
-                            skill_list.append(skill)
-                    panel = self.peopleInfoWind.getAllSkillMat()
+                    try:
+                        skill_list = []
+                        for skill_mat in self.peopleInfoWind.getSkillMatList():
+                            skill = task_module.CczUtils.getCczSkillWithMat(
+                                skill_mat
+                            )
+                            if skill is not None:
+                                skill_list.append(skill)
+                        try:
+                            panel = self.peopleInfoWind.getAllSkillMat()
+                        except WindowCaptureUnavailable as exc:
+                            last_capture_error = exc
+                            panel = None
+                    except WindowCaptureUnavailable as exc:
+                        last_capture_error = exc
+                        skill_list = []
+                        panel = None
                     diagnostic_log(
                         "same_session_member_capture_attempt",
                         pid=pid,
@@ -6304,14 +6585,26 @@ def patch_runtime(
                             and getattr(panel, "size", 0)
                             else None
                         ),
+                        capture_error=repr(last_capture_error),
                     )
                     if skill_list:
                         break
                     native_wake_game(pid, main_window, 500)
                     interruptible_sleep(0.25)
                 if not skill_list:
-                    raise InteractionNotTriggered(
-                        f"{shown_name}能力窗口已打开，但特技连续三次识别为空"
+                    if panel is None or not getattr(panel, "size", 0):
+                        raise InteractionNotTriggered(
+                            f"{shown_name}能力窗口已打开，"
+                            "但特技区域连续三次未能读取"
+                        )
+                    diagnostic_log(
+                        "same_session_member_has_no_skills",
+                        pid=pid,
+                        member=shown_name,
+                        capture_attempts=3,
+                        panel_shape=getattr(panel, "shape", None),
+                        panel_mean=round(float(np.mean(panel)), 3),
+                        panel_std=round(float(np.std(panel)), 3),
                     )
                 member.skillList = sorted(
                     skill_list,
@@ -6319,7 +6612,20 @@ def patch_runtime(
                     reverse=True,
                 )
                 if panel is None or not getattr(panel, "size", 0):
-                    raise RuntimeError(f"{shown_name}能力信息未能读取")
+                    panel = render_member_text_panel(
+                        shown_name,
+                        member.job.name,
+                        member.skillList,
+                    )
+                    diagnostic_log(
+                        "same_session_member_panel_rendered_from_text",
+                        pid=pid,
+                        member=shown_name,
+                        capture_error=repr(last_capture_error),
+                        skills=[
+                            skill.name for skill in member.skillList
+                        ],
+                    )
                 panels_by_name[shown_name] = panel.copy()
                 captured_names.add(shown_name)
                 diagnostic_log(
@@ -6508,11 +6814,12 @@ def patch_runtime(
                 source_memory=source_memory,
             ),
         )
-        post_key_to_game(pid, "z")
+        acceleration_method = enable_game_acceleration(pid)
         diagnostic_log(
             "randomization_acceleration_enabled",
             pid=pid,
             key="z",
+            method=acceleration_method,
             load_mode=load_mode,
             reused_session=reused_session,
         )
@@ -6631,7 +6938,7 @@ def patch_runtime(
                 elapsed_ms=round(
                     (time.perf_counter() - interaction_started) * 1000
                 ),
-                process_alive=find_process_id(GAME_EXE_NAME) == pid,
+                process_alive=process_is_alive(pid),
                 window_valid=bool(user32.IsWindow(game)),
                 load_mode=load_mode,
                 reused_session=reused_session,
@@ -7982,10 +8289,6 @@ def gui_main() -> int:
         try:
             game_executable = locate_game_executable()
             validate_start_environment(game_executable)
-        except SecuritySoftwareDetected as exc:
-            status.set("环境检查未通过")
-            show_toast(root, str(exc), 5200)
-            return
         except Exception as exc:
             status.set("环境检查未通过")
             messagebox.showerror(
@@ -7994,6 +8297,14 @@ def gui_main() -> int:
                 parent=root,
             )
             return
+        security_processes = detect_360_security_processes()
+        if security_processes:
+            show_toast(
+                root,
+                "检测到 360 安全软件，可能会影响后台随机。"
+                "若运行异常，请退出 360 后重试。",
+                5200,
+            )
         latest_rules = load_rule_config(app_dir())
         current_rules = latest_rules.config
         rule_profile_combo.configure(
@@ -8246,9 +8557,6 @@ def main() -> int:
         )
         if os.environ.get("CCZ_AUTOSTART") != "1":
             input("按回车启动静默测试...")
-        running_pid = find_process_id(GAME_EXE_NAME)
-        if running_pid is not None:
-            raise RuntimeError("检测到游戏正在运行，请先关闭游戏后再执行随机。")
         source_save = game_executable.parent / "SV" / "SV020.E5S"
         if not source_save.is_file():
             raise FileNotFoundError(

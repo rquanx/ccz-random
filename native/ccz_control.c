@@ -59,7 +59,8 @@ enum {
     ACTION_LIST_WINDOW_ITEM = 42,
     ACTION_END_DIALOG = 43,
     ACTION_MUTE_AUDIO = 44,
-    ACTION_TIMED_SILENT_CLICK = 45
+    ACTION_TIMED_SILENT_CLICK = 45,
+    ACTION_TIMED_SILENT_CLICK_BURST = 46
 };
 
 typedef struct ControlRequest {
@@ -205,6 +206,14 @@ static DWORD arm_first_choice(void);
 static DWORD run_pulse_burst(int x, int y, int count);
 static DWORD post_silent_click_burst(
     HWND window, int x, int y, int count
+);
+static DWORD post_silent_click_burst_timed(
+    HWND window,
+    int x,
+    int y,
+    int count,
+    int down_delay_ms,
+    int up_delay_ms
 );
 static DWORD post_silent_click_timed(
     HWND window, int x, int y, int tail_delay_ms
@@ -2371,11 +2380,30 @@ static DWORD post_silent_click(HWND window, int x, int y) {
 static DWORD post_silent_click_burst(
     HWND window, int x, int y, int count
 ) {
+    return post_silent_click_burst_timed(
+        window, x, y, count, 55, 95
+    );
+}
+
+static DWORD post_silent_click_burst_timed(
+    HWND window,
+    int x,
+    int y,
+    int count,
+    int down_delay_ms,
+    int up_delay_ms
+) {
     if (!IsWindow(window)) {
         return 147;
     }
     if (count < 1 || count > 100) {
         return 148;
+    }
+    if (
+        down_delay_ms < 10 || down_delay_ms > 500 ||
+        up_delay_ms < 0 || up_delay_ms > 500
+    ) {
+        return 150;
     }
     synthetic_root = GetAncestor(window, GA_ROOT);
     synthetic_focus = window;
@@ -2413,12 +2441,12 @@ static DWORD post_silent_click_burst(
             MK_LBUTTON,
             MAKELPARAM(x, y)
         );
-        Sleep(55);
+        Sleep((DWORD)down_delay_ms);
         synthetic_left_down = 0;
         PostMessageW(
             window, WM_LBUTTONUP, 0, MAKELPARAM(x, y)
         );
-        Sleep(95);
+        Sleep((DWORD)up_delay_ms);
     }
     update_input_hooks_safely(window, FALSE);
     return 0;
@@ -3803,6 +3831,19 @@ __declspec(dllexport) DWORD WINAPI ControlAction(LPVOID parameter) {
             : find_game_window();
         return post_silent_click_burst(
             window, request.x, request.y, request.count
+        );
+    }
+    if (request.action == ACTION_TIMED_SILENT_CLICK_BURST) {
+        HWND window = request.window != 0
+            ? (HWND)(UINT_PTR)request.window
+            : find_game_window();
+        return post_silent_click_burst_timed(
+            window,
+            request.x,
+            request.y,
+            request.count,
+            request.right,
+            request.item_index
         );
     }
     if (request.action == ACTION_LIST_WINDOW_ITEM) {

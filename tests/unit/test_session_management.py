@@ -405,8 +405,21 @@ class SessionManagementTests(unittest.TestCase):
                 clicks_per_round=12,
             )
 
-        self.assertEqual(3, click_burst.call_count)
-        click_burst.assert_called_with(456, 360, 400, 12)
+        self.assertEqual(
+            [
+                unittest.mock.call(
+                    456,
+                    360,
+                    400,
+                    12,
+                    down_delay_ms=55,
+                    up_delay_ms=80,
+                ),
+                unittest.mock.call(456, 360, 400, 12),
+                unittest.mock.call(456, 360, 400, 12),
+            ],
+            click_burst.call_args_list,
+        )
         native_control.assert_not_called()
         self.assertEqual(
             [
@@ -453,8 +466,20 @@ class SessionManagementTests(unittest.TestCase):
         ):
             result = advance_seven_member_story(123, 456)
 
-        self.assertEqual(2, click_burst.call_count)
-        click_burst.assert_called_with(456, 360, 400, 80)
+        self.assertEqual(
+            [
+                unittest.mock.call(
+                    456,
+                    360,
+                    400,
+                    80,
+                    down_delay_ms=55,
+                    up_delay_ms=80,
+                ),
+                unittest.mock.call(456, 360, 400, 80),
+            ],
+            click_burst.call_args_list,
+        )
         self.assertTrue(result)
         native_control.assert_not_called()
         self.assertTrue(

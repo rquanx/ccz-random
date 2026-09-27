@@ -235,6 +235,16 @@ int wmain(int argc, wchar_t **argv) {
         request.y = _wtoi(argv[6]);
         request.count = _wtoi(argv[7]);
     } else if (
+        wcscmp(argv[3], L"silent-burst-timed") == 0 && argc == 10
+    ) {
+        request.action = 46;
+        request.window = wcstoul(argv[4], NULL, 10);
+        request.x = _wtoi(argv[5]);
+        request.y = _wtoi(argv[6]);
+        request.count = _wtoi(argv[7]);
+        request.right = _wtoi(argv[8]);
+        request.item_index = _wtoi(argv[9]);
+    } else if (
         wcscmp(argv[3], L"list-window") == 0 && argc == 6
     ) {
         request.action = 42;
@@ -483,7 +493,7 @@ int wmain(int argc, wchar_t **argv) {
 
     DWORD control_timeout = (
         request.action == 15 || request.action == 25 ||
-        request.action == 41
+        request.action == 41 || request.action == 46
     ) ? 65000 : 7000;
     DWORD control_wait = WaitForSingleObject(
         control_thread, control_timeout

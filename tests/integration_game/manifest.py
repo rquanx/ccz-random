@@ -82,6 +82,11 @@ CASES = (
         "分别基准测试读档前后的场景等待",
     ),
     GameCase(
+        "story-burst-benchmark",
+        "case_story_burst_benchmark.py",
+        "基准测试七人剧情连点间隔和就绪提前停止",
+    ),
+    GameCase(
         "silent-real-flow",
         "case_silent_real_flow.py",
         "验证静默真实随机流程",

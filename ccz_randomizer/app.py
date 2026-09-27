@@ -1141,7 +1141,7 @@ def run_native_control(pid: int, arguments: list[str]) -> None:
         )
     timeout = 70 if arguments and arguments[0] in {
         "openload", "real-load", "dispatch-state", "title-load",
-        "silent-burst", "pulse-burst"
+        "silent-burst", "silent-burst-timed", "pulse-burst"
     } else 8
     command = [
         str(injector),
@@ -1303,21 +1303,33 @@ def native_silent_click_burst(
     client_x: int,
     client_y: int,
     count: int,
+    *,
+    down_delay_ms: int | None = None,
+    up_delay_ms: int | None = None,
 ) -> None:
     pid = wintypes.DWORD()
     user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
     if not pid.value:
         return
-    run_native_control(
-        pid.value,
-        [
+    if down_delay_ms is None and up_delay_ms is None:
+        action = [
             "silent-burst",
             str(hwnd),
             str(client_x),
             str(client_y),
             str(count),
-        ],
-    )
+        ]
+    else:
+        action = [
+            "silent-burst-timed",
+            str(hwnd),
+            str(client_x),
+            str(client_y),
+            str(count),
+            str(55 if down_delay_ms is None else down_delay_ms),
+            str(95 if up_delay_ms is None else up_delay_ms),
+        ]
+    run_native_control(pid.value, action)
 
 
 def native_wake_game(pid: int, hwnd: int, duration_ms: int = 1500) -> None:
@@ -4725,16 +4737,32 @@ def advance_seven_member_story(
     *,
     rounds: int = 3,
     clicks_per_round: int = 80,
+    first_round_down_delay_ms: int = 55,
+    first_round_up_delay_ms: int = 80,
 ) -> bool:
     """Advance helper dialogue and the skipped-battle deployment screen."""
     for round_index in range(1, rounds + 1):
         check_stop_requested()
-        native_silent_click_burst(
-            main_window,
-            360,
-            400,
-            clicks_per_round,
-        )
+        if round_index == 1:
+            native_silent_click_burst(
+                main_window,
+                360,
+                400,
+                clicks_per_round,
+                down_delay_ms=first_round_down_delay_ms,
+                up_delay_ms=first_round_up_delay_ms,
+            )
+            click_interval_ms = (
+                first_round_down_delay_ms + first_round_up_delay_ms
+            )
+        else:
+            native_silent_click_burst(
+                main_window,
+                360,
+                400,
+                clicks_per_round,
+            )
+            click_interval_ms = 150
         native_wake_game(pid, main_window, 500)
         interruptible_sleep(0.5)
         check_stop_requested()
@@ -4746,6 +4774,7 @@ def advance_seven_member_story(
             round=round_index,
             rounds=rounds,
             clicks=clicks_per_round,
+            click_interval_ms=click_interval_ms,
             ready=ready,
         )
         if ready:

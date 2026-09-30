@@ -14,6 +14,7 @@
 
 # Runtime output
 /ccz_fast_logs/
+/ccz_fast_data/
 /randResult/
 /*.E5S
 /random_rules.json

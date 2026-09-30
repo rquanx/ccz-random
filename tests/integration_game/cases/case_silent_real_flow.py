@@ -7,8 +7,7 @@ from pathlib import Path
 
 import fast_randomizer as fast
 from runtime_loader import install
-from trace_original_flow import read_absolute
-from diagnose_dialog_load import child_controls
+from tools.diagnostics.trace_original_flow import read_absolute
 
 
 GAME = Path(

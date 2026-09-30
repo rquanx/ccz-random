@@ -19,7 +19,7 @@ CASES = (
     GameCase(
         "direct-native-flow",
         "case_direct_native_flow.py",
-        "验证原生控件驱动的完整流程",
+        "验证原生直接读档后的游戏状态",
     ),
     GameCase(
         "direct-native-random",

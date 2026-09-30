@@ -8,7 +8,7 @@ import fast_randomizer as fast
 from tests.integration_game.cases.case_direct_native_random import (
     write_absolute,
 )
-from trace_original_flow import read_absolute
+from tools.diagnostics.trace_original_flow import read_absolute
 
 
 GAME = Path(

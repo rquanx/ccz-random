@@ -29,7 +29,7 @@ def main() -> None:
                 rules=rules,
             )
             runner = task_module.CczReRandTask(0)
-            runner._target_save_pos = 16
+            runner._target_save_pos = 1
             runner._source_loaded = False
             if not runner.run():
                 raise RuntimeError(

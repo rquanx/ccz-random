@@ -5,7 +5,7 @@ import time
 from pathlib import Path
 
 import fast_randomizer as fast
-from trace_original_flow import read_absolute
+from tools.diagnostics.trace_original_flow import read_absolute
 
 
 GAME = Path(os.environ["CCZ_GAME_EXE"])

@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 
 import fast_randomizer as fast
-from trace_original_flow import read_absolute
+from tools.diagnostics.trace_original_flow import read_absolute
 
 
 GAME = Path(
@@ -54,40 +54,28 @@ def main() -> None:
     before_cursor = cursor()
     before_foreground = fast.user32.GetForegroundWindow()
     with fast.HiddenGameSession(GAME) as game:
-        time.sleep(2)
+        source_save = GAME.parent / "SV" / "SV020.E5S"
         print("initial", state(game.pid))
-        fast.run_native_control(
+        if not fast.title_load_verified(
             game.pid,
-            [
-                "silent-click",
-                str(game.main_window),
-                "530",
-                "220",
-            ],
-        )
-        dialog = fast.wait_list_dialog(game.pid, 5)
-        print("dialog", dialog)
-        if not dialog:
-            raise RuntimeError("原生读档窗口未打开")
-        fast.run_native_control(game.pid, ["reallist", "19"])
-        deadline = time.perf_counter() + 8
-        while time.perf_counter() < deadline:
-            click_confirmation(game.pid, {game.main_window, dialog})
-            if (
-                not fast.user32.IsWindow(dialog)
-                and fast.user32.IsWindowEnabled(game.main_window)
-            ):
-                break
-            time.sleep(0.05)
-        time.sleep(2)
+            fast.SOURCE_TITLE_LIST_INDEX,
+            source_save,
+        ):
+            raise RuntimeError("静默读取第20号源存档失败")
         print("loaded", state(game.pid), fast.read_job_ids(game.pid))
+        after_cursor = cursor()
+        after_foreground = fast.user32.GetForegroundWindow()
         print(
             "desktop",
             before_cursor,
-            cursor(),
+            after_cursor,
             before_foreground,
-            fast.user32.GetForegroundWindow(),
+            after_foreground,
         )
+        if after_cursor != before_cursor:
+            raise RuntimeError("静默读档移动了系统鼠标")
+        if after_foreground != before_foreground:
+            raise RuntimeError("静默读档抢占了前台窗口")
 
 
 if __name__ == "__main__":

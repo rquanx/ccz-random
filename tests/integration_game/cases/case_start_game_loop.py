@@ -9,7 +9,8 @@ import cv2
 
 import fast_randomizer as fast
 from runtime_loader import install
-from trace_original_flow import read_absolute
+from tools.diagnostics.trace_original_flow import read_absolute
+from full_randomizer_normal_load import trigger_random
 
 
 GAME = Path(
@@ -40,57 +41,32 @@ def capture(pid: int, output: Path) -> None:
 
     task = task_module.CczReRandTask(0)
     task.initWind()
-    cv2.imencode(".png", task.wind.getMat())[1].tofile(output)
+    if not task.wind.isInitSuccess():
+        print("capture skipped: 游戏窗口初始化失败")
+        return
+    try:
+        cv2.imencode(".png", task.wind.getMat())[1].tofile(output)
+    except Exception as exc:
+        print(f"capture skipped: {exc}")
 
 
 def main() -> None:
     with fast.HiddenGameSession(GAME) as game:
-        time.sleep(2)
+        source_save = GAME.parent / "SV" / "SV020.E5S"
         print("initial", state(game.pid), fast.read_job_ids(game.pid))
-        fast.native_wake_game(game.pid, game.main_window, 500)
-        fast.run_native_control(game.pid, ["title-load", "19"])
+        if not fast.title_load_verified(
+            game.pid,
+            fast.SOURCE_TITLE_LIST_INDEX,
+            source_save,
+        ):
+            raise RuntimeError("标题界面读取第20号源存档失败")
         print("loaded", state(game.pid), fast.read_job_ids(game.pid))
-        for index in range(10):
-            time.sleep(0.5)
-            print(
-                f"loaded-loop-{index + 1}",
-                state(game.pid),
-                fast.read_job_ids(game.pid),
-            )
-        install(fast.bundle_root())
-        import task.CczReRandTask as task_module
-
-        fast.run_native_control(game.pid, ["arm-first-choice"])
-        for click_index in range(30):
-            fast.run_native_control(
-                game.pid, ["pulse-click", "372", "280"]
-            )
-            time.sleep(0.05)
-            fast.run_native_control(
-                game.pid, ["pulse-click", "370", "264"]
-            )
-            time.sleep(0.1)
-            jobs = fast.read_job_ids(game.pid)
-            print(
-                f"pulse-{click_index + 1}",
-                state(game.pid),
-                jobs,
-            )
-            if any(jobs):
-                break
-        trace = GAME.parent / "ccz_random_trace.log"
-        trace.unlink(missing_ok=True)
-        fast.run_native_control(
-            game.pid, ["trace-address", "0x0042E092", "1"]
+        jobs = trigger_random(
+            game.pid,
+            game.main_window,
+            fast.JOB_POSITIONS_R0,
         )
-        fast.native_wake_game(game.pid, game.main_window, 1000)
-        time.sleep(0.5)
-        print(
-            "choice-trace",
-            trace.read_text(
-                encoding="utf-16-le", errors="replace"
-            ) if trace.is_file() else "missing",
-        )
+        print("random", state(game.pid), jobs)
         capture(
             game.pid,
             Path(__file__).with_name("start-game-loop-after-load.png"),

@@ -25,7 +25,7 @@ def main() -> None:
         with fast.HiddenGameSession(game_executable) as game:
             fast.patch_runtime(task_module, game.pid)
             runner = task_module.CczReRandTask(0)
-            runner._target_save_pos = 16
+            runner._target_save_pos = 1
             runner._source_loaded = False
             runner.run()
     finally:

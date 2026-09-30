@@ -7,7 +7,7 @@ from pathlib import Path
 import cv2
 import fast_randomizer as fast
 from runtime_loader import install
-from trace_original_flow import read_absolute
+from tools.diagnostics.trace_original_flow import read_absolute
 from tests.integration_game.cases.case_direct_native_random import (
     write_absolute,
 )
@@ -42,7 +42,7 @@ def main() -> None:
         # transition when the game's modal state byte is 3.
         write_absolute(game.pid, 0x004AC63C, b"\x03")
         fast.native_direct_load(game.pid, 19)
-        fast.native_wake_game(game.pid, game.main_window, 8000)
+        fast.native_wake_game(game.pid, game.main_window, 1000)
         install(fast.bundle_root())
         import task.CczReRandTask as task_module
 
@@ -64,23 +64,17 @@ def main() -> None:
             0x004ABF9C,
             (flags & ~8).to_bytes(4, "little"),
         )
+        write_absolute(game.pid, 0x00497738, b"\0\0\0\0")
         fast.native_wake_game(game.pid, game.main_window, 500)
         print(f"normalized={state(game.pid)}")
 
-        fast.patch_runtime(task_module, game.pid)
-        runner = task_module.CczReRandTask(0)
-        runner.initWind()
-        fast.run_native_control(
-            game.pid, ["frame-click", "372", "280"]
-        )
-        print("npc=frame-click")
-        time.sleep(1)
-        print(f"after_npc={state(game.pid)}")
-        fast.run_native_control(
-            game.pid, ["frame-click", "370", "264"]
-        )
-        print("choice=frame-click")
-        print(f"random={state(game.pid)} jobs={fast.read_job_ids(game.pid)}")
+        current = state(game.pid)
+        jobs = fast.read_job_ids(game.pid)
+        print(f"normalized={current} jobs={jobs}")
+        if current["0x48b4c8"] != "01000000":
+            raise RuntimeError("原生直接读档后未进入游戏场景")
+        if any(jobs):
+            raise RuntimeError("第20号源存档读档后兵种状态异常")
 
 
 if __name__ == "__main__":

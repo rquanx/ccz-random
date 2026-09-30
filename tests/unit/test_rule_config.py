@@ -14,6 +14,7 @@ from rule_config import (
     load_rule_config,
     merge_rule_export,
     save_rule_config,
+    skill_types_match,
     validate_rule_config,
 )
 
@@ -26,6 +27,56 @@ MEMBERS = [
 
 
 class RuleConfigTests(unittest.TestCase):
+    def test_skill_type_matching_only_rejects_opposite_types(self):
+        self.assertFalse(skill_types_match("WARRIOR", "MASTER"))
+        self.assertFalse(skill_types_match("MASTER", "WARRIOR"))
+        self.assertTrue(skill_types_match("WARRIOR", "WARRIOR"))
+        self.assertTrue(skill_types_match("MASTER", "MASTER"))
+        self.assertTrue(skill_types_match("ALL_ROUNDER", "MASTER"))
+        self.assertTrue(skill_types_match("WARRIOR", "ALL_ROUNDER"))
+        self.assertTrue(skill_types_match("WARRIOR", "NONE"))
+        self.assertTrue(skill_types_match("MASTER", "NONE"))
+
+    def test_skill_type_settings_are_validated(self):
+        config = default_rule_config()
+        seven = config["profiles"][DEFAULT_PROFILE_NAME]["sevenPerson"]
+        seven["skillTypeMatchingEnabled"] = False
+        seven["skillTypeOverrides"] = {"先手攻击": "MASTER"}
+
+        normalized = validate_rule_config(config)
+
+        normalized_seven = normalized["profiles"][DEFAULT_PROFILE_NAME][
+            "sevenPerson"
+        ]
+        self.assertFalse(normalized_seven["skillTypeMatchingEnabled"])
+        self.assertEqual(
+            "MASTER",
+            normalized_seven["skillTypeOverrides"]["先手攻击"],
+        )
+
+    def test_skill_type_can_disable_matching_for_one_skill(self):
+        config = default_rule_config()
+        config["profiles"][DEFAULT_PROFILE_NAME]["sevenPerson"][
+            "skillTypeOverrides"
+        ] = {"先手攻击": "NONE"}
+
+        normalized = validate_rule_config(config)
+
+        self.assertEqual(
+            "NONE",
+            normalized["profiles"][DEFAULT_PROFILE_NAME]["sevenPerson"][
+                "skillTypeOverrides"
+            ]["先手攻击"],
+        )
+
+    def test_unknown_skill_type_is_rejected(self):
+        config = default_rule_config()
+        config["profiles"][DEFAULT_PROFILE_NAME]["sevenPerson"][
+            "skillTypeOverrides"
+        ] = {"先手攻击": "UNKNOWN"}
+        with self.assertRaisesRegex(ValueError, "先手攻击匹配类型"):
+            validate_rule_config(config)
+
     def test_skill_score_classification_uses_configured_thresholds(self):
         self.assertEqual("other", classify_skill_score(0.5, 1, 2, 5))
         self.assertEqual("ordinary", classify_skill_score(1, 1, 2, 5))
@@ -312,6 +363,25 @@ class RuleConfigTests(unittest.TestCase):
         self.assertTrue(result.qualified)
         self.assertEqual(4.5, result.metrics["skillScore"])
 
+    def test_skill_score_override_matches_runtime_display_format(self):
+        config = default_rule_config()
+        seven = config["profiles"][DEFAULT_PROFILE_NAME]["sevenPerson"]
+        seven["skillBaseScores"] = {"能力辅助（防辅攻精）": 4.5}
+        result = evaluate_skill_rules(
+            config,
+            7.6,
+            {"夏侯惇": ["能力辅助 防→攻精"]},
+            set(),
+            set(),
+            set(),
+        )
+        self.assertTrue(result.qualified)
+        self.assertEqual(4.5, result.metrics["skillScore"])
+        self.assertEqual(
+            4.5,
+            result.metrics["memberSkillScores"]["夏侯惇"],
+        )
+
     def test_other_skill_can_receive_custom_score(self):
         config = default_rule_config()
         seven = config["profiles"][DEFAULT_PROFILE_NAME]["sevenPerson"]
@@ -444,6 +514,79 @@ class RuleConfigTests(unittest.TestCase):
         config["profiles"]["自定义"] = custom
         payload = build_rule_export(config, ("自定义",))
         self.assertEqual(("自定义",), tuple(payload["profiles"]))
+        self.assertEqual(2, payload["ruleVersion"])
+
+    def test_old_v2_config_adds_new_type_fields_without_losing_values(self):
+        config = default_rule_config()
+        profile = config["profiles"][DEFAULT_PROFILE_NAME]
+        profile["sevenPerson"]["minJobAverage"] = 6.25
+        profile["sevenPerson"]["skillBaseScores"] = {"先手攻击": 3.5}
+        del profile["sevenPerson"]["skillTypeMatchingEnabled"]
+        del profile["sevenPerson"]["skillTypeOverrides"]
+
+        normalized = validate_rule_config(config)
+        seven = normalized["profiles"][DEFAULT_PROFILE_NAME]["sevenPerson"]
+
+        self.assertEqual(6.25, seven["minJobAverage"])
+        self.assertEqual({"先手攻击": 3.5}, seven["skillBaseScores"])
+        self.assertTrue(seven["skillTypeMatchingEnabled"])
+        self.assertEqual({}, seven["skillTypeOverrides"])
+
+    def test_old_export_without_rule_version_adds_new_type_fields(self):
+        config = default_rule_config()
+        old_profile = json.loads(
+            json.dumps(config["profiles"][DEFAULT_PROFILE_NAME])
+        )
+        old_profile["builtin"] = False
+        old_profile["sevenPerson"]["skillBaseScores"] = {"万夫莫敌": 4}
+        del old_profile["sevenPerson"]["skillTypeMatchingEnabled"]
+        del old_profile["sevenPerson"]["skillTypeOverrides"]
+        payload = {
+            "format": "ccz-random-rules",
+            "version": 1,
+            "profiles": {"旧版导出": old_profile},
+        }
+
+        merged, names = merge_rule_export(config, payload)
+        imported = merged["profiles"][names[0]]["sevenPerson"]
+
+        self.assertEqual(("旧版导出",), names)
+        self.assertEqual({"万夫莫敌": 4.0}, imported["skillBaseScores"])
+        self.assertTrue(imported["skillTypeMatchingEnabled"])
+        self.assertEqual({}, imported["skillTypeOverrides"])
+
+    def test_version_one_full_config_import_uses_v1_migration(self):
+        config = default_rule_config()
+        payload = {
+            "version": 1,
+            "activeProfile": "旧规则",
+            "profiles": {
+                "旧规则": {
+                    "threePerson": {"minJobAverage": 8.1},
+                    "sevenPerson": {
+                        "minJobAverage": 6.2,
+                        "normalJobAverage": 6.8,
+                        "highJobAverage": 8.4,
+                        "mediumMinEffectiveSkills": 9,
+                        "lowMinEffectiveSkills": 11,
+                        "strongSkillWeight": 2.5,
+                        "specialSkillAutoPass": False,
+                        "highJobAutoPass": False,
+                    },
+                }
+            },
+        }
+
+        merged, names = merge_rule_export(config, payload)
+        imported = merged["profiles"][names[0]]
+
+        self.assertEqual(("旧规则",), names)
+        self.assertEqual(8.1, imported["threePerson"]["minJobAverage"])
+        self.assertEqual(9.0, imported["sevenPerson"]["mediumMinSkillScore"])
+        self.assertEqual(11.0, imported["sevenPerson"]["lowMinSkillScore"])
+        self.assertTrue(
+            imported["sevenPerson"]["skillTypeMatchingEnabled"]
+        )
 
     def test_import_appends_profiles_and_renames_duplicates(self):
         config = default_rule_config()

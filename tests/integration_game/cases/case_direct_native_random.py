@@ -7,7 +7,8 @@ from pathlib import Path
 
 import fast_randomizer as fast
 from runtime_loader import install
-from trace_original_flow import read_absolute
+from tools.diagnostics.trace_original_flow import read_absolute
+from full_randomizer_normal_load import trigger_random
 
 
 GAME = Path(
@@ -48,61 +49,25 @@ def write_absolute(pid: int, address: int, data: bytes) -> None:
 
 def main() -> None:
     with fast.HiddenGameSession(GAME) as game:
-        time.sleep(2)
-        fast.native_direct_load(game.pid, 19)
-        flags = int.from_bytes(
-            read_absolute(game.pid, 0x004ABF9C, 4), "little"
-        )
-        print(
-            "after_load="
-            + repr(
-                {
-                    "active": read_absolute(
-                        game.pid, 0x004AB020, 1
-                    ).hex(),
-                    "state": read_absolute(
-                        game.pid, 0x0048B4C8, 4
-                    ).hex(),
-                    "flags": hex(flags),
-                    "jobs": fast.read_job_ids(game.pid),
-                }
-            )
-        )
-        write_absolute(game.pid, 0x004AB020, b"\0")
-        write_absolute(
+        source_save = GAME.parent / "SV" / "SV020.E5S"
+        if not fast.title_load_verified(
             game.pid,
-            0x004ABF9C,
-            (flags & ~8).to_bytes(4, "little"),
-        )
-        fast.native_wake_game(game.pid, game.main_window, 1500)
+            fast.SOURCE_TITLE_LIST_INDEX,
+            source_save,
+        ):
+            raise RuntimeError("原生随机测试读取第20号源存档失败")
 
         install(fast.bundle_root())
         import task.CczReRandTask as task_module
 
-        fast.patch_runtime(task_module, game.pid)
-        runner = task_module.CczReRandTask(0)
-        runner.initWind()
         before = fast.read_job_ids(game.pid)
-        for event_type, event_value in (
-            (0, 0),
-            (0, 0),
-            (1, 1),
-            (0, 0),
-        ):
-            fast.run_native_control(
-                game.pid,
-                ["event", str(event_type), str(event_value)],
-            )
-            print(
-                f"event={event_type},{event_value}; "
-                f"jobs={fast.read_job_ids(game.pid)}; "
-                f"flags={read_absolute(game.pid, 0x004ABF9C, 4).hex()}"
-            )
-            time.sleep(0.4)
-        result = any(fast.read_job_ids(game.pid))
-        after = fast.read_job_ids(game.pid)
-        print(f"startRand={result}; jobs={before}->{after}")
-        if not result or after == before or not any(after):
+        after = trigger_random(
+            game.pid,
+            game.main_window,
+            fast.JOB_POSITIONS_R0,
+        )
+        print(f"jobs={before}->{after}")
+        if after == before or not any(after):
             raise RuntimeError("原生读档状态恢复后仍未触发随机")
 
 

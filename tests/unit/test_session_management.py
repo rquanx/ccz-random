@@ -1,9 +1,12 @@
 import tempfile
 import unittest
 import ast
+import contextlib
+import io
 import json
 import os
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import numpy as np
@@ -25,6 +28,7 @@ from fast_randomizer import (
     close_member_dialog,
     decode_equipment_effect,
     decode_subprocess_output,
+    drive_game_menu_load,
     ensure_people_roster_open,
     finish_reused_load_confirmation,
     format_user_log,
@@ -37,6 +41,7 @@ from fast_randomizer import (
     normal_load_verified,
     open_uncaptured_member_from_roster,
     process_is_alive,
+    recover_stale_windows,
     run_candidate_inspection,
     run_initial_inspection_process,
     run_initial_inspection_process_once,
@@ -44,9 +49,11 @@ from fast_randomizer import (
     run_inspection_process,
     run_native_control,
     session_failure_requires_restart,
+    title_load_verified,
     trigger_seven_member_story,
     trigger_random_choice_click,
 )
+from ccz_randomizer.runtime.concurrent import _should_forward_line
 
 
 class FakeGameSession:
@@ -57,32 +64,730 @@ class FakeGameSession:
         return self.healthy
 
 
-class SessionManagementTests(unittest.TestCase):
-    def test_audio_mute_monitor_targets_only_its_game_process(self):
-        session = app_module.HiddenGameSession(Path("Ekd5.exe"))
-        session.pid = 456
-        session.audio_mute_stop = unittest.mock.Mock()
-        session.audio_mute_stop.is_set.side_effect = [False, False]
+class ProcessExitDiagnosticTests(unittest.TestCase):
+    def test_process_exit_code_preserves_windows_status_value(self):
+        def write_exit_code(_handle, pointer):
+            pointer._obj.value = 0xC0000005
+            return 1
+
+        with patch.object(
+            app_module.kernel32,
+            "GetExitCodeProcess",
+            side_effect=write_exit_code,
+        ):
+            self.assertEqual(
+                0xC0000005,
+                app_module.process_exit_code(123),
+            )
+
+
+class SecuritySoftwareBlockTests(unittest.TestCase):
+    def test_winerror_225_is_classified_with_blocked_file_path(self):
+        blocked = OSError(
+            225,
+            "Operation did not complete successfully because the file "
+            "contains a virus or potentially unwanted software",
+            r"C:\tools\native\ccz_control.dll",
+        )
+        blocked.winerror = 225
+        wrapper = RuntimeError("原生组件加载失败")
+        wrapper.__cause__ = blocked
+
+        details = app_module.security_software_block_details(wrapper)
+
+        self.assertIsNotNone(details)
+        self.assertEqual(225, details["winerror"])
+        self.assertEqual(
+            [r"C:\tools\native\ccz_control.dll"],
+            details["paths"],
+        )
+
+    def test_security_block_event_round_trips_and_is_forwarded(self):
+        details = {
+            "winerror": 225,
+            "message": "[WinError 225] blocked",
+            "paths": [r"C:\tools\native\ccz_injector.exe"],
+        }
+
+        event = app_module.encode_security_software_blocked_event(details)
+
+        self.assertEqual(
+            details,
+            app_module.decode_security_software_blocked_event(event),
+        )
+        self.assertTrue(_should_forward_line(event))
+        self.assertEqual("", app_module.format_user_log(event))
+
+    def test_other_os_errors_are_not_classified_as_security_blocks(self):
+        self.assertIsNone(
+            app_module.security_software_block_details(
+                FileNotFoundError("missing")
+            )
+        )
+
+    def test_blocked_traceback_is_logged_but_not_sent_to_ui_stream(self):
+        blocked = OSError(
+            225,
+            "virus or potentially unwanted software",
+            r"C:\tools\native\ccz_control.dll",
+        )
+        blocked.winerror = 225
+        ui_output = io.StringIO()
+        ui_error = io.StringIO()
+        log_output = io.StringIO()
+
+        with (
+            contextlib.redirect_stdout(ui_output),
+            contextlib.redirect_stderr(ui_error),
+        ):
+            app_module.report_worker_exception(blocked, log_output)
+
+        self.assertIn(
+            app_module.SECURITY_SOFTWARE_BLOCKED_EVENT,
+            ui_output.getvalue(),
+        )
+        self.assertEqual("", ui_error.getvalue())
+        self.assertIn("WinError 225", log_output.getvalue())
+        self.assertIn(
+            r"C:\tools\native\ccz_control.dll",
+            log_output.getvalue(),
+        )
+
+
+class SkillTypeMatchingTests(unittest.TestCase):
+    def test_effective_skills_use_configured_job_and_skill_types(self):
+        rules = app_module.default_rule_config()
+        profile = rules["profiles"][rules["activeProfile"]]
+        profile["jobScoring"]["jobTypeOverrides"] = {
+            "测试兵种": "MASTER",
+        }
+        profile["sevenPerson"]["skillTypeOverrides"] = {
+            "先手攻击": "WARRIOR",
+        }
+        member = SimpleNamespace(
+            job=SimpleNamespace(
+                name="测试兵种",
+                type="WARRIOR",
+            ),
+            skillList=[
+                SimpleNamespace(
+                    name="先手攻击",
+                    type="MASTER",
+                )
+            ],
+        )
+
+        self.assertEqual(
+            [],
+            app_module.effective_member_skill_names(rules, [member]),
+        )
+
+        profile["sevenPerson"]["skillTypeOverrides"]["先手攻击"] = "NONE"
+        self.assertEqual(
+            ["先手攻击"],
+            app_module.effective_member_skill_names(rules, [member]),
+        )
+
+        profile["sevenPerson"]["skillTypeMatchingEnabled"] = False
+        self.assertEqual(
+            ["先手攻击"],
+            app_module.effective_member_skill_names(rules, [member]),
+        )
+
+
+class RandomGameExecutableTests(unittest.TestCase):
+    def test_random_game_executable_is_hidden_and_removed_after_use(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source = Path(temp_dir) / app_module.GAME_EXE_NAME
+            source.write_bytes(b"game executable")
+
+            target = app_module.prepare_random_game_executable(source)
+
+            self.assertTrue(target.is_file())
+            self.assertFalse(os.path.samefile(source, target))
+            self.assertEqual(source.read_bytes(), target.read_bytes())
+            attributes = app_module.kernel32.GetFileAttributesW(str(target))
+            self.assertNotEqual(
+                attributes,
+                app_module.INVALID_FILE_ATTRIBUTES,
+            )
+            self.assertTrue(attributes & app_module.FILE_ATTRIBUTE_HIDDEN)
+            source_attributes = app_module.kernel32.GetFileAttributesW(
+                str(source)
+            )
+            self.assertFalse(
+                source_attributes & app_module.FILE_ATTRIBUTE_HIDDEN
+            )
+
+            app_module.remove_random_game_executable(target)
+
+            self.assertFalse(target.exists())
+            self.assertEqual(source.read_bytes(), b"game executable")
+
+    def test_old_hidden_hardlink_is_migrated_without_hiding_game(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source = Path(temp_dir) / app_module.GAME_EXE_NAME
+            target = source.with_name(app_module.RANDOM_GAME_EXE_NAME)
+            source.write_bytes(b"game executable")
+            os.link(source, target)
+            app_module.hide_random_game_executable(target)
+
+            prepared = app_module.prepare_random_game_executable(source)
+
+            self.assertEqual(target, prepared)
+            self.assertFalse(os.path.samefile(source, target))
+            source_attributes = app_module.kernel32.GetFileAttributesW(
+                str(source)
+            )
+            target_attributes = app_module.kernel32.GetFileAttributesW(
+                str(target)
+            )
+            self.assertFalse(
+                source_attributes & app_module.FILE_ATTRIBUTE_HIDDEN
+            )
+            self.assertTrue(
+                target_attributes & app_module.FILE_ATTRIBUTE_HIDDEN
+            )
+
+    def test_intentionally_hidden_game_executable_stays_hidden(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source = Path(temp_dir) / app_module.GAME_EXE_NAME
+            source.write_bytes(b"game executable")
+            app_module.hide_random_game_executable(source)
+
+            target = app_module.prepare_random_game_executable(source)
+
+            source_attributes = app_module.kernel32.GetFileAttributesW(
+                str(source)
+            )
+            self.assertTrue(
+                source_attributes & app_module.FILE_ATTRIBUTE_HIDDEN
+            )
+            self.assertTrue(target.is_file())
+
+    def test_runtime_cleanup_only_terminates_random_helper_instance(self):
+        game = Path("C:/game/Ekd5.exe")
+        helper = game.with_name(app_module.RANDOM_GAME_EXE_NAME)
         with (
             patch(
-                "ccz_randomizer.app.process_is_alive",
-                side_effect=[True, False],
+                "ccz_randomizer.app.find_process_ids",
+                return_value=(101, 202),
             ),
             patch(
-                "ccz_randomizer.app.mute_process_audio_sessions",
+                "ccz_randomizer.app.process_executable",
+                side_effect=(game, helper),
+            ),
+            patch.object(
+                app_module.kernel32,
+                "OpenProcess",
+                return_value=123,
+            ) as open_process,
+            patch.object(
+                app_module.kernel32,
+                "TerminateProcess",
+                return_value=True,
+            ) as terminate,
+            patch.object(
+                app_module.kernel32,
+                "WaitForSingleObject",
                 return_value=1,
-            ) as mute_audio,
-            patch("ccz_randomizer.app.diagnostic_log") as diagnostic,
+            ),
+            patch.object(app_module.kernel32, "CloseHandle"),
+            patch("ccz_randomizer.app.show_file"),
+            patch(
+                "ccz_randomizer.app.remove_random_game_executable",
+            ),
         ):
-            session._maintain_audio_mute()
+            terminated = app_module.terminate_random_game_instances(game)
 
-        mute_audio.assert_called_once_with(456)
-        session.audio_mute_stop.wait.assert_called_once_with(0.5)
-        self.assertTrue(
-            any(
-                call.args[0] == "game_audio_session_muted"
-                for call in diagnostic.call_args_list
+        self.assertEqual((202,), terminated)
+        open_process.assert_called_once()
+        terminate.assert_called_once_with(123, 0)
+
+
+class GameMenuSaveTests(unittest.TestCase):
+    class FakeRunner:
+        def __init__(self):
+            self.events = []
+            self.wind = None
+
+        def initWind(self):
+            self.events.append(("init", None))
+            self.wind = object()
+
+        def original_load(self, slot):
+            self.events.append(("load", slot))
+
+        _ccz_original_load_and_confirm = original_load
+
+        def saveAndConfirm(self, slot):
+            self.events.append(("save", slot))
+
+    def test_rejects_slots_outside_result_range(self):
+        with self.assertRaisesRegex(ValueError, "第 1–15 号"):
+            app_module.save_result_via_game_menu(
+                self.FakeRunner(),
+                20,
             )
+
+    def test_three_person_result_uses_game_menu_save(self):
+        runner = self.FakeRunner()
+
+        app_module.save_result_via_game_menu(runner, 3)
+
+        self.assertEqual(
+            [("init", None), ("save", 3)],
+            runner.events,
+        )
+
+    def test_seven_person_restores_candidate_then_uses_game_menu_save(self):
+        runner = self.FakeRunner()
+
+        with patch("ccz_randomizer.app.time.sleep") as sleep:
+            app_module.save_result_via_game_menu(
+                runner,
+                5,
+                restore_slot=16,
+            )
+
+        self.assertEqual(
+            [("init", None), ("load", 16), ("save", 5)],
+            runner.events,
+        )
+        sleep.assert_called_once_with(0.5)
+
+    def test_wait_for_game_menu_save_accepts_new_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            save_path = Path(directory) / "SV001.E5S"
+
+            def create_save(_interval):
+                save_path.write_bytes(b"saved")
+
+            with patch(
+                "ccz_randomizer.app.time.sleep",
+                side_effect=create_save,
+            ):
+                signature = app_module.wait_for_game_menu_save(
+                    save_path,
+                    None,
+                    timeout=1.0,
+                )
+
+        self.assertEqual(5, signature[0])
+
+    def test_wait_for_game_menu_save_rejects_unchanged_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            save_path = Path(directory) / "SV001.E5S"
+            save_path.write_bytes(b"unchanged")
+            signature = app_module.save_file_signature(save_path)
+
+            with (
+                patch(
+                    "ccz_randomizer.app.time.perf_counter",
+                    side_effect=(0.0, 0.0, 1.0),
+                ),
+                patch("ccz_randomizer.app.time.sleep"),
+            ):
+                with self.assertRaisesRegex(
+                    RuntimeError,
+                    "未检测到 SV001.E5S 写入",
+                ):
+                    app_module.wait_for_game_menu_save(
+                        save_path,
+                        signature,
+                        timeout=0.5,
+                    )
+
+    def test_drive_game_menu_save_waits_for_real_write(self):
+        target = Path(r"C:\game\SV\SV003.E5S")
+        previous = (263760, 100, 100)
+        saved = (263760, 200, 200)
+
+        class FakeControl:
+            pid = 789
+            returncode = 0
+
+            def poll(self):
+                return self.returncode
+
+            def communicate(self):
+                return b"", b""
+
+            def terminate(self):
+                self.returncode = 1
+
+            def wait(self, timeout=None):
+                del timeout
+                return self.returncode
+
+            def kill(self):
+                self.returncode = 1
+
+        control = FakeControl()
+        with (
+            patch(
+                "ccz_randomizer.app.save_file_signature",
+                side_effect=(previous, saved, saved),
+            ),
+            patch("ccz_randomizer.app.recover_stale_windows"),
+            patch("ccz_randomizer.app.activate_hidden_window"),
+            patch(
+                "ccz_randomizer.app.wait_list_dialog",
+                return_value=222,
+            ),
+            patch(
+                "ccz_randomizer.app.start_save_list_control",
+                return_value=control,
+            ) as start_control,
+            patch(
+                "ccz_randomizer.app.visible_owned_windows",
+                side_effect=(
+                    [(333, "确认", (0, 0, 100, 100))],
+                    [],
+                ),
+            ),
+            patch(
+                "ccz_randomizer.app.window_class",
+                return_value="#32770",
+            ),
+            patch(
+                "ccz_randomizer.app.click_leftmost_dialog_button"
+            ) as click_confirm,
+            patch("ccz_randomizer.app.interruptible_sleep"),
+            patch("ccz_randomizer.app.check_stop_requested"),
+            patch(
+                "ccz_randomizer.app.save_control_resource_snapshot",
+                return_value={},
+            ),
+            patch("ccz_randomizer.app.diagnostic_log"),
+            patch.object(
+                app_module.user32,
+                "PostMessageW",
+                return_value=True,
+            ) as post_message,
+            patch.object(
+                app_module.user32,
+                "FindWindowExW",
+                return_value=0,
+            ),
+        ):
+            result = app_module.drive_game_menu_save(
+                123,
+                456,
+                target,
+                3,
+            )
+
+        self.assertEqual(saved, result)
+        post_message.assert_called_once_with(456, 0x0111, 101, 0)
+        start_control.assert_called_once_with(123, 3)
+        click_confirm.assert_called_once_with(333)
+
+    def test_drive_game_menu_save_keeps_written_save_when_control_hangs(self):
+        target = Path(r"C:\game\SV\SV003.E5S")
+        previous = (263760, 100, 100)
+        saved = (263760, 200, 200)
+
+        class HungControl:
+            pid = 789
+            returncode = None
+
+            def poll(self):
+                return self.returncode
+
+            def communicate(self):
+                return b"", b""
+
+            def terminate(self):
+                self.returncode = 1
+
+            def wait(self, timeout=None):
+                del timeout
+                return self.returncode
+
+            def kill(self):
+                self.returncode = 1
+
+        control = HungControl()
+        with (
+            patch(
+                "ccz_randomizer.app.save_file_signature",
+                side_effect=(previous, saved),
+            ),
+            patch("ccz_randomizer.app.recover_stale_windows"),
+            patch("ccz_randomizer.app.activate_hidden_window"),
+            patch(
+                "ccz_randomizer.app.wait_list_dialog",
+                return_value=222,
+            ),
+            patch(
+                "ccz_randomizer.app.start_save_list_control",
+                return_value=control,
+            ),
+            patch(
+                "ccz_randomizer.app.visible_owned_windows",
+                return_value=[],
+            ),
+            patch(
+                "ccz_randomizer.app.time.perf_counter",
+                side_effect=(0.0, 0.0, 0.0, 1.0, 2.0),
+            ),
+            patch("ccz_randomizer.app.interruptible_sleep"),
+            patch("ccz_randomizer.app.check_stop_requested"),
+            patch(
+                "ccz_randomizer.app.save_control_resource_snapshot",
+                return_value={},
+            ),
+            patch("ccz_randomizer.app.diagnostic_log") as diagnostic,
+            patch.object(
+                app_module.user32,
+                "PostMessageW",
+                return_value=True,
+            ),
+        ):
+            result = app_module.drive_game_menu_save(
+                123,
+                456,
+                target,
+                3,
+                timeout=0.5,
+            )
+
+        self.assertEqual(saved, result)
+        self.assertEqual(1, control.returncode)
+        completed = [
+            call
+            for call in diagnostic.call_args_list
+            if call.args[0] == "game_menu_save_interaction_completed"
+        ]
+        self.assertEqual(1, len(completed))
+        self.assertTrue(completed[0].kwargs["control_forced_stop"])
+
+
+class ManualRepairUiTests(unittest.TestCase):
+    def test_sishui_repair_only_shows_unavailable_notice(self):
+        calls = []
+
+        app_module.notify_sishui_repair_unavailable(
+            object(),
+            toast=lambda parent, message, duration: calls.append(
+                (parent, message, duration)
+            ),
+        )
+
+        self.assertEqual(1, len(calls))
+        self.assertEqual(
+            app_module.SISHUI_REPAIR_UNAVAILABLE_MESSAGE,
+            calls[0][1],
+        )
+
+
+class SessionManagementTests(unittest.TestCase):
+    def test_title_load_verification_honors_stop_between_memory_checks(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            save_path = Path(temporary) / "SV020.E5S"
+            save_path.write_bytes(b"\1" * 0x30000)
+            with (
+                patch(
+                    "fast_randomizer.find_process_window_by_class",
+                    return_value=456,
+                ),
+                patch("fast_randomizer.drive_game_menu_load"),
+                patch("fast_randomizer.check_stop_requested") as check_stop,
+            ):
+                check_stop.side_effect = KeyboardInterrupt
+                with self.assertRaises(KeyboardInterrupt):
+                    title_load_verified(123, 19, save_path)
+
+    def test_all_runtime_loads_use_real_game_menu(self):
+        source = (
+            Path(__file__).resolve().parents[2]
+            / "ccz_randomizer"
+            / "app.py"
+        ).read_text(encoding="utf-8")
+        title_load = source.split(
+            "def title_load_verified(", 1
+        )[1].split("def normal_load_verified(", 1)[0]
+        reused_load = source.split(
+            "    def robust_load_and_confirm(", 1
+        )[1].split("    def menu_save_and_confirm(", 1)[0]
+
+        self.assertNotIn('"title-load"', title_load)
+        self.assertIn("drive_game_menu_load(", title_load)
+        self.assertIn("from_title=True", title_load)
+        self.assertIn("drive_game_menu_load(", reused_load)
+        self.assertNotIn('"title-load"', reused_load)
+        self.assertNotIn("native_load_dialog_item(", reused_load)
+
+    def test_title_load_closes_progress_dialog_and_refreshes_game(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            save_path = Path(temporary) / "SV020.E5S"
+            expected = bytes(range(256)) * 768
+            save_path.write_bytes(expected)
+
+            def memory(pid, offset, size):
+                self.assertEqual(123, pid)
+                if offset == 0:
+                    self.assertEqual(app_module.R0_MEMORY_SIZE, size)
+                    return expected
+                if offset == app_module.LOAD_TRANSITION_ACTIVE_OFFSET:
+                    return b"\0"
+                if offset == app_module.LOAD_TRANSITION_STATE_OFFSET:
+                    return b"\0\0\0\0"
+                raise AssertionError(f"unexpected memory read: {offset}, {size}")
+
+            with (
+                patch(
+                    "fast_randomizer.drive_game_menu_load"
+                ) as load_menu,
+                patch(
+                    "fast_randomizer.read_memory",
+                    side_effect=memory,
+                ),
+                patch(
+                    "fast_randomizer.find_process_window_by_class",
+                    return_value=456,
+                ),
+                patch(
+                    "fast_randomizer.process_windows",
+                    return_value=[789],
+                ),
+                patch(
+                    "fast_randomizer.window_class",
+                    return_value="#32770",
+                ),
+                patch(
+                    "fast_randomizer.user32.FindWindowExW",
+                    return_value=900,
+                ),
+                patch(
+                    "fast_randomizer.user32.PostMessageW"
+                ) as post_message,
+                patch("fast_randomizer.user32.EnableWindow") as enable,
+                patch("fast_randomizer.native_wake_game") as wake,
+                patch("fast_randomizer.diagnostic_log"),
+            ):
+                loaded = title_load_verified(
+                    123,
+                    19,
+                    save_path,
+                )
+
+        self.assertTrue(loaded)
+        load_menu.assert_called_once_with(
+            pid=123,
+            game=456,
+            save_path=save_path,
+            slot=20,
+            timeout=12.0,
+            from_title=True,
+        )
+        post_message.assert_called_once_with(789, 0x0010, 0, 0)
+        enable.assert_called_once_with(456, True)
+        wake.assert_called_once_with(123, 456, 80)
+
+    def test_title_load_waits_until_scene_transition_is_settled(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            save_path = Path(temporary) / "SV020.E5S"
+            expected = bytes(range(256)) * 768
+            save_path.write_bytes(expected)
+            transition_reads = iter(
+                (
+                    b"\1",
+                    (8).to_bytes(4, "little"),
+                    b"\0",
+                    b"\0\0\0\0",
+                )
+            )
+
+            def memory(_pid, offset, _size):
+                if offset == 0:
+                    return expected
+                return next(transition_reads)
+
+            with (
+                patch(
+                    "fast_randomizer.drive_game_menu_load"
+                ),
+                patch(
+                    "fast_randomizer.read_memory",
+                    side_effect=memory,
+                ),
+                patch(
+                    "fast_randomizer.find_process_window_by_class",
+                    return_value=456,
+                ),
+                patch(
+                    "fast_randomizer.process_windows",
+                    return_value=[],
+                ),
+                patch(
+                    "fast_randomizer.native_wake_game"
+                ),
+                patch(
+                    "fast_randomizer.interruptible_sleep"
+                ) as sleep,
+                patch("fast_randomizer.diagnostic_log"),
+            ):
+                loaded = title_load_verified(
+                    123,
+                    19,
+                    save_path,
+                )
+
+        self.assertTrue(loaded)
+        sleep.assert_called_once_with(0.1)
+
+    def test_game_menu_load_uses_real_list_single_click(self):
+        process = unittest.mock.Mock()
+        process.poll.return_value = 0
+        process.returncode = 0
+        with tempfile.TemporaryDirectory() as temporary:
+            save_path = Path(temporary) / "SV020.E5S"
+            save_path.write_bytes(b"save")
+            with (
+                patch("fast_randomizer.recover_stale_windows"),
+                patch("fast_randomizer.wait_list_dialog", return_value=789),
+                patch("fast_randomizer.visible_owned_windows", return_value=[]),
+                patch("fast_randomizer.process_windows", return_value=[]),
+                patch("fast_randomizer.native_dir", return_value=Path(temporary)),
+                patch("fast_randomizer.subprocess.Popen", return_value=process) as popen,
+                patch("fast_randomizer.user32.PostMessageW") as post_message,
+                patch("fast_randomizer.user32.IsWindow", return_value=False),
+                patch("fast_randomizer.user32.IsWindowEnabled", return_value=True),
+                patch("fast_randomizer.native_wake_game") as wake,
+                patch("fast_randomizer.diagnostic_log"),
+            ):
+                drive_game_menu_load(
+                    123,
+                    456,
+                    save_path,
+                    20,
+                )
+
+        post_message.assert_called_once_with(456, 0x0111, 102, 0)
+        command = popen.call_args.args[0]
+        self.assertEqual("list", command[3])
+        self.assertEqual("19", command[4])
+        wake.assert_called_once_with(123, 456, 80)
+
+    def test_native_list_action_uses_single_click(self):
+        source = (
+            Path(__file__).resolve().parents[2]
+            / "native"
+            / "ccz_control.c"
+        ).read_text(encoding="utf-8")
+        list_action = source.split(
+            "static DWORD run_list_item(int item_index) {", 1
+        )[1].split("static DWORD notify_list_item(", 1)[0]
+
+        self.assertIn(
+            "post_synthetic_click(list, click_x, click_y, 1, FALSE);",
+            list_action,
+        )
+        self.assertNotIn(
+            "post_synthetic_click(list, click_x, click_y, 2, FALSE);",
+            list_action,
         )
 
     def test_process_alive_checks_the_requested_pid(self):
@@ -254,6 +959,70 @@ class SessionManagementTests(unittest.TestCase):
                         ),
                     )
 
+    def test_stale_dialog_cleanup_restores_main_window_before_reload(self):
+        visible = {456: True, 654: True, 789: True}
+
+        def post_message(hwnd, message, _wparam, _lparam):
+            self.assertEqual(0x0010, message)
+            visible[hwnd] = False
+            return True
+
+        with (
+            patch(
+                "fast_randomizer.process_windows",
+                return_value=[456, 654, 789],
+            ),
+            patch(
+                "fast_randomizer.window_class",
+                side_effect=lambda hwnd: (
+                    "#32770" if hwnd in (456, 654) else "SOUSOU"
+                ),
+            ),
+            patch(
+                "fast_randomizer.window_text",
+                side_effect=lambda hwnd: {
+                    456: "武将情报",
+                    654: "部队情报一览",
+                    789: "游戏主窗口",
+                }[hwnd],
+            ),
+            patch(
+                "fast_randomizer.user32.PostMessageW",
+                side_effect=post_message,
+            ) as post,
+            patch(
+                "fast_randomizer.user32.IsWindow",
+                return_value=True,
+            ),
+            patch(
+                "fast_randomizer.user32.IsWindowVisible",
+                side_effect=lambda hwnd: visible[hwnd],
+            ),
+            patch(
+                "fast_randomizer.user32.EnableWindow",
+            ) as enable,
+            patch(
+                "fast_randomizer.user32.IsWindowEnabled",
+                return_value=True,
+            ),
+            patch("fast_randomizer.diagnostic_log") as diagnostic,
+        ):
+            closed = recover_stale_windows(123, 789)
+
+        self.assertEqual(2, closed)
+        self.assertEqual(
+            [
+                unittest.mock.call(456, 0x0010, 0, 0),
+                unittest.mock.call(654, 0x0010, 0, 0),
+            ],
+            post.call_args_list,
+        )
+        enable.assert_called_once_with(789, True)
+        self.assertEqual(
+            "stale_game_windows_recovered",
+            diagnostic.call_args.args[0],
+        )
+
     def test_diagnostic_screenshots_keep_only_one_per_error_type(self):
         with patch.object(
             app_module,
@@ -320,6 +1089,139 @@ class SessionManagementTests(unittest.TestCase):
         }
         self.assertEqual(set(), used)
 
+    def test_random_session_uses_process_audio_without_file_hooks(self):
+        source = (
+            Path(__file__).resolve().parents[2]
+            / "ccz_randomizer"
+            / "app.py"
+        ).read_text(encoding="utf-8")
+        session_source = source.split(
+            "class HiddenGameSession:", 1
+        )[1].split("def read_memory(", 1)[0]
+
+        self.assertIn(
+            "ProcessAudioMuteMonitor(",
+            session_source,
+        )
+        self.assertNotIn("prepare_random_game_executable(", session_source)
+        self.assertIn("self.launch_executable = self.executable", session_source)
+        self.assertIn(
+            'command_parts = [f\'"{self.executable}"\']',
+            session_source,
+        )
+        self.assertIn("随机游戏实例启动后退出", session_source)
+        self.assertIn('"game_process_exited"', session_source)
+        self.assertIn("exit_code_hex", session_source)
+        self.assertNotIn(
+            'run_native_control(self.pid, ["mute-audio"])',
+            session_source,
+        )
+        self.assertIn(
+            '"random_game_audio_mute_monitor_started"',
+            session_source,
+        )
+        self.assertLess(
+            session_source.index("self.audio_mute_monitor.start()"),
+            session_source.index(
+                "kernel32.ResumeThread(process_info.hThread)"
+            ),
+        )
+        self.assertNotIn("restore_process_audio_sessions(self.pid)", session_source)
+        self.assertNotIn("AudioMuteRecoveryMonitor", session_source)
+        self.assertNotIn(
+            "recover_legacy_audio_mute(self.executable)",
+            session_source,
+        )
+        self.assertNotIn("LegacyAudioRecoveryMonitor(", session_source)
+
+    def test_gui_uses_sandbox_scheduler_even_with_one_worker(self):
+        source = (
+            Path(__file__).resolve().parents[2]
+            / "ccz_randomizer"
+            / "app.py"
+        ).read_text(encoding="utf-8")
+        start_source = source.split("    def start() -> None:", 1)[1].split(
+            "    def stop() -> None:",
+            1,
+        )[0]
+
+        self.assertIn('env["CCZ_CONCURRENT_MODE"] = "1"', start_source)
+        self.assertIn(
+            'env["CCZ_CONCURRENT_COUNT"] = str(concurrency)',
+            start_source,
+        )
+        self.assertNotIn(
+            'if concurrency > 1:\n'
+            '            env["CCZ_CONCURRENT_MODE"]',
+            start_source,
+        )
+        self.assertIn(
+            "if concurrency > 1:\n"
+            "            concurrent_console_state = ConcurrentConsoleState(",
+            start_source,
+        )
+        self.assertIn(
+            'append(f"\\n========== 开始随机：{stamp} ==========")',
+            start_source,
+        )
+
+    def test_main_settings_keep_repair_action_on_a_separate_row(self):
+        source = (
+            Path(__file__).resolve().parents[2]
+            / "ccz_randomizer"
+            / "app.py"
+        ).read_text(encoding="utf-8")
+        layout = source.split(
+            "    settings_panel = tk.Frame(outer)", 1
+        )[1].split(
+            "    output = scrolledtext.ScrolledText(", 1
+        )[0]
+
+        self.assertIn(
+            "runtime_settings_bar = tk.Frame(settings_panel)",
+            layout,
+        )
+        self.assertIn(
+            "rule_settings_bar = tk.Frame(settings_panel)",
+            layout,
+        )
+        self.assertIn(
+            "repair_button = tk.Button(\n"
+            "        rule_settings_bar,",
+            layout,
+        )
+        self.assertIn(
+            "action_button = tk.Button(\n"
+            "        rule_settings_bar,",
+            layout,
+        )
+        self.assertIn('action_button.pack(side="right")', layout)
+        self.assertNotIn("textvariable=status", layout)
+
+    def test_runtime_cleanup_repairs_s00_and_scratch_save(self):
+        game = Path(r"C:\game\Ekd5.exe")
+        with (
+            patch(
+                "ccz_randomizer.app.terminate_random_game_instances",
+                return_value=(),
+            ),
+            patch("ccz_randomizer.app.repair_runtime_s00") as repair_s00,
+            patch(
+                "ccz_randomizer.app.repair_runtime_scratch_save"
+            ) as repair_scratch,
+            patch("ccz_randomizer.app.diagnostic_log"),
+        ):
+            app_module.cleanup_random_runtime(game, "test_cleanup")
+
+        repair_s00.assert_called_once_with(
+            game,
+            "test_cleanup_s00_repair",
+        )
+        repair_scratch.assert_called_once_with(
+            game,
+            "test_cleanup_scratch_save_repair",
+        )
+
     def test_reused_session_uses_normal_load_and_three_interaction_attempts(
         self,
     ):
@@ -343,21 +1245,26 @@ class SessionManagementTests(unittest.TestCase):
         self.assertNotIn("native_direct_load(pid, SOURCE_TITLE_LIST_INDEX)", source)
         self.assertNotIn("interaction_compat_reload_start", source)
         self.assertNotIn("interaction_compat_reload_ready", source)
+        self.assertIn("native_wake_game(pid, game, 80)", source)
+        self.assertNotIn("native_wake_game(pid, game, 1800)", source)
 
-    def test_saved_result_verification_uses_normal_game_load(self):
+    def test_saved_results_use_game_menu_without_readback_verification(self):
         source = (
             Path(__file__).resolve().parents[2]
             / "ccz_randomizer"
             / "app.py"
         ).read_text(encoding="utf-8")
-        verification_source = source.split(
-            "def verify_saved_result(", 1
-        )[1].split("for output_slot,", 1)[0]
-        self.assertIn("normal_load_verified(", verification_source)
-        self.assertIn("verifier.loadAndConfirm", verification_source)
-        self.assertNotIn("direct_load_verified(", verification_source)
+        self.assertIn("save_result_via_game_menu(", source)
+        self.assertIn("wait_for_game_menu_save(", source)
+        self.assertIn("drive_game_menu_save(", source)
+        self.assertIn(
+            "user32.PostMessageW(game, 0x0111, 101, 0)",
+            source,
+        )
+        self.assertNotIn("def verify_saved_result(", source)
+        self.assertNotIn("commit_qualified_result_save(", source)
 
-    def test_full_inspection_uses_resilient_member_transition(self):
+    def test_full_inspection_uses_story_then_memory_skill_resolution(self):
         source = (
             Path(__file__).resolve().parents[2]
             / "ccz_randomizer"
@@ -375,10 +1282,29 @@ class SessionManagementTests(unittest.TestCase):
         self.assertIn("CCZ_FORCE_ROSTER_FALLBACK", source)
         self.assertIn("CCZ_DISABLE_ROSTER_FALLBACK", source)
         self.assertIn("advance_seven_member_story(", source)
-        self.assertIn(
-            '"same_session_member_has_no_skills"',
-            source,
-        )
+        inspection = source.split(
+            "    def inspect_current_seven_members(self)", 1
+        )[1].split("    def r0_only_run(self)", 1)[0]
+        self.assertIn("advance_seven_member_story(", inspection)
+        self.assertIn("load_member_skills_from_memory(", inspection)
+        self.assertNotIn("self.openPeople()", inspection)
+        self.assertNotIn("getSkillMatList()", inspection)
+
+    def test_release_uses_result_images_and_hides_history_entry(self):
+        source = (
+            Path(__file__).resolve().parents[2]
+            / "ccz_randomizer"
+            / "app.py"
+        ).read_text(encoding="utf-8")
+        accepted = source.split(
+            "                    def accepted_result(", 1
+        )[1].split(
+            "                    def accepted_result_error(", 1
+        )[0]
+
+        self.assertIn("save_result_image(", accepted)
+        self.assertIn("compose_result_grid(panel_paths)", accepted)
+        self.assertNotIn('text="历史结果"', source)
 
     def test_same_session_skill_capture_uses_full_print_window_frame(self):
         source = (
@@ -395,11 +1321,7 @@ class SessionManagementTests(unittest.TestCase):
             robust_get_mat.index("print_window_mat("),
             robust_get_mat.index("original_get_mat("),
         )
-        self.assertIn(
-            "same_session_member_capture_attempt",
-            source,
-        )
-        self.assertIn("same_session_member_has_no_skills", source)
+        self.assertIn("skill_memory_resolved", source)
 
     def test_window_capture_has_recoverable_fallbacks(self):
         source = (
@@ -411,9 +1333,7 @@ class SessionManagementTests(unittest.TestCase):
             "    def robust_get_mat(", 1
         )[1].split("    def click_relative_hwnd(", 1)[0]
 
-        self.assertIn('(2, "print_window_full")', robust_get_mat)
-        self.assertIn('(0, "print_window")', robust_get_mat)
-        self.assertIn('"bitblt"', robust_get_mat)
+        self.assertIn("capture_window_with_fallbacks(", robust_get_mat)
         self.assertIn("native_wake_game(", robust_get_mat)
         self.assertIn("WindowCaptureUnavailable", robust_get_mat)
         self.assertTrue(
@@ -437,6 +1357,16 @@ class SessionManagementTests(unittest.TestCase):
 
         self.assertEqual((130, 130, 3), panel.shape)
         self.assertGreater(float(np.std(panel)), 1.0)
+        heading_pixels = np.argwhere(
+            np.any(panel[3:17] != 211, axis=2)
+        )
+        skill_pixels = np.argwhere(
+            np.any(panel[18:32] != 211, axis=2)
+        )
+        self.assertGreater(
+            int(skill_pixels[:, 1].min()),
+            int(heading_pixels[:, 1].min()),
+        )
 
     def test_seven_member_inspection_refreshes_consumed_session_directly(self):
         source = (
@@ -615,7 +1545,7 @@ class SessionManagementTests(unittest.TestCase):
             )
         )
 
-    def test_three_person_flow_uses_same_session_skill_capture(self):
+    def test_three_person_flow_uses_same_session_skill_memory(self):
         source = (
             Path(__file__).resolve().parents[2]
             / "ccz_randomizer"
@@ -1176,7 +2106,7 @@ class SessionManagementTests(unittest.TestCase):
         )
         show_window.assert_called_once_with(654, 5)
 
-    def test_unverified_skill_memory_reader_is_not_patched_into_runtime(self):
+    def test_verified_skill_memory_reader_is_used_without_legacy_patch(self):
         source = (
             Path(__file__).resolve().parents[2]
             / "ccz_randomizer"
@@ -1190,6 +2120,7 @@ class SessionManagementTests(unittest.TestCase):
             "CczReRandTask._getTeamSkillsInfo =",
             source,
         )
+        self.assertIn("read_skill_memory(pid, record_indices)", source)
 
     def test_initial_roster_uses_xiahou_yuan_not_cao_ren(self):
         self.assertEqual(

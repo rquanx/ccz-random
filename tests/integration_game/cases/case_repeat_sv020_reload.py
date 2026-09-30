@@ -10,12 +10,6 @@ import fast_randomizer as fast
 
 
 GAME = Path(os.environ["CCZ_GAME_EXE"])
-TEST_SAVE = Path(
-    os.environ.get(
-        "CCZ_TEST_SAVE",
-        r"C:\Users\91658\Downloads\SV020.E5S",
-    )
-)
 
 
 def trigger_random(pid: int, hwnd: int) -> tuple[int, ...]:
@@ -57,7 +51,15 @@ def main() -> int:
         shutil.copy2(game_save, backup_save)
 
     try:
-        shutil.copy2(TEST_SAVE, game_save)
+        configured_test_save = os.environ.get("CCZ_TEST_SAVE")
+        test_save = (
+            Path(configured_test_save)
+            if configured_test_save
+            else backup_save
+        )
+        if not test_save.is_file():
+            raise FileNotFoundError(f"测试存档不存在：{test_save}")
+        shutil.copy2(test_save, game_save)
         with fast.HiddenGameSession(GAME) as game:
             for attempt in range(1, 6):
                 time.sleep(1.5)

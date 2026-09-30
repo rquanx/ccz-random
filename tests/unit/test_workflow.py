@@ -8,6 +8,68 @@ from random_workflow import (
 
 
 class WorkflowTests(unittest.TestCase):
+    def test_result_slot_range_can_start_after_first_slot(self):
+        visited = []
+
+        results = run_random_workflow(
+            result_count=3,
+            max_attempts=1,
+            result_slot_start=9,
+            run_attempt=lambda slot, attempt, loaded: (
+                visited.append(slot)
+                or AttemptResult(True, loaded, f"{slot}:{attempt}")
+            ),
+            recover_session=lambda *_args: None,
+            should_recover=lambda _exc: False,
+        )
+
+        self.assertEqual([9, 10, 11], visited)
+        self.assertEqual([9, 10, 11], [item.result_slot for item in results])
+
+    def test_result_slots_can_follow_parallel_display_batches(self):
+        visited = []
+
+        results = run_random_workflow(
+            result_count=3,
+            max_attempts=1,
+            result_slots=(1, 4, 7),
+            run_attempt=lambda slot, attempt, loaded: (
+                visited.append(slot)
+                or AttemptResult(True, loaded, f"{slot}:{attempt}")
+            ),
+            recover_session=lambda *_args: None,
+            should_recover=lambda _exc: False,
+        )
+
+        self.assertEqual([1, 4, 7], visited)
+        self.assertEqual([1, 4, 7], [item.result_slot for item in results])
+
+    def test_accepted_result_is_committed_before_stop_is_observed(self):
+        stopped = False
+        committed = []
+
+        def run_attempt(_slot, _round, _loaded):
+            nonlocal stopped
+            stopped = True
+            return AttemptResult(True, True, "saved")
+
+        def check_stop():
+            if stopped:
+                raise KeyboardInterrupt
+
+        with self.assertRaises(KeyboardInterrupt):
+            run_random_workflow(
+                result_count=1,
+                max_attempts=1,
+                run_attempt=run_attempt,
+                recover_session=lambda *_args: None,
+                should_recover=lambda _exc: False,
+                on_accepted=lambda result: committed.append(result.payload),
+                check_stop=check_stop,
+            )
+
+        self.assertEqual(["saved"], committed)
+
     def test_rejections_reuse_session_and_advance_after_acceptance(self):
         calls = []
         outcomes = iter([False, False, True, True])
@@ -236,6 +298,8 @@ class WorkflowTests(unittest.TestCase):
         }
         with self.assertRaises(ValueError):
             run_random_workflow(result_count=0, max_attempts=1, **common)
+        with self.assertRaises(ValueError):
+            run_random_workflow(result_count=16, max_attempts=1, **common)
         with self.assertRaises(ValueError):
             run_random_workflow(result_count=1, max_attempts=0, **common)
 

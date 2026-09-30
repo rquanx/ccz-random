@@ -495,10 +495,10 @@ int wmain(int argc, wchar_t **argv) {
         return 10;
     }
 
-    DWORD control_timeout = (
+    DWORD control_timeout = request.action == 37 ? 5000 : (
         request.action == 15 || request.action == 25 ||
         request.action == 41 || request.action == 46
-    ) ? 65000 : 7000;
+    ) ? 65000 : (request.action == 1 ? 20000 : 7000);
     DWORD control_wait = WaitForSingleObject(
         control_thread, control_timeout
     );

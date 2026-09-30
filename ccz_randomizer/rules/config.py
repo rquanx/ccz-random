@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
 
+from ccz_randomizer.runtime.skill_memory import normalize_skill_name
+
 
 RULE_FILE_NAME = "random_rules.json"
 RULE_VERSION = 2
@@ -29,6 +31,7 @@ THREE_MEMBER_NAMES = (
 )
 AFFINITY_TYPES = ("ALL_ROUNDER", "WARRIOR", "MASTER", "NONE")
 JOB_AFFINITY_TYPES = ("ALL_ROUNDER", "WARRIOR", "MASTER")
+SKILL_AFFINITY_TYPES = JOB_AFFINITY_TYPES + ("NONE",)
 
 DEFAULT_MEMBER_AFFINITY = {
     "曹操": {"primaryType": "ALL_ROUNDER", "secondaryType": "WARRIOR"},
@@ -105,6 +108,8 @@ def _default_profile() -> dict[str, Any]:
             "strongSkillWeight": 2.0,
             "specialSkillWeight": 5.0,
             "skillBaseScores": {},
+            "skillTypeMatchingEnabled": True,
+            "skillTypeOverrides": {},
             "specialSkillAutoPass": True,
             "highJobAutoPass": True,
         },
@@ -289,55 +294,63 @@ def apply_simple_settings(profile: dict[str, Any]) -> dict[str, Any]:
     return profile
 
 
+def _migrate_v1_profile(name: str, old: Any) -> dict[str, Any]:
+    if not isinstance(old, dict):
+        raise ValueError(f"规则“{name}”格式错误")
+    profile = _default_profile()
+    profile["builtin"] = name == DEFAULT_PROFILE_NAME
+    profile["editorMode"] = "advanced"
+    old_three = old.get("threePerson", {})
+    old_seven = old.get("sevenPerson", {})
+    old_scoring = old.get("jobScoring", {})
+    profile["threePerson"]["minJobAverage"] = old_three.get(
+        "minJobAverage", 7.4
+    )
+    profile["sevenPerson"].update(
+        {
+            "minJobAverage": old_seven.get("minJobAverage", 7.4),
+            "normalJobAverage": old_seven.get(
+                "normalJobAverage", 7.6
+            ),
+            "highJobAverage": old_seven.get("highJobAverage", 7.8),
+            "mediumMinSkillScore": old_seven.get(
+                "mediumMinEffectiveSkills", 4
+            ),
+            "lowMinSkillScore": old_seven.get(
+                "lowMinEffectiveSkills", 5
+            ),
+            "strongSkillWeight": old_seven.get(
+                "strongSkillWeight", 2
+            ),
+            "specialSkillAutoPass": old_seven.get(
+                "specialSkillAutoPass", True
+            ),
+            "highJobAutoPass": old_seven.get(
+                "highJobAutoPass", True
+            ),
+        }
+    )
+    for key in (
+        "affinityEnabled",
+        "affinityMinBaseScore",
+        "primaryBonusRate",
+        "secondaryBonusRate",
+        "xiahouDunMasterPenalty",
+        "extraMasterPenaltyEnabled",
+    ):
+        if key in old_scoring:
+            profile["jobScoring"][key] = old_scoring[key]
+    return profile
+
+
 def _migrate_v1(config: dict[str, Any]) -> dict[str, Any]:
     migrated = default_rule_config()
     migrated["profiles"] = {}
     raw_profiles = config.get("profiles", {})
+    if not isinstance(raw_profiles, dict):
+        raise ValueError("规则文件没有可用配置")
     for name, old in raw_profiles.items():
-        profile = _default_profile()
-        profile["builtin"] = name == DEFAULT_PROFILE_NAME
-        profile["editorMode"] = "advanced"
-        old_three = old.get("threePerson", {})
-        old_seven = old.get("sevenPerson", {})
-        old_scoring = old.get("jobScoring", {})
-        profile["threePerson"]["minJobAverage"] = old_three.get(
-            "minJobAverage", 7.4
-        )
-        profile["sevenPerson"].update(
-            {
-                "minJobAverage": old_seven.get("minJobAverage", 7.4),
-                "normalJobAverage": old_seven.get(
-                    "normalJobAverage", 7.6
-                ),
-                "highJobAverage": old_seven.get("highJobAverage", 7.8),
-                "mediumMinSkillScore": old_seven.get(
-                    "mediumMinEffectiveSkills", 4
-                ),
-                "lowMinSkillScore": old_seven.get(
-                    "lowMinEffectiveSkills", 5
-                ),
-                "strongSkillWeight": old_seven.get(
-                    "strongSkillWeight", 2
-                ),
-                "specialSkillAutoPass": old_seven.get(
-                    "specialSkillAutoPass", True
-                ),
-                "highJobAutoPass": old_seven.get(
-                    "highJobAutoPass", True
-                ),
-            }
-        )
-        for key in (
-            "affinityEnabled",
-            "affinityMinBaseScore",
-            "primaryBonusRate",
-            "secondaryBonusRate",
-            "xiahouDunMasterPenalty",
-            "extraMasterPenaltyEnabled",
-        ):
-            if key in old_scoring:
-                profile["jobScoring"][key] = old_scoring[key]
-        migrated["profiles"][name] = profile
+        migrated["profiles"][name] = _migrate_v1_profile(name, old)
     if DEFAULT_PROFILE_NAME not in migrated["profiles"]:
         migrated["profiles"][DEFAULT_PROFILE_NAME] = _default_profile()
     active = config.get("activeProfile", DEFAULT_PROFILE_NAME)
@@ -458,6 +471,10 @@ def validate_rule_config(config: dict[str, Any]) -> dict[str, Any]:
         seven["highJobAutoPass"] = _require_bool(
             seven["highJobAutoPass"], f"{name}.高兵种直接通过"
         )
+        seven["skillTypeMatchingEnabled"] = _require_bool(
+            seven["skillTypeMatchingEnabled"],
+            f"{name}.特技类型匹配",
+        )
         skill_scores = seven["skillBaseScores"]
         if not isinstance(skill_scores, dict):
             raise ValueError(f"{name}.特技基础分必须是映射")
@@ -466,6 +483,18 @@ def validate_rule_config(config: dict[str, Any]) -> dict[str, Any]:
                 score, f"{name}.{skill_name}基础分", 0, 20
             )
             for skill_name, score in skill_scores.items()
+            if str(skill_name).strip()
+        }
+        skill_types = seven["skillTypeOverrides"]
+        if not isinstance(skill_types, dict):
+            raise ValueError(f"{name}.特技匹配类型必须是映射")
+        seven["skillTypeOverrides"] = {
+            str(skill_name): _require_choice(
+                skill_type,
+                f"{name}.{skill_name}匹配类型",
+                SKILL_AFFINITY_TYPES,
+            )
+            for skill_name, skill_type in skill_types.items()
             if str(skill_name).strip()
         }
 
@@ -596,6 +625,7 @@ def build_rule_export(
     return {
         "format": RULE_EXPORT_FORMAT,
         "version": RULE_EXPORT_VERSION,
+        "ruleVersion": RULE_VERSION,
         "profiles": profiles,
     }
 
@@ -611,12 +641,24 @@ def merge_rule_export(
         if payload.get("version") != RULE_EXPORT_VERSION:
             raise ValueError("导入文件版本不受支持")
         profiles = payload.get("profiles")
+        profile_version = payload.get("ruleVersion", RULE_VERSION)
     elif "profiles" in payload and "activeProfile" in payload:
         profiles = payload.get("profiles")
+        profile_version = payload.get("version", RULE_VERSION)
     else:
         raise ValueError("这不是随机工具的规则文件")
     if not isinstance(profiles, dict) or not profiles:
         raise ValueError("导入文件中没有可用规则")
+    if profile_version not in (1, RULE_VERSION):
+        raise ValueError(
+            f"规则版本 {profile_version!r} 不受支持，"
+            f"当前版本为 {RULE_VERSION}"
+        )
+    if profile_version == 1:
+        profiles = {
+            name: _migrate_v1_profile(name, profile)
+            for name, profile in profiles.items()
+        }
 
     imported_names = []
     existing_names = set(merged["profiles"])
@@ -651,6 +693,15 @@ def merge_rule_export(
 
 def active_profile(config: dict[str, Any]) -> dict[str, Any]:
     return config["profiles"][config["activeProfile"]]
+
+
+def skill_types_match(job_type: str, skill_type: str) -> bool:
+    if skill_type == "NONE":
+        return True
+    return not (
+        (job_type == "WARRIOR" and skill_type == "MASTER")
+        or (job_type == "MASTER" and skill_type == "WARRIOR")
+    )
 
 
 def evaluate_job_rules(
@@ -765,6 +816,10 @@ def evaluate_skill_rules(
         else all_skill_items
     )
     overrides = seven["skillBaseScores"]
+    normalized_overrides = {
+        normalize_skill_name(skill_name): score
+        for skill_name, score in overrides.items()
+    }
     effective_remaining: dict[str, int] = {}
     for skill in effective_items:
         effective_remaining[skill] = effective_remaining.get(skill, 0) + 1
@@ -786,7 +841,15 @@ def evaluate_skill_rules(
                 default_score = seven["ordinarySkillWeight"]
             else:
                 default_score = 0.0
-            score = float(overrides.get(skill, default_score))
+            score = float(
+                overrides.get(
+                    skill,
+                    normalized_overrides.get(
+                        normalize_skill_name(skill),
+                        default_score,
+                    ),
+                )
+            )
             category = classify_skill_score(
                 score,
                 seven["ordinarySkillWeight"],

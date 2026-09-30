@@ -12,6 +12,7 @@ from ccz_randomizer.rules.config import (
     AFFINITY_TYPES,
     DEFAULT_PROFILE_NAME,
     JOB_AFFINITY_TYPES,
+    SKILL_AFFINITY_TYPES,
     SIMPLE_PRESET_OPTIONS,
     TEAM_MEMBER_NAMES,
     THREE_MEMBER_NAMES,
@@ -113,11 +114,10 @@ ADVANCED_HELP_SECTIONS = (
 夏侯惇得到文官型兵种时额外扣除的分数。数值越高，越不希望出现这种组合。
 
 【文官型兵种过多扣分】
-开启后，队伍中的文官型兵种越多，扣分越多，用于避免队伍结构过于集中。""",
-    ),
-    (
-        "人物倾向",
-        """【它有什么作用】
+开启后，队伍中的文官型兵种越多，扣分越多，用于避免队伍结构过于集中。
+
+【人物倾向设置】
+点击“设置人物倾向”可以调整每个人物的主要倾向和次要倾向。
 人物倾向只用于加分，不会指定或禁止任何兵种。
 例如把曹操的主要倾向设为全能型，只代表曹操得到全能型兵种时更容易加分，并不代表曹操只能随机到全能型。
 
@@ -130,19 +130,26 @@ ADVANCED_HELP_SECTIONS = (
 【选择“无”】
 表示不设置该项倾向，也不会产生对应的加成。
 
-【兵种所属类型】
-点击“设置兵种所属类型”可以查看全部兵种当前所属的类型，也可以在规则副本中调整。
-修改后，人物倾向加成、夏侯惇文官型扣分和文官型兵种过多扣分都会按照新类型计算。
-内置默认规则只能查看，请先新建规则副本再修改。
-这里修改的是当前规则，保存后会随规则一起导入、导出。
-修改所属类型不会改变兵种基础分，也不会修改游戏数据。
-
 提示：如果不希望人物倾向影响结果，可以关闭“人物兵种适配加成”，不需要逐个人改成“无”。""",
+    ),
+    (
+        "兵种类型",
+        """【它有什么作用】
+这里统一设置每个兵种属于全能型、武将型还是文官型。
+
+同一份兵种类型会同时用于人物倾向加成、夏侯惇文官型扣分、文官型兵种过多扣分和特技类型匹配。
+
+【修改后的影响】
+例如把某个兵种改为文官型，使用该兵种的人物会按文官型参与兵种评分；启用特技类型匹配时，武将型特技也会被判定为不匹配。
+
+内置默认规则只能查看，请先新建规则副本再修改。这里的设置会随规则一起导入、导出，不会修改游戏数据。""",
     ),
     (
         "兵种基础分",
         """【它有什么作用】
 这里设置每个兵种在评分时使用的基础分。
+
+单击卡片中的任意位置即可编辑分数，按回车或点击其他位置完成修改。
 
 【调高某个兵种】
 包含该兵种的组合更容易达到兵种合格门槛。
@@ -177,16 +184,22 @@ ADVANCED_HELP_SECTIONS = (
 【达到高兵种质量分界时直接合格】
 开启后，兵种平均分足够高时，不再要求特技总分。
 
+【启用特技类型匹配】
+开启后，会比较武将当前兵种的类型和特技匹配类型。武将型兵种与文官型特技、文官型兵种与武将型特技不匹配，普通优质和强力特技不会计分。
+特技匹配类型设为“无”时，该特技不受兵种类型限制；特殊档次的特技同样不受类型限制。
+关闭后，特技不再受兵种类型影响。
+
 提示：特技合格门槛越高，结果越难通过，随机时间通常也会更长。""",
     ),
     (
-        "特技基础分",
+        "特技基础设置",
         """【它有什么作用】
 这里可以单独调整某一个特技的分数。单独设置的分数优先于该特技所属类别的默认分数。
+单击“基础分”整行可以编辑分数，单击“匹配类型”整行可以选择类型。
 
 【分数会改变特技档次】
 最终基础分达到特殊门槛时按特殊特技处理；达到强力门槛时按强力特技处理；达到普通优质门槛时按优质特技处理。
-档次变化会同时影响人物类型匹配和“出现特殊特技时直接合格”。
+档次变化会影响类型匹配是否生效，以及“出现特殊特技时直接合格”。
 
 【举例】
 普通优质、强力、特殊门槛分别为1、2、5分时，把一个优质特技改为5分，它会按特殊特技处理；把特殊特技降到1分，它会按优质特技处理。
@@ -194,8 +207,10 @@ ADVANCED_HELP_SECTIONS = (
 【“其他”类别】
 “其他”类别默认不计分。你可以在这里给少数想要重视的特技单独设置分数。
 
-【人物类型是否匹配】
-优质和强力特技只有符合人物类型时才会正常计分。例如文官型特技出现在武将型人物身上时，可能不会计入有效分数。
+【兵种与特技类型是否匹配】
+启用类型匹配后，优质和强力特技需要符合武将当前兵种的类型。例如文官型特技出现在武将型兵种上时，不会计入有效分数。
+每项特技的匹配类型可以与基础分一起修改。
+选择“无”表示该特技不限制匹配类型，无论当前兵种属于哪一类都可以正常计分。
 当前分数达到特殊门槛的特技不受这一限制。
 
 【直接合格的优先级】
@@ -263,56 +278,150 @@ class ScoreGrid(tk.Frame):
         parent,
         items: list[tuple[str, tk.StringVar, str]],
         category_resolver: Callable[[str, str, str], str] | None = None,
+        type_variables: dict[str, tk.StringVar] | None = None,
         **kwargs,
     ):
         super().__init__(parent, **kwargs)
         self.items = items
         self.category_resolver = category_resolver
+        self.type_variables = type_variables or {}
+        self.card_height = 88 if self.type_variables else self.CARD_HEIGHT
         self.enabled = True
-        self.editor: tk.Entry | None = None
+        self.editor: tk.Widget | None = None
         self.editor_window: int | None = None
         self.editing_index: int | None = None
+        self.editing_kind = ""
         self.hit_boxes: list[tuple[int, int, int, int, int]] = []
+        self.type_hit_boxes: list[tuple[int, int, int, int, int]] = []
+        self.score_editor_boxes: dict[int, tuple[int, int, int, int]] = {}
+        self.type_editor_boxes: dict[int, tuple[int, int, int, int]] = {}
+        self.category_text_items: dict[int, int] = {}
+        self.category_bar_items: dict[int, int] = {}
+        self.value_text_items: dict[int, int] = {}
+        self.type_text_items: dict[int, int] = {}
+        self.search_var = tk.StringVar()
+        self.result_text = tk.StringVar()
+        search_bar = tk.Frame(self, background="#f5f5f5")
+        search_bar.pack(fill="x", pady=(0, 8))
+        tk.Label(
+            search_bar,
+            text="搜索",
+            background="#f5f5f5",
+            foreground="#555555",
+        ).pack(side="left")
+        self.search_entry = tk.Entry(
+            search_bar,
+            textvariable=self.search_var,
+        )
+        self.search_entry.pack(
+            side="left",
+            fill="x",
+            expand=True,
+            padx=(8, 6),
+        )
+        tk.Button(
+            search_bar,
+            text="清空",
+            command=lambda: self.search_var.set(""),
+            width=6,
+        ).pack(side="left")
+        tk.Label(
+            search_bar,
+            textvariable=self.result_text,
+            background="#f5f5f5",
+            foreground="#777777",
+            width=10,
+            anchor="e",
+        ).pack(side="right", padx=(10, 0))
+        canvas_frame = tk.Frame(self, background="#f5f5f5")
+        canvas_frame.pack(fill="both", expand=True)
         self.canvas = tk.Canvas(
-            self,
+            canvas_frame,
             highlightthickness=0,
             background="#f5f5f5",
         )
         scrollbar = ttk.Scrollbar(
-            self, orient="vertical", command=self.canvas.yview
+            canvas_frame, orient="vertical", command=self.canvas.yview
         )
         self.canvas.configure(yscrollcommand=scrollbar.set)
         self.canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
         self.canvas.bind("<Configure>", lambda _event: self.refresh())
         self.canvas.bind("<Button-1>", self._start_edit)
+        self.canvas.bind("<Motion>", self._update_cursor)
+        self.canvas.bind(
+            "<Leave>",
+            lambda _event: self.canvas.configure(cursor=""),
+        )
         self.canvas.bind("<MouseWheel>", self._on_mousewheel)
         self.bind("<Destroy>", self._destroy_editor, add="+")
+        self.search_var.trace_add("write", self._search_changed)
         self.after_idle(self.refresh)
+
+    def _visible_items(
+        self,
+    ) -> list[tuple[int, tuple[str, tk.StringVar, str]]]:
+        terms = tuple(
+            term.casefold()
+            for term in self.search_var.get().split()
+            if term
+        )
+        if not terms:
+            return list(enumerate(self.items))
+        return [
+            (index, item)
+            for index, item in enumerate(self.items)
+            if all(
+                term
+                in (
+                    f"{item[0]} {item[2]} "
+                    f"{TYPE_LABELS.get(self.type_variables[item[0]].get(), '')}"
+                    if item[0] in self.type_variables
+                    else f"{item[0]} {item[2]}"
+                ).casefold()
+                for term in terms
+            )
+        ]
+
+    def _search_changed(self, *_args) -> None:
+        self.canvas.yview_moveto(0)
+        self.refresh()
 
     def refresh(self) -> None:
         self.commit_pending(refresh=False)
         self.canvas.delete("all")
         self.hit_boxes.clear()
+        self.type_hit_boxes.clear()
+        self.score_editor_boxes.clear()
+        self.type_editor_boxes.clear()
+        self.category_text_items.clear()
+        self.category_bar_items.clear()
+        self.value_text_items.clear()
+        self.type_text_items.clear()
+        visible_items = self._visible_items()
+        self.result_text.set(f"{len(visible_items)} 项")
         viewport_width = max(760, self.canvas.winfo_width())
         content_width = viewport_width - self.GAP
         card_width = (
             content_width - self.GAP * (self.COLUMN_COUNT - 1)
         ) // self.COLUMN_COUNT
         rows = (
-            len(self.items) + self.COLUMN_COUNT - 1
+            len(visible_items) + self.COLUMN_COUNT - 1
         ) // self.COLUMN_COUNT
-        for index, (name, variable, category) in enumerate(self.items):
+        for visible_index, (
+            item_index,
+            (name, variable, category),
+        ) in enumerate(visible_items):
             display_category = (
                 self.category_resolver(name, variable.get(), category)
                 if self.category_resolver is not None
                 else category
             )
-            row, column = divmod(index, self.COLUMN_COUNT)
+            row, column = divmod(visible_index, self.COLUMN_COUNT)
             x1 = self.GAP + column * (card_width + self.GAP)
-            y1 = self.GAP + row * (self.CARD_HEIGHT + self.GAP)
+            y1 = self.GAP + row * (self.card_height + self.GAP)
             x2 = x1 + card_width
-            y2 = y1 + self.CARD_HEIGHT
+            y2 = y1 + self.card_height
             self.canvas.create_rectangle(
                 x1,
                 y1,
@@ -322,20 +431,15 @@ class ScoreGrid(tk.Frame):
                 outline="#d8d8d8",
             )
             if display_category:
-                category_color = {
-                    "特殊": "#b24747",
-                    "强力": "#496fa8",
-                    "优质": "#4d8560",
-                    "其他": "#888888",
-                }.get(display_category, "#888888")
-                self.canvas.create_rectangle(
+                category_bar = self.canvas.create_rectangle(
                     x1,
                     y1,
                     x1 + 3,
                     y2,
-                    fill=category_color,
+                    fill=self._category_color(display_category),
                     outline="",
                 )
+                self.category_bar_items[item_index] = category_bar
             self.canvas.create_text(
                 x1 + 9,
                 y1 + 16,
@@ -344,6 +448,61 @@ class ScoreGrid(tk.Frame):
                 fill="#222222",
                 font=("Microsoft YaHei UI", 9),
             )
+            if name in self.type_variables:
+                type_x1 = x1 + 8
+                type_y1 = y1 + 30
+                type_x2 = x2 - 8
+                type_y2 = type_y1 + 20
+                type_value_x1 = max(type_x1 + 88, type_x2 - 70)
+                self.canvas.create_rectangle(
+                    type_x1,
+                    type_y1,
+                    type_x2,
+                    type_y2,
+                    fill="#fafafa" if self.enabled else "#f0f0f0",
+                    outline="#d0d0d0",
+                )
+                self.canvas.create_line(
+                    type_value_x1,
+                    type_y1,
+                    type_value_x1,
+                    type_y2,
+                    fill="#d0d0d0",
+                )
+                self.canvas.create_text(
+                    type_x1 + 8,
+                    (type_y1 + type_y2) / 2,
+                    text="匹配类型",
+                    anchor="w",
+                    fill="#777777",
+                    font=("Microsoft YaHei UI", 8),
+                )
+                type_text = self.canvas.create_text(
+                    type_x2 - 8,
+                    (type_y1 + type_y2) / 2,
+                    text=TYPE_LABELS[
+                        self.type_variables[name].get()
+                    ],
+                    anchor="e",
+                    fill="#222222" if self.enabled else "#888888",
+                    font=("Microsoft YaHei UI", 8),
+                )
+                self.type_text_items[item_index] = type_text
+                self.type_editor_boxes[item_index] = (
+                    type_value_x1,
+                    type_y1,
+                    type_x2,
+                    type_y2,
+                )
+                self.type_hit_boxes.append(
+                    (
+                        type_x1,
+                        type_y1,
+                        type_x2,
+                        type_y2,
+                        item_index,
+                    )
+                )
             score_x1 = x1 + 8
             score_y1 = y2 - self.SCORE_HEIGHT - 7
             score_x2 = x2 - 8
@@ -364,7 +523,7 @@ class ScoreGrid(tk.Frame):
                 score_y2,
                 fill="#d0d0d0",
             )
-            self.canvas.create_text(
+            category_text = self.canvas.create_text(
                 score_x1 + 8,
                 (score_y1 + score_y2) / 2,
                 text=(
@@ -376,7 +535,8 @@ class ScoreGrid(tk.Frame):
                 fill="#777777",
                 font=("Microsoft YaHei UI", 8),
             )
-            self.canvas.create_text(
+            self.category_text_items[item_index] = category_text
+            value_text = self.canvas.create_text(
                 score_x2 - 8,
                 (score_y1 + score_y2) / 2,
                 text=variable.get(),
@@ -384,17 +544,80 @@ class ScoreGrid(tk.Frame):
                 fill="#222222" if self.enabled else "#888888",
                 font=("Microsoft YaHei UI", 9, "bold"),
             )
+            self.value_text_items[item_index] = value_text
+            self.score_editor_boxes[item_index] = (
+                value_x1,
+                score_y1,
+                score_x2,
+                score_y2,
+            )
             self.hit_boxes.append(
-                (value_x1, score_y1, score_x2, score_y2, index)
+                (
+                    x1 if name not in self.type_variables else score_x1,
+                    y1 if name not in self.type_variables else score_y1,
+                    x2 if name not in self.type_variables else score_x2,
+                    y2 if name not in self.type_variables else score_y2,
+                    item_index,
+                )
+            )
+        if not visible_items:
+            self.canvas.create_text(
+                viewport_width / 2,
+                72,
+                text="没有匹配的项目",
+                fill="#777777",
+                font=("Microsoft YaHei UI", 10),
             )
         total_height = (
-            self.GAP + rows * (self.CARD_HEIGHT + self.GAP)
+            self.GAP + rows * (self.card_height + self.GAP)
             if rows
-            else self.CARD_HEIGHT
+            else 144
         )
         self.canvas.configure(
             scrollregion=(0, 0, viewport_width, total_height)
         )
+
+    @staticmethod
+    def _category_color(category: str) -> str:
+        return {
+            "特殊": "#b24747",
+            "强力": "#496fa8",
+            "优质": "#4d8560",
+            "其他": "#888888",
+        }.get(category, "#888888")
+
+    def _preview_score(self, _event=None) -> None:
+        if (
+            self.editing_kind != "score"
+            or self.editor is None
+            or self.editing_index is None
+            or self.category_resolver is None
+        ):
+            return
+        name, _variable, original_category = self.items[
+            self.editing_index
+        ]
+        display_category = self.category_resolver(
+            name,
+            self.editor.get(),
+            original_category,
+        )
+        text_item = self.category_text_items.get(self.editing_index)
+        if text_item is not None:
+            self.canvas.itemconfigure(
+                text_item,
+                text=(
+                    f"{display_category} · 基础分"
+                    if display_category
+                    else "基础分"
+                ),
+            )
+        bar_item = self.category_bar_items.get(self.editing_index)
+        if bar_item is not None:
+            self.canvas.itemconfigure(
+                bar_item,
+                fill=self._category_color(display_category),
+            )
 
     def set_enabled(self, enabled: bool) -> None:
         self.enabled = enabled
@@ -405,19 +628,48 @@ class ScoreGrid(tk.Frame):
     def commit_pending(self, refresh: bool = True) -> None:
         if self.editor is None or self.editing_index is None:
             return
+        editing_kind = self.editing_kind
+        editing_index = self.editing_index
         try:
-            self.items[self.editing_index][1].set(self.editor.get())
+            value = self.editor.get()
+            if editing_kind == "type":
+                skill_name = self.items[editing_index][0]
+                self.type_variables[skill_name].set(TYPE_VALUES[value])
+                text_item = self.type_text_items.get(editing_index)
+                if text_item is not None:
+                    self.canvas.itemconfigure(text_item, text=value)
+            else:
+                self.items[editing_index][1].set(value)
+                text_item = self.value_text_items.get(editing_index)
+                if text_item is not None:
+                    self.canvas.itemconfigure(text_item, text=value)
         finally:
             self._destroy_editor()
-        if refresh:
+        if (
+            refresh
+            and editing_kind == "type"
+            and self.search_var.get().strip()
+        ):
             self.refresh()
 
-    def _start_edit(self, event) -> None:
-        if not self.enabled:
-            return
-        canvas_x = int(self.canvas.canvasx(event.x))
-        canvas_y = int(self.canvas.canvasy(event.y))
-        match = next(
+    def _matches_at(
+        self,
+        canvas_x: int,
+        canvas_y: int,
+    ) -> tuple[
+        tuple[int, int, int, int, int] | None,
+        tuple[int, int, int, int, int] | None,
+    ]:
+        type_match = next(
+            (
+                box
+                for box in self.type_hit_boxes
+                if box[0] <= canvas_x <= box[2]
+                and box[1] <= canvas_y <= box[3]
+            ),
+            None,
+        )
+        score_match = next(
             (
                 box
                 for box in self.hit_boxes
@@ -426,16 +678,57 @@ class ScoreGrid(tk.Frame):
             ),
             None,
         )
-        if match is None:
+        return type_match, score_match
+
+    def _update_cursor(self, event) -> None:
+        if not self.enabled:
+            self.canvas.configure(cursor="")
+            return
+        canvas_x = int(self.canvas.canvasx(event.x))
+        canvas_y = int(self.canvas.canvasy(event.y))
+        type_match, score_match = self._matches_at(canvas_x, canvas_y)
+        self.canvas.configure(
+            cursor=(
+                "hand2"
+                if type_match is not None
+                else ("xterm" if score_match is not None else "")
+            )
+        )
+
+    def _start_edit(self, event) -> None:
+        if not self.enabled:
+            return
+        canvas_x = int(self.canvas.canvasx(event.x))
+        canvas_y = int(self.canvas.canvasy(event.y))
+        type_match, match = self._matches_at(canvas_x, canvas_y)
+        if type_match is None and match is None:
             return
         self.commit_pending()
-        x1, y1, x2, y2, item_index = match
-        variable = self.items[item_index][1]
-        self.editor = tk.Entry(
-            self.canvas,
-            justify="center",
-        )
-        self.editor.insert(0, variable.get())
+        if type_match is not None:
+            item_index = type_match[4]
+            x1, y1, x2, y2 = self.type_editor_boxes[item_index]
+            skill_name = self.items[item_index][0]
+            variable = self.type_variables[skill_name]
+            self.editor = ttk.Combobox(
+                self.canvas,
+                values=tuple(
+                    TYPE_LABELS[value] for value in SKILL_AFFINITY_TYPES
+                ),
+                state="readonly",
+            )
+            self.editor.set(TYPE_LABELS[variable.get()])
+            self.editing_kind = "type"
+        else:
+            assert match is not None
+            item_index = match[4]
+            x1, y1, x2, y2 = self.score_editor_boxes[item_index]
+            variable = self.items[item_index][1]
+            self.editor = tk.Entry(
+                self.canvas,
+                justify="center",
+            )
+            self.editor.insert(0, variable.get())
+            self.editing_kind = "score"
         self.editing_index = item_index
         self.editor_window = self.canvas.create_window(
             x1,
@@ -445,9 +738,17 @@ class ScoreGrid(tk.Frame):
             height=y2 - y1,
             window=self.editor,
         )
-        self.editor.select_range(0, "end")
+        if isinstance(self.editor, tk.Entry):
+            self.editor.select_range(0, "end")
         self.editor.focus_set()
         self.editor.bind("<Return>", lambda _event: self.commit_pending())
+        if isinstance(self.editor, tk.Entry):
+            self.editor.bind("<KeyRelease>", self._preview_score)
+        if isinstance(self.editor, ttk.Combobox):
+            self.editor.bind(
+                "<<ComboboxSelected>>",
+                lambda _event: self.commit_pending(),
+            )
         self.editor.bind("<FocusOut>", lambda _event: self.commit_pending())
         self.editor.bind("<Escape>", lambda _event: self._destroy_editor())
 
@@ -462,6 +763,7 @@ class ScoreGrid(tk.Frame):
         self.editor = None
         self.editor_window = None
         self.editing_index = None
+        self.editing_kind = ""
         if editor_window is not None:
             self.canvas.delete(editor_window)
         if editor is not None:
@@ -654,6 +956,133 @@ def show_job_type_editor(
     dialog.grab_set()
 
 
+def show_member_affinity_editor(
+    parent,
+    member_names: tuple[str, ...],
+    current_values: dict[str, tuple[str, str]],
+    editable: bool,
+    on_apply: Callable[[dict[str, tuple[str, str]]], None],
+) -> None:
+    dialog = tk.Toplevel(parent)
+    dialog.withdraw()
+    dialog.title("人物倾向设置")
+    dialog.resizable(False, False)
+    dialog.transient(parent)
+
+    frame = tk.Frame(dialog, padx=20, pady=16)
+    frame.pack(fill="both", expand=True)
+    tk.Label(
+        frame,
+        text="人物倾向设置",
+        font=("Microsoft YaHei UI", 11, "bold"),
+        anchor="w",
+    ).grid(row=0, column=0, columnspan=3, sticky="w")
+    tk.Label(
+        frame,
+        text=(
+            "人物倾向仅影响兵种适配加分。"
+            + ("" if editable else "内置规则仅供查看，请先新建副本再修改。")
+        ),
+        fg="#666666",
+        anchor="w",
+    ).grid(
+        row=1,
+        column=0,
+        columnspan=3,
+        sticky="w",
+        pady=(4, 14),
+    )
+    for column, text in enumerate(("人物", "主要倾向", "次要倾向")):
+        tk.Label(
+            frame,
+            text=text,
+            font=("Microsoft YaHei UI", 9, "bold"),
+            anchor="w",
+        ).grid(
+            row=2,
+            column=column,
+            sticky="w",
+            padx=(0 if column == 0 else 18, 0),
+            pady=(0, 6),
+        )
+
+    options = tuple(TYPE_LABELS[value] for value in AFFINITY_TYPES)
+    variables: dict[str, tuple[tk.StringVar, tk.StringVar]] = {}
+    for row, member_name in enumerate(member_names, start=3):
+        primary_value, secondary_value = current_values[member_name]
+        primary = tk.StringVar(value=TYPE_LABELS[primary_value])
+        secondary = tk.StringVar(value=TYPE_LABELS[secondary_value])
+        variables[member_name] = (primary, secondary)
+        tk.Label(frame, text=member_name, anchor="w", width=10).grid(
+            row=row,
+            column=0,
+            sticky="w",
+            pady=4,
+        )
+        for column, variable in ((1, primary), (2, secondary)):
+            combo = ttk.Combobox(
+                frame,
+                textvariable=variable,
+                values=options,
+                state="readonly" if editable else "disabled",
+                width=14,
+            )
+            combo.grid(
+                row=row,
+                column=column,
+                sticky="w",
+                padx=(18, 0),
+                pady=4,
+            )
+
+    actions = tk.Frame(frame)
+    actions.grid(
+        row=len(member_names) + 3,
+        column=0,
+        columnspan=3,
+        sticky="ew",
+        pady=(16, 0),
+    )
+
+    def apply_changes() -> None:
+        on_apply(
+            {
+                member_name: (
+                    TYPE_VALUES[primary.get()],
+                    TYPE_VALUES[secondary.get()],
+                )
+                for member_name, (primary, secondary) in variables.items()
+            }
+        )
+        dialog.destroy()
+
+    tk.Button(
+        actions,
+        text="取消" if editable else "关闭",
+        command=dialog.destroy,
+        width=10,
+    ).pack(side="right")
+    if editable:
+        tk.Button(
+            actions,
+            text="确定",
+            command=apply_changes,
+            width=10,
+        ).pack(side="right", padx=(0, 8))
+
+    dialog.update_idletasks()
+    width = max(470, dialog.winfo_reqwidth())
+    height = max(400, dialog.winfo_reqheight())
+    x = parent.winfo_rootx() + (parent.winfo_width() - width) // 2
+    y = parent.winfo_rooty() + (parent.winfo_height() - height) // 2
+    x = max(0, min(x, dialog.winfo_screenwidth() - width))
+    y = max(0, min(y, dialog.winfo_screenheight() - height))
+    dialog.geometry(f"{width}x{height}+{x}+{y}")
+    dialog.deiconify()
+    dialog.lift()
+    dialog.grab_set()
+
+
 def show_toast(parent, message: str, duration_ms: int = 1800) -> None:
     toast = tk.Toplevel(parent)
     toast.withdraw()
@@ -811,16 +1240,16 @@ def show_rule_editor(
     advanced_book.pack(fill="both", expand=True)
     threshold_tab = tk.Frame(advanced_book, padx=16, pady=14)
     job_tab = tk.Frame(advanced_book, padx=16, pady=14)
-    affinity_tab = tk.Frame(advanced_book, padx=16, pady=14)
+    job_type_tab = tk.Frame(advanced_book, padx=8, pady=8)
     base_score_tab = tk.Frame(advanced_book, padx=8, pady=8)
     skill_tab = tk.Frame(advanced_book, padx=16, pady=14)
     skill_score_tab = tk.Frame(advanced_book, padx=8, pady=8)
     advanced_book.add(threshold_tab, text="阶段门槛")
     advanced_book.add(job_tab, text="兵种评分")
-    advanced_book.add(affinity_tab, text="人物倾向")
     advanced_book.add(base_score_tab, text="兵种基础分")
     advanced_book.add(skill_tab, text="特技评分")
-    advanced_book.add(skill_score_tab, text="特技基础分")
+    advanced_book.add(skill_score_tab, text="特技基础设置")
+    advanced_book.add(job_type_tab, text="兵种类型")
 
     number_vars: dict[str, tk.StringVar] = {}
     bool_vars: dict[str, tk.BooleanVar] = {}
@@ -1121,42 +1550,61 @@ def show_rule_editor(
     editable_widgets.extend((affinity_check, balance_check))
 
     affinity_vars: dict[str, tuple[tk.StringVar, tk.StringVar]] = {}
-    tk.Label(affinity_tab, text="人物").grid(
-        row=0, column=0, sticky="w", pady=(0, 8)
+    affinity_member_names = tuple(
+        member[0] if isinstance(member, tuple) else str(member)
+        for member in team_members
     )
-    tk.Label(affinity_tab, text="主要倾向").grid(
-        row=0, column=1, sticky="w", padx=(18, 0), pady=(0, 8)
+    for member_name in affinity_member_names:
+        affinity_vars[member_name] = (tk.StringVar(), tk.StringVar())
+
+    def apply_affinity_values(
+        values: dict[str, tuple[str, str]],
+    ) -> None:
+        for member_name, (primary, secondary) in values.items():
+            primary_var, secondary_var = affinity_vars[member_name]
+            primary_var.set(TYPE_LABELS[primary])
+            secondary_var.set(TYPE_LABELS[secondary])
+
+    def open_affinity_editor() -> None:
+        show_member_affinity_editor(
+            editor,
+            affinity_member_names,
+            {
+                member_name: (
+                    TYPE_VALUES[primary.get()],
+                    TYPE_VALUES[secondary.get()],
+                )
+                for member_name, (primary, secondary)
+                in affinity_vars.items()
+            },
+            not is_builtin(selected_name),
+            apply_affinity_values,
+        )
+
+    tk.Button(
+        job_tab,
+        text="设置人物倾向",
+        command=open_affinity_editor,
+        width=16,
+    ).grid(
+        row=8,
+        column=0,
+        columnspan=2,
+        sticky="w",
+        pady=(14, 0),
     )
-    tk.Label(affinity_tab, text="次要倾向").grid(
-        row=0, column=2, sticky="w", padx=(18, 0), pady=(0, 8)
+    tk.Label(
+        job_tab,
+        text="设置每个人物的主要倾向和次要倾向",
+        fg="#666666",
+        anchor="w",
+    ).grid(
+        row=9,
+        column=0,
+        columnspan=3,
+        sticky="w",
+        pady=(4, 0),
     )
-    primary_options = tuple(TYPE_LABELS[value] for value in AFFINITY_TYPES)
-    secondary_options = tuple(TYPE_LABELS[value] for value in AFFINITY_TYPES)
-    for row, member in enumerate(team_members, start=1):
-        member_name = member[0] if isinstance(member, tuple) else str(member)
-        tk.Label(affinity_tab, text=member_name).grid(
-            row=row, column=0, sticky="w", pady=4
-        )
-        primary_var = tk.StringVar()
-        secondary_var = tk.StringVar()
-        affinity_vars[member_name] = (primary_var, secondary_var)
-        primary = ttk.Combobox(
-            affinity_tab,
-            textvariable=primary_var,
-            values=primary_options,
-            state="readonly",
-            width=14,
-        )
-        secondary = ttk.Combobox(
-            affinity_tab,
-            textvariable=secondary_var,
-            values=secondary_options,
-            state="readonly",
-            width=14,
-        )
-        primary.grid(row=row, column=1, padx=(18, 0), pady=4)
-        secondary.grid(row=row, column=2, padx=(18, 0), pady=4)
-        editable_widgets.extend((primary, secondary))
 
     job_default_types = {
         job_name: job_type
@@ -1166,47 +1614,68 @@ def show_rule_editor(
         job_name: tk.StringVar(value=job_type)
         for job_name, job_type in job_default_types.items()
     }
-
-    def apply_job_types(values: dict[str, str]) -> None:
-        for job_name, job_type in values.items():
-            job_type_vars[job_name].set(job_type)
-
-    def open_job_type_editor() -> None:
-        show_job_type_editor(
-            editor,
-            job_map,
-            {
-                job_name: variable.get()
-                for job_name, variable in job_type_vars.items()
-            },
-            not is_builtin(selected_name),
-            apply_job_types,
+    job_type_body = ScrollableFrame(job_type_tab)
+    job_type_body.pack(fill="both", expand=True)
+    job_type_options = tuple(
+        TYPE_LABELS[value] for value in JOB_AFFINITY_TYPES
+    )
+    jobs = [job for _job_id, job in sorted(job_map.items())]
+    job_type_columns = 4
+    job_type_rows = (
+        len(jobs) + job_type_columns - 1
+    ) // job_type_columns
+    for index, (job_name, _score, _default_type) in enumerate(jobs):
+        group = index // job_type_rows
+        row = index % job_type_rows
+        label_column = group * 2
+        value_column = label_column + 1
+        tk.Label(
+            job_type_body.body,
+            text=job_name,
+            anchor="w",
+            width=9,
+        ).grid(
+            row=row,
+            column=label_column,
+            sticky="w",
+            padx=(0 if group == 0 else 18, 6),
+            pady=4,
         )
+        display_type = tk.StringVar(
+            value=TYPE_LABELS[job_type_vars[job_name].get()]
+        )
+        combo = ttk.Combobox(
+            job_type_body.body,
+            textvariable=display_type,
+            values=job_type_options,
+            state="readonly",
+            width=10,
+        )
+        combo.grid(
+            row=row,
+            column=value_column,
+            sticky="w",
+            pady=4,
+        )
+        editable_widgets.append(combo)
 
-    tk.Button(
-        affinity_tab,
-        text="设置兵种所属类型",
-        command=open_job_type_editor,
-        width=18,
-    ).grid(
-        row=len(team_members) + 2,
-        column=0,
-        columnspan=2,
-        sticky="w",
-        pady=(14, 0),
-    )
-    tk.Label(
-        affinity_tab,
-        text="查看并调整全能型、武将型、文官型的兵种归类",
-        fg="#666666",
-        anchor="w",
-    ).grid(
-        row=len(team_members) + 3,
-        column=0,
-        columnspan=3,
-        sticky="w",
-        pady=(4, 0),
-    )
+        def sync_job_type(
+            _event=None,
+            *,
+            name=job_name,
+            display=display_type,
+        ) -> None:
+            job_type_vars[name].set(TYPE_VALUES[display.get()])
+
+        def refresh_job_type(
+            *_args,
+            name=job_name,
+            display=display_type,
+        ) -> None:
+            display.set(TYPE_LABELS[job_type_vars[name].get()])
+
+        combo.bind("<<ComboboxSelected>>", sync_job_type)
+        job_type_vars[job_name].trace_add("write", refresh_job_type)
 
     job_score_vars: dict[str, tk.StringVar] = {}
     job_score_items = []
@@ -1250,8 +1719,10 @@ def show_rule_editor(
     )
     special_auto = tk.BooleanVar()
     high_auto = tk.BooleanVar()
+    skill_type_matching = tk.BooleanVar()
     bool_vars["special_auto"] = special_auto
     bool_vars["high_auto"] = high_auto
+    bool_vars["skill_type_matching"] = skill_type_matching
     special_check = tk.Checkbutton(
         skill_tab,
         text="出现特殊特技时直接合格",
@@ -1266,16 +1737,39 @@ def show_rule_editor(
         anchor="w",
     )
     high_check.grid(row=6, column=0, columnspan=2, sticky="w", pady=5)
-    editable_widgets.extend((special_check, high_check))
+    skill_type_check = tk.Checkbutton(
+        skill_tab,
+        text="启用特技类型匹配",
+        variable=skill_type_matching,
+        anchor="w",
+    )
+    skill_type_check.grid(
+        row=7,
+        column=0,
+        columnspan=2,
+        sticky="w",
+        pady=5,
+    )
+    editable_widgets.extend((special_check, high_check, skill_type_check))
 
     skill_score_vars: dict[str, tk.StringVar] = {}
+    skill_type_vars: dict[str, tk.StringVar] = {}
     skill_defaults: dict[str, float] = {}
+    skill_default_types: dict[str, str] = {}
     skill_categories: dict[str, str] = {}
     skill_score_items = []
-    for skill_name, default_score, category in skill_catalog:
+    for skill_item in skill_catalog:
+        skill_name, default_score, category = skill_item[:3]
+        default_type = (
+            skill_item[3]
+            if len(skill_item) >= 4
+            else "ALL_ROUNDER"
+        )
         variable = tk.StringVar(value=f"{default_score:g}")
         skill_score_vars[skill_name] = variable
+        skill_type_vars[skill_name] = tk.StringVar(value=default_type)
         skill_defaults[skill_name] = float(default_score)
+        skill_default_types[skill_name] = default_type
         skill_categories[skill_name] = category
         skill_score_items.append((skill_name, variable, category))
 
@@ -1299,6 +1793,7 @@ def show_rule_editor(
         skill_score_tab,
         skill_score_items,
         category_resolver=resolve_skill_tier,
+        type_variables=skill_type_vars,
     )
     skill_score_grid.pack(fill="both", expand=True)
     score_grids = (job_score_grid, skill_score_grid)
@@ -1436,6 +1931,14 @@ def show_rule_editor(
                         skill_defaults[skill_name],
                     )
                 },
+                "skillTypeMatchingEnabled": bool(
+                    skill_type_matching.get()
+                ),
+                "skillTypeOverrides": {
+                    skill_name: variable.get()
+                    for skill_name, variable in skill_type_vars.items()
+                    if variable.get() != skill_default_types[skill_name]
+                },
                 "specialSkillAutoPass": bool(special_auto.get()),
                 "highJobAutoPass": bool(high_auto.get()),
             }
@@ -1547,6 +2050,7 @@ def show_rule_editor(
                 )
             special_auto.set(seven["specialSkillAutoPass"])
             high_auto.set(seven["highJobAutoPass"])
+            skill_type_matching.set(seven["skillTypeMatchingEnabled"])
             affinity_enabled.set(scoring["affinityEnabled"])
             balance_enabled.set(scoring["extraMasterPenaltyEnabled"])
             for member, (primary, secondary) in affinity_vars.items():
@@ -1568,6 +2072,7 @@ def show_rule_editor(
                     )
                 )
             skill_overrides = seven["skillBaseScores"]
+            skill_type_overrides = seven["skillTypeOverrides"]
             category_scores = {
                 "优质": seven["ordinarySkillWeight"],
                 "强力": seven["strongSkillWeight"],
@@ -1581,6 +2086,12 @@ def show_rule_editor(
                 )
                 variable.set(
                     f"{skill_overrides.get(skill_name, fallback_score):g}"
+                )
+                skill_type_vars[skill_name].set(
+                    skill_type_overrides.get(
+                        skill_name,
+                        skill_default_types[skill_name],
+                    )
                 )
             for score_grid in score_grids:
                 score_grid.refresh()

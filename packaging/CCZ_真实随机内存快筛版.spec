@@ -76,8 +76,24 @@ a = Analysis(
     binaries=[],
     datas=original_datas + [
         (str(project_root / 'resources/app/random_s00.eex'), '.'),
+        (str(project_root / 'resources/app/original_s00.eex'), '.'),
         (str(project_root / 'resources/app/source_slot_20_help.png'), '.'),
+        (
+            str(
+                project_root
+                / 'resources/data/skills/skill_dump_ascii.json'
+            ),
+            'resources/data/skills',
+        ),
+        (
+            str(
+                project_root
+                / 'resources/data/skills/runtime_skill_catalog.json'
+            ),
+            'resources/data/skills',
+        ),
         (str(build_info_path), '.'),
+        (str(project_root / 'CHANGELOG.json'), '.'),
         (str(project_root / 'native/ccz_control.dll'), 'native'),
         (str(project_root / 'native/ccz_injector.exe'), 'native'),
     ],

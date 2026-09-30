@@ -28,6 +28,7 @@ def _git_output(project_root: Path, *arguments: str) -> str:
 def _source_hash(project_root: Path) -> str:
     candidates = [
         project_root / "VERSION",
+        project_root / "CHANGELOG.json",
         project_root / "fast_randomizer.py",
     ]
     candidates.extend(

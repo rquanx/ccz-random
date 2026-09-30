@@ -15,6 +15,7 @@ import tempfile
 import threading
 import time
 import traceback
+from contextlib import contextmanager
 from ctypes import wintypes
 from functools import lru_cache
 from pathlib import Path
@@ -27,9 +28,12 @@ from ccz_randomizer.rules.config import (
     evaluate_skill_rules,
     load_rule_config,
     save_rule_config,
+    skill_types_match,
     validate_rule_config,
 )
 from ccz_randomizer.rules.editor import show_rule_editor, show_toast
+from ccz_randomizer.history import HistoryRepository
+from ccz_randomizer.ui.history import show_history_window
 from ccz_randomizer.ui.result_details import (
     decode_result_detail,
     encode_result_detail,
@@ -49,14 +53,53 @@ from ccz_randomizer.runtime.log_retention import (
     cleanup_log_directory,
     trim_text_widget,
 )
+from ccz_randomizer.runtime.audio_recovery import (
+    ProcessAudioMuteMonitor,
+    restore_process_audio_sessions,
+)
+from ccz_randomizer.runtime.manual_repair import (
+    ManualRepairResult,
+    repair_normal_game_audio,
+)
 from ccz_randomizer.runtime.loader import install
-from ccz_randomizer.runtime.audio import mute_process_audio_sessions
-from ccz_randomizer.preferences import load_random_mode, save_random_mode
+from ccz_randomizer.runtime.skill_memory import (
+    normalize_skill_name,
+    read_skill_memory,
+)
+from ccz_randomizer.runtime.s00_guard import (
+    S00ScriptGuard,
+    repair_game_s00,
+    restore_bundled_original_s00,
+)
+from ccz_randomizer.runtime.scratch_save_guard import ScratchSaveGuard
+from ccz_randomizer.runtime.concurrent import (
+    decode_concurrent_event,
+    run_concurrent_workers,
+    start_concurrent_worker_heartbeat,
+)
+from ccz_randomizer.runtime.window_capture import (
+    WindowCaptureError,
+    capture_window_with_fallbacks,
+)
+from ccz_randomizer.ui.member_panel import (
+    render_member_text_panel as render_member_text_panel_image,
+)
+from ccz_randomizer.ui.concurrent_console import (
+    ConcurrentConsoleState,
+    format_round_heading,
+)
+from ccz_randomizer.preferences import (
+    load_compatibility_mode,
+    load_concurrency,
+    load_loop_random,
+    load_random_mode,
+    save_random_runtime_settings,
+    save_random_mode,
+)
 from ccz_randomizer.workflow.randomization import (
     AcceptedResult,
     AttemptResult,
     run_random_workflow,
-    validate_reloaded_jobs,
 )
 from ccz_randomizer.workflow.round_archive import (
     ensure_loop_disk_space,
@@ -93,11 +136,11 @@ def load_media_modules() -> None:
 
 
 GAME_EXE_NAME = "Ekd5.exe"
+RANDOM_GAME_EXE_NAME = "Ekd5.ccz-fast-random.exe"
 MEMORY_BASE = 0x00501000
 JOB_OFFSET = 0x2F40
-SKILL_OFFSET = 0x6800
-SKILL_RECORD_SIZE = 8
-SKILLS_PER_MEMBER = 6
+LOAD_TRANSITION_ACTIVE_OFFSET = 0x004AB020 - MEMORY_BASE
+LOAD_TRANSITION_STATE_OFFSET = 0x004ABF9C - MEMORY_BASE
 TEAM_MEMBER_NUM = 7
 JOB_POSITIONS_R0 = (0, 1, 6)
 JOB_POSITIONS_R1 = (0, 1, 5, 6, 10, 11, 12)
@@ -105,7 +148,10 @@ R0_MEMORY_SIZE = 0x30000
 PROCESS_QUERY_INFORMATION = 0x0400
 PROCESS_VM_READ = 0x0010
 PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+PROCESS_TERMINATE = 0x0001
 SYNCHRONIZE = 0x00100000
+FILE_ATTRIBUTE_HIDDEN = 0x00000002
+INVALID_FILE_ATTRIBUTES = 0xFFFFFFFF
 MIN_AVAILABLE_MEMORY_BYTES = 768 * 1024 * 1024
 DESKTOP_ACCESS = 0x01CB
 STARTF_USESHOWWINDOW = 0x00000001
@@ -126,6 +172,7 @@ SOURCE_SAVE_NUMBER = 20
 SOURCE_TITLE_LIST_INDEX = 19
 XU_CLIENT_POSITION = (369, 234)
 CONFIRM_FIRST_CLIENT_POSITION = (297, 220)
+TITLE_LOAD_CLIENT_POSITION = (512, 168)
 NORMAL_RELOAD_FAILURES_BEFORE_COMPATIBILITY = 3
 SECURITY_360_PROCESS_NAMES = frozenset(
     {
@@ -139,6 +186,11 @@ SECURITY_360_PROCESS_NAMES = frozenset(
         "qhsafetray.exe",
         "zhudongfangyu.exe",
     }
+)
+SECURITY_SOFTWARE_BLOCKED_EVENT = "@@CCZ_SECURITY_SOFTWARE_BLOCKED@@"
+SECURITY_SOFTWARE_BLOCKED_MESSAGE = (
+    "原生控制组件被安全软件拦截，请在隔离区恢复文件，"
+    "并将工具目录加入信任后重试。"
 )
 EQUIPMENT_OFFSET = 0x54D8
 EQUIPMENT_SIZE = 376
@@ -377,23 +429,165 @@ def initial_team_members(members):
     return tuple(members[index] for index in INITIAL_TEAM_MEMBER_INDICES)
 
 
+@lru_cache(maxsize=1)
+def canonical_skill_names() -> tuple[str, ...]:
+    if getattr(sys, "frozen", False):
+        path = (
+            Path(sys._MEIPASS)
+            / "resources"
+            / "data"
+            / "skills"
+            / "skill_dump_ascii.json"
+        )
+    else:
+        path = (
+            source_root()
+            / "resources"
+            / "data"
+            / "skills"
+            / "skill_dump_ascii.json"
+        )
+    rows = json.loads(path.read_text(encoding="utf-8"))
+    rows.sort(key=lambda row: int(row["id"]))
+    return tuple(str(row["name"]) for row in rows)
+
+
+@lru_cache(maxsize=1)
+def runtime_skill_catalog_names() -> tuple[str, ...]:
+    if getattr(sys, "frozen", False):
+        path = (
+            Path(sys._MEIPASS)
+            / "resources"
+            / "data"
+            / "skills"
+            / "runtime_skill_catalog.json"
+        )
+    else:
+        path = (
+            source_root()
+            / "resources"
+            / "data"
+            / "skills"
+            / "runtime_skill_catalog.json"
+        )
+    rows = json.loads(path.read_text(encoding="utf-8"))
+    rows.sort(key=lambda row: int(row["id"]))
+    return tuple(str(row["name"]) for row in rows)
+
+
+def load_member_skills_from_memory(
+    task_module,
+    pid: int,
+    record_indices: tuple[int, ...],
+    members,
+):
+    from models.CczModels import CCZ_MODELS
+
+    snapshot = read_skill_memory(pid, record_indices)
+    canonical_names = canonical_skill_names()
+    models_by_name = {
+        normalize_skill_name(name): (name, CCZ_MODELS.skills[index])
+        for index, name in enumerate(canonical_names)
+    }
+    unknown_type = task_module.CczType.UNKNOWN
+    unknown_skills = []
+    for member, memory_member in zip(members, snapshot.members):
+        skill_list = []
+        for category, definitions in (
+            ("personal", memory_member.personal),
+            ("job", memory_member.job),
+        ):
+            for definition in definitions:
+                matched = models_by_name.get(
+                    normalize_skill_name(definition.display_name)
+                )
+                if matched is None:
+                    matched = models_by_name.get(
+                        normalize_skill_name(definition.base_name)
+                    )
+                if matched is None:
+                    canonical_name = ""
+                    model = None
+                    unknown_skills.append(
+                        {
+                            "member": member.name,
+                            "category": category,
+                            "internal_id": definition.internal_id,
+                            "display_name": definition.display_name,
+                            "base_name": definition.base_name,
+                            "format_type": definition.format_type,
+                            "parameter": definition.parameter,
+                        }
+                    )
+                else:
+                    canonical_name, model = matched
+                skill_list.append(
+                    SimpleNamespace(
+                        name=definition.display_name,
+                        canonical_name=canonical_name,
+                        score=float(getattr(model, "score", 0.0)),
+                        type=(
+                            getattr(model, "type", unknown_type)
+                            if model is not None
+                            else unknown_type
+                        ),
+                        mat=getattr(model, "mat", None),
+                        memory_category=category,
+                        internal_skill_id=definition.internal_id,
+                        skill_format_type=definition.format_type,
+                        skill_parameter=definition.parameter,
+                    )
+                )
+        member.skillList = skill_list
+    diagnostic_log(
+        "skill_memory_resolved",
+        pid=pid,
+        record_array_base=f"0x{snapshot.record_array_base:08X}",
+        rule_table_base=f"0x{snapshot.rule_table_base:08X}",
+        direct_job_match=snapshot.direct_job_match,
+        members=[
+            {
+                "name": member.name,
+                "record_index": memory_member.record_index,
+                "member_id": memory_member.member_id,
+                "job_id": memory_member.job_id,
+                "personal": [
+                    skill.name
+                    for skill in member.skillList
+                    if skill.memory_category == "personal"
+                ],
+                "job": [
+                    skill.name
+                    for skill in member.skillList
+                    if skill.memory_category == "job"
+                ],
+            }
+            for member, memory_member in zip(members, snapshot.members)
+        ],
+        unknown_skills=unknown_skills,
+    )
+    return snapshot
+
+
 def skill_name_groups(task_module) -> tuple[set[str], set[str], set[str]]:
     from models.CczModels import CCZ_MODELS
 
     carry_names: set[str] = set()
     strong_names: set[str] = set()
     special_names: set[str] = set()
-    for skill in CCZ_MODELS.skills:
+    canonical_names = canonical_skill_names()
+    for index, skill in enumerate(CCZ_MODELS.skills):
+        name = canonical_names[index]
         if task_module.CczUtils.isSkillSpecial(skill):
-            special_names.add(skill.name)
+            special_names.add(name)
         if task_module.CczUtils.isSkillImba(skill):
-            strong_names.add(skill.name)
+            strong_names.add(name)
         elif task_module.CczUtils.isSkillCarry(skill):
-            carry_names.add(skill.name)
+            carry_names.add(name)
     return carry_names, strong_names, special_names
 
 
-def skill_score_catalog() -> tuple[tuple[str, float, str], ...]:
+def skill_score_catalog() -> tuple[tuple[str, float, str, str], ...]:
     global _SKILL_SCORE_CATALOG
     if _SKILL_SCORE_CATALOG is not None:
         return _SKILL_SCORE_CATALOG
@@ -410,10 +604,12 @@ def skill_score_catalog() -> tuple[tuple[str, float, str], ...]:
 
         catalog = []
         seen = set()
-        for skill in CCZ_MODELS.skills:
-            if skill.name in seen:
+        canonical_names = canonical_skill_names()
+        for index, skill in enumerate(CCZ_MODELS.skills):
+            name = canonical_names[index]
+            if name in seen:
                 continue
-            seen.add(skill.name)
+            seen.add(name)
             if task_module.CczUtils.isSkillSpecial(skill):
                 default_score, category = 5.0, "特殊"
             elif task_module.CczUtils.isSkillImba(skill):
@@ -422,22 +618,68 @@ def skill_score_catalog() -> tuple[tuple[str, float, str], ...]:
                 default_score, category = 1.0, "优质"
             else:
                 default_score, category = 0.0, "其他"
-            catalog.append((skill.name, default_score, category))
+            skill_type = getattr(skill, "type", task_module.CczType.UNKNOWN)
+            type_name = getattr(skill_type, "name", "UNKNOWN")
+            if type_name not in {"ALL_ROUNDER", "WARRIOR", "MASTER"}:
+                type_name = "ALL_ROUNDER"
+            catalog.append((name, default_score, category, type_name))
+        seen_normalized = {
+            normalize_skill_name(name) for name in seen
+        }
+        for name in runtime_skill_catalog_names():
+            normalized = normalize_skill_name(name)
+            if not name or normalized in seen_normalized:
+                continue
+            seen_normalized.add(normalized)
+            catalog.append((name, 0.0, "其他", "ALL_ROUNDER"))
         _SKILL_SCORE_CATALOG = tuple(catalog)
         return _SKILL_SCORE_CATALOG
 
 
-def effective_member_skill_names(task_module, members) -> list[str]:
+def _runtime_type_name(value) -> str:
+    type_name = getattr(value, "name", value)
+    type_name = str(type_name)
+    return (
+        type_name
+        if type_name in {"ALL_ROUNDER", "WARRIOR", "MASTER"}
+        else "ALL_ROUNDER"
+    )
+
+
+def effective_member_skill_names(rules: dict, members) -> list[str]:
+    profile = active_profile(rules)
+    seven = profile["sevenPerson"]
+    if not seven["skillTypeMatchingEnabled"]:
+        return [
+            skill.name
+            for member in members
+            for skill in member.skillList
+        ]
+    job_type_overrides = profile["jobScoring"]["jobTypeOverrides"]
+    skill_type_overrides = seven["skillTypeOverrides"]
+    normalized_skill_types = {
+        normalize_skill_name(skill_name): skill_type
+        for skill_name, skill_type in skill_type_overrides.items()
+    }
     names: list[str] = []
     for member in members:
+        job = getattr(member, "job", None)
+        job_name = str(getattr(job, "name", ""))
+        job_type = job_type_overrides.get(
+            job_name,
+            _runtime_type_name(getattr(job, "type", "ALL_ROUNDER")),
+        )
         for skill in member.skillList:
-            if (
-                member.cczType == task_module.CczType.WARRIOR
-                and skill.type == task_module.CczType.MASTER
-            ) or (
-                member.cczType == task_module.CczType.MASTER
-                and skill.type == task_module.CczType.WARRIOR
-            ):
+            skill_type = skill_type_overrides.get(
+                skill.name,
+                normalized_skill_types.get(
+                    normalize_skill_name(skill.name),
+                    _runtime_type_name(
+                        getattr(skill, "type", "ALL_ROUNDER")
+                    ),
+                ),
+            )
+            if not skill_types_match(job_type, skill_type):
                 continue
             names.append(skill.name)
     return names
@@ -450,6 +692,17 @@ def evaluate_task_skill_rules(
     job_average: float,
 ):
     carry_names, strong_names, special_names = skill_name_groups(task_module)
+    for member in members:
+        for skill in member.skillList:
+            canonical_name = getattr(skill, "canonical_name", "")
+            if not canonical_name:
+                continue
+            if canonical_name in carry_names:
+                carry_names.add(skill.name)
+            if canonical_name in strong_names:
+                strong_names.add(skill.name)
+            if canonical_name in special_names:
+                special_names.add(skill.name)
     member_skills = {
         member.name: [skill.name for skill in member.skillList]
         for member in members
@@ -461,7 +714,7 @@ def evaluate_task_skill_rules(
         carry_names,
         strong_names,
         special_names,
-        effective_member_skill_names(task_module, members),
+        effective_member_skill_names(rules, members),
     )
 
 
@@ -511,6 +764,122 @@ def result_detail_for_runner(
     }
 
 
+def build_history_result_snapshot(
+    runner,
+    *,
+    result_slot: int,
+    accepted_attempt: int,
+    round_number: int,
+    equip_info,
+    save_path: Path,
+) -> dict:
+    detail = result_detail_for_runner(
+        runner,
+        result_slot,
+        accepted_attempt,
+    )
+    members = []
+    job_members = {
+        item.get("name"): item
+        for item in ((detail or {}).get("job") or {}).get("members", [])
+        if isinstance(item, dict)
+    }
+    for member in getattr(runner, "_team_members", ()):
+        skills = list(getattr(member, "skillList", ()))
+
+        def skill_rows(category: str) -> list[dict]:
+            return [
+                {
+                    "name": str(getattr(skill, "name", "")),
+                    "canonicalName": str(
+                        getattr(skill, "canonical_name", "")
+                    ),
+                    "internalId": getattr(
+                        skill, "internal_skill_id", None
+                    ),
+                    "formatType": str(
+                        getattr(skill, "skill_format_type", "")
+                    ),
+                    "parameter": getattr(skill, "skill_parameter", None),
+                    "score": float(getattr(skill, "score", 0.0)),
+                }
+                for skill in skills
+                if getattr(skill, "memory_category", "") == category
+            ]
+
+        job_row = job_members.get(member.name, {})
+        members.append(
+            {
+                "name": member.name,
+                "job": str(
+                    job_row.get("job")
+                    or getattr(getattr(member, "job", None), "name", "")
+                ),
+                "jobScore": job_row.get("score"),
+                "personalSkills": skill_rows("personal"),
+                "jobSkills": skill_rows("job"),
+            }
+        )
+
+    categories = [
+        {
+            "name": type_name,
+            "items": [
+                {"name": equip_name, "effect": effect}
+                for equip_name, effect in items
+            ],
+        }
+        for items, type_name in (equip_info or ())
+    ]
+    specials = []
+    for title, items in getattr(runner, "_equip_specials", ()):
+        serialized_items = []
+        for item in items:
+            if (
+                isinstance(item, (list, tuple))
+                and len(item) == 2
+                and all(isinstance(value, str) for value in item)
+            ):
+                serialized_items.append(f"{item[0]}：{item[1]}")
+            else:
+                serialized_items.append(str(item))
+        specials.append({"title": title, "items": serialized_items})
+    save_bytes = save_path.read_bytes() if save_path.is_file() else b""
+    history_save_root = os.environ.get("CCZ_HISTORY_SAVE_ROOT", "").strip()
+    history_save_path = (
+        Path(history_save_root) / "SV" / save_path.name
+        if history_save_root
+        else save_path
+    )
+    return {
+        "schemaVersion": 1,
+        "createdAt": dt.datetime.now().astimezone().isoformat(
+            timespec="seconds"
+        ),
+        "roundNumber": round_number,
+        "slot": result_slot,
+        "acceptedAttempt": accepted_attempt,
+        "mode": "three"
+        if getattr(runner, "_three_person_mode", False)
+        else "seven",
+        "detail": detail,
+        "members": members,
+        "equipment": {
+            "categories": categories,
+            "specials": specials,
+        },
+        "save": {
+            "path": str(history_save_path),
+            "size": len(save_bytes),
+            "sha256": hashlib.sha256(save_bytes).hexdigest()
+            if save_bytes
+            else "",
+            "verified": False,
+            "verificationError": "",
+        },
+    }
+
+
 kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
 user32 = ctypes.WinDLL("user32", use_last_error=True)
 WINDOW_DESKTOP = 0
@@ -531,6 +900,11 @@ DIAGNOSTIC_LOCK = threading.Lock()
 DIAGNOSTIC_SCREENSHOT_LIMIT = 10
 DIAGNOSTIC_SCREENSHOT_TYPES: set[str] = set()
 UNKNOWN_EQUIPMENT_EFFECTS: set[tuple[int, int]] = set()
+SISHUI_REPAIR_UNAVAILABLE_MESSAGE = "此功能未完善，请联系作者"
+
+
+def notify_sishui_repair_unavailable(parent, toast=show_toast) -> None:
+    toast(parent, SISHUI_REPAIR_UNAVAILABLE_MESSAGE, 3200)
 CWP_SKIPINVISIBLE = 0x0001
 CWP_SKIPDISABLED = 0x0002
 CWP_SKIPTRANSPARENT = 0x0004
@@ -677,6 +1051,15 @@ kernel32.QueryFullProcessImageNameW.argtypes = [
     ctypes.POINTER(wintypes.DWORD),
 ]
 kernel32.QueryFullProcessImageNameW.restype = wintypes.BOOL
+kernel32.GetExitCodeProcess.argtypes = [
+    wintypes.HANDLE,
+    ctypes.POINTER(wintypes.DWORD),
+]
+kernel32.GetExitCodeProcess.restype = wintypes.BOOL
+kernel32.GetFileAttributesW.argtypes = [wintypes.LPCWSTR]
+kernel32.GetFileAttributesW.restype = wintypes.DWORD
+kernel32.SetFileAttributesW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD]
+kernel32.SetFileAttributesW.restype = wintypes.BOOL
 kernel32.CreateJobObjectW.argtypes = [ctypes.c_void_p, wintypes.LPCWSTR]
 kernel32.CreateJobObjectW.restype = wintypes.HANDLE
 kernel32.SetInformationJobObject.argtypes = [
@@ -933,6 +1316,163 @@ def build_version_text(info: dict | None = None) -> str:
     )
 
 
+@lru_cache(maxsize=1)
+def application_changelog() -> tuple[dict[str, object], ...]:
+    path = (
+        Path(sys._MEIPASS) / "CHANGELOG.json"
+        if getattr(sys, "frozen", False)
+        else source_root() / "CHANGELOG.json"
+    )
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError, TypeError):
+        return ()
+    if not isinstance(payload, list):
+        return ()
+    entries = []
+    for raw_entry in payload:
+        if not isinstance(raw_entry, dict):
+            continue
+        version = str(raw_entry.get("version", "")).strip()
+        date = str(raw_entry.get("date", "")).strip()
+        raw_changes = raw_entry.get("changes")
+        if (
+            not version
+            or not date
+            or not isinstance(raw_changes, list)
+        ):
+            continue
+        changes = tuple(
+            str(change).strip()
+            for change in raw_changes
+            if str(change).strip()
+        )
+        if not changes:
+            continue
+        entries.append(
+            {
+                "version": version,
+                "date": date,
+                "changes": changes,
+            }
+        )
+    return tuple(entries)
+
+
+def show_changelog_window(
+    parent,
+    entries: tuple[dict[str, object], ...] | None = None,
+) -> None:
+    import tkinter as tk
+    from tkinter import ttk
+
+    rows = application_changelog() if entries is None else entries
+    dialog = tk.Toplevel(parent)
+    dialog.withdraw()
+    dialog.title("版本更新记录")
+    dialog.geometry("720x560")
+    dialog.minsize(620, 460)
+    dialog.transient(parent)
+
+    header = tk.Frame(dialog, padx=18)
+    header.pack(fill="x", pady=(16, 10))
+    tk.Label(
+        header,
+        text="版本更新记录",
+        font=("Microsoft YaHei UI", 13, "bold"),
+        anchor="w",
+    ).pack(fill="x")
+    tk.Label(
+        header,
+        text="按版本查看新增功能、优化和问题修正。",
+        fg="#666666",
+        anchor="w",
+    ).pack(fill="x", pady=(4, 0))
+
+    body = tk.Frame(dialog, padx=18)
+    body.pack(fill="both", expand=True)
+    text = tk.Text(
+        body,
+        wrap="word",
+        relief="solid",
+        borderwidth=1,
+        padx=16,
+        pady=12,
+        font=("Microsoft YaHei UI", 10),
+        spacing3=5,
+    )
+    scrollbar = ttk.Scrollbar(
+        body,
+        orient="vertical",
+        command=text.yview,
+    )
+    text.configure(yscrollcommand=scrollbar.set)
+    text.pack(side="left", fill="both", expand=True)
+    scrollbar.pack(side="right", fill="y")
+    text.tag_configure(
+        "version",
+        font=("Microsoft YaHei UI", 11, "bold"),
+        foreground="#1f4e79",
+        spacing1=12,
+        spacing3=6,
+    )
+    text.tag_configure(
+        "current",
+        foreground="#9a5b18",
+    )
+    text.tag_configure(
+        "change",
+        lmargin1=10,
+        lmargin2=28,
+        spacing3=4,
+    )
+    current_version = str(
+        application_build_info().get("version", "")
+    ).strip()
+    if rows:
+        for entry in rows:
+            version = str(entry["version"])
+            heading = f"V{version}  {entry['date']}"
+            tag = "current" if version == current_version else "version"
+            if version == current_version:
+                heading += "  当前版本"
+            text.insert("end", heading + "\n", (tag, "version"))
+            for change in entry["changes"]:
+                text.insert("end", f"• {change}\n", "change")
+    else:
+        text.insert("end", "暂无可用的版本更新记录。")
+    text.configure(state="disabled")
+
+    footer = tk.Frame(dialog, padx=18, pady=14)
+    footer.pack(fill="x")
+    tk.Button(
+        footer,
+        text="关闭",
+        command=dialog.destroy,
+        width=10,
+    ).pack(side="right")
+
+    dialog.update_idletasks()
+    width = max(720, dialog.winfo_reqwidth())
+    height = max(560, dialog.winfo_reqheight())
+    x = parent.winfo_rootx() + (parent.winfo_width() - width) // 2
+    y = parent.winfo_rooty() + (parent.winfo_height() - height) // 2
+    x = max(0, min(x, dialog.winfo_screenwidth() - width))
+    y = max(0, min(y, dialog.winfo_screenheight() - height))
+    dialog.geometry(f"{width}x{height}+{x}+{y}")
+    dialog.deiconify()
+    dialog.lift()
+    dialog.grab_set()
+
+
+def bind_version_changelog(version_label, parent) -> None:
+    version_label.configure(cursor="hand2")
+    version_label.bind(
+        "<Double-Button-1>",
+        lambda _event: show_changelog_window(parent),
+    )
+
+
 def bundle_root() -> Path:
     if getattr(sys, "frozen", False):
         return Path(sys._MEIPASS) / "original"
@@ -1041,6 +1581,99 @@ def missing_native_components_message(component_names: list[str]) -> str:
     )
 
 
+def security_software_block_details(
+    error: BaseException,
+) -> dict[str, object] | None:
+    pending = [error]
+    visited: set[int] = set()
+    paths: list[str] = []
+    matched_error = ""
+    while pending:
+        current = pending.pop()
+        if id(current) in visited:
+            continue
+        visited.add(id(current))
+        message = str(current)
+        if (
+            getattr(current, "winerror", None) == 225
+            or "[winerror 225]" in message.casefold()
+        ):
+            matched_error = message
+            for attribute in ("filename", "filename2"):
+                value = getattr(current, attribute, None)
+                if value:
+                    path = str(value)
+                    if path not in paths:
+                        paths.append(path)
+        cause = getattr(current, "__cause__", None)
+        context = getattr(current, "__context__", None)
+        if cause is not None:
+            pending.append(cause)
+        if context is not None:
+            pending.append(context)
+    if not matched_error:
+        return None
+    return {
+        "winerror": 225,
+        "message": matched_error,
+        "paths": paths,
+    }
+
+
+def encode_security_software_blocked_event(details: dict[str, object]) -> str:
+    return SECURITY_SOFTWARE_BLOCKED_EVENT + json.dumps(
+        details,
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+
+
+def decode_security_software_blocked_event(
+    line: str,
+) -> dict[str, object] | None:
+    if not line.startswith(SECURITY_SOFTWARE_BLOCKED_EVENT):
+        return None
+    payload = json.loads(line[len(SECURITY_SOFTWARE_BLOCKED_EVENT) :])
+    if not isinstance(payload, dict) or payload.get("winerror") != 225:
+        raise ValueError("安全软件拦截事件格式无效")
+    raw_paths = payload.get("paths", [])
+    if not isinstance(raw_paths, list):
+        raise ValueError("安全软件拦截路径格式无效")
+    return {
+        "winerror": 225,
+        "message": str(payload.get("message", "")),
+        "paths": [str(path) for path in raw_paths if str(path).strip()],
+    }
+
+
+def report_worker_exception(
+    error: BaseException,
+    log_file,
+    blocked_details: dict[str, object] | None = None,
+) -> None:
+    details = (
+        blocked_details
+        if blocked_details is not None
+        else security_software_block_details(error)
+    )
+    if details is None:
+        traceback.print_exception(
+            type(error),
+            error,
+            error.__traceback__,
+        )
+        return
+    for path in details.get("paths", []):
+        log_file.write(f"被安全软件拦截的文件：{path}\n")
+    traceback.print_exception(
+        type(error),
+        error,
+        error.__traceback__,
+        file=log_file,
+    )
+    print(encode_security_software_blocked_event(details))
+
+
 class NativeControlError(RuntimeError):
     def __init__(self, return_code: int, details: str = "") -> None:
         self.return_code = return_code
@@ -1121,16 +1754,37 @@ def check_stop_requested() -> None:
 
 
 def interruptible_sleep(seconds: float, interval: float = 0.05) -> None:
-    deadline = time.perf_counter() + max(0.0, seconds)
-    while True:
+    remaining = max(0.0, seconds)
+    while remaining > 0:
         check_stop_requested()
-        remaining = deadline - time.perf_counter()
-        if remaining <= 0:
-            return
-        time.sleep(min(interval, remaining))
+        sleep_seconds = min(interval, remaining)
+        time.sleep(sleep_seconds)
+        remaining -= sleep_seconds
 
 
-def run_native_control(pid: int, arguments: list[str]) -> None:
+@contextmanager
+def critical_random_operation(name: str):
+    marker_value = os.environ.get(
+        "CCZ_CRITICAL_OPERATION_FILE",
+        "",
+    ).strip()
+    marker = Path(marker_value) if marker_value else None
+    if marker is not None:
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        marker.write_text(name, encoding="utf-8")
+    try:
+        yield
+    finally:
+        if marker is not None:
+            marker.unlink(missing_ok=True)
+
+
+def run_native_control(
+    pid: int,
+    arguments: list[str],
+    *,
+    interruptible: bool = True,
+) -> None:
     injector = native_dir() / "ccz_injector.exe"
     control_dll = native_dir() / "ccz_control.dll"
     missing_components = [
@@ -1142,10 +1796,16 @@ def run_native_control(pid: int, arguments: list[str]) -> None:
         raise FileNotFoundError(
             missing_native_components_message(missing_components)
         )
-    timeout = 70 if arguments and arguments[0] in {
-        "openload", "real-load", "dispatch-state", "title-load",
+    action = arguments[0] if arguments else ""
+    if action == "title-load":
+        timeout = 8
+    elif action in {
+        "openload", "real-load", "dispatch-state",
         "silent-burst", "silent-burst-timed", "pulse-burst"
-    } else 8
+    }:
+        timeout = 70
+    else:
+        timeout = 8
     command = [
         str(injector),
         str(pid),
@@ -1161,7 +1821,7 @@ def run_native_control(pid: int, arguments: list[str]) -> None:
     )
     deadline = time.perf_counter() + timeout
     while process.poll() is None:
-        if stop_is_requested():
+        if interruptible and stop_is_requested():
             process.terminate()
             try:
                 process.wait(timeout=1)
@@ -1232,14 +1892,20 @@ def run_native_control(pid: int, arguments: list[str]) -> None:
             control_dll=file_diagnostic(control_dll),
         )
         raise NativeControlError(result.returncode, details)
-    diagnostic_log(
-        "native_control_completed",
-        pid=pid,
-        action=arguments,
-        elapsed_ms=elapsed_ms,
-        stdout=result.stdout.decode(errors="replace").strip(),
-        stderr=result.stderr.decode(errors="replace").strip(),
-    )
+    if elapsed_ms >= 1000 or action in {
+        "list",
+        "openload",
+        "real-load",
+        "dispatch-state",
+    }:
+        diagnostic_log(
+            "native_control_completed",
+            pid=pid,
+            action=arguments,
+            elapsed_ms=elapsed_ms,
+            stdout=result.stdout.decode(errors="replace").strip(),
+            stderr=result.stderr.decode(errors="replace").strip(),
+        )
 
 
 def native_silent_click(
@@ -1350,10 +2016,6 @@ def native_direct_load(pid: int, slot: int) -> None:
     run_native_control(pid, ["load", str(slot)])
 
 
-def native_direct_save(pid: int, slot: int) -> None:
-    run_native_control(pid, ["save", str(slot)])
-
-
 def native_end_dialog(pid: int, hwnd: int, result: int = 1) -> None:
     run_native_control(
         pid, ["end-dialog", str(hwnd), str(result)]
@@ -1392,22 +2054,28 @@ def native_open_load_dialog(pid: int) -> subprocess.Popen:
     )
 
 
-def find_process_id(exe_name: str) -> int | None:
+def find_process_ids(exe_name: str) -> tuple[int, ...]:
+    matches = []
     snapshot = kernel32.CreateToolhelp32Snapshot(0x00000002, 0)
     if snapshot == wintypes.HANDLE(-1).value:
-        return None
+        return ()
     try:
         entry = ProcessEntry32()
         entry.dwSize = ctypes.sizeof(entry)
         if not kernel32.Process32FirstW(snapshot, ctypes.byref(entry)):
-            return None
+            return ()
         while True:
             if entry.szExeFile.casefold() == exe_name.casefold():
-                return int(entry.th32ProcessID)
+                matches.append(int(entry.th32ProcessID))
             if not kernel32.Process32NextW(snapshot, ctypes.byref(entry)):
-                return None
+                return tuple(matches)
     finally:
         kernel32.CloseHandle(snapshot)
+
+
+def find_process_id(exe_name: str) -> int | None:
+    matches = find_process_ids(exe_name)
+    return matches[0] if matches else None
 
 
 def process_is_alive(pid: int) -> bool:
@@ -1424,6 +2092,18 @@ def process_is_alive(pid: int) -> bool:
         return kernel32.WaitForSingleObject(handle, 0) != 0
     finally:
         kernel32.CloseHandle(handle)
+
+
+def process_exit_code(process_handle: int) -> int | None:
+    if not process_handle:
+        return None
+    exit_code = wintypes.DWORD()
+    if not kernel32.GetExitCodeProcess(
+        process_handle,
+        ctypes.byref(exit_code),
+    ):
+        return None
+    return int(exit_code.value)
 
 
 def running_process_names() -> set[str]:
@@ -1497,6 +2177,106 @@ def locate_game_executable() -> Path:
     )
 
 
+def runtime_game_directory(game_executable: Path) -> Path:
+    configured = os.environ.get("CCZ_GAME_RUNTIME_DIR", "").strip()
+    if not configured:
+        return game_executable.parent
+    runtime_dir = Path(configured).resolve()
+    if not runtime_dir.is_dir():
+        raise FileNotFoundError(f"兼容模式运行目录不存在：{runtime_dir}")
+    return runtime_dir
+
+
+def prepare_random_game_executable(game_executable: Path) -> Path:
+    source = game_executable.resolve()
+    target = source.with_name(RANDOM_GAME_EXE_NAME)
+    try:
+        if target.is_file() and os.path.samefile(source, target):
+            show_file(source)
+    except OSError:
+        pass
+    target.unlink(missing_ok=True)
+    shutil.copy2(source, target)
+    hide_random_game_executable(target)
+    return target
+
+
+def show_file(path: Path) -> None:
+    attributes = kernel32.GetFileAttributesW(str(path))
+    if attributes == INVALID_FILE_ATTRIBUTES:
+        raise ctypes.WinError(ctypes.get_last_error())
+    if not attributes & FILE_ATTRIBUTE_HIDDEN:
+        return
+    if not kernel32.SetFileAttributesW(
+        str(path),
+        attributes & ~FILE_ATTRIBUTE_HIDDEN,
+    ):
+        raise ctypes.WinError(ctypes.get_last_error())
+
+
+def hide_random_game_executable(path: Path) -> None:
+    attributes = kernel32.GetFileAttributesW(str(path))
+    if attributes == INVALID_FILE_ATTRIBUTES:
+        raise ctypes.WinError(ctypes.get_last_error())
+    if attributes & FILE_ATTRIBUTE_HIDDEN:
+        return
+    if not kernel32.SetFileAttributesW(
+        str(path),
+        attributes | FILE_ATTRIBUTE_HIDDEN,
+    ):
+        raise ctypes.WinError(ctypes.get_last_error())
+
+
+def remove_random_game_executable(path: Path) -> None:
+    if path.name.casefold() != RANDOM_GAME_EXE_NAME.casefold():
+        return
+    try:
+        path.unlink(missing_ok=True)
+    except OSError as exc:
+        diagnostic_log(
+            "random_game_executable_cleanup_failed",
+            path=str(path),
+            error=repr(exc),
+        )
+
+
+def terminate_random_game_instances(
+    game_executable: Path,
+) -> tuple[int, ...]:
+    source = game_executable.resolve()
+    target = source.with_name(RANDOM_GAME_EXE_NAME)
+    expected_path = os.path.normcase(os.path.abspath(target))
+    terminated = []
+    errors = []
+    for pid in find_process_ids(RANDOM_GAME_EXE_NAME):
+        running_path = process_executable(pid)
+        if running_path is None:
+            continue
+        if os.path.normcase(os.path.abspath(running_path)) != expected_path:
+            continue
+        handle = kernel32.OpenProcess(
+            PROCESS_TERMINATE | SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION,
+            False,
+            pid,
+        )
+        if not handle:
+            errors.append(f"PID {pid}: 无法打开进程")
+            continue
+        try:
+            if kernel32.WaitForSingleObject(handle, 0) != 0:
+                if not kernel32.TerminateProcess(handle, 0):
+                    errors.append(f"PID {pid}: 无法终止进程")
+                    continue
+                kernel32.WaitForSingleObject(handle, 5000)
+            terminated.append(pid)
+        finally:
+            kernel32.CloseHandle(handle)
+    remove_random_game_executable(target)
+    if errors:
+        raise RuntimeError("；".join(errors))
+    return tuple(terminated)
+
+
 def source_save_job_ids(save_path: Path) -> tuple[int, ...]:
     minimum_size = JOB_OFFSET + (max(JOB_POSITIONS_R1) + 1) * 4
     try:
@@ -1517,6 +2297,362 @@ def source_save_job_ids(save_path: Path) -> tuple[int, ...]:
         JOB_OFFSET,
     )
     return tuple(values[index] for index in JOB_POSITIONS_R1)
+
+
+def ensure_game_menu_ready(runner) -> None:
+    if not getattr(runner, "wind", None):
+        runner.initWind()
+
+
+def save_result_via_game_menu(
+    runner,
+    slot: int,
+    *,
+    restore_slot: int | None = None,
+) -> None:
+    if not 1 <= slot <= 15:
+        raise ValueError("结果存档槽位只能是第 1–15 号")
+    ensure_game_menu_ready(runner)
+    if restore_slot is not None:
+        original_load = getattr(
+            type(runner),
+            "_ccz_original_load_and_confirm",
+            None,
+        )
+        if original_load is None:
+            raise RuntimeError("游戏菜单读档功能尚未初始化")
+        original_load(runner, restore_slot)
+        time.sleep(0.5)
+    runner.saveAndConfirm(slot)
+
+
+def save_file_signature(path: Path) -> tuple[int, int, int] | None:
+    try:
+        stat = path.stat()
+    except OSError:
+        return None
+    if not path.is_file() or stat.st_size <= 0:
+        return None
+    return stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns
+
+
+def save_control_resource_snapshot() -> dict[str, int]:
+    return {
+        "available_memory_bytes": available_physical_memory_bytes(),
+        "game_process_count": len(find_process_ids(GAME_EXE_NAME)),
+        "tool_process_count": len(
+            find_process_ids(Path(sys.executable).name)
+        ),
+    }
+
+
+def start_save_list_control(
+    pid: int,
+    slot: int,
+) -> subprocess.Popen[bytes]:
+    return subprocess.Popen(
+        [
+            str(native_dir() / "ccz_injector.exe"),
+            str(pid),
+            str(native_dir() / "ccz_control.dll"),
+            "list",
+            str(slot - 1),
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    )
+
+
+def wait_for_game_menu_save(
+    path: Path,
+    previous_signature: tuple[int, int, int] | None,
+    *,
+    timeout: float = 5.0,
+    interval: float = 0.05,
+) -> tuple[int, int, int]:
+    deadline = time.perf_counter() + timeout
+    while time.perf_counter() < deadline:
+        current_signature = save_file_signature(path)
+        if (
+            current_signature is not None
+            and current_signature != previous_signature
+        ):
+            return current_signature
+        time.sleep(interval)
+    raise RuntimeError(
+        f"游戏菜单保存后未检测到 {path.name} 写入，已停止发布该结果"
+    )
+
+
+def drive_game_menu_save(
+    pid: int,
+    game: int,
+    target_path: Path,
+    slot: int,
+    *,
+    timeout: float = 25.0,
+) -> tuple[int, int, int]:
+    previous_signature = save_file_signature(target_path)
+    recover_stale_windows(pid, game)
+    activate_hidden_window(game)
+    user32.PostMessageW(game, 0x0111, 101, 0)
+    save_window = wait_list_dialog(pid, 3)
+    if not save_window:
+        raise RuntimeError("存档窗口未出现")
+
+    activate_hidden_window(save_window)
+    control_started = time.perf_counter()
+    control = start_save_list_control(pid, slot)
+    confirmation_clicks = 0
+    control_error: NativeControlError | None = None
+    control_output_collected = False
+    control_stdout = ""
+    control_stderr = ""
+    control_forced_stop = False
+    diagnostic_log(
+        "game_menu_save_interaction_started",
+        pid=pid,
+        result_slot=slot,
+        save_path=target_path,
+        save_window=save_window,
+        control_pid=control.pid,
+        previous_signature=previous_signature,
+        **save_control_resource_snapshot(),
+    )
+    deadline = time.perf_counter() + timeout
+    saved_signature = None
+    try:
+        while time.perf_counter() < deadline:
+            check_stop_requested()
+            visible_windows = visible_owned_windows(game)
+            for alert, _title, _rect in visible_windows:
+                if (
+                    alert == save_window
+                    or window_class(alert) != "#32770"
+                    or user32.FindWindowExW(
+                        alert, 0, "SysListView32", None
+                    )
+                ):
+                    continue
+                activate_hidden_window(alert)
+                if click_leftmost_dialog_button(alert):
+                    confirmation_clicks += 1
+
+            current_signature = save_file_signature(target_path)
+            if (
+                current_signature is not None
+                and current_signature != previous_signature
+            ):
+                saved_signature = current_signature
+
+            return_code = control.poll()
+            if (
+                return_code is not None
+                and return_code != 0
+                and not control_output_collected
+            ):
+                stdout, stderr = control.communicate()
+                control_output_collected = True
+                control_stdout = stdout.decode(errors="replace").strip()
+                control_stderr = stderr.decode(errors="replace").strip()
+                control_error = NativeControlError(
+                    return_code,
+                    control_stderr or control_stdout,
+                )
+                details = control_error.details.casefold()
+                if (
+                    saved_signature is None
+                    and "remote thread timed out" not in details
+                ):
+                    raise control_error
+
+            remaining_alerts = [
+                hwnd
+                for hwnd, _title, _rect in visible_owned_windows(game)
+                if hwnd != save_window
+                and window_class(hwnd) == "#32770"
+            ]
+            if (
+                saved_signature is not None
+                and not remaining_alerts
+                and control.poll() is not None
+            ):
+                break
+            interruptible_sleep(0.08)
+    finally:
+        if control.poll() is None:
+            control_forced_stop = True
+            control.terminate()
+            try:
+                control.wait(timeout=1)
+            except subprocess.TimeoutExpired:
+                control.kill()
+                control.wait(timeout=1)
+        if not control_output_collected:
+            stdout, stderr = control.communicate()
+            control_output_collected = True
+            control_stdout = stdout.decode(errors="replace").strip()
+            control_stderr = stderr.decode(errors="replace").strip()
+
+    if saved_signature is None:
+        diagnostic_log(
+            "game_menu_save_interaction_failed",
+            pid=pid,
+            result_slot=slot,
+            save_path=target_path,
+            control_return_code=control.returncode,
+            confirmation_clicks=confirmation_clicks,
+            elapsed_ms=round(
+                (time.perf_counter() - control_started) * 1000
+            ),
+            error=repr(control_error) if control_error else "",
+            control_forced_stop=control_forced_stop,
+            control_stdout=control_stdout,
+            control_stderr=control_stderr,
+            **save_control_resource_snapshot(),
+        )
+        raise RuntimeError(
+            f"游戏菜单保存后未检测到 SV{slot:03}.E5S 写入"
+        )
+    diagnostic_log(
+        "game_menu_save_interaction_completed",
+        pid=pid,
+        result_slot=slot,
+        save_path=target_path,
+        previous_signature=previous_signature,
+        saved_signature=saved_signature,
+        control_return_code=control.returncode,
+        control_timeout_observed=control_error is not None,
+        control_forced_stop=control_forced_stop,
+        control_stdout=control_stdout,
+        control_stderr=control_stderr,
+        confirmation_clicks=confirmation_clicks,
+        elapsed_ms=round(
+            (time.perf_counter() - control_started) * 1000
+        ),
+        **save_control_resource_snapshot(),
+    )
+    return saved_signature
+
+
+def drive_game_menu_load(
+    pid: int,
+    game: int,
+    save_path: Path,
+    slot: int,
+    *,
+    timeout: float = 12.0,
+    from_title: bool = False,
+) -> None:
+    if slot < 1:
+        raise ValueError("读取存档槽位必须大于 0")
+    if not save_path.is_file():
+        raise FileNotFoundError(f"未找到待读取存档：{save_path}")
+
+    recover_stale_windows(pid, game)
+    activate_hidden_window(game)
+    if from_title:
+        load_window = 0
+        open_deadline = time.perf_counter() + min(timeout, 5.0)
+        while time.perf_counter() < open_deadline:
+            native_silent_click(
+                pid,
+                game,
+                TITLE_LOAD_CLIENT_POSITION[0],
+                TITLE_LOAD_CLIENT_POSITION[1],
+                tail_delay_ms=300,
+            )
+            load_window = wait_list_dialog(pid, 1)
+            if load_window:
+                break
+            interruptible_sleep(0.2)
+    else:
+        user32.PostMessageW(game, 0x0111, 102, 0)
+        load_window = wait_list_dialog(pid, 3)
+    if not load_window:
+        raise RuntimeError("读取进度窗口未出现")
+
+    activate_hidden_window(load_window)
+    injector = native_dir() / "ccz_injector.exe"
+    control_dll = native_dir() / "ccz_control.dll"
+    control = subprocess.Popen(
+        [
+            str(injector),
+            str(pid),
+            str(control_dll),
+            "list",
+            str(slot - 1),
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    )
+
+    deadline = time.perf_counter() + timeout
+    try:
+        while time.perf_counter() < deadline:
+            check_stop_requested()
+            for alert, _title, _rect in visible_owned_windows(game):
+                if (
+                    alert == load_window
+                    or window_class(alert) != "#32770"
+                    or user32.FindWindowExW(
+                        alert, 0, "SysListView32", None
+                    )
+                ):
+                    continue
+                activate_hidden_window(alert)
+                click_leftmost_dialog_button(alert)
+
+            load_finished = (
+                not user32.IsWindow(load_window)
+                and user32.IsWindowEnabled(game)
+            )
+            if load_finished and control.poll() is None:
+                interruptible_sleep(0.05)
+                continue
+            if load_finished:
+                if control.returncode != 0:
+                    stdout, stderr = control.communicate()
+                    raise NativeControlError(
+                        control.returncode,
+                        stderr.decode(errors="replace").strip()
+                        or stdout.decode(errors="replace").strip(),
+                    )
+                native_wake_game(pid, game, 80)
+                diagnostic_log(
+                    "game_menu_load_interaction_completed",
+                    pid=pid,
+                    slot=slot,
+                    save_path=save_path,
+                )
+                return
+            if control.poll() is not None and control.returncode != 0:
+                stdout, stderr = control.communicate()
+                raise NativeControlError(
+                    control.returncode,
+                    stderr.decode(errors="replace").strip()
+                    or stdout.decode(errors="replace").strip(),
+                )
+            interruptible_sleep(0.08)
+    finally:
+        if control.poll() is None:
+            control.terminate()
+            try:
+                control.wait(timeout=1)
+            except subprocess.TimeoutExpired:
+                control.kill()
+                control.wait(timeout=1)
+
+    remaining = [
+        (window_class(hwnd), window_text(hwnd))
+        for hwnd in process_windows(pid)
+    ]
+    raise RuntimeError(
+        f"第 {slot} 号存档未能完成游戏菜单读取；"
+        f"残留窗口={remaining}"
+    )
 
 
 def ensure_directory_writable(directory: Path, label: str) -> None:
@@ -1628,6 +2764,7 @@ class HiddenGameSession:
         arguments: tuple[str, ...] = (),
         restarted: bool = False,
         announce: bool = True,
+        working_directory: Path | None = None,
     ):
         self.executable = executable.resolve()
         self.arguments = arguments
@@ -1639,8 +2776,13 @@ class HiddenGameSession:
         self.main_window = 0
         self.foreground_before = 0
         self.desktop = 0
-        self.audio_mute_stop = threading.Event()
-        self.audio_mute_thread: threading.Thread | None = None
+        self.launch_executable = self.executable
+        self.working_directory = (
+            working_directory.resolve()
+            if working_directory is not None
+            else self.executable.parent
+        )
+        self.audio_mute_monitor: ProcessAudioMuteMonitor | None = None
         self.use_isolated_desktop = (
             os.environ.get("CCZ_USE_ISOLATED_DESKTOP", "1") != "0"
         )
@@ -1648,6 +2790,34 @@ class HiddenGameSession:
             os.environ.get("CCZ_BACKGROUND_RENDER") == "1"
         )
         self.desktop_name = f"CCZFast_{os.getpid()}_{time.time_ns()}"
+
+    def _raise_process_exited(self, stage: str) -> None:
+        exit_code = process_exit_code(self.process)
+        diagnostic_log(
+            "game_process_exited",
+            pid=self.pid,
+            stage=stage,
+            exit_code=exit_code,
+            exit_code_hex=(
+                f"0x{exit_code:08X}"
+                if exit_code is not None
+                else None
+            ),
+            executable=file_diagnostic(self.executable),
+            working_directory=str(self.working_directory),
+            isolated_desktop=self.use_isolated_desktop,
+            desktop_name=self.desktop_name,
+            main_window=self.main_window,
+        )
+        code_text = (
+            f"{exit_code} (0x{exit_code:08X})"
+            if exit_code is not None
+            else "无法读取"
+        )
+        raise RuntimeError(
+            "随机游戏实例启动后退出，"
+            f"退出码：{code_text}，阶段：{stage}。"
+        )
 
     def __enter__(self) -> "HiddenGameSession":
         global WINDOW_DESKTOP
@@ -1683,14 +2853,14 @@ class HiddenGameSession:
         command_parts.extend(f'"{argument}"' for argument in self.arguments)
         command_line = ctypes.create_unicode_buffer(" ".join(command_parts))
         if not kernel32.CreateProcessW(
-            str(self.executable),
+            str(self.launch_executable),
             command_line,
             None,
             None,
             False,
             CREATE_SUSPENDED,
             None,
-            str(self.executable.parent),
+            str(self.working_directory),
             ctypes.byref(startup),
             ctypes.byref(process_info),
         ):
@@ -1723,28 +2893,23 @@ class HiddenGameSession:
                 and os.environ.get("CCZ_DISABLE_GUARD") != "1"
             ):
                 run_native_control(self.pid, ["guard"])
-            if (
-                os.environ.get("CCZ_DISABLE_AUDIO_MUTE") != "1"
-                and os.environ.get("CCZ_DISABLE_AUDIO_FILE_HOOK") != "1"
-            ):
-                try:
-                    run_native_control(self.pid, ["mute-audio"])
-                    diagnostic_log("game_audio_muted", pid=self.pid)
-                except Exception as exc:
-                    diagnostic_log(
-                        "game_audio_mute_failed",
-                        pid=self.pid,
-                        error=repr(exc),
-                    )
-                    if isinstance(exc, NativeControlError):
-                        raise
-                    print(
-                        "提示：后台游戏静音设置未生效，"
-                        "本次运行可能仍会有游戏声音。"
-                    )
+            if os.environ.get("CCZ_DISABLE_AUDIO_MUTE") != "1":
+                self.audio_mute_monitor = ProcessAudioMuteMonitor(
+                    self.pid,
+                    process_is_alive=process_is_alive,
+                    logger=diagnostic_log,
+                )
+                self.audio_mute_monitor.start()
+                diagnostic_log(
+                    "random_game_audio_mute_monitor_started",
+                    pid=self.pid,
+                )
             if kernel32.ResumeThread(process_info.hThread) == 0xFFFFFFFF:
                 raise ctypes.WinError(ctypes.get_last_error())
         except BaseException:
+            if self.audio_mute_monitor is not None:
+                self.audio_mute_monitor.stop()
+                self.audio_mute_monitor = None
             if self.process:
                 kernel32.TerminateProcess(self.process, 1)
                 kernel32.WaitForSingleObject(self.process, 3000)
@@ -1771,7 +2936,7 @@ class HiddenGameSession:
             if self.main_window:
                 break
             if kernel32.WaitForSingleObject(self.process, 0) == 0:
-                raise RuntimeError("静默游戏实例启动后立即退出")
+                self._raise_process_exited("等待主窗口")
             interruptible_sleep(0.01)
         if not self.main_window:
             raise RuntimeError("静默游戏实例启动超时")
@@ -1803,13 +2968,8 @@ class HiddenGameSession:
             raise RuntimeError(
                 "静默游戏抢占了前台窗口，已停止测试"
             )
-        if os.environ.get("CCZ_DISABLE_AUDIO_MUTE") != "1":
-            self.audio_mute_thread = threading.Thread(
-                target=self._maintain_audio_mute,
-                name=f"ccz-audio-mute-{self.pid}",
-                daemon=True,
-            )
-            self.audio_mute_thread.start()
+        if kernel32.WaitForSingleObject(self.process, 0) == 0:
+            self._raise_process_exited("主窗口初始化完成")
         if self.announce:
             print(
                 f"隐藏游戏实例已{'重新' if self.restarted else ''}启动，"
@@ -1817,34 +2977,6 @@ class HiddenGameSession:
                 "游戏未取得前台，系统鼠标未被程序控制。"
             )
         return self
-
-    def _maintain_audio_mute(self) -> None:
-        muted_sessions = 0
-        last_error = None
-        reported = False
-        while (
-            not self.audio_mute_stop.is_set()
-            and process_is_alive(self.pid)
-        ):
-            try:
-                current_muted = mute_process_audio_sessions(self.pid)
-                muted_sessions = max(muted_sessions, current_muted)
-                if current_muted and not reported:
-                    diagnostic_log(
-                        "game_audio_session_muted",
-                        pid=self.pid,
-                        muted_sessions=current_muted,
-                    )
-                    reported = True
-            except Exception as exc:
-                last_error = repr(exc)
-            self.audio_mute_stop.wait(0.5)
-        diagnostic_log(
-            "game_audio_mute_monitor_stopped",
-            pid=self.pid,
-            muted_sessions=muted_sessions,
-            error=last_error,
-        )
 
     def is_healthy(self) -> bool:
         return bool(
@@ -1856,10 +2988,9 @@ class HiddenGameSession:
 
     def __exit__(self, exc_type, exc, tb) -> None:
         global WINDOW_DESKTOP
-        self.audio_mute_stop.set()
-        if self.audio_mute_thread is not None:
-            self.audio_mute_thread.join(timeout=2)
-            self.audio_mute_thread = None
+        if self.audio_mute_monitor is not None:
+            self.audio_mute_monitor.stop()
+            self.audio_mute_monitor = None
         if self.process:
             if kernel32.WaitForSingleObject(self.process, 0) != 0:
                 kernel32.TerminateProcess(self.process, 0)
@@ -1916,6 +3047,7 @@ def trigger_random_choice_click(
     before: tuple[int, ...],
     interaction_attempt: int,
 ) -> tuple[int, ...]:
+    check_stop_requested()
     try:
         native_silent_click(
             pid,
@@ -1925,6 +3057,7 @@ def trigger_random_choice_click(
             tail_delay_ms=0,
         )
     except (NativeControlError, NativeControlTimeout) as exc:
+        check_stop_requested()
         diagnostic_log(
             "fast_choice_click_failed",
             pid=pid,
@@ -1940,6 +3073,7 @@ def trigger_random_choice_click(
         return read_job_ids(pid, active_positions)
 
     current = read_job_ids(pid, active_positions)
+    check_stop_requested()
     if current != before and any(current):
         return current
 
@@ -1949,6 +3083,7 @@ def trigger_random_choice_click(
         attempt=interaction_attempt,
         jobs=current,
     )
+    check_stop_requested()
     native_silent_click(
         pid,
         game,
@@ -1956,23 +3091,6 @@ def trigger_random_choice_click(
         CONFIRM_FIRST_CLIENT_POSITION[1],
     )
     return read_job_ids(pid, active_positions)
-
-
-def read_skill_ids(pid: int, skill_count: int) -> tuple[tuple[int, ...], ...]:
-    size = TEAM_MEMBER_NUM * SKILLS_PER_MEMBER * SKILL_RECORD_SIZE
-    data = read_memory(pid, SKILL_OFFSET, size)
-    members = []
-    for member_index in range(TEAM_MEMBER_NUM):
-        skill_ids = []
-        for skill_index in range(SKILLS_PER_MEMBER):
-            offset = (
-                member_index * SKILLS_PER_MEMBER + skill_index
-            ) * SKILL_RECORD_SIZE
-            skill_id = struct.unpack_from("<H", data, offset)[0]
-            if skill_id < skill_count:
-                skill_ids.append(skill_id)
-        members.append(tuple(skill_ids))
-    return tuple(members)
 
 
 def read_equipment_records(pid: int) -> tuple[bytes, ...]:
@@ -2134,6 +3252,9 @@ def title_load_verified(
     timeout: float = 15.0,
 ) -> bool:
     expected = save_path.read_bytes()[:R0_MEMORY_SIZE]
+    game = find_process_window_by_class(pid, "SOUSOU")
+    if not game:
+        raise RuntimeError("标题读档前未找到游戏主窗口")
     started = time.perf_counter()
     diagnostic_log(
         "title_load_start",
@@ -2142,25 +3263,61 @@ def title_load_verified(
         save_path=save_path,
         expected_sha256=hashlib.sha256(expected).hexdigest(),
     )
-    try:
-        run_native_control(pid, ["title-load", str(list_index)])
-    except NativeControlTimeout as exc:
-        # The load dialog can keep the injected call blocked after the
-        # save has already been copied. Verify the resulting memory instead
-        # of treating that transport timeout as a failed load.
-        print(f"标题读档调用返回延迟，改用内存确认：{exc}")
-        diagnostic_log(
-            "title_load_transport_error",
-            pid=pid,
-            error=repr(exc),
-        )
+    drive_game_menu_load(
+        pid=pid,
+        game=game,
+        save_path=save_path,
+        slot=list_index + 1,
+        timeout=min(timeout, 12.0),
+        from_title=True,
+    )
 
     deadline = time.perf_counter() + timeout
     checks = 0
     while time.perf_counter() < deadline:
+        check_stop_requested()
         checks += 1
         current = read_memory(pid, 0, R0_MEMORY_SIZE)
-        if current == expected:
+        transition_active = read_memory(
+            pid,
+            LOAD_TRANSITION_ACTIVE_OFFSET,
+            1,
+        )[0]
+        transition_state = int.from_bytes(
+            read_memory(
+                pid,
+                LOAD_TRANSITION_STATE_OFFSET,
+                4,
+            ),
+            "little",
+        )
+        if (
+            current == expected
+            and transition_active == 0
+            and transition_state == 0
+        ):
+            main_window = find_process_window_by_class(pid, "SOUSOU")
+            closed_dialogs = []
+            for hwnd in process_windows(pid):
+                if (
+                    window_class(hwnd) == "#32770"
+                    and user32.FindWindowExW(
+                        hwnd, 0, "SysListView32", None
+                    )
+                ):
+                    user32.PostMessageW(hwnd, 0x0010, 0, 0)
+                    closed_dialogs.append(hwnd)
+            if main_window:
+                user32.EnableWindow(main_window, True)
+                try:
+                    native_wake_game(pid, main_window, 80)
+                except (NativeControlError, NativeControlTimeout) as exc:
+                    diagnostic_log(
+                        "title_load_ui_refresh_failed",
+                        pid=pid,
+                        main_window=main_window,
+                        error=repr(exc),
+                    )
             diagnostic_log(
                 "title_load_verified",
                 pid=pid,
@@ -2169,9 +3326,13 @@ def title_load_verified(
                     (time.perf_counter() - started) * 1000
                 ),
                 memory_sha256=hashlib.sha256(current).hexdigest(),
+                transition_active=transition_active,
+                transition_state=transition_state,
+                main_window=main_window,
+                closed_dialogs=closed_dialogs,
             )
             return True
-        time.sleep(0.1)
+        interruptible_sleep(0.1)
     diagnostic_log(
         "title_load_timeout",
         pid=pid,
@@ -2218,6 +3379,7 @@ def normal_load_verified(
     deadline = time.perf_counter() + timeout
     checks = 0
     while time.perf_counter() < deadline:
+        check_stop_requested()
         checks += 1
         if not user32.IsWindow(game) or process_executable(pid) is None:
             diagnostic_log(
@@ -2239,7 +3401,7 @@ def normal_load_verified(
                 checks=checks,
                 error=repr(exc),
             )
-            time.sleep(0.05)
+            interruptible_sleep(0.05)
             continue
         if current == expected:
             diagnostic_log(
@@ -2253,7 +3415,7 @@ def normal_load_verified(
                 memory_sha256=hashlib.sha256(current).hexdigest(),
             )
             return True
-        time.sleep(0.05)
+        interruptible_sleep(0.05)
 
     diagnostic_log(
         "normal_load_verification_failed",
@@ -2275,15 +3437,17 @@ def direct_load_verified(
 ) -> bool:
     expected = save_path.read_bytes()[:R0_MEMORY_SIZE]
     for attempt in range(1, 4):
+        check_stop_requested()
         try:
             native_direct_load(pid, slot_index)
         except NativeControlTimeout as exc:
             print(f"游戏内原生直读返回延迟，改用内存确认：{exc}")
         deadline = time.perf_counter() + timeout
         while time.perf_counter() < deadline:
+            check_stop_requested()
             if read_memory(pid, 0, R0_MEMORY_SIZE) == expected:
                 return True
-            time.sleep(0.1)
+            interruptible_sleep(0.1)
         print(f"第 {slot_index + 1} 号存档原生直读重试 {attempt}/3")
     return False
 
@@ -2292,7 +3456,13 @@ def initialize_result_output() -> tuple[Path, Path]:
     global RESULT_RUN_STAMP, RESULT_ROOT, RESULT_PANEL_DIR, RESULT_GRID_FILE
     # Dots keep the timestamp readable while remaining valid in Windows paths.
     stamp = dt.datetime.now().strftime("%Y-%m-%d %H.%M.%S")
-    root = (RESULT_BASE_DIR or Path.cwd()) / "randResult"
+    configured_root = os.environ.get("CCZ_RESULT_BASE_DIR", "").strip()
+    base_dir = (
+        Path(configured_root)
+        if configured_root
+        else (RESULT_BASE_DIR or Path.cwd())
+    )
+    root = base_dir / "randResult"
     try:
         root.mkdir(parents=True, exist_ok=True)
     except OSError:
@@ -2446,36 +3616,13 @@ def render_member_text_panel(
     job_name: str,
     skills,
 ) -> np.ndarray:
-    """Render a result panel when text was read but the full panel was not."""
     load_media_modules()
-    image = Image.new("RGB", (130, 130), (211, 211, 211))
-    draw = ImageDraw.Draw(image)
-    font = result_font(12)
-    title_font = result_font(13)
-    skill_names = [
-        str(getattr(skill, "name", skill))
-        for skill in skills
-        if getattr(skill, "name", skill)
-    ]
-    lines = [("个人天赋:", title_font)]
-    lines.extend((name, font) for name in skill_names[:3])
-    lines.append(("兵种技能:", title_font))
-    lines.extend((name, font) for name in skill_names[3:6])
-    y = 3
-    for text, line_font in lines:
-        if y > 94:
-            break
-        draw.text((5, y), text, font=line_font, fill=(0, 0, 0))
-        y += 15
-    footer = f"{member_name}-{job_name}"
-    footer_width = draw.textlength(footer, font=font)
-    draw.text(
-        (max(3, 127 - footer_width), 112),
-        footer,
-        font=font,
-        fill=(128, 0, 0),
+    return render_member_text_panel_image(
+        member_name,
+        job_name,
+        skills,
+        font_factory=result_font,
     )
-    return cv2.cvtColor(np.asarray(image), cv2.COLOR_RGB2BGR)
 
 
 def save_result_image(runner, equip_info, save_slot: int = 1) -> Path:
@@ -2950,15 +4097,43 @@ def find_process_window_by_class(pid: int, class_name: str) -> int:
     return 0
 
 
-def recover_stale_windows(pid: int) -> None:
-    closed = False
+def recover_stale_windows(pid: int, main_window: int = 0) -> int:
+    closed_windows = []
     for hwnd in process_windows(pid):
         if window_class(hwnd) == "#32770":
             user32.PostMessageW(hwnd, 0x0010, 0, 0)
-            closed = True
-    if closed:
+            closed_windows.append(
+                {
+                    "hwnd": hwnd,
+                    "title": window_text(hwnd),
+                }
+            )
+    if closed_windows:
         print("已清理上轮残留窗口")
-        time.sleep(0.8)
+        deadline = time.perf_counter() + 1.5
+        while time.perf_counter() < deadline:
+            check_stop_requested()
+            if not any(
+                user32.IsWindow(row["hwnd"])
+                and user32.IsWindowVisible(row["hwnd"])
+                for row in closed_windows
+            ):
+                break
+            interruptible_sleep(0.05)
+    if main_window and user32.IsWindow(main_window):
+        user32.EnableWindow(main_window, True)
+    diagnostic_log(
+        "stale_game_windows_recovered",
+        pid=pid,
+        main_window=main_window,
+        closed_windows=closed_windows,
+        main_window_enabled=bool(
+            main_window
+            and user32.IsWindow(main_window)
+            and user32.IsWindowEnabled(main_window)
+        ),
+    )
+    return len(closed_windows)
 
 
 def deepest_child_at(root: int, screen_x: int, screen_y: int) -> tuple[int, int, int]:
@@ -2999,8 +4174,9 @@ def post_click(root: int, screen_x: int, screen_y: int, count: int = 1, right=Fa
     target, client_x, client_y = deepest_child_at(root, screen_x, screen_y)
     if not right and window_class(target) == "Button":
         for _ in range(count):
+            check_stop_requested()
             user32.PostMessageW(target, 0x00F5, 0, 0)
-            time.sleep(0.12)
+            interruptible_sleep(0.12)
         return
     native_background_click(
         target, client_x, client_y, count, right
@@ -3027,9 +4203,10 @@ def post_key_to_game(pid: int, key: str) -> None:
     if not target or not user32.IsWindowVisible(target):
         target = game
     if target:
+        check_stop_requested()
         user32.PostMessageW(target, 0x0100, vk, 0)
         user32.PostMessageW(target, 0x0101, vk, 0)
-        time.sleep(0.15)
+        interruptible_sleep(0.15)
 
 
 def enable_game_acceleration(pid: int) -> str:
@@ -3089,6 +4266,7 @@ def visible_owned_windows(owner: int) -> list[tuple[int, str, tuple[int, int, in
 def wait_list_dialog(pid: int, timeout: float) -> int:
     deadline = time.perf_counter() + timeout
     while time.perf_counter() < deadline:
+        check_stop_requested()
         for hwnd in process_windows(pid):
             if (
                 window_class(hwnd) == "#32770"
@@ -3097,7 +4275,7 @@ def wait_list_dialog(pid: int, timeout: float) -> int:
                 )
             ):
                 return hwnd
-        time.sleep(0.05)
+        interruptible_sleep(0.05)
     return 0
 
 
@@ -3342,6 +4520,7 @@ def finish_reused_load_confirmation(pid: int, game: int) -> bool:
     deadline = time.perf_counter() + 1.5
     dialog = 0
     while time.perf_counter() < deadline:
+        check_stop_requested()
         for hwnd in process_windows(pid):
             if (
                 window_class(hwnd) == "#32770"
@@ -3354,7 +4533,7 @@ def finish_reused_load_confirmation(pid: int, game: int) -> bool:
             break
         if user32.IsWindowEnabled(game):
             return False
-        time.sleep(0.05)
+        interruptible_sleep(0.05)
 
     if not dialog:
         diagnostic_log(
@@ -3386,6 +4565,7 @@ def finish_reused_load_confirmation(pid: int, game: int) -> bool:
 
     close_deadline = time.perf_counter() + 3.0
     while time.perf_counter() < close_deadline:
+        check_stop_requested()
         dialog_valid = bool(user32.IsWindow(dialog))
         game_enabled = bool(user32.IsWindowEnabled(game))
         if not dialog_valid and game_enabled:
@@ -3423,7 +4603,7 @@ def finish_reused_load_confirmation(pid: int, game: int) -> bool:
                     dialog_hwnd=dialog,
                 )
                 return True
-        time.sleep(0.05)
+        interruptible_sleep(0.05)
 
     diagnostic_log(
         "reused_load_confirmation_close_timeout",
@@ -3440,6 +4620,95 @@ def bundled_random_s00() -> Path:
     if getattr(sys, "frozen", False):
         return Path(sys._MEIPASS) / "random_s00.eex"
     return source_root() / "resources" / "app" / "random_s00.eex"
+
+
+def bundled_original_s00() -> Path:
+    if getattr(sys, "frozen", False):
+        return Path(sys._MEIPASS) / "original_s00.eex"
+    return source_root() / "resources" / "app" / "original_s00.eex"
+
+
+def repair_runtime_s00(
+    game_executable: Path,
+    event: str,
+) -> None:
+    original_script = bundled_original_s00()
+    helper_script = bundled_random_s00()
+    if not original_script.is_file() or not helper_script.is_file():
+        raise FileNotFoundError("工具内缺少 S_00.eex 保护文件")
+    result = repair_game_s00(
+        game_executable.parent,
+        original_script,
+        helper_script,
+    )
+    diagnostic_log(
+        event,
+        active_script_repaired=result.active_script_repaired,
+        stale_helper_replaced=result.stale_helper_replaced,
+        transaction_recovered=result.transaction_recovered,
+        root=file_diagnostic(game_executable.parent / "S_00.eex"),
+        override=file_diagnostic(
+            game_executable.parent / "RS" / "S_00.eex"
+        ),
+    )
+
+
+def repair_runtime_scratch_save(
+    game_executable: Path,
+    event: str,
+) -> None:
+    guard = ScratchSaveGuard(game_executable.parent)
+    recovered = guard.prepare()
+    diagnostic_log(
+        event,
+        transaction_recovered=recovered,
+        target=file_diagnostic(guard.target),
+    )
+
+
+def cleanup_random_runtime(
+    game_executable: Path,
+    event: str,
+) -> None:
+    errors = []
+    terminated = ()
+    try:
+        terminated = terminate_random_game_instances(game_executable)
+    except Exception as exc:
+        errors.append(f"后台游戏关闭失败：{exc}")
+        diagnostic_error(
+            f"{event}_game_cleanup_failed",
+            exc,
+            game_executable=game_executable,
+        )
+    try:
+        repair_runtime_s00(game_executable, f"{event}_s00_repair")
+    except Exception as exc:
+        errors.append(f"S_00 恢复失败：{exc}")
+        diagnostic_error(
+            f"{event}_s00_repair_failed",
+            exc,
+            game_executable=game_executable,
+        )
+    try:
+        repair_runtime_scratch_save(
+            game_executable,
+            f"{event}_scratch_save_repair",
+        )
+    except Exception as exc:
+        errors.append(f"第 16 号临时存档恢复失败：{exc}")
+        diagnostic_error(
+            f"{event}_scratch_save_repair_failed",
+            exc,
+            game_executable=game_executable,
+        )
+    diagnostic_log(
+        event,
+        game_executable=game_executable,
+        terminated_random_pids=terminated,
+    )
+    if errors:
+        raise RuntimeError("；".join(errors))
 
 
 def write_cv_image(path: Path, image) -> None:
@@ -3508,6 +4777,7 @@ def run_inspection_process_once(
     force_injected_story_click: bool = False,
     attempt: int = 1,
 ) -> dict:
+    output_dir = output_dir.resolve()
     started_at = time.perf_counter()
     click_strategy = (
         "injected_background_mouse"
@@ -3935,7 +5205,7 @@ def trigger_seven_member_story(
         )
         if last_difference >= 1.0:
             return method
-        time.sleep(0.3)
+        interruptible_sleep(0.3)
     raise RuntimeError(
         "候选存档再次点击许子将后画面没有变化，未能触发剧情推进"
     )
@@ -4047,7 +5317,7 @@ def patch_inspection_runtime(task_module, pid: int, panel_dir: Path):
         run_native_control(
             pid, ["list-window", str(self.hwnd), str(index)]
         )
-        time.sleep(0.6)
+        interruptible_sleep(0.6)
 
     def open_people(self) -> None:
         self.initWind()
@@ -4114,7 +5384,7 @@ def patch_inspection_runtime(task_module, pid: int, panel_dir: Path):
                 )
             deadline = time.perf_counter() + 3.0
             while time.perf_counter() < deadline:
-                time.sleep(0.15)
+                interruptible_sleep(0.15)
                 self.initPeopleWind()
                 if self.peopleWind.isInitSuccess():
                     print(f"候选武将列表第 {attempt} 次尝试打开成功")
@@ -4177,13 +5447,14 @@ def wait_for_window_state(
 ) -> bool:
     deadline = time.perf_counter() + timeout
     while time.perf_counter() < deadline:
+        check_stop_requested()
         is_window = bool(hwnd and user32.IsWindow(hwnd))
         if exists is not None and is_window != exists:
-            time.sleep(0.05)
+            interruptible_sleep(0.05)
             continue
         if enabled is not None:
             if not is_window or bool(user32.IsWindowEnabled(hwnd)) != enabled:
-                time.sleep(0.05)
+                interruptible_sleep(0.05)
                 continue
         return True
     return False
@@ -4389,9 +5660,10 @@ def dialog_has_text(hwnd: int, text: str) -> bool:
 def wait_for_dialog_text(hwnd: int, text: str, timeout: float = 3.0) -> bool:
     deadline = time.perf_counter() + timeout
     while time.perf_counter() < deadline:
+        check_stop_requested()
         if user32.IsWindow(hwnd) and dialog_has_text(hwnd, text):
             return True
-        time.sleep(0.05)
+        interruptible_sleep(0.05)
     return False
 
 
@@ -4441,6 +5713,7 @@ def advance_people_info(
         click_dialog_button(info_hwnd, "下一武将", pid=pid)
         deadline = time.perf_counter() + 1.5
         while time.perf_counter() < deadline:
+            check_stop_requested()
             expected_hwnd = find_member_dialog(pid, expected_name)
             if expected_hwnd:
                 return expected_hwnd
@@ -4449,8 +5722,8 @@ def advance_people_info(
                 raise RuntimeError(
                     f"武将顺序异常：应为{expected_name}，实际为{shown_name}"
                 )
-            time.sleep(0.05)
-        time.sleep(0.2)
+            interruptible_sleep(0.05)
+        interruptible_sleep(0.2)
     shown_name = current_dialog_member(info_hwnd, member_names)
     raise RuntimeError(
         f"切换到{expected_name}失败，当前仍为{shown_name or '未知武将'}"
@@ -4482,6 +5755,7 @@ def advance_people_info_in_game_order(
         )
         deadline = time.perf_counter() + 2.0
         while time.perf_counter() < deadline:
+            check_stop_requested()
             shown_name = current_dialog_member(info_hwnd, member_names)
             if (
                 shown_name
@@ -4517,7 +5791,7 @@ def advance_people_info_in_game_order(
                     method=click_method,
                 )
                 return candidate_hwnd, candidate_name
-            time.sleep(0.05)
+            interruptible_sleep(0.05)
         diagnostic_log(
             "member_transition_click_no_change",
             pid=pid,
@@ -4529,7 +5803,7 @@ def advance_people_info_in_game_order(
             ),
             method=click_method,
         )
-        time.sleep(0.2)
+        interruptible_sleep(0.2)
     shown_name = current_dialog_member(info_hwnd, member_names)
     raise RuntimeError(
         "切换到下一武将失败，"
@@ -4583,13 +5857,14 @@ def capture_roster_fallback_debug(
 def wait_for_member_dialog_closed(hwnd: int, timeout: float = 2.0) -> bool:
     deadline = time.perf_counter() + timeout
     while time.perf_counter() < deadline:
+        check_stop_requested()
         if (
             not user32.IsWindow(hwnd)
             or not user32.IsWindowVisible(hwnd)
             or window_text(hwnd) != "武将情报"
         ):
             return True
-        time.sleep(0.05)
+        interruptible_sleep(0.05)
     return False
 
 
@@ -4649,6 +5924,7 @@ def ensure_people_roster_open(
 
     restore_deadline = time.perf_counter() + 1.5
     while time.perf_counter() < restore_deadline:
+        check_stop_requested()
         runner.initPeopleWind()
         if runner.peopleWind.isInitSuccess():
             user32.EnableWindow(runner.peopleWind.hwnd, True)
@@ -4658,7 +5934,7 @@ def ensure_people_roster_open(
                 list_hwnd=runner.peopleWind.hwnd,
             )
             return runner.peopleWind.hwnd
-        time.sleep(0.05)
+        interruptible_sleep(0.05)
     if not main_window or not user32.IsWindow(main_window):
         raise RuntimeError("列表备用路径中的后台游戏窗口已失效")
 
@@ -4685,6 +5961,7 @@ def ensure_people_roster_open(
         post_click(main_window, point.x, point.y)
         deadline = time.perf_counter() + 2.0
         while time.perf_counter() < deadline:
+            check_stop_requested()
             runner.initPeopleWind()
             if runner.peopleWind.isInitSuccess():
                 user32.EnableWindow(runner.peopleWind.hwnd, True)
@@ -4695,7 +5972,7 @@ def ensure_people_roster_open(
                     attempt=attempt,
                 )
                 return runner.peopleWind.hwnd
-            time.sleep(0.05)
+            interruptible_sleep(0.05)
         diagnostic_log(
             "member_roster_fallback_open_retry",
             pid=pid,
@@ -4797,7 +6074,7 @@ def open_uncaptured_member_from_roster(
                 )
                 if next_hwnd:
                     break
-                time.sleep(0.05)
+                interruptible_sleep(0.05)
             if next_hwnd:
                 break
             diagnostic_log(
@@ -4948,166 +6225,32 @@ def capture_initial_member_panels(
     main_window: int,
     runner,
 ) -> tuple:
-    member_names = tuple(member[0] for member in INITIAL_TEAM_MEMBERS)
-    info_hwnd = 0
-    for attempt in range(1, 5):
-        check_stop_requested()
-        runner.openPeople()
-        if runner.peopleWind.isInitSuccess():
-            break
-        native_wake_game(pid, main_window, 600)
-        interruptible_sleep(0.2)
-    else:
-        raise RuntimeError("初始三人检查未能打开武将列表")
-    try:
-        run_native_control(
-            pid,
-            ["list-window", str(runner.peopleWind.hwnd), "0"],
+    del main_window, runner
+    check_stop_requested()
+    members = initial_team_members(task_module.TEAM_MEMBER_LIST)
+    load_member_skills_from_memory(
+        task_module,
+        pid,
+        JOB_POSITIONS_R0,
+        members,
+    )
+    panels = tuple(
+        render_member_text_panel(
+            member.name,
+            str(getattr(getattr(member, "job", None), "name", "")),
+            member.skillList,
         )
-        interruptible_sleep(0.6)
-        deadline = time.perf_counter() + 8.0
-        shown_name = ""
-        while time.perf_counter() < deadline:
-            check_stop_requested()
-            runner.initPeopleInfoWind()
-            info_hwnd, shown_name = find_any_member_dialog(
-                pid, member_names
-            )
-            if info_hwnd:
-                break
-            interruptible_sleep(0.05)
-        if not info_hwnd:
-            raise RuntimeError("初始三人检查未能打开曹操能力窗口")
-
-        panels = []
-        members = initial_team_members(task_module.TEAM_MEMBER_LIST)
-        for index, expected_name in enumerate(member_names):
-            check_stop_requested()
-            shown_name = current_dialog_member(info_hwnd, member_names)
-            if shown_name != expected_name:
-                raise RuntimeError(
-                    "初始三人能力窗口顺序不一致："
-                    f"应为{expected_name}，实际为{shown_name or '未知武将'}"
-                )
-            runner.peopleInfoWind._BaseWindow__hwnd = info_hwnd
-            if not wait_for_window_state(
-                info_hwnd, exists=True, enabled=True, timeout=3.0
-            ):
-                raise RuntimeError(
-                    f"{expected_name}能力窗口不可用"
-                )
-            skill_list = []
-            panel = None
-            last_capture_error = None
-            skills_captured = False
-            for capture_attempt in range(1, 4):
-                check_stop_requested()
-                try:
-                    skill_list = []
-                    for skill_mat in runner.peopleInfoWind.getSkillMatList():
-                        skill = task_module.CczUtils.getCczSkillWithMat(
-                            skill_mat
-                        )
-                        if skill is not None:
-                            skill_list.append(skill)
-                    skills_captured = True
-                    try:
-                        panel = runner.peopleInfoWind.getAllSkillMat()
-                    except WindowCaptureUnavailable as exc:
-                        last_capture_error = exc
-                        panel = None
-                    break
-                except WindowCaptureUnavailable as exc:
-                    last_capture_error = exc
-                    skill_list = []
-                    panel = None
-                    skills_captured = False
-                diagnostic_log(
-                    "initial_member_capture_retry",
-                    pid=pid,
-                    member=expected_name,
-                    capture_attempt=capture_attempt,
-                    error=repr(last_capture_error),
-                )
-                native_wake_game(pid, main_window, 500)
-                interruptible_sleep(0.2)
-                refreshed_hwnd, refreshed_name = find_any_member_dialog(
-                    pid, member_names
-                )
-                if refreshed_hwnd and refreshed_name == expected_name:
-                    info_hwnd = refreshed_hwnd
-                    runner.peopleInfoWind._BaseWindow__hwnd = info_hwnd
-            if not skills_captured:
-                raise InteractionNotTriggered(
-                    f"{expected_name}能力文字连续三次读取失败，"
-                    "已放弃当前候选并继续随机"
-                ) from last_capture_error
-            members[index].skillList = sorted(
-                skill_list,
-                key=lambda skill: skill.score,
-                reverse=True,
-            )
-            if panel is None or not getattr(panel, "size", 0):
-                job_name = str(
-                    getattr(
-                        getattr(members[index], "job", None),
-                        "name",
-                        "",
-                    )
-                )
-                panel = render_member_text_panel(
-                    expected_name,
-                    job_name,
-                    members[index].skillList,
-                )
-                diagnostic_log(
-                    "initial_member_panel_rendered_from_text",
-                    pid=pid,
-                    member=expected_name,
-                    capture_error=repr(last_capture_error),
-                    skills=[
-                        skill.name for skill in members[index].skillList
-                    ],
-                )
-            panels.append(panel.copy())
-            diagnostic_log(
-                "initial_member_panel_captured",
-                pid=pid,
-                member=expected_name,
-                index=index,
-                shape=getattr(panel, "shape", None),
-                skills=[skill.name for skill in members[index].skillList],
-            )
-            if index + 1 < len(member_names):
-                check_stop_requested()
-                info_hwnd = advance_people_info(
-                    pid,
-                    main_window,
-                    info_hwnd,
-                    expected_name,
-                    member_names[index + 1],
-                    member_names,
-                )
-        return tuple(panels), members
-    finally:
-        if info_hwnd and user32.IsWindow(info_hwnd):
-            close_member_dialog(pid, main_window, info_hwnd)
-        people_hwnd = getattr(
-            getattr(runner, "peopleWind", None), "hwnd", 0
-        )
-        if people_hwnd and user32.IsWindow(people_hwnd):
-            runner.closePeopleWindow()
-            interruptible_sleep(0.3)
-        current_main = find_process_window_by_class(pid, "SOUSOU")
-        if current_main:
-            try:
-                native_wake_game(pid, current_main, 500)
-            except RuntimeError as exc:
-                diagnostic_log(
-                    "initial_member_cleanup_wake_failed",
-                    pid=pid,
-                    error=repr(exc),
-                )
+        for member in members
+    )
+    diagnostic_log(
+        "initial_member_memory_inspection_completed",
+        pid=pid,
+        skills={
+            member.name: [skill.name for skill in member.skillList]
+            for member in members
+        },
+    )
+    return panels, members
 
 
 def inspect_initial_saved_slot(
@@ -5136,7 +6279,7 @@ def inspect_initial_saved_slot(
         )
         if not title_load_verified(game.pid, slot - 1, save_path):
             raise RuntimeError("结果存档未能完成后台读取")
-        time.sleep(0.8)
+        interruptible_sleep(0.8)
         runner = task_module.CczReRandTask(0)
         panels, members = capture_initial_member_panels(
             task_module,
@@ -5186,6 +6329,7 @@ def inspect_saved_slot(
     job_score: float,
     member_index: int | None = None,
 ) -> int:
+    output_dir = output_dir.resolve()
     started_at = time.perf_counter()
     game_for_diagnostics = None
     captured_names: set[str] = set()
@@ -5204,20 +6348,21 @@ def inspect_saved_slot(
     load_media_modules()
     output_dir.mkdir(parents=True, exist_ok=True)
     random_script = bundled_random_s00()
-    if not random_script.is_file():
+    original_script = bundled_original_s00()
+    if not random_script.is_file() or not original_script.is_file():
         raise FileNotFoundError("工具内缺少随机流程辅助文件")
-    script_targets = (
-        game_executable.parent / "RS" / "S_00.eex",
-    )
     manage_script = os.environ.get("CCZ_SKIP_S00") != "1"
-    backups = (
-        {
-            target: target.read_bytes() if target.is_file() else None
-            for target in script_targets
-        }
+    script_guard = (
+        S00ScriptGuard(
+            game_executable.parent,
+            original_script,
+            random_script,
+        )
         if manage_script
-        else {}
+        else None
     )
+    repair_result = script_guard.prepare() if script_guard else None
+    script_targets = (game_executable.parent / "RS" / "S_00.eex",)
     update_diagnostic_context(
         phase="inspection_prepare",
         result_slot=slot,
@@ -5236,12 +6381,18 @@ def inspect_saved_slot(
         ],
         manage_script=manage_script,
         click_strategy=click_strategy,
+        active_script_repaired=(
+            repair_result.active_script_repaired if repair_result else False
+        ),
+        stale_helper_replaced=(
+            repair_result.stale_helper_replaced
+            if repair_result
+            else False
+        ),
     )
     try:
-        if manage_script:
-            for target in script_targets:
-                target.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copyfile(random_script, target)
+        if script_guard is not None:
+            script_guard.install()
             diagnostic_log(
                 "inspection_script_installed",
                 targets=[
@@ -5416,7 +6567,7 @@ def inspect_saved_slot(
             panels, click_info_button = patch_inspection_runtime(
                 task_module, game.pid, output_dir
             )
-            time.sleep(1.2)
+            interruptible_sleep(1.2)
             update_diagnostic_context(phase="inspection_candidate_load")
             diagnostic_log(
                 "inspection_candidate_load_started",
@@ -5432,7 +6583,7 @@ def inspect_saved_slot(
                 slot=slot,
                 state=game_state_diagnostic(game.pid, game.main_window),
             )
-            time.sleep(0.8)
+            interruptible_sleep(0.8)
             before_jump_memory = read_memory(game.pid, 0, R0_MEMORY_SIZE)
 
             runner = task_module.CczReRandTask(0)
@@ -5460,7 +6611,7 @@ def inspect_saved_slot(
                 click_strategy=click_strategy,
             )
             native_wake_game(game.pid, game.main_window, 500)
-            time.sleep(0.3)
+            interruptible_sleep(0.3)
             update_diagnostic_context(phase="inspection_story_progress")
             accelerated = wait_for_seven_member_scene(game.pid)
             diagnostic_log(
@@ -5532,6 +6683,17 @@ def inspect_saved_slot(
                     score=score,
                     type=job_type,
                 )
+            memory_snapshot = read_skill_memory(
+                game.pid,
+                JOB_POSITIONS_R1,
+            )
+            memory_by_name = {
+                member.name: memory_member
+                for member, memory_member in zip(
+                    task_module.TEAM_MEMBER_LIST,
+                    memory_snapshot.members,
+                )
+            }
             members_to_read = (
                 [
                     (
@@ -5574,7 +6736,7 @@ def inspect_saved_slot(
                         )
                         if info_hwnd:
                             break
-                        time.sleep(0.05)
+                        interruptible_sleep(0.05)
                 if not info_hwnd:
                     diagnostic_log(
                         "inspection_member_open_failed",
@@ -5611,8 +6773,19 @@ def inspect_saved_slot(
                         f"第 {index + 1} 个武将能力窗口人员不匹配"
                     )
                 skill_list = []
-                for skill_mat in runner.peopleInfoWind.getSkillMatList():
+                ui_slots = []
+                for slot_index, skill_mat in enumerate(
+                    runner.peopleInfoWind.getSkillMatList()
+                ):
                     skill = task_module.CczUtils.getCczSkillWithMat(skill_mat)
+                    ui_slots.append(
+                        {
+                            "slot": slot_index + 1,
+                            "name": (
+                                skill.name if skill is not None else None
+                            ),
+                        }
+                    )
                     if skill is not None:
                         skill_list.append(skill)
                 member.skillList = sorted(
@@ -5647,9 +6820,19 @@ def inspect_saved_slot(
                     info_hwnd=info_hwnd,
                 )
                 if member_index is not None:
+                    memory_member = memory_by_name[member.name]
                     carry_count = 0
                     imba_count = 0
                     special_count = 0
+                    effective_skills = effective_member_skill_names(
+                        rules,
+                        [member],
+                    )
+                    effective_remaining: dict[str, int] = {}
+                    for effective_skill in effective_skills:
+                        effective_remaining[effective_skill] = (
+                            effective_remaining.get(effective_skill, 0) + 1
+                        )
                     for skill in member.skillList:
                         if task_module.CczUtils.isSkillSpecial(skill):
                             special_count += 1
@@ -5658,16 +6841,9 @@ def inspect_saved_slot(
                             or task_module.CczUtils.isSkillImba(skill)
                         ):
                             continue
-                        if (
-                            member.cczType
-                            == task_module.CczType.WARRIOR
-                            and skill.type == task_module.CczType.MASTER
-                        ) or (
-                            member.cczType
-                            == task_module.CczType.MASTER
-                            and skill.type == task_module.CczType.WARRIOR
-                        ):
+                        if effective_remaining.get(skill.name, 0) <= 0:
                             continue
+                        effective_remaining[skill.name] -= 1
                         if task_module.CczUtils.isSkillImba(skill):
                             imba_count += 1
                         elif task_module.CczUtils.isSkillCarry(skill):
@@ -5679,30 +6855,30 @@ def inspect_saved_slot(
                         "skills": [
                             skill.name for skill in member.skillList
                         ],
+                        "ui_slots": ui_slots,
+                        "memory_personal": [
+                            {
+                                "id": skill.internal_id,
+                                "name": skill.display_name,
+                                "base_name": skill.base_name,
+                            }
+                            for skill in memory_member.personal
+                        ],
+                        "memory_job": [
+                            {
+                                "id": skill.internal_id,
+                                "name": skill.display_name,
+                                "base_name": skill.base_name,
+                            }
+                            for skill in memory_member.job
+                        ],
                         "panel": str(
                             output_dir / f"member-{panel_index + 1}.png"
                         ),
                         "carry_count": carry_count,
                         "imba_count": imba_count,
                         "special_count": special_count,
-                        "effective_skills": [
-                            skill.name
-                            for skill in member.skillList
-                            if not (
-                                (
-                                    member.cczType
-                                    == task_module.CczType.WARRIOR
-                                    and skill.type
-                                    == task_module.CczType.MASTER
-                                )
-                                or (
-                                    member.cczType
-                                    == task_module.CczType.MASTER
-                                    and skill.type
-                                    == task_module.CczType.WARRIOR
-                                )
-                            )
-                        ],
+                        "effective_skills": effective_skills,
                     }
                     (output_dir / "member.json").write_text(
                         json.dumps(
@@ -5894,12 +7070,8 @@ def inspect_saved_slot(
         )
         raise
     finally:
-        for target, content in backups.items():
-            if content is None:
-                if target.exists():
-                    target.unlink()
-            else:
-                target.write_bytes(content)
+        if script_guard is not None:
+            script_guard.restore()
         diagnostic_log(
             "inspection_script_restored",
             targets=[
@@ -5914,6 +7086,7 @@ def patch_runtime(
     pid: int,
     three_person_mode: bool = False,
     rules: dict | None = None,
+    game_executable: Path | None = None,
 ) -> None:
     from window.BaseWindow import BaseWindow
     from window.CczWindow import CczPeopleWindow
@@ -5925,19 +7098,33 @@ def patch_runtime(
         task_module.CczReRandTask._ccz_original_version_check = (
             task_module.CczReRandTask.checkCczVersion
         )
+        task_module.CczReRandTask._ccz_original_load_and_confirm = (
+            task_module.CczReRandTask.loadAndConfirm
+        )
+        task_module.CczReRandTask._ccz_original_save_and_confirm = (
+            task_module.CczReRandTask.saveAndConfirm
+        )
     if not hasattr(BaseWindow, "_ccz_original_get_mat"):
         BaseWindow._ccz_original_get_mat = BaseWindow.getMat
     original_check = task_module.CczReRandTask._ccz_original_check_r0
     original_version_check = (
         task_module.CczReRandTask._ccz_original_version_check
     )
+    original_save_and_confirm = (
+        task_module.CczReRandTask._ccz_original_save_and_confirm
+    )
     original_get_mat = BaseWindow._ccz_original_get_mat
     rules = rules or default_rule_config()
-    game_path = process_executable(pid)
+    game_path = (
+        game_executable.resolve()
+        if game_executable is not None
+        else process_executable(pid)
+    )
     if game_path is None:
         raise RuntimeError("无法定位游戏目录")
     source_save = game_path.parent / "SV" / "SV020.E5S"
-    source_memory = source_save.read_bytes()[:R0_MEMORY_SIZE]
+    source_save_bytes = source_save.read_bytes()
+    source_memory = source_save_bytes[:R0_MEMORY_SIZE]
 
     def get_hwnd_by_name(self, window_name: str) -> None:
         self._BaseWindow__hwnd = find_process_window(pid, window_name)
@@ -5970,96 +7157,61 @@ def patch_runtime(
         h: int = 0,
         toGray: bool = False,
     ):
-        errors = []
+        def print_window(flags: int):
+            return print_window_mat(
+                self.hwnd,
+                x,
+                y,
+                w,
+                h,
+                strip_client=False,
+                flags=flags,
+            )
 
-        def accept(mat, method: str, *, require_variance: bool = True):
-            if mat is None or not getattr(mat, "size", 0):
-                errors.append(f"{method}:empty")
-                return None
-            if require_variance and float(np.std(mat)) <= 1:
-                errors.append(f"{method}:blank")
-                return None
-            if toGray:
-                task_module.CvUtils.transNotBlackToWhite(mat, 100)
-            return mat
-
-        # PW_RENDERFULLCONTENT works on most systems. Some older display
-        # drivers only support the original PrintWindow mode, so try both.
-        for flags, method in ((2, "print_window_full"), (0, "print_window")):
-            try:
-                mat = accept(
-                    print_window_mat(
-                        self.hwnd,
-                        x,
-                        y,
-                        w,
-                        h,
-                        strip_client=False,
-                        flags=flags,
-                    ),
-                    method,
-                )
-                if mat is not None:
-                    return mat
-            except Exception as exc:
-                errors.append(f"{method}:{type(exc).__name__}:{exc}")
+        def wake() -> None:
+            current_main = find_process_window_by_class(pid, "SOUSOU")
+            if current_main:
+                native_wake_game(pid, current_main, 400)
 
         try:
-            mat = accept(
-                original_get_mat(self, x, y, w, h, False),
-                "bitblt",
-                require_variance=False,
-            )
-            if mat is not None:
-                return mat
-        except Exception as exc:
-            errors.append(f"bitblt:{type(exc).__name__}:{exc}")
-
-        current_main = find_process_window_by_class(pid, "SOUSOU")
-        if current_main:
-            try:
-                native_wake_game(pid, current_main, 400)
-                interruptible_sleep(0.08)
-            except Exception as exc:
-                errors.append(f"wake:{type(exc).__name__}:{exc}")
-
-        for flags, method in (
-            (0, "print_window_after_wake"),
-            (2, "print_window_full_after_wake"),
-        ):
-            try:
-                mat = accept(
-                    print_window_mat(
-                        self.hwnd,
-                        x,
-                        y,
-                        w,
-                        h,
-                        strip_client=False,
-                        flags=flags,
-                    ),
-                    method,
-                )
-                if mat is not None:
-                    diagnostic_log(
-                        "window_capture_recovered",
-                        pid=pid,
-                        hwnd=self.hwnd,
-                        method=method,
-                        previous_errors=errors,
+            result = capture_window_with_fallbacks(
+                print_window=print_window,
+                bitblt=lambda: original_get_mat(
+                    self, x, y, w, h, False
+                ),
+                wake=wake,
+                is_usable=lambda mat, require_variance: bool(
+                    mat is not None
+                    and getattr(mat, "size", 0)
+                    and (
+                        not require_variance
+                        or float(np.std(mat)) > 1
                     )
-                    return mat
-            except Exception as exc:
-                errors.append(f"{method}:{type(exc).__name__}:{exc}")
-
-        diagnostic_log(
-            "window_capture_unavailable",
-            pid=pid,
-            hwnd=self.hwnd,
-            region=[x, y, w, h],
-            errors=errors,
-        )
-        raise WindowCaptureUnavailable("后台能力窗口截图暂时不可用")
+                ),
+                sleep_after_wake=lambda: interruptible_sleep(0.08),
+            )
+        except WindowCaptureError as exc:
+            diagnostic_log(
+                "window_capture_unavailable",
+                pid=pid,
+                hwnd=self.hwnd,
+                region=[x, y, w, h],
+                errors=exc.errors,
+            )
+            raise WindowCaptureUnavailable(
+                "后台能力窗口截图暂时不可用"
+            ) from exc
+        if result.recovered:
+            diagnostic_log(
+                "window_capture_recovered",
+                pid=pid,
+                hwnd=self.hwnd,
+                method=result.method,
+                previous_errors=result.previous_errors,
+            )
+        if toGray:
+            task_module.CvUtils.transNotBlackToWhite(result.image, 100)
+        return result.image
 
     def click_relative_hwnd(
         hwnd: int, x: int, y: int, w: int, h: int, count: int = 1
@@ -6081,58 +7233,29 @@ def patch_runtime(
         game = self.wind.hwnd if getattr(self, "wind", None) else 0
         if not game:
             raise RuntimeError("读档前未找到游戏主窗口")
-        activate_hidden_window(game)
-        user32.PostMessageW(game, 0x0111, 102, 0)
-        load_window = wait_list_dialog(pid, 3)
-        if not load_window:
-            raise RuntimeError("读取进度窗口未出现")
-        activate_hidden_window(load_window)
-        native_load_dialog_item(pid, index)
-
-        deadline = time.perf_counter() + 10
-        while time.perf_counter() < deadline:
-            check_stop_requested()
-            alerts = [
-                row
-                for row in visible_owned_windows(game)
-                if row[0] not in (game, load_window)
-                and window_class(row[0]) == "#32770"
-                and row[2][2] - row[2][0] < 400
-                and row[2][3] - row[2][1] < 220
-            ]
-            if (
-                not user32.IsWindow(load_window)
-                and user32.IsWindowEnabled(game)
-            ):
-                native_wake_game(pid, game, 1800)
-                interruptible_sleep(0.3)
-                return
-            for alert, _title, _rect in alerts:
-                activate_hidden_window(alert)
-                click_leftmost_dialog_button(alert)
-            interruptible_sleep(0.2)
-        remaining = [
-            (window_class(hwnd), window_text(hwnd))
-            for hwnd in process_windows(pid)
-        ]
-        raise RuntimeError(
-            f"第 {index} 号存档未能完成后台读取；"
-            f"残留窗口={remaining}"
+        drive_game_menu_load(
+            pid=pid,
+            game=game,
+            save_path=(
+                game_path.parent / "SV" / f"SV{index:03}.E5S"
+            ),
+            slot=index,
         )
 
-    def robust_save_and_confirm(self, index: int) -> None:
+    def menu_save_and_confirm(self, index: int) -> None:
         check_stop_requested()
-        output = app_dir() / "SV" / f"SV{index:03}.E5S"
-        before_mtime = output.stat().st_mtime_ns if output.is_file() else None
-        native_direct_save(pid, index - 1)
-        deadline = time.perf_counter() + 5
-        while time.perf_counter() < deadline:
-            check_stop_requested()
-            if output.is_file() and output.stat().st_mtime_ns != before_mtime:
-                interruptible_sleep(0.3)
-                return
-            interruptible_sleep(0.1)
-        raise RuntimeError(f"第 {index} 号存档未能完成游戏原生保存")
+        ensure_game_menu_ready(self)
+        game = self.wind.hwnd if getattr(self, "wind", None) else 0
+        if not game:
+            raise RuntimeError("存档前未找到游戏主窗口")
+
+        target_path = game_path.parent / "SV" / f"SV{index:03}.E5S"
+        drive_game_menu_save(
+            pid=pid,
+            game=game,
+            target_path=target_path,
+            slot=index,
+        )
 
     def fast_check_people_at_r0(self) -> bool:
         check_stop_requested()
@@ -6150,9 +7273,20 @@ def patch_runtime(
         summaries = []
         jobs = []
         member_rules = []
+        runtime_members = {
+            member.name: member
+            for member in task_module.TEAM_MEMBER_LIST
+        }
         for job_id, member in zip(ids, members):
             name, score, job_type = JOB_MAP[job_id]
             member_name, primary_type, secondary_type = member
+            runtime_member = runtime_members.get(member_name)
+            if runtime_member is not None:
+                runtime_member.job = SimpleNamespace(
+                    name=name,
+                    score=score,
+                    type=job_type,
+                )
             jobs.append({"name": name, "score": score, "type": job_type})
             member_rules.append(
                 {
@@ -6213,53 +7347,6 @@ def patch_runtime(
             print("规则原因: " + "；".join(evaluation.reasons))
         return success
 
-    def load_team_skills_from_memory(self):
-        from models.CczModels import CCZ_MODELS
-
-        skill_ids = read_skill_ids(pid, len(CCZ_MODELS.skills))
-        for member, member_skill_ids in zip(
-            task_module.TEAM_MEMBER_LIST, skill_ids
-        ):
-            member.skillList = [
-                CCZ_MODELS.skills[skill_id]
-                for skill_id in member_skill_ids
-            ]
-        self._r1_skill_ids = skill_ids
-        self._team_members = task_module.TEAM_MEMBER_LIST
-        print(
-            "R1 七人特技内存读取: "
-            + "; ".join(
-                f"{member.name}="
-                + ",".join(skill.name for skill in member.skillList)
-                for member in task_module.TEAM_MEMBER_LIST
-            )
-        )
-        return skill_ids
-
-    def fast_check_people_at_r1(self) -> bool:
-        load_team_skills_from_memory(self)
-        evaluation = evaluate_task_skill_rules(
-            rules,
-            task_module,
-            task_module.TEAM_MEMBER_LIST,
-            self._r0_average,
-        )
-        success = evaluation.qualified
-        self._r1_rule_reasons = evaluation.reasons
-        print(
-            "R1 特技内存快筛: "
-            + ("通过" if success else "未通过")
-        )
-        diagnostic_log(
-            "skill_rule_evaluation",
-            qualified=success,
-            reasons=evaluation.reasons,
-            metrics=evaluation.metrics,
-        )
-        if not success and evaluation.reasons:
-            print("规则原因: " + "；".join(evaluation.reasons))
-        return success
-
     def collect_equipment(self):
         check_stop_requested()
         records = read_equipment_records(pid)
@@ -6275,6 +7362,7 @@ def patch_runtime(
         return equip_info
 
     def verified_start_rand(self) -> bool:
+        check_stop_requested()
         self.initWind()
         if not self.wind.isInitSuccess():
             print("随机前游戏窗口初始化失败")
@@ -6287,6 +7375,7 @@ def patch_runtime(
         choice_y = top + 255 + 9
 
         for attempt in range(3):
+            check_stop_requested()
             print(f"后台随机尝试 {attempt + 1}/3")
             native_wake_game(pid, self.wind.hwnd, 800)
             post_click(
@@ -6306,11 +7395,12 @@ def patch_runtime(
 
             deadline = time.perf_counter() + 2
             while time.perf_counter() < deadline:
+                check_stop_requested()
                 current = read_job_ids(pid, JOB_POSITIONS_R1)
                 if current != before and any(current):
                     print(f"随机兵种已更新: {before}->{current}")
                     return True
-                time.sleep(0.1)
+                interruptible_sleep(0.1)
         print(f"随机操作未改变兵种内存: {before}")
         return False
 
@@ -6475,6 +7565,7 @@ def patch_runtime(
             main_window,
             click_strategy="same_session",
         )
+        check_stop_requested()
         accelerated = wait_for_seven_member_scene(pid)
         diagnostic_log(
             "same_session_accelerated_story_result",
@@ -6486,11 +7577,7 @@ def patch_runtime(
             pid, main_window
         ):
             return {"completed": False}
-        self.openPeople()
         check_stop_requested()
-        if not self.peopleWind.isInitSuccess():
-            raise RuntimeError("同一游戏实例未能打开完整武将列表")
-
         job_ids = read_job_ids(pid, JOB_POSITIONS_R1)
         for member, job_id in zip(task_module.TEAM_MEMBER_LIST, job_ids):
             job_name, score, job_type = JOB_MAP[job_id]
@@ -6499,185 +7586,19 @@ def patch_runtime(
                 score=score,
                 type=job_type,
             )
-
-        member_names = tuple(
-            member.name for member in task_module.TEAM_MEMBER_LIST
+        load_member_skills_from_memory(
+            task_module,
+            pid,
+            JOB_POSITIONS_R1,
+            task_module.TEAM_MEMBER_LIST,
         )
-        captured_names: set[str] = set()
-        panels_by_name: dict[str, np.ndarray] = {}
-        self.peopleWind.clickPeople(0)
-        info_hwnd = 0
-        shown_name = ""
-        deadline = time.perf_counter() + 10.0
-        while time.perf_counter() < deadline:
-            check_stop_requested()
-            self.initPeopleInfoWind()
-            info_hwnd, shown_name = find_any_member_dialog(
-                pid, member_names
-            )
-            if info_hwnd:
-                break
-            interruptible_sleep(0.05)
-        if not info_hwnd:
-            raise RuntimeError("同一游戏实例未能打开首个武将能力窗口")
-
-        try:
-            while len(captured_names) < TEAM_MEMBER_NUM:
-                check_stop_requested()
-                if shown_name in captured_names:
-                    raise RuntimeError(
-                        f"同一游戏实例重复读取武将能力面板：{shown_name}"
-                    )
-                member = next(
-                    item
-                    for item in task_module.TEAM_MEMBER_LIST
-                    if item.name == shown_name
-                )
-                self.peopleInfoWind._BaseWindow__hwnd = info_hwnd
-                if not wait_for_window_state(
-                    info_hwnd, exists=True, enabled=True, timeout=3.0
-                ):
-                    raise RuntimeError(f"{shown_name}能力窗口不可用")
-                if not wait_for_dialog_text(
-                    info_hwnd, shown_name, timeout=3.0
-                ):
-                    raise RuntimeError(
-                        f"{shown_name}能力窗口内容未完成刷新"
-                    )
-                skill_list = []
-                panel = None
-                last_capture_error = None
-                for capture_attempt in range(1, 4):
-                    check_stop_requested()
-                    try:
-                        skill_list = []
-                        for skill_mat in self.peopleInfoWind.getSkillMatList():
-                            skill = task_module.CczUtils.getCczSkillWithMat(
-                                skill_mat
-                            )
-                            if skill is not None:
-                                skill_list.append(skill)
-                        try:
-                            panel = self.peopleInfoWind.getAllSkillMat()
-                        except WindowCaptureUnavailable as exc:
-                            last_capture_error = exc
-                            panel = None
-                    except WindowCaptureUnavailable as exc:
-                        last_capture_error = exc
-                        skill_list = []
-                        panel = None
-                    diagnostic_log(
-                        "same_session_member_capture_attempt",
-                        pid=pid,
-                        member=shown_name,
-                        capture_attempt=capture_attempt,
-                        skills=[skill.name for skill in skill_list],
-                        panel_shape=getattr(panel, "shape", None),
-                        panel_mean=(
-                            round(float(np.mean(panel)), 3)
-                            if panel is not None
-                            and getattr(panel, "size", 0)
-                            else None
-                        ),
-                        panel_std=(
-                            round(float(np.std(panel)), 3)
-                            if panel is not None
-                            and getattr(panel, "size", 0)
-                            else None
-                        ),
-                        capture_error=repr(last_capture_error),
-                    )
-                    if skill_list:
-                        break
-                    native_wake_game(pid, main_window, 500)
-                    interruptible_sleep(0.25)
-                if not skill_list:
-                    if panel is None or not getattr(panel, "size", 0):
-                        raise InteractionNotTriggered(
-                            f"{shown_name}能力窗口已打开，"
-                            "但特技区域连续三次未能读取"
-                        )
-                    diagnostic_log(
-                        "same_session_member_has_no_skills",
-                        pid=pid,
-                        member=shown_name,
-                        capture_attempts=3,
-                        panel_shape=getattr(panel, "shape", None),
-                        panel_mean=round(float(np.mean(panel)), 3),
-                        panel_std=round(float(np.std(panel)), 3),
-                    )
-                member.skillList = sorted(
-                    skill_list,
-                    key=lambda skill: skill.score,
-                    reverse=True,
-                )
-                if panel is None or not getattr(panel, "size", 0):
-                    panel = render_member_text_panel(
-                        shown_name,
-                        member.job.name,
-                        member.skillList,
-                    )
-                    diagnostic_log(
-                        "same_session_member_panel_rendered_from_text",
-                        pid=pid,
-                        member=shown_name,
-                        capture_error=repr(last_capture_error),
-                        skills=[
-                            skill.name for skill in member.skillList
-                        ],
-                    )
-                panels_by_name[shown_name] = panel.copy()
-                captured_names.add(shown_name)
-                diagnostic_log(
-                    "same_session_member_captured",
-                    pid=pid,
-                    member=shown_name,
-                    job=member.job.name,
-                    skills=[skill.name for skill in member.skillList],
-                    captured_members=sorted(captured_names),
-                    info_hwnd=info_hwnd,
-                )
-                if len(captured_names) >= TEAM_MEMBER_NUM:
-                    break
-                try:
-                    info_hwnd, shown_name = (
-                        advance_people_info_in_game_order(
-                            pid,
-                            info_hwnd,
-                            shown_name,
-                            member_names,
-                            captured_names,
-                        )
-                    )
-                except RuntimeError as transition_error:
-                    diagnostic_log(
-                        "same_session_member_roster_fallback",
-                        pid=pid,
-                        current_member=shown_name,
-                        captured_members=sorted(captured_names),
-                        error=repr(transition_error),
-                    )
-                    info_hwnd, shown_name = (
-                        open_uncaptured_member_from_roster(
-                            pid,
-                            main_window,
-                            self,
-                            info_hwnd,
-                            member_names,
-                            captured_names,
-                        )
-                    )
-        finally:
-            if info_hwnd and user32.IsWindow(info_hwnd):
-                close_member_dialog(pid, main_window, info_hwnd)
-        self.closePeopleWindow()
-        if len(panels_by_name) != TEAM_MEMBER_NUM:
-            raise RuntimeError(
-                "同一游戏实例读取七人能力面板不完整："
-                f"{len(panels_by_name)}/{TEAM_MEMBER_NUM}"
-            )
+        check_stop_requested()
         ordered_panels = tuple(
-            panels_by_name[member.name]
+            render_member_text_panel(
+                member.name,
+                member.job.name,
+                member.skillList,
+            )
             for member in task_module.TEAM_MEMBER_LIST
         )
         self.teamJobAndSkillInfoMat = np.vstack(ordered_panels)
@@ -6705,7 +7626,7 @@ def patch_runtime(
             ),
         }
         diagnostic_log(
-            "same_session_seven_member_inspection_completed",
+            "same_session_seven_member_memory_inspection_completed",
             pid=pid,
             qualified=result["qualified"],
             job_names=result["job_names"],
@@ -6720,6 +7641,9 @@ def patch_runtime(
         self._three_person_mode = three_person_mode
         self._normal_load_succeeded = False
         self._result_outcome = ""
+        self._result_save_committed = False
+        self._result_save_path = None
+        self._result_save_verification_warning = ""
         self._job_evaluation_detail = None
         self._skill_evaluation_detail = None
         diagnostic_log(
@@ -6734,6 +7658,37 @@ def patch_runtime(
             "_target_save_pos",
             int(os.environ.get("CCZ_OUTPUT_SLOT", "1")),
         )
+        if not 1 <= self.savePos <= 15:
+            raise ValueError("结果存档槽位只能是第 1–15 号")
+
+        def save_qualified_result(*, restore_slot: int | None = None) -> None:
+            target_path = (
+                game_path.parent / "SV" / f"SV{self.savePos:03}.E5S"
+            )
+            previous_signature = save_file_signature(target_path)
+            with critical_random_operation("qualified-result-save"):
+                save_result_via_game_menu(
+                    self,
+                    self.savePos,
+                    restore_slot=restore_slot,
+                )
+                saved_signature = wait_for_game_menu_save(
+                    target_path,
+                    previous_signature,
+                )
+            diagnostic_log(
+                "game_menu_save_confirmed",
+                result_slot=self.savePos,
+                save_path=target_path,
+                previous_signature=previous_signature,
+                saved_signature=saved_signature,
+            )
+            self._result_save_committed = True
+            self._result_save_path = target_path
+            print(
+                f"第 {self.savePos} 号结果存档已通过游戏菜单保存"
+            )
+
         self.is2_08 = None
         game = find_process_window_by_class(pid, "SOUSOU")
         if not game:
@@ -6751,6 +7706,7 @@ def patch_runtime(
                 source_save,
                 self.loadAndConfirm,
             )
+            check_stop_requested()
             self._normal_load_succeeded = True
             scene_ready_delay = 1.0
         else:
@@ -6768,6 +7724,7 @@ def patch_runtime(
                     "第 20 号源存档读取失败，已停止本次随机；"
                     "请将普通日志和诊断日志一起发回"
                 )
+            check_stop_requested()
             self._source_loaded = True
             scene_ready_delay = 1.5
 
@@ -6815,6 +7772,7 @@ def patch_runtime(
             ),
         )
         acceleration_method = enable_game_acceleration(pid)
+        check_stop_requested()
         diagnostic_log(
             "randomization_acceleration_enabled",
             pid=pid,
@@ -6900,6 +7858,7 @@ def patch_runtime(
                 before,
                 interaction_attempt,
             )
+            check_stop_requested()
             diagnostic_log(
                 "interaction_choice_clicked",
                 pid=pid,
@@ -6993,6 +7952,7 @@ def patch_runtime(
                 "兵种内存仍未发生变化"
             )
         print(f"游戏原生随机已触发: {before}->{current}")
+        check_stop_requested()
         self._r0_initial_three = read_job_ids(pid, JOB_POSITIONS_R0)
 
         if not self.checkPeopleAtR0():
@@ -7015,6 +7975,7 @@ def patch_runtime(
                 game,
                 self,
             )
+            check_stop_requested()
             evaluation = evaluate_task_skill_rules(
                 rules,
                 task_module,
@@ -7053,42 +8014,17 @@ def patch_runtime(
         else:
             check_stop_requested()
             scratch_slot = 16
-            scratch_path = (
-                game_path.parent / "SV" / f"SV{scratch_slot:03}.E5S"
-            )
-            scratch_backup = (
-                scratch_path.read_bytes() if scratch_path.is_file() else None
-            )
+            scratch_guard = ScratchSaveGuard(game_path.parent)
+            scratch_guard.prepare()
+            scratch_guard.begin()
             inspection_dir = None
             try:
-                native_direct_save(pid, scratch_slot - 1)
+                self.saveAndConfirm(scratch_slot)
                 check_stop_requested()
-                memory_after_save = read_memory(pid, 0, R0_MEMORY_SIZE)
-                if not scratch_path.is_file():
-                    raise RuntimeError("游戏报告保存成功，但未找到候选存档")
-                saved = scratch_path.read_bytes()
-                if saved[:R0_MEMORY_SIZE] != memory_after_save:
-                    differences = [
-                        index
-                        for index, (left, right) in enumerate(
-                            zip(saved[:R0_MEMORY_SIZE], memory_after_save)
-                        )
-                        if left != right
-                    ]
-                    preview = ", ".join(f"0x{x:X}" for x in differences[:12])
-                    raise RuntimeError(
-                        "R0 原生保存与内存不一致，"
-                        f"共 {len(differences)} 字节：{preview}"
-                    )
-                print(
-                    "R0 完整状态原生保存校验通过："
-                    f"0x{R0_MEMORY_SIZE:X} 字节逐字节一致，"
-                    f"SHA256={hashlib.sha256(memory_after_save).hexdigest()}"
-                )
-                self._candidate_save = saved
-                print("候选存档已由游戏原生保存")
+                print("候选存档已通过游戏菜单保存")
 
                 inspection = inspect_current_seven_members(self)
+                check_stop_requested()
                 if not inspection.get("completed", True):
                     self._result_outcome = "inspection_abandoned"
                     diagnostic_log(
@@ -7108,63 +8044,18 @@ def patch_runtime(
                         print("规则原因: " + "；".join(reasons))
                     print("用户进度: 本轮最终结果=特技不合格")
                     return False
+                self._result_outcome = "accepted"
+                print("用户进度: 本轮最终结果=合格，开始保存")
+                save_qualified_result(restore_slot=scratch_slot)
             finally:
                 if inspection_dir is not None:
                     shutil.rmtree(inspection_dir, ignore_errors=True)
-                if scratch_backup is None:
-                    scratch_path.unlink(missing_ok=True)
-                else:
-                    scratch_path.write_bytes(scratch_backup)
+                scratch_guard.restore()
 
-        self._result_outcome = "accepted"
-        print("用户进度: 本轮最终结果=合格，开始保存")
-        target_path = (
-            game_path.parent / "SV" / f"SV{self.savePos:03}.E5S"
-        )
-        target_mtime = (
-            target_path.stat().st_mtime_ns
-            if target_path.is_file()
-            else None
-        )
         if three_person_mode:
-            check_stop_requested()
-            native_direct_save(pid, self.savePos - 1)
-            save_deadline = time.perf_counter() + 5
-            while time.perf_counter() < save_deadline:
-                check_stop_requested()
-                if (
-                    target_path.is_file()
-                    and target_path.stat().st_mtime_ns != target_mtime
-                ):
-                    break
-                interruptible_sleep(0.1)
-            if (
-                not target_path.is_file()
-                or target_path.stat().st_mtime_ns == target_mtime
-            ):
-                raise RuntimeError(
-                    f"第 {self.savePos} 号结果存档未能完成游戏原生保存"
-                )
-        else:
-            temporary_target = target_path.with_name(
-                f".{target_path.name}.{os.getpid()}.tmp"
-            )
-            temporary_target.write_bytes(self._candidate_save)
-            os.replace(temporary_target, target_path)
-        target_saved = target_path.read_bytes()
-        expected_target = (
-            read_memory(pid, 0, R0_MEMORY_SIZE)
-            if three_person_mode
-            else self._candidate_save[:R0_MEMORY_SIZE]
-        )
-        if target_saved[:R0_MEMORY_SIZE] != expected_target:
-            raise RuntimeError(
-                f"第 {self.savePos} 号结果存档与保存时游戏内存不一致"
-            )
-        print(
-            f"第 {self.savePos} 号结果存档已保存，"
-            "并通过候选原生存档逐字节校验"
-        )
+            self._result_outcome = "accepted"
+            print("用户进度: 本轮最终结果=合格，开始保存")
+            save_qualified_result()
         return True
 
     BaseWindow.setForeground = set_foreground
@@ -7182,7 +8073,7 @@ def patch_runtime(
     task_module.CczReRandTask.checkCczVersion = cached_version_check
     task_module.CczReRandTask.openPeople = direct_open_people
     task_module.CczReRandTask.loadAndConfirm = robust_load_and_confirm
-    task_module.CczReRandTask.saveAndConfirm = robust_save_and_confirm
+    task_module.CczReRandTask.saveAndConfirm = menu_save_and_confirm
     task_module.CczReRandTask.run = r0_only_run
 
 
@@ -7191,6 +8082,14 @@ def format_user_log(line: str) -> str:
     text = line.strip()
     if not text:
         return ""
+    worker_match = re.match(r"^\[实例 (\d+)\]\s*(.*)$", text)
+    if worker_match:
+        formatted = format_user_log(worker_match.group(2))
+        return (
+            f"[实例 {worker_match.group(1)}] {formatted}"
+            if formatted
+            else ""
+        )
     if text.startswith("工具版本："):
         return ""
     if text.startswith("环境处理提示："):
@@ -7232,14 +8131,12 @@ def format_user_log(line: str) -> str:
         return "正在执行随机流程……"
     if text.startswith("游戏原生随机已触发:"):
         return ""
-    if text.startswith("R0 完整状态原生保存校验通过"):
-        return ""
-    if text.startswith("第 ") and "已由游戏原生保存" in text:
+    if text.startswith("第 ") and (
+        "已由游戏原生保存" in text
+        or "已通过游戏菜单保存" in text
+    ):
         prefix = text.split("号", 1)[0] if "号" in text else text
         return f"{prefix}号存档已保存"
-    if text.startswith("第 ") and "回读校验通过" in text:
-        prefix = text.split("号", 1)[0] if "号" in text else text
-        return f"{prefix}号存档回读：合格"
     if text.startswith(
         (
             "当前设备不兼容后台快速读档",
@@ -7251,7 +8148,6 @@ def format_user_log(line: str) -> str:
         text.startswith("第 ")
         and (
             "号存档已保存，但结果图生成失败" in text
-            or "号存档已保存，但回读复查失败" in text
         )
     ):
         return ""
@@ -7261,7 +8157,12 @@ def format_user_log(line: str) -> str:
         return "随机结果已更新"
     if text.startswith("后台随机尝试"):
         return "正在触发随机……"
-    if text.startswith("候选存档已由游戏原生保存"):
+    if text.startswith(
+        (
+            "候选存档已由游戏原生保存",
+            "候选存档已通过游戏菜单保存",
+        )
+    ):
         return ""
     if "平均分=" in text or "门槛=" in text:
         return ""
@@ -7273,8 +8174,6 @@ def format_user_log(line: str) -> str:
         return "后台游戏已启动"
     if text.startswith("游戏原生随机已触发"):
         return "已完成一次随机"
-    if "个结果存档全部生成并通过回读校验" in text:
-        return text.replace("结果存档全部生成并通过回读校验", "存档结果已完成")
     if "个结果存档已全部保存；其中" in text:
         return text
     if text.startswith("Traceback"):
@@ -7392,10 +8291,22 @@ def gui_main() -> int:
     log_path: Path | None = None
     result_image_path: Path | None = None
     stop_file: Path | None = None
+    active_game_executable: Path | None = None
     stop_requested_by_user = False
     last_formatted_line = ""
+    security_blocked_details: dict[str, object] | None = None
+    concurrent_console_state: ConcurrentConsoleState | None = None
+    concurrent_console_rounds: dict[int, ConcurrentConsoleState] = {}
+    concurrent_console_round_images: dict[int, Path] = {}
+    concurrent_console_active_round = 1
+    concurrent_console_finished = False
+    concurrent_console_footer = ""
     mode_var = tk.StringVar(value=load_random_mode(app_dir()))
-    loop_var = tk.BooleanVar(value=False)
+    loop_var = tk.BooleanVar(value=load_loop_random(app_dir()))
+    concurrency_var = tk.IntVar(value=load_concurrency(app_dir()))
+    compatibility_mode_var = tk.BooleanVar(
+        value=load_compatibility_mode(app_dir())
+    )
     rule_load = load_rule_config(app_dir())
     current_rules = rule_load.config
     rule_profile_var = tk.StringVar(
@@ -7414,13 +8325,15 @@ def gui_main() -> int:
         anchor="w",
     ).pack(side="left")
     version = str(application_build_info().get("version", "")).strip()
-    tk.Label(
+    version_label = tk.Label(
         header,
         text=f"V{version}" if version else "",
         font=("Microsoft YaHei UI", 10),
         anchor="e",
         fg="#666666",
-    ).pack(side="right", padx=(12, 2), pady=(6, 0))
+    )
+    version_label.pack(side="right", padx=(12, 2), pady=(6, 0))
+    bind_version_changelog(version_label, root)
     help_popup: tk.Toplevel | None = None
     help_image: tk.PhotoImage | None = None
 
@@ -7458,8 +8371,8 @@ def gui_main() -> int:
     tk.Label(
         info,
         text=(
-            "本版本不需要替换 S_00.eex。"
-            "结果保存在工具目录的 randResult 文件夹。"
+            "运行前会自动校验并保护 S_00.eex，停止后恢复原文件。"
+            "合格结果会生成结果图并保存在 randResult 目录。"
         ),
         justify="left",
         anchor="w",
@@ -7502,10 +8415,15 @@ def gui_main() -> int:
     slot_help.bind("<Enter>", show_slot_help)
     slot_help.bind("<Leave>", hide_slot_help)
 
-    settings_bar = tk.Frame(outer)
-    settings_bar.pack(fill="x", pady=(0, 6))
-    tk.Label(settings_bar, text="运行模式").pack(side="left", padx=(0, 6))
-    mode_frame = tk.Frame(settings_bar)
+    settings_panel = tk.Frame(outer)
+    settings_panel.pack(fill="x", pady=(0, 6))
+    runtime_settings_bar = tk.Frame(settings_panel)
+    runtime_settings_bar.pack(fill="x")
+    tk.Label(runtime_settings_bar, text="运行模式").pack(
+        side="left",
+        padx=(0, 6),
+    )
+    mode_frame = tk.Frame(runtime_settings_bar)
     mode_frame.pack(side="left", padx=(0, 18))
 
     def persist_random_mode() -> None:
@@ -7513,6 +8431,17 @@ def gui_main() -> int:
             save_random_mode(app_dir(), mode_var.get())
         except (OSError, ValueError):
             show_toast(root, "运行模式保存失败，请检查工具目录是否可写。")
+
+    def persist_runtime_settings(_event=None) -> None:
+        try:
+            save_random_runtime_settings(
+                app_dir(),
+                loop_random=bool(loop_var.get()),
+                concurrency=int(concurrency_var.get()),
+                compatibility_mode=bool(compatibility_mode_var.get()),
+            )
+        except (OSError, ValueError, TypeError, tk.TclError):
+            show_toast(root, "运行参数保存失败，请检查输入和工具目录。")
 
     seven_mode_button = tk.Radiobutton(
         mode_frame,
@@ -7531,30 +8460,62 @@ def gui_main() -> int:
     seven_mode_button.pack(side="left")
     three_mode_button.pack(side="left", padx=(8, 0))
     loop_check = tk.Checkbutton(
-        settings_bar,
+        runtime_settings_bar,
         text="循环随机（每轮15个）",
         variable=loop_var,
+        command=persist_runtime_settings,
     )
     loop_check.pack(side="left", padx=(0, 18))
-    tk.Label(settings_bar, text="规则").pack(side="left", padx=(0, 6))
+    tk.Label(runtime_settings_bar, text="同时运行数量").pack(
+        side="left", padx=(0, 4)
+    )
+    concurrency_spin = tk.Spinbox(
+        runtime_settings_bar,
+        from_=1,
+        to=2_147_483_647,
+        width=7,
+        textvariable=concurrency_var,
+        justify="center",
+        command=persist_runtime_settings,
+    )
+    concurrency_spin.pack(side="left", padx=(0, 18))
+    concurrency_spin.bind("<FocusOut>", persist_runtime_settings)
+    concurrency_spin.bind("<Return>", persist_runtime_settings)
+    compatibility_check = tk.Checkbutton(
+        runtime_settings_bar,
+        text="兼容模式",
+        variable=compatibility_mode_var,
+        command=persist_runtime_settings,
+    )
+    compatibility_check.pack(side="left")
+
+    rule_settings_bar = tk.Frame(settings_panel)
+    rule_settings_bar.pack(fill="x", pady=(6, 0))
+    tk.Label(rule_settings_bar, text="规则").pack(
+        side="left",
+        padx=(0, 6),
+    )
     rule_profile_combo = ttk.Combobox(
-        settings_bar,
+        rule_settings_bar,
         textvariable=rule_profile_var,
         values=tuple(current_rules["profiles"]),
         state="readonly",
-        width=18,
+        width=24,
     )
     rule_profile_combo.pack(side="left", padx=(0, 8))
-    rule_button = tk.Button(settings_bar, text="规则设置", width=10)
+    rule_button = tk.Button(rule_settings_bar, text="规则设置", width=10)
     rule_button.pack(side="left")
-
-    action_bar = tk.Frame(outer)
-    action_bar.pack(fill="x", pady=(0, 8))
-    status = tk.StringVar(value="等待开始")
-    tk.Label(action_bar, textvariable=status, anchor="w").pack(
-        side="left", fill="x", expand=True
+    repair_button = tk.Button(
+        rule_settings_bar,
+        text="错误修正",
+        width=10,
     )
-    action_button = tk.Button(action_bar, text="开始随机", width=14)
+    repair_button.pack(side="left", padx=(8, 0))
+    action_button = tk.Button(
+        rule_settings_bar,
+        text="开始随机",
+        width=14,
+    )
     action_button.pack(side="right")
 
     output = scrolledtext.ScrolledText(
@@ -8003,6 +8964,148 @@ def gui_main() -> int:
             save_notice,
         )
 
+    def show_repair_result(result: ManualRepairResult) -> None:
+        duration = 4800 if result.status == "unable" else 3200
+        show_toast(root, result.message, duration)
+
+    def locate_game_for_repair() -> Path | None:
+        try:
+            return locate_game_executable()
+        except Exception as exc:
+            show_repair_result(
+                ManualRepairResult(
+                    "unable",
+                    f"无法定位游戏目录：{exc}",
+                )
+            )
+            return None
+
+    def repair_sishui_block(parent: tk.Misc = root) -> None:
+        notify_sishui_repair_unavailable(parent)
+
+    def repair_game_sound(parent: tk.Misc = root) -> None:
+        if not messagebox.askyesno(
+            "游戏声音修复",
+            "用于修复旧版本通过 Windows 音量合成器静音了正常"
+            " Ekd5.exe，导致之后手动启动游戏也没有声音的问题。\n\n"
+            "请先启动正常游戏并进入能播放声音的界面。"
+            "本操作只恢复正常 Ekd5.exe 的静音状态。是否继续？",
+            parent=parent,
+        ):
+            return
+        game_executable = locate_game_for_repair()
+        if game_executable is None:
+            return
+        try:
+            result = repair_normal_game_audio(
+                game_executable,
+                find_process_ids=find_process_ids,
+                process_executable=process_executable,
+                restore_sessions=restore_process_audio_sessions,
+            )
+        except Exception as exc:
+            result = ManualRepairResult(
+                "unable",
+                f"游戏声音修复失败：{exc}",
+            )
+        show_repair_result(result)
+
+    def repair_first_battle_skip(parent: tk.Misc = root) -> None:
+        if not messagebox.askyesno(
+            "第一关跳过修复",
+            "用于修复随机过程中临时替换了 RS\\S_00.eex，"
+            "但异常退出后没有恢复，导致第一关被跳过的问题。\n\n"
+            "继续后会把 RS\\S_00.eex 恢复为工具内置的正常版本，"
+            "不会修改游戏根目录下的备份文件。是否继续？",
+            parent=parent,
+        ):
+            return
+        game_executable = locate_game_for_repair()
+        if game_executable is None:
+            return
+        try:
+            result = restore_bundled_original_s00(
+                game_executable.parent,
+                bundled_original_s00(),
+                bundled_random_s00(),
+            )
+            if result.restored:
+                message = "第一关脚本已恢复为正常版本。"
+                if result.backup_path is not None:
+                    message += (
+                        "原有未知脚本已备份为 "
+                        f"{result.backup_path.name}。"
+                    )
+                repair_result = ManualRepairResult("repaired", message)
+            else:
+                repair_result = ManualRepairResult(
+                    "not_needed",
+                    "当前 S_00.eex 已是正常版本，不需要修复。",
+                )
+        except Exception as exc:
+            repair_result = ManualRepairResult(
+                "unable",
+                f"第一关脚本恢复失败：{exc}",
+            )
+        show_repair_result(repair_result)
+
+    def open_repair_dialog() -> None:
+        dialog = tk.Toplevel(root)
+        dialog.title("错误修正")
+        dialog.resizable(False, False)
+        dialog.transient(root)
+
+        body = tk.Frame(dialog, padx=18, pady=16)
+        body.pack(fill="both", expand=True)
+        tk.Label(
+            body,
+            text="请选择需要处理的问题",
+            font=("Microsoft YaHei UI", 12, "bold"),
+            anchor="w",
+        ).pack(fill="x", pady=(0, 12))
+
+        for text, command in (
+            ("汜水关卡关", repair_sishui_block),
+            ("游戏没声音", repair_game_sound),
+            ("第一关跳过", repair_first_battle_skip),
+        ):
+            tk.Button(
+                body,
+                text=text,
+                width=22,
+                command=lambda action=command: action(dialog),
+            ).pack(fill="x", pady=4)
+        tk.Button(
+            body,
+            text="关闭",
+            width=10,
+            command=dialog.destroy,
+        ).pack(anchor="e", pady=(12, 0))
+
+        dialog.update_idletasks()
+        width = max(340, dialog.winfo_reqwidth())
+        height = dialog.winfo_reqheight()
+        x = root.winfo_rootx() + max(
+            0, (root.winfo_width() - width) // 2
+        )
+        y = root.winfo_rooty() + max(
+            0, (root.winfo_height() - height) // 2
+        )
+        dialog.geometry(f"{width}x{height}+{x}+{y}")
+        dialog.grab_set()
+
+    def open_history() -> None:
+        try:
+            repository = HistoryRepository(app_dir())
+        except Exception as exc:
+            messagebox.showerror(
+                "历史记录无法打开",
+                str(exc),
+                parent=root,
+            )
+            return
+        show_history_window(root, repository)
+
     def select_rule_profile(_event=None) -> None:
         nonlocal current_rules
         selected = rule_profile_var.get()
@@ -8119,6 +9222,309 @@ def gui_main() -> int:
         )
         dialog.geometry(f"+{x}+{y}")
 
+    def show_concurrent_slot_detail(
+        round_number: int,
+        slot: int,
+    ) -> None:
+        round_state = concurrent_console_rounds.get(round_number)
+        if round_state is None or slot not in round_state.slots:
+            return
+        progress = round_state.slots[slot]
+        dialog = tk.Toplevel(root)
+        dialog.title(f"存档{slot}运行明细")
+        dialog.geometry("760x600")
+        dialog.minsize(620, 440)
+        dialog.transient(root)
+
+        body = tk.Frame(dialog, padx=18, pady=16)
+        body.pack(fill="both", expand=True)
+        tk.Label(
+            body,
+            text=f"存档{slot}运行明细",
+            font=("Microsoft YaHei UI", 13, "bold"),
+            anchor="w",
+        ).pack(fill="x")
+        status_var = tk.StringVar()
+        tk.Label(
+            body,
+            textvariable=status_var,
+            font=("Microsoft YaHei UI", 10),
+            fg="#555555",
+            anchor="w",
+        ).pack(fill="x", pady=(5, 12))
+
+        history_text = scrolledtext.ScrolledText(
+            body,
+            wrap="word",
+            font=("Microsoft YaHei UI", 10),
+            bg="#ffffff",
+            relief="solid",
+            borderwidth=1,
+            padx=12,
+            pady=10,
+        )
+        history_text.pack(fill="both", expand=True)
+        history_text.configure(state="disabled")
+
+        actions = tk.Frame(body)
+        actions.pack(fill="x", pady=(12, 0))
+        tk.Button(
+            actions,
+            text="关闭",
+            width=10,
+            command=dialog.destroy,
+        ).pack(side="right")
+        dialog.update_idletasks()
+        x = root.winfo_rootx() + max(
+            0, (root.winfo_width() - dialog.winfo_width()) // 2
+        )
+        y = root.winfo_rooty() + max(
+            0, (root.winfo_height() - dialog.winfo_height()) // 2
+        )
+        dialog.geometry(f"+{x}+{y}")
+
+        displayed_history: tuple[object, ...] | None = None
+
+        def refresh_detail() -> None:
+            nonlocal displayed_history
+            try:
+                if not dialog.winfo_exists():
+                    return
+            except tk.TclError:
+                return
+            current_state = concurrent_console_rounds.get(round_number)
+            if current_state is None or slot not in current_state.slots:
+                return
+            current = current_state.slots[slot]
+            current_attempt = (
+                f"第 {current.attempt} 次尝试"
+                if current.attempt
+                else "尚未开始尝试"
+            )
+            status_var.set(f"{current_attempt}　{current.stage}")
+            attempt_signature = tuple(
+                (
+                    item.attempt,
+                    item.member_summary,
+                    (
+                        item.detail.get("status"),
+                        item.detail.get("label"),
+                    )
+                    if item.detail is not None
+                    else None,
+                )
+                for item in current.attempts
+            )
+            display_signature = attempt_signature + (
+                current.attempt,
+                current.stage,
+            )
+            if display_signature != displayed_history:
+                displayed_history = display_signature
+                history_text.configure(state="normal")
+                history_text.delete("1.0", "end")
+                history_text.tag_configure(
+                    "attempt-heading",
+                    font=("Microsoft YaHei UI", 10, "bold"),
+                    spacing1=4,
+                    spacing3=5,
+                )
+                if not current.attempts:
+                    history_text.insert("end", "该存档尚未开始尝试。")
+                for index, attempt in enumerate(
+                    current.attempts,
+                    start=1,
+                ):
+                    history_text.insert(
+                        "end",
+                        f"第 {attempt.attempt} 次尝试\n",
+                        "attempt-heading",
+                    )
+                    if attempt.member_summary:
+                        history_text.insert(
+                            "end",
+                            attempt.member_summary + "\n",
+                        )
+                    if attempt.detail is not None:
+                        label = attempt.detail.get("label") or "未知"
+                        history_text.insert("end", f"结果：{label}（")
+                        tag = f"slot-score-{round_number}-{slot}-{index}"
+                        history_text.insert("end", "点击查看详情", tag)
+                        history_text.insert("end", "）\n\n")
+                        history_text.tag_configure(
+                            tag,
+                            foreground="#0563c1",
+                            underline=True,
+                        )
+                        history_text.tag_bind(
+                            tag,
+                            "<Button-1>",
+                            lambda _event, value=attempt.detail: (
+                                show_result_detail(value)
+                            ),
+                        )
+                        history_text.tag_bind(
+                            tag,
+                            "<Enter>",
+                            lambda _event: history_text.configure(
+                                cursor="hand2"
+                            ),
+                        )
+                        history_text.tag_bind(
+                            tag,
+                            "<Leave>",
+                            lambda _event: history_text.configure(cursor=""),
+                        )
+                    elif attempt.attempt == current.attempt:
+                        history_text.insert(
+                            "end",
+                            current.stage + "\n\n",
+                        )
+                    else:
+                        history_text.insert("end", "等待结果\n\n")
+                history_text.see("end")
+                history_text.configure(state="disabled")
+            dialog.after(250, refresh_detail)
+
+        refresh_detail()
+
+    def render_concurrent_console() -> None:
+        if concurrent_console_state is None:
+            return
+        output.configure(state="normal")
+        output.delete("1.0", "end")
+        output.insert("end", "曹操传随机工具 - 内存快筛版\n")
+        version_text = str(
+            application_build_info().get("version", "")
+        ).strip()
+        version_parts = version_text.split(".")
+        if len(version_parts) == 3 and version_parts[1:] == ["0", "0"]:
+            version_text = version_parts[0]
+        output.insert(
+            "end",
+            f"工具版本：V{version_text}\n"
+            f"运行模式："
+            f"{'初始 3 人' if mode_var.get() == 'three' else '完整 7 人'}\n"
+            f"目标存档：1-{concurrent_console_state.result_count}\n"
+            f"同时运行数量：{concurrent_console_state.concurrency}\n"
+            f"循环随机：{'开启' if loop_var.get() else '关闭'}\n\n",
+        )
+        for round_number, round_state in sorted(
+            concurrent_console_rounds.items()
+        ):
+            if loop_var.get():
+                output.insert(
+                    "end",
+                    format_round_heading(round_number) + "\n",
+                )
+            for slot in round_state.visible_slots():
+                progress = round_state.slots[slot]
+                info_tag = f"concurrent-slot-info-{round_number}-{slot}"
+                output.insert("end", "ⓘ", info_tag)
+                output.tag_configure(
+                    info_tag,
+                    foreground="#0563c1",
+                    underline=True,
+                )
+                output.tag_bind(
+                    info_tag,
+                    "<Button-1>",
+                    lambda _event, value=(round_number, slot): (
+                        show_concurrent_slot_detail(*value)
+                    ),
+                )
+                output.tag_bind(
+                    info_tag,
+                    "<Enter>",
+                    lambda _event: output.configure(cursor="hand2"),
+                )
+                output.tag_bind(
+                    info_tag,
+                    "<Leave>",
+                    lambda _event: output.configure(cursor=""),
+                )
+                output.insert("end", " ")
+                if progress.attempt:
+                    output.insert(
+                        "end",
+                        f"存档{slot}　第 {progress.attempt} 次尝试　"
+                        f"{progress.stage}",
+                    )
+                else:
+                    output.insert(
+                        "end",
+                        f"存档{slot}　{progress.stage}",
+                    )
+                output.insert("end", "\n")
+            round_image = concurrent_console_round_images.get(round_number)
+            if (
+                loop_var.get()
+                and round_image is not None
+                and round_image.is_file()
+            ):
+                tag = f"concurrent-result-image-{round_number}"
+                output.insert("end", "点击查看结果图", tag)
+                output.insert("end", "\n\n")
+                output.tag_configure(
+                    tag,
+                    foreground="#0563c1",
+                    underline=True,
+                )
+                output.tag_bind(
+                    tag,
+                    "<Button-1>",
+                    lambda _event, path=round_image: os.startfile(path),
+                )
+                output.tag_bind(
+                    tag,
+                    "<Enter>",
+                    lambda _event: output.configure(cursor="hand2"),
+                )
+                output.tag_bind(
+                    tag,
+                    "<Leave>",
+                    lambda _event: output.configure(cursor=""),
+                )
+        if concurrent_console_footer:
+            output.insert("end", concurrent_console_footer + "\n")
+            final_image = concurrent_console_round_images.get(
+                concurrent_console_active_round
+            )
+            if (
+                final_image is not None
+                and final_image.is_file()
+                and (
+                    not loop_var.get()
+                    or concurrent_console_active_round
+                    not in concurrent_console_rounds
+                )
+            ):
+                tag = "concurrent-final-result-image"
+                output.insert("end", "点击查看结果图", tag)
+                output.insert("end", "\n")
+                output.tag_configure(
+                    tag,
+                    foreground="#0563c1",
+                    underline=True,
+                )
+                output.tag_bind(
+                    tag,
+                    "<Button-1>",
+                    lambda _event, path=final_image: os.startfile(path),
+                )
+                output.tag_bind(
+                    tag,
+                    "<Enter>",
+                    lambda _event: output.configure(cursor="hand2"),
+                )
+                output.tag_bind(
+                    tag,
+                    "<Leave>",
+                    lambda _event: output.configure(cursor=""),
+                )
+        output.see("end")
+        output.configure(state="disabled")
+
     def append_attempt_result(detail: dict) -> None:
         label = str(detail.get("label") or "未知")
         output.configure(state="normal")
@@ -8149,10 +9555,9 @@ def gui_main() -> int:
         if result_image_path is None or not result_image_path.is_file():
             return
         output.configure(state="normal")
-        output.insert("end", "结果图（")
         tag = f"result-link-{output.index('end')}"
-        output.insert("end", "点击打开结果图", tag)
-        output.insert("end", "）\n")
+        output.insert("end", "点击查看结果图", tag)
+        output.insert("end", "\n")
         output.tag_configure(tag, foreground="#0563c1", underline=True)
         output.tag_bind(
             tag,
@@ -8174,12 +9579,11 @@ def gui_main() -> int:
 
     def append_stopped_summary() -> None:
         output.configure(state="normal")
-        output.insert("end", "\n本次流程已停止")
+        output.insert("end", "\n本次流程已停止。\n")
         if result_image_path is not None and result_image_path.is_file():
-            output.insert("end", "，结果图（")
             tag = f"result-link-{output.index('end')}"
-            output.insert("end", "点击打开结果图", tag)
-            output.insert("end", "）。\n")
+            output.insert("end", "点击查看结果图", tag)
+            output.insert("end", "\n")
             output.tag_configure(
                 tag, foreground="#0563c1", underline=True
             )
@@ -8198,8 +9602,6 @@ def gui_main() -> int:
                 "<Leave>",
                 lambda _event: output.configure(cursor=""),
             )
-        else:
-            output.insert("end", "。\n")
         output.see("end")
         output.configure(state="disabled")
 
@@ -8212,36 +9614,145 @@ def gui_main() -> int:
         nonlocal worker, result_image_path, stop_file
         nonlocal stop_requested_by_user, last_formatted_line
         nonlocal running_rule_name, running_rule_snapshot
+        nonlocal active_game_executable, security_blocked_details
+        nonlocal concurrent_console_state, concurrent_console_rounds
+        nonlocal concurrent_console_round_images
+        nonlocal concurrent_console_active_round
+        nonlocal concurrent_console_finished, concurrent_console_footer
+        console_dirty = False
         while True:
             try:
                 line = output_queue.get_nowait()
             except queue.Empty:
                 break
+            display_line = line
+            worker_prefix = ""
+            worker_index: int | None = None
+            event_round: int | None = None
             try:
-                result_detail = decode_result_detail(line)
+                concurrent_event = decode_concurrent_event(line)
+            except (TypeError, ValueError, KeyError, json.JSONDecodeError) as exc:
+                concurrent_event = None
+                diagnostic_log(
+                    "concurrent_event_decode_failed",
+                    line=line[:500],
+                    error=repr(exc),
+                )
+            if concurrent_event is not None:
+                worker_index, event_round, display_line = concurrent_event
+            else:
+                worker_match = re.match(r"^(\[实例 \d+\])\s*(.*)$", line)
+                if worker_match:
+                    worker_prefix = worker_match.group(1) + " "
+                    display_line = worker_match.group(2)
+                    worker_index = int(
+                        re.search(r"\d+", worker_match.group(1)).group()
+                    )
+            try:
+                blocked_event = decode_security_software_blocked_event(
+                    display_line
+                )
+            except (TypeError, ValueError, json.JSONDecodeError) as exc:
+                blocked_event = None
+                diagnostic_log(
+                    "security_software_blocked_event_decode_failed",
+                    line=display_line[:500],
+                    error=repr(exc),
+                )
+            if blocked_event is not None:
+                security_blocked_details = blocked_event
+                continue
+            if (
+                concurrent_console_state is not None
+                and display_line.startswith("兼容模式多实例无法启动")
+            ):
+                for round_state in concurrent_console_rounds.values():
+                    round_state.concurrency = 1
+                concurrent_console_state.concurrency = 1
+                console_dirty = True
+            round_match = re.match(
+                r"^并发轮次开始：第\s*(\d+)\s*轮$",
+                display_line.strip(),
+            )
+            if concurrent_console_state is not None and round_match:
+                concurrent_console_active_round = int(round_match.group(1))
+                concurrent_console_state = (
+                    concurrent_console_rounds.get(
+                        concurrent_console_active_round
+                    )
+                    or ConcurrentConsoleState(
+                        concurrent_console_state.result_count,
+                        concurrent_console_state.concurrency,
+                    )
+                )
+                concurrent_console_rounds[
+                    concurrent_console_active_round
+                ] = concurrent_console_state
+                concurrent_console_footer = ""
+                console_dirty = True
+                continue
+            if (
+                concurrent_console_state is not None
+                and worker_index is not None
+                and not stop_requested_by_user
+                and concurrent_console_rounds.get(
+                    event_round or concurrent_console_active_round,
+                    concurrent_console_state,
+                ).consume_line(
+                    worker_index,
+                    display_line,
+                    history_line=format_user_log(display_line),
+                )
+            ):
+                console_dirty = True
+                continue
+            try:
+                result_detail = decode_result_detail(display_line)
             except (TypeError, ValueError, json.JSONDecodeError) as exc:
                 result_detail = None
                 diagnostic_log(
                     "result_detail_decode_failed",
-                    line=line[:300],
+                    line=display_line[:300],
                     error=repr(exc),
                 )
             if result_detail is not None:
-                append_attempt_result(result_detail)
+                if concurrent_console_state is not None:
+                    if not stop_requested_by_user:
+                        concurrent_console_rounds.get(
+                            event_round or concurrent_console_active_round,
+                            concurrent_console_state,
+                        ).consume_result(result_detail)
+                        console_dirty = True
+                else:
+                    append_attempt_result(result_detail)
                 last_formatted_line = (
                     f"结果：{result_detail.get('label', '未知')}"
                 )
                 continue
-            if line.startswith("本轮总图路径："):
-                candidate = Path(line.split("：", 1)[1].strip())
+            if display_line.startswith("本轮总图路径："):
+                candidate = Path(display_line.split("：", 1)[1].strip())
                 if candidate.is_file() or not loop_var.get():
                     result_image_path = candidate
-            elif "总图已更新：" in line:
-                candidate = Path(line.split("总图已更新：", 1)[1].strip())
+                    if concurrent_console_state is not None:
+                        concurrent_console_round_images[
+                            event_round or concurrent_console_active_round
+                        ] = candidate
+                        console_dirty = True
+            elif "总图已更新：" in display_line:
+                candidate = Path(
+                    display_line.split("总图已更新：", 1)[1].strip()
+                )
                 if candidate.is_file():
                     result_image_path = candidate
-            formatted = format_user_log(line)
+                    if concurrent_console_state is not None:
+                        concurrent_console_round_images[
+                            event_round or concurrent_console_active_round
+                        ] = candidate
+                        console_dirty = True
+            formatted = format_user_log(display_line)
             if formatted:
+                if worker_prefix:
+                    formatted = worker_prefix + formatted
                 if (
                     formatted == "后台游戏已启动"
                     and last_formatted_line.endswith("号存档已保存")
@@ -8252,6 +9763,14 @@ def gui_main() -> int:
         if worker is not None and worker.poll() is not None:
             code = worker.returncode
             worker = None
+            try:
+                cleanup_random_runtime(
+                    active_game_executable or locate_game_executable(),
+                    "gui_worker_exit_cleanup",
+                )
+            except Exception as exc:
+                diagnostic_error("gui_worker_exit_cleanup_failed", exc)
+            active_game_executable = None
             running_rule_name = None
             running_rule_snapshot = None
             action_button.configure(
@@ -8262,21 +9781,44 @@ def gui_main() -> int:
             seven_mode_button.configure(state="normal")
             three_mode_button.configure(state="normal")
             loop_check.configure(state="normal")
+            concurrency_spin.configure(state="normal")
+            compatibility_check.configure(state="normal")
             rule_profile_combo.configure(state="readonly")
             rule_button.configure(state="normal")
+            repair_button.configure(state="normal")
             stopped = stop_requested_by_user or code == 130
-            status.set("已停止" if stopped else ("已完成" if code == 0 else "执行失败"))
-            if stopped:
+            if concurrent_console_state is not None:
+                concurrent_console_finished = stopped or code == 0
+                concurrent_console_footer = (
+                    "本次流程已停止。"
+                    if stopped
+                    else (
+                        "本次流程已完成。"
+                        if code == 0
+                        else "本次流程执行失败，详细信息已写入日志文件。"
+                    )
+                )
+                console_dirty = True
+            elif stopped:
                 append_stopped_summary()
             elif code == 0:
                 append("本次流程已结束。")
                 append_result_link()
+            elif security_blocked_details is not None:
+                append(SECURITY_SOFTWARE_BLOCKED_MESSAGE)
+                show_toast(
+                    root,
+                    SECURITY_SOFTWARE_BLOCKED_MESSAGE,
+                    8000,
+                )
             else:
                 append("本次流程执行失败，详细信息已写入日志文件。")
             if stop_file is not None:
                 stop_file.unlink(missing_ok=True)
                 stop_file = None
             stop_requested_by_user = False
+        if console_dirty and concurrent_console_state is not None:
+            render_concurrent_console()
         root.after(100, poll_worker)
 
     def start() -> None:
@@ -8284,19 +9826,56 @@ def gui_main() -> int:
         nonlocal worker, log_path, result_image_path, stop_file
         nonlocal stop_requested_by_user, last_formatted_line
         nonlocal running_rule_name, running_rule_snapshot
+        nonlocal active_game_executable, security_blocked_details
+        nonlocal concurrent_console_state, concurrent_console_rounds
+        nonlocal concurrent_console_round_images
+        nonlocal concurrent_console_active_round
+        nonlocal concurrent_console_finished, concurrent_console_footer
         if worker is not None:
             return
         try:
             game_executable = locate_game_executable()
             validate_start_environment(game_executable)
+            cleanup_random_runtime(
+                game_executable,
+                "gui_start_cleanup",
+            )
         except Exception as exc:
-            status.set("环境检查未通过")
             messagebox.showerror(
                 "无法开始随机",
                 str(exc),
                 parent=root,
             )
             return
+        try:
+            concurrency = int(concurrency_var.get())
+        except (TypeError, ValueError):
+            messagebox.showwarning(
+                "同时运行数量设置",
+                "同时运行数量必须是大于 0 的整数。",
+                parent=root,
+            )
+            return
+        if concurrency < 1:
+            messagebox.showwarning(
+                "同时运行数量设置",
+                "同时运行数量必须大于 0。",
+                parent=root,
+            )
+            return
+        if not loop_var.get() and concurrency > 15:
+            messagebox.showwarning(
+                "同时运行数量设置",
+                "非循环模式同时运行数量必须位于 1-15；"
+                "循环模式可设置更高数量。",
+                parent=root,
+            )
+            return
+        persist_runtime_settings()
+        compatibility_mode_enabled = bool(
+            compatibility_mode_var.get()
+        )
+        active_game_executable = game_executable
         security_processes = detect_360_security_processes()
         if security_processes:
             show_toast(
@@ -8324,19 +9903,43 @@ def gui_main() -> int:
         result_image_path = None
         stop_requested_by_user = False
         last_formatted_line = ""
-        stamp = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        append(f"\n========== 开始随机：{stamp} ==========")
-        append(
-            "运行模式："
-            + (
-                "只随机初始3人"
-                if mode_var.get() == "three"
-                else "完整7人"
-            )
-        )
-        append("循环随机：" + ("开启" if loop_var.get() else "关闭"))
-        append("环境检查：通过")
+        security_blocked_details = None
         env = os.environ.copy()
+        try:
+            result_count = int(env.get("CCZ_RESULT_COUNT", "15"))
+        except ValueError:
+            result_count = 15
+        result_count = min(15, max(1, result_count))
+        if concurrency > 1:
+            concurrent_console_state = ConcurrentConsoleState(
+                result_count,
+                concurrency,
+            )
+            concurrent_console_rounds = {1: concurrent_console_state}
+            concurrent_console_round_images = {}
+            concurrent_console_active_round = 1
+            concurrent_console_finished = False
+            concurrent_console_footer = ""
+            render_concurrent_console()
+        else:
+            concurrent_console_state = None
+            concurrent_console_rounds = {}
+            concurrent_console_round_images = {}
+            concurrent_console_active_round = 1
+            concurrent_console_finished = False
+            concurrent_console_footer = ""
+            stamp = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            append(f"\n========== 开始随机：{stamp} ==========")
+            append(
+                "运行模式："
+                + (
+                    "只随机初始3人"
+                    if mode_var.get() == "three"
+                    else "完整7人"
+                )
+            )
+            append("循环随机：" + ("开启" if loop_var.get() else "关闭"))
+            append("环境检查：通过")
         stop_file = (
             app_dir()
             / "ccz_fast_logs"
@@ -8349,6 +9952,11 @@ def gui_main() -> int:
         env["CCZ_STOP_FILE"] = str(stop_file)
         env["CCZ_RANDOM_MODE"] = mode_var.get()
         env["CCZ_LOOP_RANDOM"] = "1" if loop_var.get() else "0"
+        env["CCZ_CONCURRENT_MODE"] = "1"
+        env["CCZ_CONCURRENT_COUNT"] = str(concurrency)
+        env["CCZ_COMPATIBILITY_MODE"] = (
+            "1" if compatibility_mode_enabled else "0"
+        )
         env["CCZ_RUN_STAMP"] = dt.datetime.now().strftime(
             "%Y-%m-%d %H.%M.%S"
         )
@@ -8381,28 +9989,82 @@ def gui_main() -> int:
         seven_mode_button.configure(state="disabled")
         three_mode_button.configure(state="disabled")
         loop_check.configure(state="disabled")
+        concurrency_spin.configure(state="disabled")
+        compatibility_check.configure(state="disabled")
         rule_profile_combo.configure(state="disabled")
         rule_button.configure(state="normal")
-        status.set("循环运行中" if loop_var.get() else "运行中")
+        repair_button.configure(state="disabled")
 
     def stop() -> None:
         nonlocal stop_requested_by_user
         if worker is not None and worker.poll() is None:
-            status.set("正在停止……")
+            target_worker = worker
             stop_requested_by_user = True
             action_button.configure(state="disabled")
+            for round_state in concurrent_console_rounds.values():
+                round_state.mark_stopped()
+            if concurrent_console_state is not None:
+                render_concurrent_console()
             if stop_file is not None:
                 stop_file.write_text("stop", encoding="ascii")
+            root.after(
+                50000,
+                lambda: force_stop_worker(target_worker),
+            )
+
+    def force_stop_worker(target_worker: subprocess.Popen[str]) -> None:
+        if worker is not target_worker or target_worker.poll() is not None:
+            return
+        target_worker.terminate()
+        try:
+            target_worker.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            target_worker.kill()
+            target_worker.wait(timeout=5)
+        try:
+            cleanup_random_runtime(
+                active_game_executable or locate_game_executable(),
+                "gui_forced_stop_cleanup",
+            )
+        except Exception as exc:
+            diagnostic_error("gui_forced_stop_cleanup_failed", exc)
 
     def close() -> None:
+        try:
+            save_random_runtime_settings(
+                app_dir(),
+                loop_random=bool(loop_var.get()),
+                concurrency=int(concurrency_var.get()),
+                compatibility_mode=bool(compatibility_mode_var.get()),
+            )
+        except (OSError, ValueError, TypeError, tk.TclError):
+            pass
         if worker is not None and worker.poll() is None:
             if not messagebox.askyesno("确认退出", "随机仍在运行，确定停止并退出吗？"):
                 return
-            worker.terminate()
+            if stop_file is not None:
+                stop_file.write_text("stop", encoding="ascii")
+            try:
+                worker.wait(timeout=50)
+            except subprocess.TimeoutExpired:
+                worker.terminate()
+                try:
+                    worker.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    worker.kill()
+                    worker.wait(timeout=5)
+        try:
+            cleanup_random_runtime(
+                active_game_executable or locate_game_executable(),
+                "gui_close_cleanup",
+            )
+        except Exception as exc:
+            diagnostic_error("gui_close_cleanup_failed", exc)
         root.destroy()
 
     action_button.configure(command=start)
     rule_button.configure(command=open_rule_editor)
+    repair_button.configure(command=open_repair_dialog)
     rule_profile_combo.bind("<<ComboboxSelected>>", select_rule_profile)
     root.protocol("WM_DELETE_WINDOW", close)
     if rule_load.warning:
@@ -8430,21 +10092,61 @@ def gui_main() -> int:
 def main() -> int:
     global RESULT_BASE_DIR, DIAGNOSTIC_LOG_PATH, DIAGNOSTIC_LOG_WRITER
     global DIAGNOSTIC_SUMMARY_PATH, STOP_FILE_PATH
-    load_media_modules()
-    RESULT_BASE_DIR = app_dir()
-    stop_file_value = os.environ.get("CCZ_STOP_FILE", "")
-    stop_file = Path(stop_file_value) if stop_file_value else None
-    STOP_FILE_PATH = stop_file
-
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     if hasattr(sys.stderr, "reconfigure"):
         sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    if os.environ.get("CCZ_CONCURRENT_WORKER"):
+        start_concurrent_worker_heartbeat(sys.stdout)
+    load_media_modules()
+    if (
+        os.environ.get("CCZ_CONCURRENT_MODE") == "1"
+        and os.environ.get("CCZ_CONCURRENT_WORKER") is None
+    ):
+        game_executable = locate_game_executable()
+        result_count = int(os.environ.get("CCZ_RESULT_COUNT", "15"))
+        mode = os.environ.get("CCZ_RANDOM_MODE", "seven")
+        worker_count = int(os.environ.get("CCZ_CONCURRENT_COUNT", "2"))
+        stop_file_value = os.environ.get("CCZ_STOP_FILE", "")
+        return run_concurrent_workers(
+            game_executable=game_executable,
+            result_count=result_count,
+            mode=mode,
+            stop_file=Path(stop_file_value) if stop_file_value else None,
+            base_dir=app_dir(),
+            worker_count=worker_count,
+            loop_random=os.environ.get("CCZ_LOOP_RANDOM") == "1",
+            compatibility_mode=(
+                os.environ.get("CCZ_COMPATIBILITY_MODE") == "1"
+            ),
+        )
+    configured_result_base = os.environ.get("CCZ_RESULT_BASE_DIR", "").strip()
+    RESULT_BASE_DIR = (
+        Path(configured_result_base)
+        if configured_result_base
+        else app_dir()
+    )
+    stop_file_value = os.environ.get("CCZ_STOP_FILE", "")
+    stop_file = Path(stop_file_value) if stop_file_value else None
+    STOP_FILE_PATH = stop_file
+
     app = app_dir()
-    log_dir = app / "ccz_fast_logs"
+    log_base = os.environ.get("CCZ_LOG_BASE_DIR", "").strip()
+    log_dir = (
+        Path(log_base) / "ccz_fast_logs"
+        if log_base
+        else app / "ccz_fast_logs"
+    )
     log_dir.mkdir(parents=True, exist_ok=True)
     cleanup_result = cleanup_log_directory(log_dir)
-    log_path = log_dir / f"fast_{dt.datetime.now():%Y%m%d_%H%M%S}.log"
+    worker_suffix = (
+        f"_worker{os.environ['CCZ_CONCURRENT_WORKER']}"
+        if os.environ.get("CCZ_CONCURRENT_WORKER")
+        else ""
+    )
+    log_path = log_dir / (
+        f"fast_{dt.datetime.now():%Y%m%d_%H%M%S}{worker_suffix}.log"
+    )
     DIAGNOSTIC_LOG_PATH = log_path.with_name(
         f"{log_path.stem}_diagnostic.jsonl"
     )
@@ -8469,9 +10171,8 @@ def main() -> int:
     print("游戏将在独立后台桌面运行，不会占用当前鼠标或抢前台。")
     three_person_mode = os.environ.get("CCZ_RANDOM_MODE") == "three"
     loop_random = os.environ.get("CCZ_LOOP_RANDOM") == "1"
-    helper_script_target: Path | None = None
-    helper_script_backup: bytes | None = None
-    helper_script_existed = False
+    script_guard: S00ScriptGuard | None = None
+    scratch_guard: ScratchSaveGuard | None = None
     requested_run_stamp = os.environ.get(
         "CCZ_RUN_STAMP",
         dt.datetime.now().strftime("%Y-%m-%d %H.%M.%S"),
@@ -8505,6 +10206,18 @@ def main() -> int:
     print(f"当前规则：{rules['activeProfile']}")
     if rule_load.warning:
         print(f"规则提示：{rule_load.warning}")
+    state_base = os.environ.get("CCZ_STATE_BASE_DIR", "").strip()
+    history_repository = HistoryRepository(
+        Path(state_base) if state_base else app
+    )
+    history_repository.start_run(
+        run_id,
+        mode="three" if three_person_mode else "seven",
+        loop_random=loop_random,
+        rule_name=rules["activeProfile"],
+        rule=active_rule_snapshot,
+        build=build_info,
+    )
     environment = environment_diagnostic(app, log_dir, tempfile.gettempdir())
     diagnostic_log(
         "worker_start",
@@ -8548,38 +10261,56 @@ def main() -> int:
     try:
         update_diagnostic_context(phase="environment_check")
         game_executable = locate_game_executable()
+        game_dir = runtime_game_directory(game_executable)
+        original_script = bundled_original_s00()
+        helper_script = bundled_random_s00()
+        if not original_script.is_file() or not helper_script.is_file():
+            raise FileNotFoundError("工具内缺少 S_00.eex 保护文件")
+        script_guard = S00ScriptGuard(
+            game_dir,
+            original_script,
+            helper_script,
+        )
+        scratch_guard = ScratchSaveGuard(game_dir)
+        scratch_recovered = scratch_guard.prepare()
+        diagnostic_log(
+            "worker_start_scratch_save_repair",
+            transaction_recovered=scratch_recovered,
+            target=file_diagnostic(scratch_guard.target),
+        )
+        repair_result = script_guard.prepare()
+        diagnostic_log(
+            "worker_start_s00_repair",
+            active_script_repaired=repair_result.active_script_repaired,
+            stale_helper_replaced=(
+                repair_result.stale_helper_replaced
+            ),
+            transaction_recovered=repair_result.transaction_recovered,
+            root=file_diagnostic(game_dir / "S_00.eex"),
+            override=file_diagnostic(
+                game_dir / "RS" / "S_00.eex"
+            ),
+        )
         diagnostic_log(
             "runtime_files_ready",
             game_executable=file_diagnostic(game_executable),
+            game_runtime_directory=str(game_dir),
             injector=file_diagnostic(native_dir() / "ccz_injector.exe"),
             control_dll=file_diagnostic(native_dir() / "ccz_control.dll"),
             source_bundle=str(bundle_root()),
         )
         if os.environ.get("CCZ_AUTOSTART") != "1":
             input("按回车启动静默测试...")
-        source_save = game_executable.parent / "SV" / "SV020.E5S"
+        source_save = game_dir / "SV" / "SV020.E5S"
         if not source_save.is_file():
             raise FileNotFoundError(
                 "未找到第 20 号源存档 SV020.E5S"
             )
         if not three_person_mode:
-            helper_script = bundled_random_s00()
-            if not helper_script.is_file():
-                raise FileNotFoundError("工具内缺少七人流程辅助文件")
-            helper_script_target = (
-                game_executable.parent / "RS" / "S_00.eex"
-            )
-            helper_script_target.parent.mkdir(parents=True, exist_ok=True)
-            helper_script_existed = helper_script_target.is_file()
-            helper_script_backup = (
-                helper_script_target.read_bytes()
-                if helper_script_existed
-                else None
-            )
-            shutil.copyfile(helper_script, helper_script_target)
+            script_guard.install()
             diagnostic_log(
                 "main_session_helper_script_installed",
-                target=file_diagnostic(helper_script_target),
+                target=file_diagnostic(script_guard.override_target),
                 helper=file_diagnostic(helper_script),
             )
         source_hash = hashlib.sha256(source_save.read_bytes()).hexdigest()
@@ -8599,6 +10330,29 @@ def main() -> int:
             if loop_random
             else int(os.environ.get("CCZ_RESULT_COUNT", "15"))
         )
+        result_slot_start = int(
+            os.environ.get("CCZ_RESULT_SLOT_START", "1")
+        )
+        result_slot_list = os.environ.get(
+            "CCZ_CONCURRENT_SLOT_LIST",
+            "",
+        ).strip()
+        result_slots = (
+            tuple(
+                int(slot.strip())
+                for slot in result_slot_list.split(",")
+                if slot.strip()
+            )
+            if result_slot_list
+            else None
+        )
+        progress_total = int(
+            os.environ.get("CCZ_TOTAL_RESULT_COUNT", str(result_count))
+        )
+        if result_slot_start < 1 or (
+            result_slot_start + result_count - 1 > 15
+        ):
+            raise ValueError("并发结果槽位必须位于第 1-15 号范围内")
         game: HiddenGameSession | None = None
         compatibility_restart_mode = False
         consecutive_normal_reload_failures = 0
@@ -8616,6 +10370,7 @@ def main() -> int:
                 game_executable,
                 restarted=restarted,
                 announce=announce,
+                working_directory=game_dir,
             )
             session.__enter__()
             check_stop_requested()
@@ -8639,6 +10394,7 @@ def main() -> int:
                     session.pid,
                     three_person_mode=three_person_mode,
                     rules=rules,
+                    game_executable=game_dir / GAME_EXE_NAME,
                 )
             except BaseException as exc:
                 if isinstance(exc, Exception):
@@ -8676,6 +10432,10 @@ def main() -> int:
                 postprocess_issues: dict[int, list[str]] = {}
                 attempt_started_at: dict[tuple[int, int], float] = {}
                 round_started_at = dt.datetime.now()
+                history_round_id = history_repository.start_round(
+                    run_id,
+                    round_number,
+                )
                 if loop_random:
                     ensure_loop_disk_space(app)
                     workspace = prepare_round_workspace(
@@ -8719,7 +10479,7 @@ def main() -> int:
                         return None
                     target = finalize_round(
                         workspace,
-                        save_dir=game_executable.parent / "SV",
+                        save_dir=game_dir / "SV",
                         completed_slots=expected_results,
                         metadata=round_metadata(dt.datetime.now()),
                         complete=False,
@@ -8889,18 +10649,17 @@ def main() -> int:
                         )
                         diagnostic_log(
                             "attempt_started",
-                            result_count=result_count,
+                            result_count=progress_total,
                         )
                         print(
                             f"========== 结果 {result_slot}/"
-                            f"{result_count}，原生随机第 "
+                            f"{progress_total}，原生随机第 "
                             f"{round_index} 轮 =========="
                         )
 
                     def accepted_result(
                         result: AcceptedResult,
                     ) -> None:
-                        check_stop_requested()
                         update_diagnostic_context(
                             phase="accepted_postprocess",
                             result_slot=result.result_slot,
@@ -8908,16 +10667,14 @@ def main() -> int:
                         )
                         runner = result.payload
                         result_slot = result.result_slot
-                        expected_results[result_slot] = (
-                            tuple(runner._r0_job_ids),
-                            tuple(runner._r0_initial_three),
-                        )
+                        expected_results[result_slot] = True
+                        check_stop_requested()
                         diagnostic_log(
                             "result_committed",
                             result_slot=result_slot,
                             round_index=result.round_index,
                             save_path=(
-                                game_executable.parent
+                                game_dir
                                 / "SV"
                                 / f"SV{result_slot:03}.E5S"
                             ),
@@ -8925,9 +10682,37 @@ def main() -> int:
                         equip_info = runner.collect_equipment()
                         check_stop_requested()
                         panel_paths[result_slot] = save_result_image(
-                            runner, equip_info, result_slot
+                            runner,
+                            equip_info,
+                            result_slot,
                         )
                         current_grid = compose_result_grid(panel_paths)
+                        check_stop_requested()
+                        save_path = (
+                            game_dir
+                            / "SV"
+                            / f"SV{result_slot:03}.E5S"
+                        )
+                        try:
+                            snapshot = build_history_result_snapshot(
+                                runner,
+                                result_slot=result_slot,
+                                accepted_attempt=result.round_index,
+                                round_number=round_number,
+                                equip_info=equip_info,
+                                save_path=save_path,
+                            )
+                            history_repository.save_result(
+                                history_round_id,
+                                snapshot,
+                            )
+                        except Exception as history_exc:
+                            diagnostic_error(
+                                "history_result_write_failed",
+                                history_exc,
+                                game=game,
+                                result_slot=result_slot,
+                            )
                         check_stop_requested()
                         print(
                             f"第 {result_slot} 号结果图已生成，"
@@ -8938,6 +10723,7 @@ def main() -> int:
                             result_slot=result_slot,
                             panel_path=panel_paths[result_slot],
                             grid_path=current_grid,
+                            history_round_id=history_round_id,
                         )
 
                     def accepted_result_error(
@@ -8963,7 +10749,8 @@ def main() -> int:
                         try:
                             panel_paths[result_slot] = (
                                 save_result_failure_image(
-                                    result_slot, str(exc)
+                                    result_slot,
+                                    str(exc),
                                 )
                             )
                             compose_result_grid(panel_paths)
@@ -9062,6 +10849,8 @@ def main() -> int:
                         on_attempt_error=attempt_error,
                         on_attempt_finished=attempt_finished,
                         check_stop=check_stop_requested,
+                        result_slot_start=result_slot_start,
+                        result_slots=result_slots,
                     )
                     if panel_paths:
                         print(
@@ -9076,162 +10865,49 @@ def main() -> int:
                         raise RuntimeError(
                             "第 20 号源存档在随机过程中被修改"
                         )
-
-                    verify_on_title = False
-
-                    def verify_saved_result(
-                        output_slot: int,
-                        expected_jobs: tuple[int, ...],
-                        expected_initial_three: tuple[int, ...],
-                    ) -> tuple[int, ...]:
-                        nonlocal game, verify_on_title
-                        update_diagnostic_context(
-                            phase="saved_result_verification",
-                            result_slot=output_slot,
-                            attempt=None,
-                        )
-                        saved_path = (
-                            game_executable.parent
-                            / "SV"
-                            / f"SV{output_slot:03}.E5S"
-                        )
-                        for recovery_attempt in range(2):
-                            check_stop_requested()
-                            try:
-                                if verify_on_title:
-                                    loaded = title_load_verified(
-                                        game.pid,
-                                        output_slot - 1,
-                                        saved_path,
-                                    )
-                                    verify_on_title = False
-                                else:
-                                    verifier = task_module.CczReRandTask(0)
-                                    loaded = normal_load_verified(
-                                        game.pid,
-                                        game.main_window,
-                                        output_slot,
-                                        saved_path,
-                                        verifier.loadAndConfirm,
-                                    )
-                                if not loaded:
-                                    raise RuntimeError(
-                                        f"第 {output_slot} 号存档"
-                                        "回读时未能完成后台读取"
-                                    )
-
-                                initial_three = read_job_ids(
-                                    game.pid, JOB_POSITIONS_R0
-                                )
-                                reloaded_jobs = (
-                                    read_job_ids(
-                                        game.pid, JOB_POSITIONS_R1
-                                    )
-                                    if not three_person_mode
-                                    else initial_three
-                                )
-                                validate_reloaded_jobs(
-                                    output_slot=output_slot,
-                                    expected_jobs=expected_jobs,
-                                    expected_initial_three=(
-                                        expected_initial_three
-                                    ),
-                                    reloaded_jobs=reloaded_jobs,
-                                    initial_three=initial_three,
-                                    three_person_mode=three_person_mode,
-                                )
-                                return reloaded_jobs
-                            except Exception as exc:
-                                check_stop_requested()
-                                if (
-                                    recovery_attempt == 0
-                                    and session_failure_requires_restart(
-                                        game, exc
-                                    )
-                                ):
-                                    diagnostic_error(
-                                        "verify_session_recovery",
-                                        exc,
-                                        game=game,
-                                        pid=game.pid,
-                                        output_slot=output_slot,
-                                        loop_round=(
-                                            round_number
-                                            if loop_random
-                                            else None
-                                        ),
-                                    )
-                                    print(
-                                        "后台游戏校验异常，"
-                                        "正在自动重新启动……"
-                                    )
-                                    check_stop_requested()
-                                    close_game_session(game)
-                                    check_stop_requested()
-                                    game = start_game_session(
-                                        restarted=True
-                                    )
-                                    verify_on_title = True
-                                    continue
-                                raise
-                        raise RuntimeError(
-                            "后台游戏恢复后仍无法完成回读校验"
-                        )
-
-                    for output_slot, (
-                        expected_jobs,
-                        expected_initial_three,
-                    ) in expected_results.items():
-                        check_stop_requested()
-                        try:
-                            reloaded_jobs = verify_saved_result(
-                                output_slot,
-                                expected_jobs,
-                                expected_initial_three,
-                            )
-                        except Exception as exc:
-                            issue = f"回读复查失败：{exc}"
-                            postprocess_issues.setdefault(
-                                output_slot, []
-                            ).append(issue)
-                            diagnostic_error(
-                                "saved_result_verification_failed",
-                                exc,
-                                game=game,
-                                output_slot=output_slot,
-                            )
-                            print(
-                                f"第 {output_slot} 号存档已保存，"
-                                "但回读复查失败；存档将保留"
-                            )
-                            continue
-
-                        print(
-                            f"第 {output_slot} 号存档回读校验通过："
-                            f"{reloaded_jobs}"
-                        )
-                        diagnostic_log(
-                            "saved_result_verification_completed",
-                            output_slot=output_slot,
-                            reloaded_jobs=reloaded_jobs,
+                    if not loop_random:
+                        history_repository.finish_round(
+                            history_round_id,
+                            "completed",
                         )
                 except KeyboardInterrupt:
+                    history_repository.finish_round(
+                        history_round_id,
+                        "stopped",
+                    )
                     archive_incomplete_round()
+                    raise
+                except Exception:
+                    history_repository.finish_round(
+                        history_round_id,
+                        "failed",
+                    )
                     raise
 
                 if not loop_random:
                     break
 
                 assert workspace is not None
-                completed_dir = finalize_round(
-                    workspace,
-                    save_dir=game_executable.parent / "SV",
-                    completed_slots=expected_results,
-                    metadata=round_metadata(dt.datetime.now()),
-                    complete=True,
-                )
+                try:
+                    completed_dir = finalize_round(
+                        workspace,
+                        save_dir=game_dir / "SV",
+                        completed_slots=expected_results,
+                        metadata=round_metadata(dt.datetime.now()),
+                        complete=True,
+                    )
+                except Exception:
+                    history_repository.finish_round(
+                        history_round_id,
+                        "failed",
+                    )
+                    raise
                 assert completed_dir is not None
                 final_grid = relocate_result_output(completed_dir)
+                history_repository.finish_round(
+                    history_round_id,
+                    "completed",
+                )
                 print(
                     f"循环轮次完成：第 {round_number} 轮已完成，"
                     "共保存15个存档"
@@ -9252,12 +10928,11 @@ def main() -> int:
                 print(
                     f"{result_count} 个结果存档已全部保存；"
                     f"其中 {len(postprocess_issues)} 个存档的"
-                    "结果图或回读复查存在异常，详情请查看日志。"
+                    "结果图存在异常，详情请查看日志。"
                 )
             else:
-                print(
-                    f"{result_count} 个结果存档全部生成并通过回读校验。"
-                )
+                print(f"{result_count} 个结果存档已全部保存。")
+        history_repository.finish_run(run_id, "completed")
         update_diagnostic_summary(
             status="completed",
             completed_results=len(expected_results),
@@ -9265,38 +10940,79 @@ def main() -> int:
         )
         return 0
     except KeyboardInterrupt:
+        history_repository.finish_run(run_id, "stopped")
         update_diagnostic_context(phase="stopped")
         diagnostic_log("worker_stopped", reason="keyboard_interrupt")
         update_diagnostic_summary(status="stopped")
         print("测试已中断。")
         return 130
     except Exception as exc:
+        history_repository.finish_run(run_id, "failed")
         update_diagnostic_context(phase="worker_failed")
-        diagnostic_error("worker_failed", exc, game=locals().get("game"))
+        blocked_details = security_software_block_details(exc)
+        diagnostic_error(
+            "worker_failed",
+            exc,
+            game=locals().get("game"),
+            security_software_blocked=blocked_details is not None,
+            blocked_paths=(
+                blocked_details.get("paths", [])
+                if blocked_details is not None
+                else []
+            ),
+        )
         if isinstance(exc, NativeControlError):
             for message_line in str(exc).splitlines():
                 if message_line.strip():
                     print(f"环境处理提示：{message_line}")
-        traceback.print_exc()
+        report_worker_exception(exc, log_file, blocked_details)
         return 1
     finally:
         update_diagnostic_context(phase="worker_exit")
-        if helper_script_target is not None:
+        game_executable_for_cleanup = locals().get("game_executable")
+        if isinstance(game_executable_for_cleanup, Path):
             try:
-                if helper_script_existed:
-                    assert helper_script_backup is not None
-                    helper_script_target.write_bytes(helper_script_backup)
-                else:
-                    helper_script_target.unlink(missing_ok=True)
+                terminated_pids = terminate_random_game_instances(
+                    game_executable_for_cleanup
+                )
+                diagnostic_log(
+                    "worker_exit_game_cleanup",
+                    terminated_random_pids=terminated_pids,
+                )
+            except Exception as cleanup_exc:
+                diagnostic_error(
+                    "worker_exit_game_cleanup_failed",
+                    cleanup_exc,
+                )
+        if script_guard is not None:
+            try:
+                script_guard.restore()
                 diagnostic_log(
                     "main_session_helper_script_restored",
-                    target=str(helper_script_target),
+                    target=str(script_guard.override_target),
+                    root=file_diagnostic(
+                        script_guard.game_dir / "S_00.eex"
+                    ),
                 )
             except Exception as restore_exc:
                 diagnostic_error(
                     "main_session_helper_script_restore_failed",
                     restore_exc,
-                    target=str(helper_script_target),
+                    target=str(script_guard.override_target),
+                )
+        if scratch_guard is not None:
+            try:
+                recovered = scratch_guard.restore()
+                diagnostic_log(
+                    "worker_exit_scratch_save_restored",
+                    transaction_recovered=recovered,
+                    target=str(scratch_guard.target),
+                )
+            except Exception as restore_exc:
+                diagnostic_error(
+                    "worker_exit_scratch_save_restore_failed",
+                    restore_exc,
+                    target=str(scratch_guard.target),
                 )
         diagnostic_log("worker_exit")
         clear_diagnostic_context(
@@ -9306,7 +11022,10 @@ def main() -> int:
             "attempt",
             "recovery_attempt",
         )
-        if stop_file is not None:
+        if (
+            stop_file is not None
+            and os.environ.get("CCZ_CONCURRENT_WORKER") is None
+        ):
             stop_file.unlink(missing_ok=True)
         STOP_FILE_PATH = None
         if os.environ.get("CCZ_NO_PAUSE") != "1":
@@ -9409,6 +11128,16 @@ def run_cli() -> int:
         if not catalog:
             return 1
         return 0
+    if "--smoke-changelog" in sys.argv:
+        version = str(application_build_info().get("version", "")).strip()
+        return (
+            0
+            if any(
+                str(entry.get("version", "")) == version
+                for entry in application_changelog()
+            )
+            else 1
+        )
     if "--inspect-initial-slot" in sys.argv:
         slot_index = sys.argv.index("--inspect-initial-slot")
         output_index = sys.argv.index("--inspect-output")

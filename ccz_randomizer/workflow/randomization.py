@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, Generic, TypeVar
+from typing import Callable, Generic, Sequence, TypeVar
 
 
 T = TypeVar("T")
+MAX_RESULT_SLOTS = 15
 
 
 @dataclass(frozen=True)
@@ -40,10 +41,38 @@ def run_random_workflow(
         Callable[[int, int, AttemptResult[T]], None] | None
     ) = None,
     check_stop: Callable[[], None] | None = None,
+    result_slot_start: int = 1,
+    result_slots: Sequence[int] | None = None,
 ) -> list[AcceptedResult[T]]:
     """Run the result/attempt state machine without depending on the game."""
     if result_count < 1:
         raise ValueError("result_count must be at least 1")
+    if result_count > MAX_RESULT_SLOTS:
+        raise ValueError(
+            f"result_count must not exceed {MAX_RESULT_SLOTS}"
+        )
+    if result_slots is None:
+        if result_slot_start < 1 or (
+            result_slot_start + result_count - 1 > MAX_RESULT_SLOTS
+        ):
+            raise ValueError("result slot range must stay within 1-15")
+        slots = tuple(
+            range(
+                result_slot_start,
+                result_slot_start + result_count,
+            )
+        )
+    else:
+        slots = tuple(int(slot) for slot in result_slots)
+        if len(slots) != result_count:
+            raise ValueError("result_slots must match result_count")
+        if len(set(slots)) != len(slots):
+            raise ValueError("result_slots must not contain duplicates")
+        if any(
+            slot < 1 or slot > MAX_RESULT_SLOTS
+            for slot in slots
+        ):
+            raise ValueError("result slots must stay within 1-15")
     if max_attempts < 1:
         raise ValueError("max_attempts must be at least 1")
 
@@ -51,7 +80,7 @@ def run_random_workflow(
     source_loaded = False
     stop_check = check_stop or (lambda: None)
 
-    for result_slot in range(1, result_count + 1):
+    for result_slot in slots:
         stop_check()
         for round_index in range(1, max_attempts + 1):
             stop_check()
@@ -65,8 +94,9 @@ def run_random_workflow(
                         round_index,
                         source_loaded,
                     )
-                    stop_check()
                     source_loaded = attempt.source_loaded
+                    if not attempt.accepted:
+                        stop_check()
                     break
                 except Exception as exc:
                     stop_check()
@@ -93,7 +123,8 @@ def run_random_workflow(
                 raise RuntimeError("后台游戏恢复后仍无法继续随机")
 
             if on_attempt_finished is not None:
-                stop_check()
+                if not attempt.accepted:
+                    stop_check()
                 on_attempt_finished(result_slot, round_index, attempt)
             if attempt.accepted:
                 accepted = AcceptedResult(
@@ -103,7 +134,6 @@ def run_random_workflow(
                 )
                 accepted_results.append(accepted)
                 if on_accepted is not None:
-                    stop_check()
                     try:
                         on_accepted(accepted)
                         stop_check()

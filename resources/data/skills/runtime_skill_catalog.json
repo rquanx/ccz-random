@@ -1,0 +1,1661 @@
+[
+  {
+    "id": 0,
+    "name": "每回合恢复HP20%",
+    "baseName": "每回合恢复HP",
+    "formatType": 4,
+    "parameter": 20
+  },
+  {
+    "id": 1,
+    "name": "每回合恢复MP8",
+    "baseName": "每回合恢复MP",
+    "formatType": 5,
+    "parameter": 8
+  },
+  {
+    "id": 2,
+    "name": "每回合恢复状态",
+    "baseName": "每回合恢复状态",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 3,
+    "name": "每回合获得exp+10",
+    "baseName": "每回合获得exp",
+    "formatType": 1,
+    "parameter": 10
+  },
+  {
+    "id": 4,
+    "name": "每回合武器exp+8",
+    "baseName": "每回合武器exp",
+    "formatType": 1,
+    "parameter": 8
+  },
+  {
+    "id": 5,
+    "name": "每回合护具exp+8",
+    "baseName": "每回合护具exp",
+    "formatType": 1,
+    "parameter": 8
+  },
+  {
+    "id": 6,
+    "name": "破坏攻击",
+    "baseName": "破坏攻击",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 7,
+    "name": "破坏防御",
+    "baseName": "破坏防御",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 8,
+    "name": "破坏精神",
+    "baseName": "破坏精神",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 9,
+    "name": "破坏爆发",
+    "baseName": "破坏爆发",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 10,
+    "name": "破坏士气",
+    "baseName": "破坏士气",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 11,
+    "name": "破坏移动",
+    "baseName": "破坏移动",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 12,
+    "name": "随机状态攻击",
+    "baseName": "随机状态攻击",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 13,
+    "name": "麻痹攻击60%",
+    "baseName": "麻痹攻击",
+    "formatType": 4,
+    "parameter": 60
+  },
+  {
+    "id": 14,
+    "name": "禁咒攻击100%",
+    "baseName": "禁咒攻击",
+    "formatType": 4,
+    "parameter": 100
+  },
+  {
+    "id": 15,
+    "name": "混乱攻击50%",
+    "baseName": "混乱攻击",
+    "formatType": 4,
+    "parameter": 50
+  },
+  {
+    "id": 16,
+    "name": "中毒攻击100%",
+    "baseName": "中毒攻击",
+    "formatType": 4,
+    "parameter": 100
+  },
+  {
+    "id": 17,
+    "name": "随机属性攻击",
+    "baseName": "随机属性攻击",
+    "formatType": 0,
+    "parameter": 60
+  },
+  {
+    "id": 18,
+    "name": "反弹异常攻击",
+    "baseName": "反弹异常攻击",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 19,
+    "name": "反弹伤害60%",
+    "baseName": "反弹伤害",
+    "formatType": 4,
+    "parameter": 60
+  },
+  {
+    "id": 20,
+    "name": "吸血攻击40%",
+    "baseName": "吸血攻击",
+    "formatType": 4,
+    "parameter": 40
+  },
+  {
+    "id": 21,
+    "name": "吸收金钱",
+    "baseName": "吸收金钱",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 22,
+    "name": "破甲攻击25%",
+    "baseName": "破甲攻击",
+    "formatType": 4,
+    "parameter": 25
+  },
+  {
+    "id": 23,
+    "name": "奋战攻击",
+    "baseName": "奋战攻击",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 24,
+    "name": "引导攻击",
+    "baseName": "引导攻击",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 25,
+    "name": "冲锋攻击+6%",
+    "baseName": "冲锋攻击",
+    "formatType": 2,
+    "parameter": 6
+  },
+  {
+    "id": 26,
+    "name": "先手攻击",
+    "baseName": "先手攻击",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 27,
+    "name": "策略绝对命中",
+    "baseName": "策略绝对命中",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 28,
+    "name": "提升策略命中+20%",
+    "baseName": "提升策略命中",
+    "formatType": 2,
+    "parameter": 20
+  },
+  {
+    "id": 29,
+    "name": "辅助策略格挡+40%",
+    "baseName": "辅助策略格挡",
+    "formatType": 2,
+    "parameter": 40
+  },
+  {
+    "id": 30,
+    "name": "攻击绝对命中",
+    "baseName": "攻击绝对命中",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 31,
+    "name": "辅助攻击命中+20%",
+    "baseName": "辅助攻击命中",
+    "formatType": 2,
+    "parameter": 20
+  },
+  {
+    "id": 32,
+    "name": "辅助攻击格挡+24%",
+    "baseName": "辅助攻击格挡",
+    "formatType": 2,
+    "parameter": 24
+  },
+  {
+    "id": 33,
+    "name": "辅助全格挡+18%",
+    "baseName": "辅助全格挡",
+    "formatType": 2,
+    "parameter": 18
+  },
+  {
+    "id": 34,
+    "name": "减轻远距损伤-50%",
+    "baseName": "减轻远距损伤",
+    "formatType": 3,
+    "parameter": 50
+  },
+  {
+    "id": 35,
+    "name": "减轻物理损伤-30%",
+    "baseName": "减轻物理损伤",
+    "formatType": 3,
+    "parameter": 30
+  },
+  {
+    "id": 36,
+    "name": "集气加倍",
+    "baseName": "集气加倍",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 37,
+    "name": "反击后反击",
+    "baseName": "反击后反击",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 38,
+    "name": "无反击攻击",
+    "baseName": "无反击攻击",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 39,
+    "name": "妨碍策略增伤25%",
+    "baseName": "妨碍策略增伤",
+    "formatType": 4,
+    "parameter": 25
+  },
+  {
+    "id": 40,
+    "name": "元素策略增伤25%",
+    "baseName": "元素策略增伤",
+    "formatType": 4,
+    "parameter": 25
+  },
+  {
+    "id": 41,
+    "name": "减轻策略损伤-40%",
+    "baseName": "减轻策略损伤",
+    "formatType": 3,
+    "parameter": 40
+  },
+  {
+    "id": 42,
+    "name": "策略无视天气",
+    "baseName": "策略无视天气",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 43,
+    "name": "策略无视地形",
+    "baseName": "策略无视地形",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 44,
+    "name": "仇恨攻击+12%",
+    "baseName": "仇恨攻击",
+    "formatType": 2,
+    "parameter": 12
+  },
+  {
+    "id": 45,
+    "name": "策略模仿",
+    "baseName": "策略模仿",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 46,
+    "name": "节约MP-40%",
+    "baseName": "节约MP",
+    "formatType": 3,
+    "parameter": 40
+  },
+  {
+    "id": 47,
+    "name": "防御远距攻击",
+    "baseName": "防御远距攻击",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 48,
+    "name": "防御特殊攻击",
+    "baseName": "防御特殊攻击",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 49,
+    "name": "物理免疫",
+    "baseName": "物理免疫",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 50,
+    "name": "MP防御",
+    "baseName": "MP防御",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 51,
+    "name": "致命一击",
+    "baseName": "致命一击",
+    "formatType": 0,
+    "parameter": 3
+  },
+  {
+    "id": 52,
+    "name": "主动连击",
+    "baseName": "主动连击",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 53,
+    "name": "双枪攻击",
+    "baseName": "双枪攻击",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 54,
+    "name": "穿越移动",
+    "baseName": "穿越移动",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 55,
+    "name": "突击移动",
+    "baseName": "突击移动",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 56,
+    "name": "二次行动",
+    "baseName": "二次行动",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 57,
+    "name": "唯我独尊",
+    "baseName": "唯我独尊",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 58,
+    "name": "策略连击",
+    "baseName": "策略连击",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 59,
+    "name": "同仇敌忾2",
+    "baseName": "同仇敌忾",
+    "formatType": 5,
+    "parameter": 2
+  },
+  {
+    "id": 60,
+    "name": "众志成城6%",
+    "baseName": "众志成城",
+    "formatType": 4,
+    "parameter": 6
+  },
+  {
+    "id": 61,
+    "name": "神魔附体4",
+    "baseName": "神魔附体",
+    "formatType": 5,
+    "parameter": 4
+  },
+  {
+    "id": 62,
+    "name": "骑马攻击35%",
+    "baseName": "骑马攻击",
+    "formatType": 4,
+    "parameter": 35
+  },
+  {
+    "id": 63,
+    "name": "步兵攻击35%",
+    "baseName": "步兵攻击",
+    "formatType": 4,
+    "parameter": 35
+  },
+  {
+    "id": 64,
+    "name": "骑马防御35%",
+    "baseName": "骑马防御",
+    "formatType": 4,
+    "parameter": 35
+  },
+  {
+    "id": 65,
+    "name": "步兵防御35%",
+    "baseName": "步兵防御",
+    "formatType": 4,
+    "parameter": 35
+  },
+  {
+    "id": 66,
+    "name": "偷袭攻击",
+    "baseName": "偷袭攻击",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 67,
+    "name": "增加连击上限+1",
+    "baseName": "增加连击上限",
+    "formatType": 1,
+    "parameter": 1
+  },
+  {
+    "id": 68,
+    "name": "回马攻击20%",
+    "baseName": "回马攻击",
+    "formatType": 4,
+    "parameter": 20
+  },
+  {
+    "id": 69,
+    "name": "获得功勋+2",
+    "baseName": "获得功勋",
+    "formatType": 1,
+    "parameter": 2
+  },
+  {
+    "id": 70,
+    "name": "深入敌后",
+    "baseName": "深入敌后",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 71,
+    "name": "一夫当关10%",
+    "baseName": "一夫当关",
+    "formatType": 4,
+    "parameter": 10
+  },
+  {
+    "id": 72,
+    "name": "强化反击20%",
+    "baseName": "强化反击",
+    "formatType": 4,
+    "parameter": 20
+  },
+  {
+    "id": 73,
+    "name": "学会策略-四系",
+    "baseName": "学会策略-四系",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 74,
+    "name": "学会策略-降能力",
+    "baseName": "学会策略-降能力",
+    "formatType": 0,
+    "parameter": 2
+  },
+  {
+    "id": 75,
+    "name": "学会策略-妨碍",
+    "baseName": "学会策略-妨碍",
+    "formatType": 0,
+    "parameter": 4
+  },
+  {
+    "id": 76,
+    "name": "学会策略-补给",
+    "baseName": "学会策略-补给",
+    "formatType": 0,
+    "parameter": 8
+  },
+  {
+    "id": 77,
+    "name": "学会策略-升能力",
+    "baseName": "学会策略-升能力",
+    "formatType": 0,
+    "parameter": 16
+  },
+  {
+    "id": 78,
+    "name": "学会策略-天象",
+    "baseName": "学会策略-天象",
+    "formatType": 0,
+    "parameter": 32
+  },
+  {
+    "id": 79,
+    "name": "学会策略-回归",
+    "baseName": "学会策略-回归",
+    "formatType": 0,
+    "parameter": 64
+  },
+  {
+    "id": 80,
+    "name": "学会策略-连击",
+    "baseName": "学会策略-连击",
+    "formatType": 0,
+    "parameter": 128
+  },
+  {
+    "id": 81,
+    "name": "鬼神之勇12%",
+    "baseName": "鬼神之勇",
+    "formatType": 4,
+    "parameter": 12
+  },
+  {
+    "id": 82,
+    "name": "海纳百川10",
+    "baseName": "海纳百川",
+    "formatType": 5,
+    "parameter": 10
+  },
+  {
+    "id": 83,
+    "name": "众矢之的 策略",
+    "baseName": "众矢之的 策略",
+    "formatType": 0,
+    "parameter": 2
+  },
+  {
+    "id": 84,
+    "name": "弱点攻击-移动",
+    "baseName": "弱点攻击",
+    "formatType": 8,
+    "parameter": 6
+  },
+  {
+    "id": 85,
+    "name": "万夫莫敌3%",
+    "baseName": "万夫莫敌",
+    "formatType": 4,
+    "parameter": 3
+  },
+  {
+    "id": 86,
+    "name": "攻击限伤70",
+    "baseName": "攻击限伤",
+    "formatType": 5,
+    "parameter": 70
+  },
+  {
+    "id": 87,
+    "name": "转移伤害20%",
+    "baseName": "转移伤害",
+    "formatType": 4,
+    "parameter": 20
+  },
+  {
+    "id": 88,
+    "name": "特效模仿",
+    "baseName": "特效模仿",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 89,
+    "name": "特效屏蔽",
+    "baseName": "特效屏蔽",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 90,
+    "name": "再次移动",
+    "baseName": "再次移动",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 91,
+    "name": "提升攻击范围",
+    "baseName": "提升攻击范围",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 92,
+    "name": "提升施法范围",
+    "baseName": "提升施法范围",
+    "formatType": 0,
+    "parameter": 2
+  },
+  {
+    "id": 93,
+    "name": "攻击追加-诱惑",
+    "baseName": "攻击追加",
+    "formatType": 7,
+    "parameter": 20
+  },
+  {
+    "id": 94,
+    "name": "策略先手-毒烟",
+    "baseName": "策略先手",
+    "formatType": 7,
+    "parameter": 33
+  },
+  {
+    "id": 95,
+    "name": "策略反击-浊流",
+    "baseName": "策略反击",
+    "formatType": 7,
+    "parameter": 5
+  },
+  {
+    "id": 96,
+    "name": "铁索横江",
+    "baseName": "铁索横江",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 97,
+    "name": "突破攻击",
+    "baseName": "突破攻击",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 98,
+    "name": "伤害增幅+30%",
+    "baseName": "伤害增幅",
+    "formatType": 2,
+    "parameter": 30
+  },
+  {
+    "id": 99,
+    "name": "策略免疫",
+    "baseName": "策略免疫",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 100,
+    "name": "恢复周围状态",
+    "baseName": "恢复周围状态",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 101,
+    "name": "回复周围HP12%",
+    "baseName": "回复周围HP",
+    "formatType": 4,
+    "parameter": 12
+  },
+  {
+    "id": 102,
+    "name": "回复周围MP10%",
+    "baseName": "回复周围MP",
+    "formatType": 4,
+    "parameter": 10
+  },
+  {
+    "id": 103,
+    "name": "空特技0%",
+    "baseName": "空特技",
+    "formatType": 4,
+    "parameter": 0
+  },
+  {
+    "id": 104,
+    "name": "强化物理穿透25%",
+    "baseName": "强化物理穿透",
+    "formatType": 4,
+    "parameter": 25
+  },
+  {
+    "id": 105,
+    "name": "同心协力3%",
+    "baseName": "同心协力",
+    "formatType": 4,
+    "parameter": 3
+  },
+  {
+    "id": 106,
+    "name": "迅捷之勇12%",
+    "baseName": "迅捷之勇",
+    "formatType": 4,
+    "parameter": 12
+  },
+  {
+    "id": 107,
+    "name": "椎锋突进5%",
+    "baseName": "椎锋突进",
+    "formatType": 4,
+    "parameter": 5
+  },
+  {
+    "id": 108,
+    "name": "绝对反击",
+    "baseName": "绝对反击",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 109,
+    "name": "不惧敌围3%",
+    "baseName": "不惧敌围",
+    "formatType": 4,
+    "parameter": 3
+  },
+  {
+    "id": 110,
+    "name": "贵尚儒雅",
+    "baseName": "贵尚儒雅",
+    "formatType": 0,
+    "parameter": 0
+  },
+  {
+    "id": 111,
+    "name": "削铁如泥",
+    "baseName": "削铁如泥",
+    "formatType": 0,
+    "parameter": 3
+  },
+  {
+    "id": 112,
+    "name": "强化致命一击+40%",
+    "baseName": "强化致命一击",
+    "formatType": 2,
+    "parameter": 40
+  },
+  {
+    "id": 113,
+    "name": "援护攻击3",
+    "baseName": "援护攻击",
+    "formatType": 5,
+    "parameter": 3
+  },
+  {
+    "id": 114,
+    "name": "猛击20%",
+    "baseName": "猛击",
+    "formatType": 4,
+    "parameter": 20
+  },
+  {
+    "id": 115,
+    "name": "盾反20%",
+    "baseName": "盾反",
+    "formatType": 4,
+    "parameter": 20
+  },
+  {
+    "id": 116,
+    "name": "状态强化12",
+    "baseName": "状态强化",
+    "formatType": 5,
+    "parameter": 12
+  },
+  {
+    "id": 117,
+    "name": "疾风攻击12",
+    "baseName": "疾风攻击",
+    "formatType": 5,
+    "parameter": 12
+  },
+  {
+    "id": 118,
+    "name": "绝对克制18%",
+    "baseName": "绝对克制",
+    "formatType": 4,
+    "parameter": 18
+  },
+  {
+    "id": 119,
+    "name": "穿透攻击 十字",
+    "baseName": "穿透攻击 十字",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 120,
+    "name": "穿透攻击 九宫",
+    "baseName": "穿透攻击 九宫",
+    "formatType": 0,
+    "parameter": 2
+  },
+  {
+    "id": 121,
+    "name": "穿透攻击 没羽箭",
+    "baseName": "穿透攻击 没羽箭",
+    "formatType": 0,
+    "parameter": 3
+  },
+  {
+    "id": 122,
+    "name": "穿透攻击 二格",
+    "baseName": "穿透攻击 二格",
+    "formatType": 0,
+    "parameter": 4
+  },
+  {
+    "id": 123,
+    "name": "穿透攻击 三格",
+    "baseName": "穿透攻击 三格",
+    "formatType": 0,
+    "parameter": 7
+  },
+  {
+    "id": 124,
+    "name": "穿透攻击 六格",
+    "baseName": "穿透攻击 六格",
+    "formatType": 0,
+    "parameter": 5
+  },
+  {
+    "id": 125,
+    "name": "穿透攻击 横扫",
+    "baseName": "穿透攻击 横扫",
+    "formatType": 0,
+    "parameter": 9
+  },
+  {
+    "id": 126,
+    "name": "穿透攻击 环击",
+    "baseName": "穿透攻击 环击",
+    "formatType": 0,
+    "parameter": 10
+  },
+  {
+    "id": 127,
+    "name": "穿透攻击 溅射",
+    "baseName": "穿透攻击 溅射",
+    "formatType": 0,
+    "parameter": 11
+  },
+  {
+    "id": 128,
+    "name": "能力替换攻→防精",
+    "baseName": "能力替换",
+    "formatType": 6,
+    "parameter": 6
+  },
+  {
+    "id": 129,
+    "name": "能力替换攻→攻精士",
+    "baseName": "能力替换",
+    "formatType": 6,
+    "parameter": 21
+  },
+  {
+    "id": 130,
+    "name": "能力替换防→防爆",
+    "baseName": "能力替换",
+    "formatType": 6,
+    "parameter": 42
+  },
+  {
+    "id": 131,
+    "name": "能力替换攻→士",
+    "baseName": "能力替换",
+    "formatType": 6,
+    "parameter": 16
+  },
+  {
+    "id": 132,
+    "name": "能力替换攻→爆",
+    "baseName": "能力替换",
+    "formatType": 6,
+    "parameter": 8
+  },
+  {
+    "id": 133,
+    "name": "能力辅助攻→精爆",
+    "baseName": "能力辅助",
+    "formatType": 6,
+    "parameter": 12
+  },
+  {
+    "id": 134,
+    "name": "能力辅助攻→攻精士",
+    "baseName": "能力辅助",
+    "formatType": 6,
+    "parameter": 21
+  },
+  {
+    "id": 135,
+    "name": "能力辅助防→防精",
+    "baseName": "能力辅助",
+    "formatType": 6,
+    "parameter": 38
+  },
+  {
+    "id": 136,
+    "name": "能力辅助防→攻防士",
+    "baseName": "能力辅助",
+    "formatType": 6,
+    "parameter": 51
+  },
+  {
+    "id": 137,
+    "name": "能力辅助精→全能力",
+    "baseName": "能力辅助",
+    "formatType": 6,
+    "parameter": 95
+  },
+  {
+    "id": 138,
+    "name": "忽视能力-全能力",
+    "baseName": "忽视能力",
+    "formatType": 9,
+    "parameter": 31
+  },
+  {
+    "id": 139,
+    "name": "忽视能力-攻防",
+    "baseName": "忽视能力",
+    "formatType": 9,
+    "parameter": 3
+  },
+  {
+    "id": 140,
+    "name": "忽视能力-精",
+    "baseName": "忽视能力",
+    "formatType": 9,
+    "parameter": 4
+  },
+  {
+    "id": 141,
+    "name": "忽视能力-防士",
+    "baseName": "忽视能力",
+    "formatType": 9,
+    "parameter": 18
+  },
+  {
+    "id": 142,
+    "name": "忽视能力-精士",
+    "baseName": "忽视能力",
+    "formatType": 9,
+    "parameter": 20
+  },
+  {
+    "id": 143,
+    "name": "忽视能力-攻精",
+    "baseName": "忽视能力",
+    "formatType": 9,
+    "parameter": 5
+  },
+  {
+    "id": 144,
+    "name": "自动提升-全能力",
+    "baseName": "自动提升",
+    "formatType": 10,
+    "parameter": 63
+  },
+  {
+    "id": 145,
+    "name": "自动提升-攻精",
+    "baseName": "自动提升",
+    "formatType": 10,
+    "parameter": 5
+  },
+  {
+    "id": 146,
+    "name": "自动提升-攻防",
+    "baseName": "自动提升",
+    "formatType": 10,
+    "parameter": 3
+  },
+  {
+    "id": 147,
+    "name": "自动提升-攻爆",
+    "baseName": "自动提升",
+    "formatType": 10,
+    "parameter": 9
+  },
+  {
+    "id": 148,
+    "name": "自动提升-防精",
+    "baseName": "自动提升",
+    "formatType": 10,
+    "parameter": 6
+  },
+  {
+    "id": 149,
+    "name": "自动提升-精士",
+    "baseName": "自动提升",
+    "formatType": 10,
+    "parameter": 20
+  },
+  {
+    "id": 150,
+    "name": "自动提升-防移",
+    "baseName": "自动提升",
+    "formatType": 10,
+    "parameter": 34
+  },
+  {
+    "id": 151,
+    "name": "提升周围-攻",
+    "baseName": "提升周围",
+    "formatType": 10,
+    "parameter": 1
+  },
+  {
+    "id": 152,
+    "name": "提升周围-防",
+    "baseName": "提升周围",
+    "formatType": 10,
+    "parameter": 2
+  },
+  {
+    "id": 153,
+    "name": "提升周围-精",
+    "baseName": "提升周围",
+    "formatType": 10,
+    "parameter": 4
+  },
+  {
+    "id": 154,
+    "name": "提升周围-爆士",
+    "baseName": "提升周围",
+    "formatType": 10,
+    "parameter": 24
+  },
+  {
+    "id": 155,
+    "name": "提升周围-移",
+    "baseName": "提升周围",
+    "formatType": 10,
+    "parameter": 32
+  },
+  {
+    "id": 156,
+    "name": "提升周围-攻防",
+    "baseName": "提升周围",
+    "formatType": 10,
+    "parameter": 3
+  },
+  {
+    "id": 157,
+    "name": "远距攻击 八向",
+    "baseName": "远距攻击 八向",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 158,
+    "name": "远距攻击 没羽箭",
+    "baseName": "远距攻击 没羽箭",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 159,
+    "name": "远距攻击 方格",
+    "baseName": "远距攻击 方格",
+    "formatType": 0,
+    "parameter": 20
+  },
+  {
+    "id": 160,
+    "name": "远距攻击 大没羽",
+    "baseName": "远距攻击 大没羽",
+    "formatType": 0,
+    "parameter": 12
+  },
+  {
+    "id": 161,
+    "name": "远距攻击 刺客",
+    "baseName": "远距攻击 刺客",
+    "formatType": 0,
+    "parameter": 29
+  },
+  {
+    "id": 162,
+    "name": "远距攻击 大爆炎",
+    "baseName": "远距攻击 大爆炎",
+    "formatType": 0,
+    "parameter": 19
+  },
+  {
+    "id": 163,
+    "name": "远距攻击 炮车",
+    "baseName": "远距攻击 炮车",
+    "formatType": 0,
+    "parameter": 7
+  },
+  {
+    "id": 164,
+    "name": "远距攻击 圆环",
+    "baseName": "远距攻击 圆环",
+    "formatType": 0,
+    "parameter": 21
+  },
+  {
+    "id": 165,
+    "name": "附加伤害 攻击10%",
+    "baseName": "附加伤害 攻击",
+    "formatType": 4,
+    "parameter": 10
+  },
+  {
+    "id": 166,
+    "name": "附加伤害 防御10%",
+    "baseName": "附加伤害 防御",
+    "formatType": 4,
+    "parameter": 10
+  },
+  {
+    "id": 167,
+    "name": "附加伤害 精神10%",
+    "baseName": "附加伤害 精神",
+    "formatType": 4,
+    "parameter": 10
+  },
+  {
+    "id": 168,
+    "name": "附加伤害 爆发12%",
+    "baseName": "附加伤害 爆发",
+    "formatType": 4,
+    "parameter": 12
+  },
+  {
+    "id": 169,
+    "name": "附加伤害 士气12%",
+    "baseName": "附加伤害 士气",
+    "formatType": 4,
+    "parameter": 12
+  },
+  {
+    "id": 170,
+    "name": "策略破坏-攻",
+    "baseName": "策略破坏",
+    "formatType": 10,
+    "parameter": 1
+  },
+  {
+    "id": 171,
+    "name": "策略破坏-防",
+    "baseName": "策略破坏",
+    "formatType": 10,
+    "parameter": 2
+  },
+  {
+    "id": 172,
+    "name": "策略破坏-精",
+    "baseName": "策略破坏",
+    "formatType": 10,
+    "parameter": 4
+  },
+  {
+    "id": 173,
+    "name": "策略破坏-爆士",
+    "baseName": "策略破坏",
+    "formatType": 10,
+    "parameter": 24
+  },
+  {
+    "id": 174,
+    "name": "策略破坏-攻精",
+    "baseName": "策略破坏",
+    "formatType": 10,
+    "parameter": 5
+  },
+  {
+    "id": 175,
+    "name": "策略破坏-全能力",
+    "baseName": "策略破坏",
+    "formatType": 10,
+    "parameter": 63
+  },
+  {
+    "id": 176,
+    "name": "固定增伤",
+    "baseName": "固定增伤",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 177,
+    "name": "固定减伤",
+    "baseName": "固定减伤",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 178,
+    "name": "纵横无阻",
+    "baseName": "纵横无阻",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 179,
+    "name": "辅助地形状态",
+    "baseName": "辅助地形状态",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 180,
+    "name": "恶路移动",
+    "baseName": "恶路移动",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 181,
+    "name": "破坏MP攻击",
+    "baseName": "破坏MP攻击",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 182,
+    "name": "强化策略穿透",
+    "baseName": "强化策略穿透",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 183,
+    "name": "自身治疗强化75%",
+    "baseName": "自身治疗强化",
+    "formatType": 4,
+    "parameter": 75
+  },
+  {
+    "id": 184,
+    "name": "辅助治疗策略50%",
+    "baseName": "辅助治疗策略",
+    "formatType": 4,
+    "parameter": 50
+  },
+  {
+    "id": 185,
+    "name": "逆境减伤",
+    "baseName": "逆境减伤",
+    "formatType": 0,
+    "parameter": 3
+  },
+  {
+    "id": 186,
+    "name": "反击成双",
+    "baseName": "反击成双",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 187,
+    "name": "增加正向伤害35%",
+    "baseName": "增加正向伤害",
+    "formatType": 4,
+    "parameter": 35
+  },
+  {
+    "id": 188,
+    "name": "减少斜向伤害40%",
+    "baseName": "减少斜向伤害",
+    "formatType": 4,
+    "parameter": 40
+  },
+  {
+    "id": 189,
+    "name": "远距离增伤10%",
+    "baseName": "远距离增伤",
+    "formatType": 4,
+    "parameter": 10
+  },
+  {
+    "id": 190,
+    "name": "落井下石15%",
+    "baseName": "落井下石",
+    "formatType": 4,
+    "parameter": 15
+  },
+  {
+    "id": 191,
+    "name": "止戈为武",
+    "baseName": "止戈为武",
+    "formatType": 0,
+    "parameter": 2
+  },
+  {
+    "id": 192,
+    "name": "MP转伤攻击25%",
+    "baseName": "MP转伤攻击",
+    "formatType": 4,
+    "parameter": 25
+  },
+  {
+    "id": 193,
+    "name": "化力为疗15%",
+    "baseName": "化力为疗",
+    "formatType": 4,
+    "parameter": 15
+  },
+  {
+    "id": 194,
+    "name": "夺锐攻击",
+    "baseName": "夺锐攻击",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 195,
+    "name": "四向夺锋",
+    "baseName": "四向夺锋",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 196,
+    "name": "侧翼突袭35%",
+    "baseName": "侧翼突袭",
+    "formatType": 4,
+    "parameter": 35
+  },
+  {
+    "id": 197,
+    "name": "辅助移动力+2",
+    "baseName": "辅助移动力",
+    "formatType": 1,
+    "parameter": 2
+  },
+  {
+    "id": 198,
+    "name": "强化成长-攻",
+    "baseName": "强化成长",
+    "formatType": 9,
+    "parameter": 1
+  },
+  {
+    "id": 199,
+    "name": "强化成长-防",
+    "baseName": "强化成长",
+    "formatType": 9,
+    "parameter": 2
+  },
+  {
+    "id": 200,
+    "name": "强化成长-精",
+    "baseName": "强化成长",
+    "formatType": 9,
+    "parameter": 4
+  },
+  {
+    "id": 201,
+    "name": "强化成长-爆",
+    "baseName": "强化成长",
+    "formatType": 9,
+    "parameter": 8
+  },
+  {
+    "id": 202,
+    "name": "强化成长-士",
+    "baseName": "强化成长",
+    "formatType": 9,
+    "parameter": 16
+  },
+  {
+    "id": 203,
+    "name": "强化成长-攻防",
+    "baseName": "强化成长",
+    "formatType": 9,
+    "parameter": 3
+  },
+  {
+    "id": 204,
+    "name": "强化成长-防精",
+    "baseName": "强化成长",
+    "formatType": 9,
+    "parameter": 6
+  },
+  {
+    "id": 205,
+    "name": "强化成长-爆士",
+    "baseName": "强化成长",
+    "formatType": 9,
+    "parameter": 24
+  },
+  {
+    "id": 206,
+    "name": "强化成长-全能力",
+    "baseName": "强化成长",
+    "formatType": 9,
+    "parameter": 31
+  },
+  {
+    "id": 207,
+    "name": "无视策略减伤",
+    "baseName": "无视策略减伤",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 208,
+    "name": "攻击保底伤害40",
+    "baseName": "攻击保底伤害",
+    "formatType": 5,
+    "parameter": 40
+  },
+  {
+    "id": 209,
+    "name": "致命成双",
+    "baseName": "致命成双",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 210,
+    "name": "辅助连击率40%",
+    "baseName": "辅助连击率",
+    "formatType": 4,
+    "parameter": 40
+  },
+  {
+    "id": 211,
+    "name": "免疫异常状态",
+    "baseName": "免疫异常状态",
+    "formatType": 0,
+    "parameter": 0
+  },
+  {
+    "id": 212,
+    "name": "策略保底伤害50",
+    "baseName": "策略保底伤害",
+    "formatType": 5,
+    "parameter": 50
+  },
+  {
+    "id": 213,
+    "name": "策略限伤60",
+    "baseName": "策略限伤",
+    "formatType": 5,
+    "parameter": 60
+  },
+  {
+    "id": 214,
+    "name": "辅助山战110%",
+    "baseName": "辅助山战",
+    "formatType": 4,
+    "parameter": 110
+  },
+  {
+    "id": 215,
+    "name": "辅助水战110%",
+    "baseName": "辅助水战",
+    "formatType": 4,
+    "parameter": 110
+  },
+  {
+    "id": 216,
+    "name": "鹰视狼顾2",
+    "baseName": "鹰视狼顾",
+    "formatType": 5,
+    "parameter": 2
+  },
+  {
+    "id": 217,
+    "name": "勇冠三军",
+    "baseName": "勇冠三军",
+    "formatType": 0,
+    "parameter": 0
+  },
+  {
+    "id": 218,
+    "name": "再顾倾国",
+    "baseName": "再顾倾国",
+    "formatType": 0,
+    "parameter": 0
+  },
+  {
+    "id": 219,
+    "name": "白虎锐鸣",
+    "baseName": "白虎锐鸣",
+    "formatType": 0,
+    "parameter": 0
+  },
+  {
+    "id": 220,
+    "name": "天人之勇",
+    "baseName": "天人之勇",
+    "formatType": 0,
+    "parameter": 0
+  },
+  {
+    "id": 221,
+    "name": "万里龙城",
+    "baseName": "万里龙城",
+    "formatType": 0,
+    "parameter": 20
+  },
+  {
+    "id": 222,
+    "name": "步步为营",
+    "baseName": "步步为营",
+    "formatType": 0,
+    "parameter": 23
+  },
+  {
+    "id": 223,
+    "name": "锦帆踏江",
+    "baseName": "锦帆踏江",
+    "formatType": 0,
+    "parameter": 14
+  },
+  {
+    "id": 224,
+    "name": "山川易势",
+    "baseName": "山川易势",
+    "formatType": 0,
+    "parameter": 5
+  },
+  {
+    "id": 225,
+    "name": "HP辅助能力-全能力",
+    "baseName": "HP辅助能力",
+    "formatType": 9,
+    "parameter": 63
+  },
+  {
+    "id": 226,
+    "name": "HP辅助能力-攻士",
+    "baseName": "HP辅助能力",
+    "formatType": 9,
+    "parameter": 17
+  },
+  {
+    "id": 227,
+    "name": "HP辅助能力-攻防",
+    "baseName": "HP辅助能力",
+    "formatType": 9,
+    "parameter": 3
+  },
+  {
+    "id": 228,
+    "name": "HP辅助能力-攻爆",
+    "baseName": "HP辅助能力",
+    "formatType": 9,
+    "parameter": 9
+  },
+  {
+    "id": 229,
+    "name": "HP辅助能力-防精",
+    "baseName": "HP辅助能力",
+    "formatType": 9,
+    "parameter": 6
+  },
+  {
+    "id": 230,
+    "name": "MP辅助能力-全能力",
+    "baseName": "MP辅助能力",
+    "formatType": 9,
+    "parameter": 63
+  },
+  {
+    "id": 231,
+    "name": "MP辅助能力-攻防",
+    "baseName": "MP辅助能力",
+    "formatType": 9,
+    "parameter": 3
+  },
+  {
+    "id": 232,
+    "name": "MP辅助能力-精士",
+    "baseName": "MP辅助能力",
+    "formatType": 9,
+    "parameter": 20
+  },
+  {
+    "id": 233,
+    "name": "MP辅助能力-攻爆",
+    "baseName": "MP辅助能力",
+    "formatType": 9,
+    "parameter": 9
+  },
+  {
+    "id": 234,
+    "name": "MP辅助能力-防精",
+    "baseName": "MP辅助能力",
+    "formatType": 9,
+    "parameter": 6
+  },
+  {
+    "id": 235,
+    "name": "翩若惊鸿",
+    "baseName": "翩若惊鸿",
+    "formatType": 0,
+    "parameter": 1
+  },
+  {
+    "id": 236,
+    "name": "娇纵三江",
+    "baseName": "娇纵三江",
+    "formatType": 0,
+    "parameter": 1
+  }
+]

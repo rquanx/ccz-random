@@ -3077,7 +3077,7 @@ static DWORD run_list_item(int item_index) {
         click_x = 10;
     }
     int click_y = (item_rect.top + item_rect.bottom) / 2;
-    post_synthetic_click(list, click_x, click_y, 2, FALSE);
+    post_synthetic_click(list, click_x, click_y, 1, FALSE);
     return 0;
 }
 

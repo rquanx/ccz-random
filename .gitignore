@@ -19,6 +19,7 @@
 /*.E5S
 /random_rules.json
 /.random_rules.json.*.tmp
+/randomizer_settings.json
 
 # Generated inspection and reverse-engineering workspaces
 /inspect-*/

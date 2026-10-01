@@ -13,6 +13,7 @@ from fast_randomizer import (
     TEAM_MEMBERS,
     activate_rule_profile,
     current_run_rule_save_notice,
+    history_rule_environment_json,
     format_user_log,
     serialize_rule_profile,
 )
@@ -424,6 +425,22 @@ class RuleEditorTests(unittest.TestCase):
                 running_snapshot,
             ),
         )
+
+    def test_history_rule_environment_value_remains_json_object(self):
+        profile = {
+            "id": "rule-a",
+            "schemaVersion": "rule-schema-v1",
+            "threePerson": {"minJobAverage": 8},
+        }
+
+        encoded = history_rule_environment_json(
+            serialize_rule_profile(profile)
+        )
+
+        self.assertEqual(profile, json.loads(encoded))
+        self.assertIsInstance(json.loads(encoded), dict)
+        with self.assertRaises(ValueError):
+            history_rule_environment_json('"not-an-object"')
 
     def test_job_type_tab_edits_profile_override(self):
         root = tk.Tk()

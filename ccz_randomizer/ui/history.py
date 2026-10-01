@@ -417,6 +417,11 @@ def _show_detail(parent, snapshot: dict[str, Any]) -> None:
                 wraplength=165,
             ).pack(anchor="w", fill="x")
 
+def show_result_snapshot_detail(parent, snapshot: dict[str, Any]) -> None:
+    """Public entry point shared by history and statistics views."""
+    _show_detail(parent, snapshot)
+
+
 def _summary_member_text(snapshot: dict[str, Any]) -> str:
     lines = []
     for member in snapshot.get("members") or []:

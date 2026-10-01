@@ -57,6 +57,16 @@ CASES = (
         "验证七人结果保存的是剧情推进前的初始场景存档",
     ),
     GameCase(
+        "statistics-real-flow",
+        "case_statistics_real_flow.py",
+        "验证真实三人和七人流程写入统计历史并通过校验",
+    ),
+    GameCase(
+        "statistics-concurrent-flow",
+        "case_statistics_concurrent_flow.py",
+        "验证真实并发和循环流程写入统计历史并通过校验",
+    ),
+    GameCase(
         "seven-member-inspection",
         "case_seven_member_inspection.py",
         "验证七人候选存档的剧情推进与能力读取",

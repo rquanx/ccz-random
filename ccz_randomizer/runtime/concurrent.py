@@ -23,6 +23,7 @@ from ccz_randomizer.runtime.game_sandbox import (
     ensure_hidden_runtime_directory,
     remove_sandbox_tree,
 )
+from ccz_randomizer.history import HistoryRepository
 CONCURRENT_EVENT_PREFIX = "@@CCZ_CONCURRENT_EVENT@@"
 CONCURRENT_HEARTBEAT_LINE = "@@CCZ_CONCURRENT_HEARTBEAT@@"
 CONCURRENT_SLOT_ASSIGNED_PREFIX = "@@CCZ_SLOT_ASSIGNED@@"
@@ -49,9 +50,105 @@ _STARTUP_FAILURE_MARKERS = (
     "静默游戏实例启动后立即退出",
     "静默游戏实例启动超时",
 )
+
+
+def _shared_history_repository(base_dir: Path) -> HistoryRepository | None:
+    if not os.environ.get("CCZ_HISTORY_SHARED") == "1":
+        return None
+    return HistoryRepository(base_dir)
+
+
+def _mark_history_published(
+    repository: HistoryRepository | None,
+    *,
+    round_number: int,
+    slot: int,
+    target: Path,
+) -> None:
+    if repository is None or not target.is_file():
+        return
+    save_hash = _file_hash(target)
+    if not save_hash:
+        return
+    run_id = os.environ.get("CCZ_HISTORY_RUN_ID", "").strip() or None
+    round_id = (
+        repository.get_round_id(run_id, round_number)
+        if run_id
+        else None
+    )
+    repository.mark_result_published(
+        round_id=round_id,
+        run_id=run_id,
+        slot=slot,
+        save_sha256=save_hash,
+    )
+
+
+def _finish_shared_round(
+    repository: HistoryRepository | None,
+    *,
+    round_number: int,
+    status: str,
+) -> None:
+    if repository is None:
+        return
+    run_id = os.environ.get("CCZ_HISTORY_RUN_ID", "").strip()
+    if not run_id:
+        return
+    round_id = repository.get_round_id(run_id, round_number)
+    if round_id is not None:
+        repository.finish_round(round_id, status)
 _RESULT_SAVE_CONFIRMATION = re.compile(
     r"^第\s*(\d+)\s*号结果存档已通过游戏菜单保存(?:$|[，。])"
 )
+_RESULT_DETAIL_PREFIX = "@@CCZ_RESULT_DETAIL@@"
+
+
+def _result_signature_from_line(line: str) -> str | None:
+    """Return a slot-independent signature for the visible random result."""
+    if not line.startswith(_RESULT_DETAIL_PREFIX):
+        return None
+    try:
+        detail = json.loads(line[len(_RESULT_DETAIL_PREFIX):])
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return None
+    if not isinstance(detail, dict):
+        return None
+    members = []
+    job = detail.get("job") or {}
+    for item in job.get("members", []) if isinstance(job, dict) else []:
+        if isinstance(item, dict):
+            members.append(
+                (
+                    str(item.get("name") or ""),
+                    str(item.get("job") or ""),
+                )
+            )
+    skills = []
+    skill = detail.get("skill") or {}
+    for item in skill.get("members", []) if isinstance(skill, dict) else []:
+        if isinstance(item, dict):
+            skills.append(
+                (
+                    str(item.get("name") or ""),
+                    tuple(str(value) for value in item.get("skills", []) or []),
+                )
+            )
+    if not members and not skills:
+        return None
+    payload = {
+        "mode": str(detail.get("mode") or ""),
+        "job": members,
+        "skill": skills,
+    }
+    return hashlib.sha256(
+        json.dumps(
+            payload,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
 
 
 class _TimingRecorder:
@@ -316,6 +413,7 @@ class _WorkerLane:
     startup_failed: bool = False
     attempt_completed: bool = False
     result_saved: bool = False
+    result_signature: str | None = None
     generation: int = 0
     started_at: float = 0.0
 
@@ -324,8 +422,9 @@ def _record_worker_output(lane: _WorkerLane, line: str) -> bool:
     was_confirmed = lane.startup_confirmed
     if line.startswith(_STARTUP_CONFIRMED_PREFIXES):
         lane.startup_confirmed = True
-    if line.startswith("@@CCZ_RESULT_DETAIL@@"):
+    if line.startswith(_RESULT_DETAIL_PREFIX):
         lane.attempt_completed = True
+        lane.result_signature = _result_signature_from_line(line)
     save_confirmation = _RESULT_SAVE_CONFIRMATION.match(line)
     if (
         save_confirmation is not None
@@ -348,6 +447,7 @@ class _LoopRound:
     number: int
     workspace: Path
     completed_slots: set[int]
+    accepted_signatures: set[str]
     archived_path: Path | None = None
     grid_path: Path | None = None
     grid_announced: bool = False
@@ -514,6 +614,30 @@ def run_concurrent_workers(
     if not 1 <= result_count <= 15:
         raise ValueError("结果数量必须位于 1-15")
 
+    history_repository = _shared_history_repository(base_dir)
+    history_run_id = os.environ.get("CCZ_HISTORY_RUN_ID", "").strip()
+    if history_repository is not None and history_run_id:
+        try:
+            rule_snapshot = json.loads(
+                os.environ.get("CCZ_HISTORY_RULE_JSON", "{}")
+            )
+        except json.JSONDecodeError:
+            rule_snapshot = {}
+        try:
+            build_info = json.loads(
+                os.environ.get("CCZ_HISTORY_BUILD_JSON", "{}")
+            )
+        except json.JSONDecodeError:
+            build_info = {}
+        history_repository.start_run(
+            history_run_id,
+            mode=mode,
+            loop_random=loop_random,
+            rule_name=os.environ.get("CCZ_HISTORY_RULE_NAME", ""),
+            rule=rule_snapshot,
+            build=build_info,
+        )
+
     try:
         if loop_random:
             result = _run_continuous_loop(
@@ -581,13 +705,30 @@ def run_concurrent_workers(
             "兼容模式多实例无法启动，已回退为单实例并使用游戏原目录。",
             flush=True,
         )
-        return _run_original_directory_worker(
+        result = _run_original_directory_worker(
             game_executable=game_executable,
             result_count=result_count,
             mode=mode,
             stop_file=stop_file,
             base_dir=base_dir,
             loop_random=loop_random,
+        )
+    if history_repository is not None and history_run_id:
+        if stop_file is not None and stop_file.exists():
+            history_repository.finish_open_rounds(
+                history_run_id,
+                "stopped",
+            )
+        elif result != 0:
+            history_repository.finish_open_rounds(
+                history_run_id,
+                "failed",
+            )
+        history_repository.finish_run(
+            history_run_id,
+            "stopped"
+            if stop_file is not None and stop_file.exists()
+            else ("completed" if result == 0 else "failed"),
         )
     return result
 
@@ -601,6 +742,7 @@ def _run_original_directory_worker(
     base_dir: Path,
     loop_random: bool,
 ) -> int:
+    history_repository = _shared_history_repository(base_dir)
     child_env = os.environ.copy()
     child_env.pop("CCZ_GAME_RUNTIME_DIR", None)
     child_env.update(
@@ -614,8 +756,12 @@ def _run_original_directory_worker(
             "CCZ_RESULT_COUNT": str(result_count),
             "CCZ_RESULT_SLOT_START": "1",
             "CCZ_TOTAL_RESULT_COUNT": str(result_count),
+            "CCZ_STATE_BASE_DIR": str(base_dir),
+            "CCZ_HISTORY_SHARED": "1",
+            "CCZ_HISTORY_ROUND_NUMBER": "1",
             "CCZ_RANDOM_MODE": mode,
             "CCZ_LOOP_RANDOM": "1" if loop_random else "0",
+            "CCZ_COORDINATOR_MANAGED_LOOP": "1",
             "CCZ_CONCURRENT_MODE": "1",
             "CCZ_CONCURRENT_WORKER": "1",
             "CCZ_CONCURRENT_COUNT": "1",
@@ -655,6 +801,16 @@ def _run_original_directory_worker(
                     flush=True,
                 )
                 continue
+            completed_round_match = re.match(
+                r"^循环轮次完成：第\s*(\d+)\s*轮已完成",
+                line,
+            )
+            if completed_round_match:
+                _finish_shared_round(
+                    history_repository,
+                    round_number=int(completed_round_match.group(1)),
+                    status="completed",
+                )
             result_match = re.match(
                 r"^========== 结果\s+(\d+)/",
                 line,
@@ -673,7 +829,29 @@ def _run_original_directory_worker(
                 or line.startswith("本轮总图路径：")
             ):
                 print(encode_concurrent_event(1, line), flush=True)
-        return process.wait()
+        result = process.wait()
+        if not loop_random:
+            for slot in range(1, result_count + 1):
+                target = game_executable.parent / "SV" / f"SV{slot:03}.E5S"
+                _mark_history_published(
+                    history_repository,
+                    round_number=1,
+                    slot=slot,
+                    target=target,
+                )
+            _finish_shared_round(
+                history_repository,
+                round_number=1,
+                status="completed" if result == 0 else "failed",
+            )
+        if (
+            loop_random
+            and stop_file is not None
+            and stop_file.exists()
+            and result in {0, 130}
+        ):
+            return 0
+        return result
     finally:
         process.stdout.close()
         _stop_worker_process(process)
@@ -734,6 +912,7 @@ def _run_continuous_loop(
     worker_count: int,
     compatibility_mode: bool = False,
 ) -> int:
+    history_repository = _shared_history_repository(base_dir)
     stamp = f"{os.getpid()}-{time.time_ns()}"
     runtime_root = base_dir / "ccz_fast_data"
     try:
@@ -845,6 +1024,7 @@ def _run_continuous_loop(
             number=round_number,
             workspace=workspace,
             completed_slots=set(),
+            accepted_signatures=set(),
         )
         pending.extend(
             _LoopTask(round_number, slot)
@@ -900,6 +1080,9 @@ def _run_continuous_loop(
                 "CCZ_RESULT_COUNT": "1",
                 "CCZ_RESULT_SLOT_START": str(task.slot),
                 "CCZ_TOTAL_RESULT_COUNT": str(result_count),
+                "CCZ_STATE_BASE_DIR": str(base_dir),
+                "CCZ_HISTORY_SHARED": "1",
+                "CCZ_HISTORY_ROUND_NUMBER": str(task.round_number),
                 "CCZ_RANDOM_MODE": mode,
                 "CCZ_LOOP_RANDOM": "0",
                 "CCZ_RUN_STAMP": _batch_stamp(task.round_number),
@@ -1059,6 +1242,17 @@ def _run_continuous_loop(
                     source,
                     game_executable.parent / "SV" / source.name,
                 )
+                _mark_history_published(
+                    history_repository,
+                    round_number=next_publish_round,
+                    slot=slot,
+                    target=game_executable.parent / "SV" / source.name,
+                )
+            _finish_shared_round(
+                history_repository,
+                round_number=next_publish_round,
+                status="completed",
+            )
             print(
                 encode_concurrent_event(
                     1,
@@ -1164,6 +1358,22 @@ def _run_continuous_loop(
                     and current_hash is not None
                     and (process.returncode == 0 or stopped)
                 )
+                round_state = rounds[task.round_number]
+                duplicate_result = (
+                    task_succeeded
+                    and lane.result_signature is not None
+                    and lane.result_signature
+                    in round_state.accepted_signatures
+                )
+                if duplicate_result:
+                    task_succeeded = False
+                    diagnostic_log(
+                        "concurrent_duplicate_result",
+                        worker=lane.index,
+                        round_number=task.round_number,
+                        result_slot=task.slot,
+                        signature=lane.result_signature,
+                    )
                 probe_failed_now = (
                     compatibility_mode
                     and not compatibility_probe_passed
@@ -1194,7 +1404,6 @@ def _run_continuous_loop(
                     consecutive_startup_failures = 0
                     open_startup_gate()
                     task_failures.pop(task, None)
-                    round_state = rounds[task.round_number]
                     target_save = (
                         round_state.workspace
                         / "SV"
@@ -1207,6 +1416,12 @@ def _run_continuous_loop(
                         result_slot=task.slot,
                     ):
                         _publish_save(source, target_save)
+                        _mark_history_published(
+                            history_repository,
+                            round_number=task.round_number,
+                            slot=task.slot,
+                            target=target_save,
+                        )
                     with timing.phase(
                         "panel_copy",
                         worker=lane.index,
@@ -1246,6 +1461,10 @@ def _run_continuous_loop(
                                 flush=True,
                             )
                     round_state.completed_slots.add(task.slot)
+                    if lane.result_signature is not None:
+                        round_state.accepted_signatures.add(
+                            lane.result_signature
+                        )
                     if len(round_state.completed_slots) == result_count:
                         finalize_round(round_state)
                         publish_completed_rounds()
@@ -1260,9 +1479,13 @@ def _run_continuous_loop(
                     failure_count = task_failures.get(task, 0) + 1
                     task_failures[task] = failure_count
                     reason = (
-                        "失去响应"
-                        if lane.timed_out
-                        else f"退出码 {process.returncode}"
+                        "结果与本轮其他存档重复"
+                        if duplicate_result
+                        else (
+                            "失去响应"
+                            if lane.timed_out
+                            else f"退出码 {process.returncode}"
+                        )
                     )
                     print(
                         f"[实例 {lane.index}] 第 {task.round_number} 轮"
@@ -1359,6 +1582,7 @@ def _run_concurrent_batch(
     round_number: int,
     compatibility_mode: bool = False,
 ) -> int:
+    history_repository = _shared_history_repository(base_dir)
     stamp = f"{os.getpid()}-{time.time_ns()}"
     runtime_root = base_dir / "ccz_fast_data"
     try:
@@ -1387,6 +1611,7 @@ def _run_concurrent_batch(
     compatibility_probe_passed = not compatibility_mode
     compatibility_probe_failed = False
     published_slots: set[int] = set()
+    accepted_signatures: set[str] = set()
     result_panel_dir, result_grid_path = _unique_batch_result_paths(base_dir)
     result_path_announced = False
     timing = _TimingRecorder(
@@ -1474,6 +1699,9 @@ def _run_concurrent_batch(
                 "CCZ_RESULT_COUNT": "1",
                 "CCZ_RESULT_SLOT_START": str(slot),
                 "CCZ_TOTAL_RESULT_COUNT": str(result_count),
+                "CCZ_STATE_BASE_DIR": str(base_dir),
+                "CCZ_HISTORY_SHARED": "1",
+                "CCZ_HISTORY_ROUND_NUMBER": str(round_number),
                 "CCZ_RANDOM_MODE": mode,
                 "CCZ_LOOP_RANDOM": "0",
                 "CCZ_RUN_STAMP": _batch_stamp(round_number),
@@ -1682,6 +1910,20 @@ def _run_concurrent_batch(
                     and current_hash is not None
                     and (process.returncode == 0 or stopped)
                 )
+                duplicate_result = (
+                    task_succeeded
+                    and lane.result_signature is not None
+                    and lane.result_signature in accepted_signatures
+                )
+                if duplicate_result:
+                    task_succeeded = False
+                    diagnostic_log(
+                        "concurrent_duplicate_result",
+                        worker=lane.index,
+                        round_number=round_number,
+                        result_slot=slot,
+                        signature=lane.result_signature,
+                    )
                 probe_failed_now = (
                     compatibility_mode
                     and not compatibility_probe_passed
@@ -1733,6 +1975,14 @@ def _run_concurrent_batch(
                             source,
                             game_executable.parent / "SV" / source.name,
                         )
+                        _mark_history_published(
+                            history_repository,
+                            round_number=round_number,
+                            slot=slot,
+                            target=game_executable.parent
+                            / "SV"
+                            / source.name,
+                        )
                     with timing.phase(
                         "panel_copy",
                         worker=lane.index,
@@ -1768,6 +2018,8 @@ def _run_concurrent_batch(
                         flush=True,
                     )
                     published_slots.add(slot)
+                    if lane.result_signature is not None:
+                        accepted_signatures.add(lane.result_signature)
                 else:
                     if stopped:
                         next_failure_count = 0
@@ -1785,9 +2037,13 @@ def _run_concurrent_batch(
                         failure_count = next_failure_count
                         slot_failures[slot] = failure_count
                         reason = (
-                            "失去响应"
-                            if lane.timed_out
-                            else f"退出码 {process.returncode}"
+                            "结果与本轮其他存档重复"
+                            if duplicate_result
+                            else (
+                                "失去响应"
+                                if lane.timed_out
+                                else f"退出码 {process.returncode}"
+                            )
                         )
                         print(
                             f"[实例 {lane.index}] 第 {slot} 号任务失败，"
@@ -1817,6 +2073,7 @@ def _run_concurrent_batch(
                 lane.startup_failed = False
                 lane.attempt_completed = False
                 lane.result_saved = False
+                lane.result_signature = None
                 lane.started_at = 0.0
                 if (
                     not stopped
@@ -1868,6 +2125,11 @@ def _run_concurrent_batch(
                 flush=True,
             )
         if stopped:
+            _finish_shared_round(
+                history_repository,
+                round_number=round_number,
+                status="stopped",
+            )
             return 0
         if (
             (
@@ -1876,8 +2138,19 @@ def _run_concurrent_batch(
             )
             or startup_circuit_open
         ) and not published_slots:
+            _finish_shared_round(
+                history_repository,
+                round_number=round_number,
+                status="failed",
+            )
             return CONCURRENT_COMPATIBILITY_FALLBACK_CODE
-        return 0 if len(published_slots) == result_count else 1
+        completed = len(published_slots) == result_count
+        _finish_shared_round(
+            history_repository,
+            round_number=round_number,
+            status="completed" if completed else "failed",
+        )
+        return 0 if completed else 1
     finally:
         for lane in lanes:
             process = lane.process

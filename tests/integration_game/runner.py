@@ -164,6 +164,7 @@ def run_game_cases(
                     "CCZ_GAME_DIR": str(game_dir),
                     "CCZ_GAME_EXE": str(game_dir / "Ekd5.exe"),
                     "CCZ_GAME_TEST_ARTIFACT_DIR": str(case_dir),
+                    "CCZ_STATE_BASE_DIR": str(case_dir),
                 }
             )
             script = (

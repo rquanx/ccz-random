@@ -32,8 +32,10 @@ from ccz_randomizer.rules.config import (
     validate_rule_config,
 )
 from ccz_randomizer.rules.editor import show_rule_editor, show_toast
-from ccz_randomizer.history import HistoryRepository
+from ccz_randomizer.history import HistoryRepository, rule_snapshot_hash
+from ccz_randomizer.statistics import StatisticsRepository
 from ccz_randomizer.ui.history import show_history_window
+from ccz_randomizer.ui.statistics import show_statistics_window
 from ccz_randomizer.ui.result_details import (
     decode_result_detail,
     encode_result_detail,
@@ -494,6 +496,16 @@ def initial_team_members(members):
     return tuple(members[index] for index in INITIAL_TEAM_MEMBER_INDICES)
 
 
+def _enum_catalog_version(value) -> str:
+    payload = json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return "sha256:" + hashlib.sha256(payload).hexdigest()
+
+
 @lru_cache(maxsize=1)
 def canonical_skill_names() -> tuple[str, ...]:
     if getattr(sys, "frozen", False):
@@ -557,6 +569,10 @@ def load_member_skills_from_memory(
     unknown_type = task_module.CczType.UNKNOWN
     unknown_skills = []
     for member, memory_member in zip(members, snapshot.members):
+        member._memory_member_id = memory_member.member_id
+        member._memory_job_id = memory_member.job_id
+        member._memory_record_index = memory_member.record_index
+        member._memory_job_known = memory_member.job_id in JOB_MAP
         skill_list = []
         for category, definitions in (
             ("personal", memory_member.personal),
@@ -601,6 +617,8 @@ def load_member_skills_from_memory(
                         internal_skill_id=definition.internal_id,
                         skill_format_type=definition.format_type,
                         skill_parameter=definition.parameter,
+                        skill_known=model is not None,
+                        skill_base_name=definition.base_name,
                     )
                 )
         member.skillList = skill_list
@@ -835,8 +853,13 @@ def build_history_result_snapshot(
     result_slot: int,
     accepted_attempt: int,
     round_number: int,
-    equip_info,
+    equip_info=(),
     save_path: Path,
+    rule_name: str = "",
+    rule_snapshot: dict | None = None,
+    build_info: dict | None = None,
+    save_confirmed: bool = False,
+    published: bool = False,
 ) -> dict:
     detail = result_detail_for_runner(
         runner,
@@ -844,6 +867,14 @@ def build_history_result_snapshot(
         accepted_attempt,
     )
     members = []
+    unknown_counts = {
+        "members": 0,
+        "jobs": 0,
+        "personalSkills": 0,
+        "jobSkills": 0,
+        "treasures": 0,
+        "properties": 0,
+    }
     job_members = {
         item.get("name"): item
         for item in ((detail or {}).get("job") or {}).get("members", [])
@@ -853,36 +884,105 @@ def build_history_result_snapshot(
         skills = list(getattr(member, "skillList", ()))
 
         def skill_rows(category: str) -> list[dict]:
-            return [
-                {
-                    "name": str(getattr(skill, "name", "")),
-                    "canonicalName": str(
-                        getattr(skill, "canonical_name", "")
-                    ),
-                    "internalId": getattr(
-                        skill, "internal_skill_id", None
-                    ),
-                    "formatType": str(
-                        getattr(skill, "skill_format_type", "")
-                    ),
-                    "parameter": getattr(skill, "skill_parameter", None),
-                    "score": float(getattr(skill, "score", 0.0)),
-                }
-                for skill in skills
-                if getattr(skill, "memory_category", "") == category
-            ]
+            rows = []
+            for skill in skills:
+                if getattr(skill, "memory_category", "") != category:
+                    continue
+                name = str(getattr(skill, "name", ""))
+                canonical_name = str(
+                    getattr(skill, "canonical_name", "")
+                )
+                internal_id = getattr(skill, "internal_skill_id", None)
+                known = bool(
+                    getattr(
+                        skill,
+                        "skill_known",
+                        bool(canonical_name),
+                    )
+                )
+                if not known:
+                    unknown_counts[
+                        "personalSkills"
+                        if category == "personal"
+                        else "jobSkills"
+                    ] += 1
+                rows.append(
+                    {
+                        "name": name,
+                        "skillName": name,
+                        "skillId": (
+                            str(internal_id)
+                            if internal_id is not None
+                            else (canonical_name or name)
+                        ),
+                        "canonicalName": canonical_name,
+                        "internalId": internal_id,
+                        "rawValue": internal_id,
+                        "known": known,
+                        "formatType": str(
+                            getattr(skill, "skill_format_type", "")
+                        ),
+                        "parameter": getattr(
+                            skill,
+                            "skill_parameter",
+                            None,
+                        ),
+                        "score": float(getattr(skill, "score", 0.0)),
+                    }
+                )
+            return rows
 
         job_row = job_members.get(member.name, {})
+        raw_member_id = getattr(member, "_memory_member_id", None)
+        member_id = (
+            f"memory:{raw_member_id}"
+            if raw_member_id is not None
+            else f"name:{member.name}"
+        )
+        raw_job_id = getattr(member, "_memory_job_id", None)
+        if raw_job_id is None and len(members) < len(
+            getattr(runner, "_r0_job_ids", ())
+        ):
+            raw_job_id = runner._r0_job_ids[len(members)]
+        job_name = str(
+            job_row.get("job")
+            or getattr(getattr(member, "job", None), "name", "")
+        )
+        job_known = bool(
+            getattr(
+                member,
+                "_memory_job_known",
+                raw_job_id in JOB_MAP if raw_job_id is not None else bool(job_name),
+            )
+        )
+        if raw_member_id is None:
+            unknown_counts["members"] += 1
+        if not job_known:
+            unknown_counts["jobs"] += 1
         members.append(
             {
+                "position": len(members),
+                "memberId": member_id,
                 "name": member.name,
-                "job": str(
-                    job_row.get("job")
-                    or getattr(getattr(member, "job", None), "name", "")
+                "memberName": member.name,
+                "memberRawId": raw_member_id,
+                "jobId": (
+                    str(raw_job_id)
+                    if raw_job_id is not None
+                    else f"name:{job_name}"
                 ),
+                "jobRawId": raw_job_id,
+                "job": job_name,
+                "jobName": job_name,
+                "jobKnown": job_known,
                 "jobScore": job_row.get("score"),
                 "personalSkills": skill_rows("personal"),
                 "jobSkills": skill_rows("job"),
+                "memoryReadStatus": (
+                    "ok"
+                    if raw_member_id is not None
+                    else "unknown"
+                ),
             }
         )
 
@@ -909,6 +1009,21 @@ def build_history_result_snapshot(
             else:
                 serialized_items.append(str(item))
         specials.append({"title": title, "items": serialized_items})
+    equipped_names = {
+        str(name)
+        for items, _category in (equip_info or ())
+        for name, _effect in items
+    }
+    combinations = [
+        {
+            "combinationId": title,
+            "combinationName": title,
+            "memberPosition": -1,
+            "known": True,
+        }
+        for title, names in EQUIPMENT_SETS
+        if names and set(names).issubset(equipped_names)
+    ]
     save_bytes = save_path.read_bytes() if save_path.is_file() else b""
     history_save_root = os.environ.get("CCZ_HISTORY_SAVE_ROOT", "").strip()
     history_save_path = (
@@ -916,8 +1031,74 @@ def build_history_result_snapshot(
         if history_save_root
         else save_path
     )
+    active_rule = rule_snapshot or {}
+    normalized_rule = json.dumps(
+        active_rule,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    rule_hash = "sha256:" + hashlib.sha256(
+        normalized_rule.encode("utf-8")
+    ).hexdigest()
+    treasures = []
+    for category in categories:
+        for item in category["items"]:
+            effect = str(item.get("effect") or "")
+            if not item.get("name"):
+                unknown_counts["treasures"] += 1
+            if not effect:
+                unknown_counts["properties"] += 1
+            treasures.append(
+                {
+                    "memberPosition": -1,
+                    "treasureId": str(item.get("name") or ""),
+                    "treasureName": str(item.get("name") or ""),
+                    "known": bool(item.get("name")),
+                    "properties": (
+                        [
+                            {
+                                "propertyId": effect,
+                                "propertyName": effect,
+                                "known": True,
+                            }
+                        ]
+                        if effect
+                        else []
+                    ),
+                    "setIds": [],
+                }
+            )
     return {
-        "schemaVersion": 1,
+        "schemaVersion": 3,
+        "toolVersion": str((build_info or {}).get("version") or ""),
+        "ruleId": str(
+            active_rule.get("id")
+            or active_rule.get("ruleId")
+            or rule_name
+        ),
+        "ruleName": rule_name,
+        "ruleSchemaVersion": str(
+            active_rule.get("schemaVersion")
+            or active_rule.get("ruleSchemaVersion")
+            or "rule-schema-v1"
+        ),
+        "ruleSnapshotHash": rule_hash,
+        "ruleSnapshot": active_rule,
+        "enumVersions": {
+            "job": _enum_catalog_version(JOB_MAP),
+            "skill": _enum_catalog_version(canonical_skill_names()),
+            "runtimeSkill": _enum_catalog_version(
+                runtime_skill_catalog_names()
+            ),
+            "treasure": _enum_catalog_version(
+                {
+                    "names": EQUIPMENT_NAMES,
+                    "categories": EQUIPMENT_CATEGORY_NAMES,
+                    "sets": EQUIPMENT_SETS,
+                }
+            ),
+        },
         "createdAt": dt.datetime.now().astimezone().isoformat(
             timespec="seconds"
         ),
@@ -933,15 +1114,19 @@ def build_history_result_snapshot(
             "categories": categories,
             "specials": specials,
         },
+        "treasures": treasures,
+        "combinations": combinations,
         "save": {
             "path": str(history_save_path),
             "size": len(save_bytes),
             "sha256": hashlib.sha256(save_bytes).hexdigest()
             if save_bytes
             else "",
-            "verified": False,
+            "verified": bool(save_confirmed),
+            "published": bool(published),
             "verificationError": "",
         },
+        "unknownCounts": unknown_counts,
     }
 
 
@@ -8721,6 +8906,30 @@ def serialize_rule_profile(profile: dict) -> str:
     )
 
 
+def history_rule_environment_json(snapshot: str | None) -> str:
+    if not snapshot:
+        return "{}"
+    value = json.loads(snapshot)
+    if not isinstance(value, dict):
+        raise ValueError("运行规则快照必须是 JSON 对象")
+    return json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+
+
+def configured_result_count(loop_random: bool) -> int:
+    configured = int(os.environ.get("CCZ_RESULT_COUNT", "15"))
+    if (
+        loop_random
+        and os.environ.get("CCZ_COORDINATOR_MANAGED_LOOP") != "1"
+    ):
+        return 15
+    return configured
+
+
 def current_run_rule_save_notice(
     config: dict,
     running_rule_name: str | None,
@@ -8748,6 +8957,7 @@ def gui_main() -> int:
     worker: subprocess.Popen[str] | None = None
     running_rule_name: str | None = None
     running_rule_snapshot: str | None = None
+    statistics_run_id: str | None = None
     output_queue: queue.Queue[str] = queue.Queue()
     log_path: Path | None = None
     result_image_path: Path | None = None
@@ -8975,6 +9185,12 @@ def gui_main() -> int:
         width=10,
     )
     repair_button.pack(side="left", padx=(8, 0))
+    statistics_button = tk.Button(
+        rule_settings_bar,
+        text="统计",
+        width=8,
+    )
+    statistics_button.pack(side="left", padx=(8, 0))
     action_button = tk.Button(
         rule_settings_bar,
         text="开始随机",
@@ -9570,6 +9786,38 @@ def gui_main() -> int:
             return
         show_history_window(root, repository)
 
+    def open_statistics() -> None:
+        try:
+            repository = StatisticsRepository(app_dir())
+        except Exception as exc:
+            messagebox.showerror(
+                "统计无法打开",
+                str(exc),
+                parent=root,
+            )
+            return
+        if running_rule_snapshot:
+            try:
+                active_statistics_rule = json.loads(running_rule_snapshot)
+            except (TypeError, json.JSONDecodeError):
+                active_statistics_rule = {}
+        else:
+            active_statistics_rule = current_rules["profiles"].get(
+                current_rules["activeProfile"],
+                {},
+            )
+        show_statistics_window(
+            root,
+            repository,
+            current_run_id=statistics_run_id,
+            current_rule_hash=(
+                rule_snapshot_hash(active_statistics_rule)
+                if isinstance(active_statistics_rule, dict)
+                and active_statistics_rule
+                else None
+            ),
+        )
+
     def select_rule_profile(_event=None) -> None:
         nonlocal current_rules
         selected = rule_profile_var.get()
@@ -10134,6 +10382,7 @@ def gui_main() -> int:
         nonlocal worker, result_image_path, stop_file
         nonlocal stop_requested_by_user, last_formatted_line
         nonlocal running_rule_name, running_rule_snapshot
+        nonlocal statistics_run_id
         nonlocal active_game_executable, security_blocked_details
         nonlocal concurrent_console_state, concurrent_console_rounds
         nonlocal concurrent_console_round_images
@@ -10364,6 +10613,7 @@ def gui_main() -> int:
         nonlocal worker, log_path, result_image_path, stop_file
         nonlocal stop_requested_by_user, last_formatted_line
         nonlocal running_rule_name, running_rule_snapshot
+        nonlocal statistics_run_id
         nonlocal active_game_executable, security_blocked_details
         nonlocal concurrent_console_state, concurrent_console_rounds
         nonlocal concurrent_console_round_images
@@ -10501,6 +10751,17 @@ def gui_main() -> int:
         env["CCZ_LOOP_RANDOM"] = "1" if loop_var.get() else "0"
         env["CCZ_CONCURRENT_MODE"] = "1"
         env["CCZ_CONCURRENT_COUNT"] = str(concurrency)
+        statistics_run_id = f"gui-{os.getpid()}-{time.time_ns()}"
+        env["CCZ_HISTORY_RUN_ID"] = statistics_run_id
+        env["CCZ_HISTORY_SHARED"] = "1"
+        env["CCZ_HISTORY_RULE_NAME"] = str(running_rule_name)
+        env["CCZ_HISTORY_RULE_JSON"] = history_rule_environment_json(
+            running_rule_snapshot
+        )
+        env["CCZ_HISTORY_BUILD_JSON"] = json.dumps(
+            application_build_info(),
+            ensure_ascii=False,
+        )
         env["CCZ_COMPATIBILITY_MODE"] = (
             "1" if compatibility_mode_enabled else "0"
         )
@@ -10618,6 +10879,7 @@ def gui_main() -> int:
     action_button.configure(command=start)
     rule_button.configure(command=open_rule_editor)
     repair_button.configure(command=open_repair_dialog)
+    statistics_button.configure(command=open_statistics)
     rule_profile_combo.bind("<<ComboboxSelected>>", select_rule_profile)
     root.protocol("WM_DELETE_WINDOW", close)
     if rule_load.warning:
@@ -10763,8 +11025,10 @@ def main() -> int:
     history_repository = HistoryRepository(
         Path(state_base) if state_base else app
     )
+    shared_history = os.environ.get("CCZ_HISTORY_SHARED") == "1"
+    history_run_id = os.environ.get("CCZ_HISTORY_RUN_ID", "").strip() or run_id
     history_repository.start_run(
-        run_id,
+        history_run_id,
         mode="three" if three_person_mode else "seven",
         loop_random=loop_random,
         rule_name=rules["activeProfile"],
@@ -10878,11 +11142,7 @@ def main() -> int:
         import task.CczReRandTask as task_module
 
         task_module.SAVE_NUM = 1
-        result_count = (
-            15
-            if loop_random
-            else int(os.environ.get("CCZ_RESULT_COUNT", "15"))
-        )
+        result_count = configured_result_count(loop_random)
         result_slot_start = int(
             os.environ.get("CCZ_RESULT_SLOT_START", "1")
         )
@@ -10898,6 +11158,12 @@ def main() -> int:
             )
             if result_slot_list
             else None
+        )
+        round_result_slots = result_slots or tuple(
+            range(
+                result_slot_start,
+                result_slot_start + result_count,
+            )
         )
         progress_total = int(
             os.environ.get("CCZ_TOTAL_RESULT_COUNT", str(result_count))
@@ -10970,7 +11236,9 @@ def main() -> int:
 
         game = start_game_session()
         try:
-            round_number = 1
+            round_number = int(
+                os.environ.get("CCZ_HISTORY_ROUND_NUMBER", "1")
+            )
             while True:
                 update_diagnostic_context(
                     phase="round_setup",
@@ -10986,7 +11254,7 @@ def main() -> int:
                 attempt_started_at: dict[tuple[int, int], float] = {}
                 round_started_at = dt.datetime.now()
                 history_round_id = history_repository.start_round(
-                    run_id,
+                    history_run_id,
                     round_number,
                 )
                 if loop_random:
@@ -11034,6 +11302,7 @@ def main() -> int:
                         workspace,
                         save_dir=game_dir / "SV",
                         completed_slots=expected_results,
+                        expected_slots=round_result_slots,
                         metadata=round_metadata(dt.datetime.now()),
                         complete=False,
                     )
@@ -11279,7 +11548,33 @@ def main() -> int:
                                 round_number=round_number,
                                 equip_info=equip_info,
                                 save_path=save_path,
+                                rule_name=rules["activeProfile"],
+                                rule_snapshot=active_rule_snapshot,
+                                build_info=build_info,
+                                save_confirmed=True,
+                                published=(
+                                    save_path.resolve()
+                                    == (
+                                        Path(
+                                            os.environ.get(
+                                                "CCZ_HISTORY_SAVE_ROOT",
+                                                "",
+                                            )
+                                        )
+                                        / "SV"
+                                        / save_path.name
+                                    ).resolve()
+                                    if os.environ.get(
+                                        "CCZ_HISTORY_SAVE_ROOT",
+                                        "",
+                                    )
+                                    else True
+                                ),
                             )
+                            snapshot["resultImagePath"] = str(
+                                panel_paths[result_slot]
+                            )
+                            snapshot["resultGridPath"] = str(current_grid)
                             with diagnostic_timing(
                                 "accepted_write_history",
                                 result_slot=result_slot,
@@ -11336,7 +11631,41 @@ def main() -> int:
                                     str(exc),
                                 )
                             )
-                            compose_result_grid(panel_paths)
+                            fallback_grid = compose_result_grid(panel_paths)
+                            save_path = (
+                                game_dir
+                                / "SV"
+                                / f"SV{result_slot:03}.E5S"
+                            )
+                            fallback_snapshot = build_history_result_snapshot(
+                                result.payload,
+                                result_slot=result_slot,
+                                accepted_attempt=result.round_index,
+                                round_number=round_number,
+                                equip_info=(),
+                                save_path=save_path,
+                                rule_name=rules["activeProfile"],
+                                rule_snapshot=active_rule_snapshot,
+                                build_info=build_info,
+                                save_confirmed=True,
+                                published=not bool(
+                                    os.environ.get("CCZ_HISTORY_SAVE_ROOT")
+                                ),
+                            )
+                            fallback_snapshot["status"] = "accepted"
+                            fallback_snapshot["failureReason"] = (
+                                "result_render_failed"
+                            )
+                            fallback_snapshot["resultImagePath"] = str(
+                                panel_paths[result_slot]
+                            )
+                            fallback_snapshot["resultGridPath"] = str(
+                                fallback_grid
+                            )
+                            history_repository.save_result(
+                                history_round_id,
+                                fallback_snapshot,
+                            )
                         except Exception as fallback_exc:
                             postprocess_issues[result_slot].append(
                                 f"备用结果图生成失败：{fallback_exc}"
@@ -11384,6 +11713,39 @@ def main() -> int:
                                 else None
                             ),
                         )
+                        try:
+                            history_repository.save_attempt(
+                                history_round_id,
+                                {
+                                    "schemaVersion": 3,
+                                    "slot": result_slot,
+                                    "attempt": round_index,
+                                    "mode": (
+                                        "three"
+                                        if three_person_mode
+                                        else "seven"
+                                    ),
+                                    "status": "failed",
+                                    "failureReason": str(exc),
+                                    "members": [],
+                                    "treasures": [],
+                                    "save": {
+                                        "verified": False,
+                                        "published": False,
+                                    },
+                                },
+                                status="failed",
+                                failure_reason=str(exc),
+                                scored=False,
+                            )
+                        except Exception as history_exc:
+                            diagnostic_error(
+                                "history_failed_attempt_write_failed",
+                                history_exc,
+                                game=game,
+                                result_slot=result_slot,
+                                round_index=round_index,
+                            )
 
                     def attempt_finished(
                         result_slot: int,
@@ -11412,6 +11774,52 @@ def main() -> int:
                             result_slot,
                             round_index,
                         )
+                        if (
+                            detail is not None
+                            and not attempt.accepted
+                        ):
+                            try:
+                                attempt_snapshot = (
+                                    build_history_result_snapshot(
+                                        attempt.payload,
+                                        result_slot=result_slot,
+                                        accepted_attempt=round_index,
+                                        round_number=round_number,
+                                        equip_info=(),
+                                        save_path=(
+                                            game_dir
+                                            / "SV"
+                                            / ".ccz-no-result-save"
+                                        ),
+                                        rule_name=rules["activeProfile"],
+                                        rule_snapshot=active_rule_snapshot,
+                                        build_info=build_info,
+                                    )
+                                )
+                                attempt_snapshot["status"] = (
+                                    "rejected"
+                                )
+                                history_repository.save_attempt(
+                                    history_round_id,
+                                    attempt_snapshot,
+                                    status="rejected",
+                                    failure_reason=str(
+                                        getattr(
+                                            attempt.payload,
+                                            "_result_outcome",
+                                            "unknown",
+                                        )
+                                    ),
+                                    scored=True,
+                                )
+                            except Exception as history_exc:
+                                diagnostic_error(
+                                    "history_attempt_write_failed",
+                                    history_exc,
+                                    game=game,
+                                    result_slot=result_slot,
+                                    round_index=round_index,
+                                )
                         if detail is not None:
                             print(encode_result_detail(detail))
 
@@ -11448,23 +11856,25 @@ def main() -> int:
                         raise RuntimeError(
                             "第 20 号源存档在随机过程中被修改"
                         )
-                    if not loop_random:
+                    if not loop_random and not shared_history:
                         history_repository.finish_round(
                             history_round_id,
                             "completed",
                         )
                 except KeyboardInterrupt:
-                    history_repository.finish_round(
-                        history_round_id,
-                        "stopped",
-                    )
+                    if not shared_history:
+                        history_repository.finish_round(
+                            history_round_id,
+                            "stopped",
+                        )
                     archive_incomplete_round()
                     raise
                 except Exception:
-                    history_repository.finish_round(
-                        history_round_id,
-                        "failed",
-                    )
+                    if not shared_history:
+                        history_repository.finish_round(
+                            history_round_id,
+                            "failed",
+                        )
                     raise
 
                 if not loop_random:
@@ -11476,24 +11886,27 @@ def main() -> int:
                         workspace,
                         save_dir=game_dir / "SV",
                         completed_slots=expected_results,
+                        expected_slots=round_result_slots,
                         metadata=round_metadata(dt.datetime.now()),
                         complete=True,
                     )
                 except Exception:
-                    history_repository.finish_round(
-                        history_round_id,
-                        "failed",
-                    )
+                    if not shared_history:
+                        history_repository.finish_round(
+                            history_round_id,
+                            "failed",
+                        )
                     raise
                 assert completed_dir is not None
                 final_grid = relocate_result_output(completed_dir)
-                history_repository.finish_round(
-                    history_round_id,
-                    "completed",
-                )
+                if not shared_history:
+                    history_repository.finish_round(
+                        history_round_id,
+                        "completed",
+                    )
                 print(
                     f"循环轮次完成：第 {round_number} 轮已完成，"
-                    "共保存15个存档"
+                    f"共保存{result_count}个存档"
                 )
                 print(f"循环轮次结果目录：{completed_dir}")
                 print(f"本轮总图路径：{final_grid}")
@@ -11515,7 +11928,8 @@ def main() -> int:
                 )
             else:
                 print(f"{result_count} 个结果存档已全部保存。")
-        history_repository.finish_run(run_id, "completed")
+        if not shared_history:
+            history_repository.finish_run(history_run_id, "completed")
         update_diagnostic_summary(
             status="completed",
             completed_results=len(expected_results),
@@ -11523,14 +11937,16 @@ def main() -> int:
         )
         return 0
     except KeyboardInterrupt:
-        history_repository.finish_run(run_id, "stopped")
+        if not shared_history:
+            history_repository.finish_run(history_run_id, "stopped")
         update_diagnostic_context(phase="stopped")
         diagnostic_log("worker_stopped", reason="keyboard_interrupt")
         update_diagnostic_summary(status="stopped")
         print("测试已中断。")
         return 130
     except Exception as exc:
-        history_repository.finish_run(run_id, "failed")
+        if not shared_history:
+            history_repository.finish_run(history_run_id, "failed")
         update_diagnostic_context(phase="worker_failed")
         blocked_details = security_software_block_details(exc)
         diagnostic_error(

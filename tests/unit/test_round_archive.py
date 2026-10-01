@@ -79,6 +79,56 @@ class RoundArchiveTests(unittest.TestCase):
                 info["resultArtifacts"]["missingPanels"],
             )
 
+    def test_complete_round_uses_configured_expected_slots(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            save_dir = base / "SV"
+            save_dir.mkdir()
+            (save_dir / "SV001.E5S").write_bytes(b"save")
+            workspace = prepare_round_workspace(
+                base,
+                "2026-10-01 16.30.00",
+                1,
+            )
+
+            target = finalize_round(
+                workspace,
+                save_dir=save_dir,
+                completed_slots=(1,),
+                expected_slots=(1,),
+                metadata={},
+                complete=True,
+            )
+
+            info = json.loads(
+                (target / "round-info.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual([1], info["expectedSlots"])
+            self.assertEqual([1], info["completedSlots"])
+            self.assertTrue((target / "saves" / "SV001.E5S").is_file())
+
+    def test_complete_round_rejects_missing_configured_slot(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            workspace = prepare_round_workspace(
+                base,
+                "2026-10-01 16.30.00",
+                1,
+            )
+
+            with self.assertRaisesRegex(
+                RuntimeError,
+                r"应有 \[1, 2\]，实际 \[1\]",
+            ):
+                finalize_round(
+                    workspace,
+                    save_dir=base / "SV",
+                    completed_slots=(1,),
+                    expected_slots=(1, 2),
+                    metadata={},
+                    complete=True,
+                )
+
     def test_incomplete_round_preserves_only_completed_saves(self):
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)

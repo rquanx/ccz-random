@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import os
 import tempfile
 import threading
 import unittest
@@ -9,13 +10,17 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
+from ccz_randomizer.app import configured_result_count
+from ccz_randomizer.history import HistoryRepository
 from ccz_randomizer.runtime.concurrent import (
     CONCURRENT_COMPATIBILITY_FALLBACK_CODE,
     CONCURRENT_HEARTBEAT_LINE,
     DynamicSlotQueue,
     _run_concurrent_batch,
     _run_continuous_loop,
+    _run_original_directory_worker,
     _TimingRecorder,
+    _result_signature_from_line,
     _is_worker_progress_line,
     _should_forward_line,
     decode_concurrent_event,
@@ -39,6 +44,178 @@ from ccz_randomizer.ui.result_details import (
 
 
 class ConcurrentSchedulingTests(unittest.TestCase):
+    def test_coordinator_managed_loop_honors_configured_result_count(self):
+        with patch.dict(
+            os.environ,
+            {
+                "CCZ_RESULT_COUNT": "1",
+                "CCZ_COORDINATOR_MANAGED_LOOP": "1",
+            },
+            clear=False,
+        ):
+            self.assertEqual(1, configured_result_count(True))
+
+        with patch.dict(
+            os.environ,
+            {
+                "CCZ_RESULT_COUNT": "1",
+                "CCZ_COORDINATOR_MANAGED_LOOP": "0",
+            },
+            clear=False,
+        ):
+            self.assertEqual(15, configured_result_count(True))
+
+    def test_original_directory_loop_finishes_each_reported_round(self):
+        captured_environment = {}
+
+        class FakeProcess:
+            def __init__(self, _command, *, env, **_kwargs):
+                captured_environment.update(env)
+                self.stdout = io.StringIO(
+                    "循环轮次完成：第 1 轮已完成，共保存1个存档\n"
+                    "循环轮次完成：第 2 轮已完成，共保存1个存档\n"
+                )
+                self.returncode = 130
+
+            def poll(self):
+                return self.returncode
+
+            def terminate(self):
+                self.returncode = 130
+
+            def kill(self):
+                self.terminate()
+
+            def wait(self, timeout=None):
+                del timeout
+                return self.returncode
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            game_dir = root / "game"
+            (game_dir / "SV").mkdir(parents=True)
+            game_executable = game_dir / "Ekd5.exe"
+            game_executable.write_bytes(b"game")
+            stop_file = root / "stop"
+            stop_file.write_text("stop", encoding="ascii")
+            repository = HistoryRepository(root)
+            repository.start_run(
+                "loop-run",
+                mode="three",
+                loop_random=True,
+                rule_name="test",
+                rule={"id": "test"},
+                build={"version": "test"},
+            )
+            repository.start_round("loop-run", 1)
+            repository.start_round("loop-run", 2)
+
+            with (
+                patch.dict(
+                    os.environ,
+                    {
+                        "CCZ_HISTORY_SHARED": "1",
+                        "CCZ_HISTORY_RUN_ID": "loop-run",
+                    },
+                    clear=False,
+                ),
+                patch(
+                    "ccz_randomizer.runtime.concurrent.subprocess.Popen",
+                    side_effect=FakeProcess,
+                ),
+            ):
+                code = _run_original_directory_worker(
+                    game_executable=game_executable,
+                    result_count=1,
+                    mode="three",
+                    stop_file=stop_file,
+                    base_dir=root,
+                    loop_random=True,
+                )
+
+            rounds = {
+                int(row["round_number"]): str(row["status"])
+                for row in repository.list_rounds(page=1, page_size=10)
+            }
+
+        self.assertEqual(0, code)
+        self.assertEqual(
+            "1",
+            captured_environment["CCZ_COORDINATOR_MANAGED_LOOP"],
+        )
+        self.assertEqual("1", captured_environment["CCZ_RESULT_COUNT"])
+        self.assertEqual({1: "completed", 2: "completed"}, rounds)
+
+    def test_result_signature_ignores_slot_and_attempt(self):
+        first = encode_result_detail(
+            {
+                "resultSlot": 15,
+                "attempt": 42,
+                "mode": "seven",
+                "job": {
+                    "members": [
+                        {"name": "曹操", "job": "宛卫队", "score": 10.3},
+                    ],
+                },
+                "skill": {
+                    "members": [
+                        {"name": "曹操", "skills": ["一夫当关"], "score": 3},
+                    ],
+                },
+            }
+        )
+        second = encode_result_detail(
+            {
+                "resultSlot": 4,
+                "attempt": 44,
+                "mode": "seven",
+                "job": {
+                    "members": [
+                        {"name": "曹操", "job": "宛卫队", "score": 10.3},
+                    ],
+                },
+                "skill": {
+                    "members": [
+                        {"name": "曹操", "skills": ["一夫当关"], "score": 3},
+                    ],
+                },
+            }
+        )
+
+        self.assertEqual(
+            _result_signature_from_line(first),
+            _result_signature_from_line(second),
+        )
+
+    def test_result_signature_changes_when_visible_result_changes(self):
+        base = encode_result_detail(
+            {
+                "mode": "three",
+                "job": {
+                    "members": [
+                        {"name": "曹操", "job": "宛卫队"},
+                    ],
+                },
+                "skill": {"members": []},
+            }
+        )
+        changed = encode_result_detail(
+            {
+                "mode": "three",
+                "job": {
+                    "members": [
+                        {"name": "曹操", "job": "策士"},
+                    ],
+                },
+                "skill": {"members": []},
+            }
+        )
+
+        self.assertNotEqual(
+            _result_signature_from_line(base),
+            _result_signature_from_line(changed),
+        )
+
     def test_timing_recorder_writes_success_and_error_records(self):
         with tempfile.TemporaryDirectory() as directory:
             recorder = _TimingRecorder(

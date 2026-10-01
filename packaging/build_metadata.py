@@ -60,7 +60,6 @@ def write_build_info(project_root: Path) -> Path:
     if not version:
         version = version_path.read_text(encoding="utf-8").strip()
 
-    built_at = dt.datetime.now().astimezone()
     source_hash = _source_hash(project_root)
     commit = _git_output(project_root, "rev-parse", "--short=12", "HEAD")
     dirty = bool(
@@ -71,23 +70,38 @@ def write_build_info(project_root: Path) -> Path:
             "--untracked-files=no",
         )
     )
+    output = project_root / "build" / "generated" / "build_info.json"
+    stable_fields = {
+        "version": version,
+        "sourceHash": source_hash,
+        "gitCommit": commit or "unknown",
+        "gitDirty": dirty,
+        "python": sys.version.split()[0],
+    }
+    if output.is_file():
+        try:
+            existing = json.loads(output.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            existing = {}
+        if all(
+            existing.get(key) == value
+            for key, value in stable_fields.items()
+        ):
+            return output
+
+    built_at = dt.datetime.now().astimezone()
     build_id = (
         built_at.strftime("%Y%m%d.%H%M%S")
         + "-"
         + source_hash[:12]
     )
-    output = project_root / "build" / "generated" / "build_info.json"
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(
         json.dumps(
             {
-                "version": version,
+                **stable_fields,
                 "buildId": build_id,
                 "builtAt": built_at.isoformat(timespec="seconds"),
-                "sourceHash": source_hash,
-                "gitCommit": commit or "unknown",
-                "gitDirty": dirty,
-                "python": sys.version.split()[0],
             },
             ensure_ascii=False,
             indent=2,

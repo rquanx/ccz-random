@@ -680,7 +680,7 @@ def _show_round_overview(
     _center_window(overview, parent, 1500, 900)
     header = tk.Frame(overview, bg=COLORS["ink"], padx=18, pady=13)
     header.pack(fill="x")
-    mode = "初始3人" if row["mode"] == "three" else "完整7人"
+    mode = "3人" if row["mode"] == "three" else "7人"
     tk.Label(
         header,
         text=f"第 {row['round_number']} 轮 · 全部存档详情",
@@ -836,7 +836,7 @@ def show_history_window(parent, repository: HistoryRepository) -> None:
         selected_round_id = int(row["id"])
         for child in grid.winfo_children():
             child.destroy()
-        mode = "初始3人" if row["mode"] == "three" else "完整7人"
+        mode = "3人" if row["mode"] == "three" else "7人"
         round_header.set(
             f"{_display_time(row['started_at'], include_seconds=True)}  "
             f"第 {row['round_number']} 轮  {mode}  "

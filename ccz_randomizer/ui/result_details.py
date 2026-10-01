@@ -45,7 +45,7 @@ def _comparison(
 
 def format_result_detail(detail: dict[str, Any]) -> dict[str, Any]:
     status = str(detail.get("label") or "未知")
-    mode = "初始3人" if detail.get("mode") == "three" else "完整7人"
+    mode = "3人" if detail.get("mode") == "three" else "7人"
     sections: list[dict[str, Any]] = []
 
     job = detail.get("job")

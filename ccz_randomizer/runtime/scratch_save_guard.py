@@ -27,6 +27,15 @@ def _atomic_write(path: Path, content: bytes) -> None:
         temporary.unlink(missing_ok=True)
 
 
+def publish_candidate_save(target: Path, content: bytes) -> None:
+    """Publish an unchanged game-created save to a result slot."""
+    if not content:
+        raise ValueError("候选存档内容为空，不能发布")
+    _atomic_write(target, content)
+    if target.read_bytes() != content:
+        raise RuntimeError(f"{target.name} 发布后内容与候选存档不一致")
+
+
 class ScratchSaveGuard:
     """Protect the temporary No. 16 save across forced process exits."""
 

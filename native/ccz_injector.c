@@ -106,14 +106,23 @@ static BOOL is_remote_module_valid(HANDLE process, DWORD module) {
 }
 
 int wmain(int argc, wchar_t **argv) {
-    if (argc < 4) {
+    BOOL server_mode = FALSE;
+    if (argc >= 2 && wcscmp(argv[1], L"--server") == 0) {
+        if (argc != 4) {
+            return 64;
+        }
+        server_mode = TRUE;
+    } else if (argc < 4) {
         return 64;
     }
 
-    DWORD pid = wcstoul(argv[1], NULL, 10);
+    DWORD pid = wcstoul(server_mode ? argv[2] : argv[1], NULL, 10);
+    wchar_t *dll_path_arg = server_mode ? argv[3] : argv[2];
     ControlRequest request;
     ZeroMemory(&request, sizeof(request));
-    if (wcscmp(argv[3], L"guard") == 0 && argc == 4) {
+    if (server_mode) {
+        request.action = 0;
+    } else if (wcscmp(argv[3], L"guard") == 0 && argc == 4) {
         request.action = 3;
     } else if (wcscmp(argv[3], L"wake") == 0 && argc == 6) {
         request.action = 4;
@@ -307,7 +316,7 @@ int wmain(int argc, wchar_t **argv) {
         return 2;
     }
 
-    SIZE_T dll_bytes = (wcslen(argv[2]) + 1) * sizeof(wchar_t);
+    SIZE_T dll_bytes = (wcslen(dll_path_arg) + 1) * sizeof(wchar_t);
     LPVOID remote_path = VirtualAllocEx(
         process, NULL, dll_bytes, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE
     );
@@ -321,7 +330,7 @@ int wmain(int argc, wchar_t **argv) {
         return 3;
     }
     if (!WriteProcessMemory(
-            process, remote_path, argv[2], dll_bytes, NULL
+            process, remote_path, dll_path_arg, dll_bytes, NULL
         )) {
         fwprintf(
             stderr,
@@ -417,7 +426,7 @@ int wmain(int argc, wchar_t **argv) {
     }
 
     HMODULE local_module = LoadLibraryExW(
-        argv[2], NULL, DONT_RESOLVE_DLL_REFERENCES
+        dll_path_arg, NULL, DONT_RESOLVE_DLL_REFERENCES
     );
     if (local_module == NULL) {
         CloseHandle(process);
@@ -434,6 +443,137 @@ int wmain(int argc, wchar_t **argv) {
         (ULONG_PTR)local_export - (ULONG_PTR)local_module;
     LPTHREAD_START_ROUTINE remote_export =
         (LPTHREAD_START_ROUTINE)((ULONG_PTR)remote_module + export_offset);
+
+    if (server_mode) {
+        /*
+         * The persistent protocol deliberately uses the numeric request
+         * layout.  It avoids reparsing command names and keeps the helper
+         * independent from Python's process lifetime:
+         * action window x y count right item_index
+         */
+        wprintf(L"READY\n");
+        fflush(stdout);
+        wchar_t line[256];
+        while (fgetws(line, sizeof(line) / sizeof(line[0]), stdin)) {
+            ControlRequest server_request;
+            ZeroMemory(&server_request, sizeof(server_request));
+            int parsed = swscanf(
+                line,
+                L"%d %lu %d %d %d %d %d",
+                &server_request.action,
+                &server_request.window,
+                &server_request.x,
+                &server_request.y,
+                &server_request.count,
+                &server_request.right,
+                &server_request.item_index
+            );
+            if (parsed != 7) {
+                wprintf(L"65\n");
+                fflush(stdout);
+                continue;
+            }
+
+            LPVOID server_request_memory = VirtualAllocEx(
+                process,
+                NULL,
+                sizeof(server_request),
+                MEM_COMMIT | MEM_RESERVE,
+                PAGE_READWRITE
+            );
+            if (server_request_memory == NULL) {
+                wprintf(L"9\n");
+                fflush(stdout);
+                continue;
+            }
+            SIZE_T server_request_bytes = 0;
+            if (!WriteProcessMemory(
+                    process,
+                    server_request_memory,
+                    &server_request,
+                    sizeof(server_request),
+                    &server_request_bytes
+                ) || server_request_bytes != sizeof(server_request)) {
+                VirtualFreeEx(
+                    process,
+                    server_request_memory,
+                    0,
+                    MEM_RELEASE
+                );
+                wprintf(L"205\n");
+                fflush(stdout);
+                continue;
+            }
+
+            DWORD server_thread_error = ERROR_SUCCESS;
+            LONG server_nt_status = 0;
+            HANDLE server_thread = create_remote_thread_compatible(
+                process,
+                remote_export,
+                server_request_memory,
+                &server_thread_error,
+                &server_nt_status
+            );
+            if (server_thread == NULL) {
+                VirtualFreeEx(
+                    process,
+                    server_request_memory,
+                    0,
+                    MEM_RELEASE
+                );
+                wprintf(L"10\n");
+                fflush(stdout);
+                continue;
+            }
+            DWORD server_timeout = server_request.action == 37 ? 5000 : (
+                server_request.action == 15 ||
+                server_request.action == 25 ||
+                server_request.action == 41 ||
+                server_request.action == 46
+            ) ? 65000 : (
+                server_request.action == 1 ? 20000 : 7000
+            );
+            DWORD server_wait = WaitForSingleObject(
+                server_thread,
+                server_timeout
+            );
+            DWORD server_result = 11;
+            if (server_wait == WAIT_OBJECT_0) {
+                if (!GetExitCodeThread(
+                        server_thread,
+                        &server_result
+                    )) {
+                    server_result = 208;
+                }
+            } else if (server_wait == WAIT_TIMEOUT) {
+                server_result = 207;
+            } else {
+                server_result = 206;
+            }
+            CloseHandle(server_thread);
+            VirtualFreeEx(
+                process,
+                server_request_memory,
+                0,
+                MEM_RELEASE
+            );
+            if (server_request.action == 9 ||
+                server_request.action == 10) {
+                server_result = 0;
+            }
+            wprintf(L"%lu\n", server_result);
+            fflush(stdout);
+            /* The target may exit while a request is being processed. */
+            DWORD exit_code = 0;
+            if (GetExitCodeProcess(process, &exit_code) &&
+                exit_code != STILL_ACTIVE) {
+                break;
+            }
+        }
+        FreeLibrary(local_module);
+        CloseHandle(process);
+        return 0;
+    }
 
     LPVOID remote_request = VirtualAllocEx(
         process,

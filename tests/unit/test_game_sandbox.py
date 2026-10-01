@@ -70,6 +70,27 @@ class GameSandboxTests(unittest.TestCase):
             self.assertFalse((sandbox / "ccz_fast_logs").exists())
             self.assertFalse((sandbox / "randResult").exists())
 
+    def test_sandbox_omits_audio_directories_for_silent_game_instances(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "game"
+            root.mkdir()
+            (root / "Ekd5.exe").write_bytes(b"game")
+            (root / "SoundTrk").mkdir()
+            (root / "SoundTrk" / "track.dat").write_bytes(b"music")
+            (root / "WAV").mkdir()
+            (root / "WAV" / "effect.wav").write_bytes(b"effect")
+            (root / "Map").mkdir()
+            (root / "Map" / "asset.bin").write_bytes(b"asset")
+
+            sandbox = create_game_sandbox(
+                root,
+                root=Path(temporary) / "sandboxes",
+            )
+
+            self.assertFalse((sandbox / "SoundTrk").exists())
+            self.assertFalse((sandbox / "WAV").exists())
+            self.assertTrue((sandbox / "Map" / "asset.bin").is_file())
+
     def test_compatibility_sandbox_does_not_create_game_executable(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "game"

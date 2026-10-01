@@ -48,6 +48,7 @@ from fast_randomizer import (
     run_inspection_cli_with_diagnostics,
     run_inspection_process,
     run_native_control,
+    native_control_slot_count,
     session_failure_requires_restart,
     title_load_verified,
     trigger_seven_member_story,
@@ -65,6 +66,94 @@ class FakeGameSession:
 
 
 class ProcessExitDiagnosticTests(unittest.TestCase):
+    def test_persistent_native_controller_reuses_numeric_command_channel(self):
+        class FakeStream:
+            def __init__(self, first="READY\n", lines=()):
+                self.first = first
+                self.lines = iter(lines)
+
+            def readline(self):
+                value, self.first = self.first, ""
+                return value
+
+            def __iter__(self):
+                return self
+
+            def __next__(self):
+                return next(self.lines)
+
+            def read(self):
+                return ""
+
+        class FakeStdin:
+            def __init__(self):
+                self.writes = []
+
+            def write(self, value):
+                self.writes.append(value)
+
+            def flush(self):
+                return None
+
+        class FakeProcess:
+            def __init__(self):
+                self.stdin = FakeStdin()
+                self.stdout = FakeStream(lines=("0\n",))
+                self.stderr = FakeStream(lines=())
+                self.returncode = None
+
+            def poll(self):
+                return self.returncode
+
+            def terminate(self):
+                self.returncode = 0
+
+            def wait(self, timeout=None):
+                return self.returncode
+
+            def kill(self):
+                self.returncode = 1
+
+        fake_process = FakeProcess()
+        with (
+            patch(
+                "ccz_randomizer.app.subprocess.Popen",
+                return_value=fake_process,
+            ),
+            patch(
+                "ccz_randomizer.app.native_dir",
+                return_value=Path("C:/native"),
+            ),
+        ):
+            controller = app_module.PersistentNativeController(123)
+            controller.execute(["status"])
+            controller.close()
+
+        self.assertEqual(
+            "9 0 0 0 0 0 0\n",
+            fake_process.stdin.writes[0],
+        )
+
+    def test_native_control_slot_count_is_bounded_and_configurable(self):
+        with patch.dict(
+            os.environ,
+            {"CCZ_NATIVE_CONTROL_CONCURRENCY": "3"},
+            clear=False,
+        ):
+            self.assertEqual(3, native_control_slot_count())
+        with patch.dict(
+            os.environ,
+            {"CCZ_NATIVE_CONTROL_CONCURRENCY": "999"},
+            clear=False,
+        ):
+            self.assertEqual(32, native_control_slot_count())
+        with patch.dict(
+            os.environ,
+            {"CCZ_NATIVE_CONTROL_CONCURRENCY": "invalid"},
+            clear=False,
+        ):
+            self.assertEqual(6, native_control_slot_count())
+
     def test_process_exit_code_preserves_windows_status_value(self):
         def write_exit_code(_handle, pointer):
             pointer._obj.value = 0xC0000005
@@ -315,11 +404,6 @@ class GameMenuSaveTests(unittest.TestCase):
             self.events.append(("init", None))
             self.wind = object()
 
-        def original_load(self, slot):
-            self.events.append(("load", slot))
-
-        _ccz_original_load_and_confirm = original_load
-
         def saveAndConfirm(self, slot):
             self.events.append(("save", slot))
 
@@ -340,21 +424,32 @@ class GameMenuSaveTests(unittest.TestCase):
             runner.events,
         )
 
-    def test_seven_person_restores_candidate_then_uses_game_menu_save(self):
+    def test_seven_person_publishes_initial_candidate_without_resaving_scene(
+        self,
+    ):
         runner = self.FakeRunner()
+        candidate = b"game-created-save-at-initial-scene"
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "SV005.E5S"
+            target.write_bytes(b"previous")
 
-        with patch("ccz_randomizer.app.time.sleep") as sleep:
-            app_module.save_result_via_game_menu(
-                runner,
-                5,
-                restore_slot=16,
-            )
+            with patch.object(
+                app_module,
+                "save_result_via_game_menu",
+            ) as menu_save:
+                _previous, saved, method = (
+                    app_module.commit_qualified_result_save(
+                        runner,
+                        5,
+                        target,
+                        candidate_save=candidate,
+                    )
+                )
 
-        self.assertEqual(
-            [("init", None), ("load", 16), ("save", 5)],
-            runner.events,
-        )
-        sleep.assert_called_once_with(0.5)
+            self.assertFalse(menu_save.called)
+            self.assertEqual(candidate, target.read_bytes())
+            self.assertEqual(target.stat().st_size, saved[0])
+            self.assertEqual("game_menu_candidate_copy", method)
 
     def test_wait_for_game_menu_save_accepts_new_file(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -771,6 +866,46 @@ class SessionManagementTests(unittest.TestCase):
         self.assertEqual("19", command[4])
         wake.assert_called_once_with(123, 456, 80)
 
+    def test_game_menu_load_does_not_wait_for_hung_injector_after_dialog_closes(
+        self,
+    ):
+        process = unittest.mock.Mock()
+        process.returncode = None
+        process.poll.side_effect = (None, None, 1, 1)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            save_path = Path(temporary) / "SV020.E5S"
+            save_path.write_bytes(b"save")
+
+            def terminate():
+                process.returncode = 1
+
+            process.terminate.side_effect = terminate
+            with (
+                patch("fast_randomizer.recover_stale_windows"),
+                patch("fast_randomizer.wait_list_dialog", return_value=789),
+                patch("fast_randomizer.visible_owned_windows", return_value=[]),
+                patch("fast_randomizer.process_windows", return_value=[]),
+                patch("fast_randomizer.native_dir", return_value=Path(temporary)),
+                patch(
+                    "fast_randomizer.subprocess.Popen",
+                    return_value=process,
+                ),
+                patch("fast_randomizer.user32.PostMessageW"),
+                patch("fast_randomizer.user32.IsWindow", return_value=False),
+                patch("fast_randomizer.user32.IsWindowEnabled", return_value=True),
+                patch("fast_randomizer.native_wake_game"),
+                patch("fast_randomizer.diagnostic_log"),
+            ):
+                drive_game_menu_load(
+                    123,
+                    456,
+                    save_path,
+                    20,
+                )
+
+        process.terminate.assert_called_once()
+
     def test_native_list_action_uses_single_click(self):
         source = (
             Path(__file__).resolve().parents[2]
@@ -960,18 +1095,18 @@ class SessionManagementTests(unittest.TestCase):
                     )
 
     def test_stale_dialog_cleanup_restores_main_window_before_reload(self):
-        visible = {456: True, 654: True, 789: True}
+        existing = {456: True, 654: True, 789: True}
 
         def post_message(hwnd, message, _wparam, _lparam):
             self.assertEqual(0x0010, message)
-            visible[hwnd] = False
+            existing[hwnd] = False
             return True
 
         with (
             patch(
                 "fast_randomizer.process_windows",
                 return_value=[456, 654, 789],
-            ),
+            ) as process_windows_mock,
             patch(
                 "fast_randomizer.window_class",
                 side_effect=lambda hwnd: (
@@ -992,11 +1127,7 @@ class SessionManagementTests(unittest.TestCase):
             ) as post,
             patch(
                 "fast_randomizer.user32.IsWindow",
-                return_value=True,
-            ),
-            patch(
-                "fast_randomizer.user32.IsWindowVisible",
-                side_effect=lambda hwnd: visible[hwnd],
+                side_effect=lambda hwnd: existing[hwnd],
             ),
             patch(
                 "fast_randomizer.user32.EnableWindow",
@@ -1010,6 +1141,10 @@ class SessionManagementTests(unittest.TestCase):
             closed = recover_stale_windows(123, 789)
 
         self.assertEqual(2, closed)
+        process_windows_mock.assert_called_once_with(
+            123,
+            visible_only=False,
+        )
         self.assertEqual(
             [
                 unittest.mock.call(456, 0x0010, 0, 0),
@@ -1022,6 +1157,19 @@ class SessionManagementTests(unittest.TestCase):
             "stale_game_windows_recovered",
             diagnostic.call_args.args[0],
         )
+
+    def test_native_control_code_seven_with_loaded_module_is_not_security_hint(
+        self,
+    ):
+        hint = native_control_error_hint(
+            7,
+            "ControlAction returned failure: action=4, result=7, "
+            "remote_module=0x6DAB0000, remote_export=0x6DAB1000",
+        )
+
+        self.assertIn("后台控制组件已加载", hint)
+        self.assertNotIn("安全软件", hint)
+        self.assertNotIn("隔离", hint)
 
     def test_diagnostic_screenshots_keep_only_one_per_error_type(self):
         with patch.object(
@@ -1248,7 +1396,7 @@ class SessionManagementTests(unittest.TestCase):
         self.assertIn("native_wake_game(pid, game, 80)", source)
         self.assertNotIn("native_wake_game(pid, game, 1800)", source)
 
-    def test_saved_results_use_game_menu_without_readback_verification(self):
+    def test_saved_results_keep_game_created_candidate_state(self):
         source = (
             Path(__file__).resolve().parents[2]
             / "ccz_randomizer"
@@ -1262,7 +1410,8 @@ class SessionManagementTests(unittest.TestCase):
             source,
         )
         self.assertNotIn("def verify_saved_result(", source)
-        self.assertNotIn("commit_qualified_result_save(", source)
+        self.assertIn("publish_candidate_save(target_path, candidate_save)", source)
+        self.assertNotIn("restore_slot=scratch_slot", source)
 
     def test_full_inspection_uses_story_then_memory_skill_resolution(self):
         source = (

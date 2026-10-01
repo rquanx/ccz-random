@@ -12,6 +12,7 @@ import json
 import re
 import time
 from collections import deque
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -25,13 +26,18 @@ from ccz_randomizer.runtime.game_sandbox import (
 CONCURRENT_EVENT_PREFIX = "@@CCZ_CONCURRENT_EVENT@@"
 CONCURRENT_HEARTBEAT_LINE = "@@CCZ_CONCURRENT_HEARTBEAT@@"
 CONCURRENT_SLOT_ASSIGNED_PREFIX = "@@CCZ_SLOT_ASSIGNED@@"
+CONCURRENT_SLOT_RETRY_PREFIX = "@@CCZ_SLOT_RETRY@@"
+CONCURRENT_SLOT_FAILED_PREFIX = "@@CCZ_SLOT_FAILED@@"
+CONCURRENT_RESULT_IMAGE_PREFIX = "@@CCZ_RESULT_IMAGE@@"
 CONCURRENT_HEARTBEAT_INTERVAL_SECONDS = 2.0
 CONCURRENT_WORKER_TIMEOUT_SECONDS = 60.0
 CONCURRENT_SLOT_MAX_FAILURES = 3
 CONCURRENT_STARTUP_FAILURE_LIMIT = 3
 CONCURRENT_COMPATIBILITY_FALLBACK_CODE = 75
 CONCURRENT_STOP_GRACE_SECONDS = 2.0
-CONCURRENT_CRITICAL_STOP_GRACE_SECONDS = 45.0
+CONCURRENT_CRITICAL_STOP_GRACE_SECONDS = 15.0
+CONCURRENT_STOP_HARD_TIMEOUT_SECONDS = 20.0
+CONCURRENT_STARTUP_STAGGER_SECONDS = 0.2
 _STARTUP_CONFIRMED_PREFIXES = (
     "游戏原生随机已触发",
     "R0 ",
@@ -46,6 +52,76 @@ _STARTUP_FAILURE_MARKERS = (
 _RESULT_SAVE_CONFIRMATION = re.compile(
     r"^第\s*(\d+)\s*号结果存档已通过游戏菜单保存(?:$|[，。])"
 )
+
+
+class _TimingRecorder:
+    """Write scheduler timings without adding user-facing console output."""
+
+    def __init__(self, base_dir: Path, *, mode: str, worker_count: int) -> None:
+        log_dir = base_dir / "ccz_fast_logs"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        stamp = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.path = log_dir / (
+            f"concurrent_{stamp}_{os.getpid()}_timing.jsonl"
+        )
+        self._file = self.path.open("a", encoding="utf-8")
+        self._lock = threading.Lock()
+        self._common = {
+            "mode": mode,
+            "worker_count": worker_count,
+            "pid": os.getpid(),
+        }
+
+    def close(self) -> None:
+        with self._lock:
+            if not self._file.closed:
+                self._file.close()
+
+    def write(self, event: str, **fields) -> None:
+        record = {
+            "time": dt.datetime.now().isoformat(timespec="milliseconds"),
+            "event": event,
+            **self._common,
+            **fields,
+        }
+        try:
+            line = json.dumps(
+                record,
+                ensure_ascii=False,
+                default=str,
+                separators=(",", ":"),
+            )
+            with self._lock:
+                if not self._file.closed:
+                    self._file.write(line + "\n")
+                    self._file.flush()
+        except (OSError, ValueError):
+            pass
+
+    @contextmanager
+    def phase(self, name: str, **fields):
+        started = time.perf_counter()
+        self.write("timing_started", phase=name, **fields)
+        try:
+            yield
+        except BaseException as exc:
+            self.write(
+                "timing_finished",
+                phase=name,
+                elapsed_ms=round((time.perf_counter() - started) * 1000),
+                outcome="error",
+                error=repr(exc),
+                **fields,
+            )
+            raise
+        else:
+            self.write(
+                "timing_finished",
+                phase=name,
+                elapsed_ms=round((time.perf_counter() - started) * 1000),
+                outcome="ok",
+                **fields,
+            )
 
 
 def _is_worker_progress_line(line: str | None) -> bool:
@@ -210,6 +286,10 @@ class DynamicSlotQueue:
             self._pending.appendleft(slot)
         return slot
 
+    def cancel_pending(self) -> None:
+        """Discard tasks that have not been claimed after a stop request."""
+        self._pending.clear()
+
     @property
     def has_pending(self) -> bool:
         return bool(self._pending)
@@ -237,6 +317,7 @@ class _WorkerLane:
     attempt_completed: bool = False
     result_saved: bool = False
     generation: int = 0
+    started_at: float = 0.0
 
 
 def _record_worker_output(lane: _WorkerLane, line: str) -> bool:
@@ -668,6 +749,11 @@ def _run_continuous_loop(
             raise CompatibilitySandboxSetupError(str(exc)) from exc
         raise
     result_root = _unique_loop_result_root(base_dir)
+    timing = _TimingRecorder(
+        base_dir,
+        mode=mode,
+        worker_count=worker_count,
+    )
     lanes: list[_WorkerLane] = []
     pending: deque[_LoopTask] = deque()
     active: dict[int, _LoopTask] = {}
@@ -788,10 +874,16 @@ def _run_continuous_loop(
         lane.round_number = task.round_number
         target_save = lane.sandbox / "SV" / f"SV{task.slot:03}.E5S"
         source_save = lane.sandbox / "SV" / "SV020.E5S"
-        if source_save.is_file():
-            shutil.copy2(source_save, target_save)
-        lane.baseline = _file_hash(target_save)
-        lane.panel_baseline = _panel_snapshot(lane.sandbox, task.slot)
+        with timing.phase(
+            "prepare_task",
+            worker=lane.index,
+            round_number=task.round_number,
+            result_slot=task.slot,
+        ):
+            if source_save.is_file():
+                shutil.copy2(source_save, target_save)
+            lane.baseline = _file_hash(target_save)
+            lane.panel_baseline = _panel_snapshot(lane.sandbox, task.slot)
         child_env = os.environ.copy()
         child_env.update(
             {
@@ -818,22 +910,31 @@ def _run_continuous_loop(
                 ),
             }
         )
+        if not compatibility_mode:
+            child_env["CCZ_DISABLE_AUDIO_MUTE"] = "1"
         if compatibility_mode:
             child_env["CCZ_GAME_RUNTIME_DIR"] = str(lane.sandbox)
         if stop_file is not None:
             child_env["CCZ_STOP_FILE"] = str(stop_file)
-        lane.process = subprocess.Popen(
-            _worker_command(),
-            cwd=str(base_dir),
-            env=child_env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-        )
+        with timing.phase(
+            "worker_launch",
+            worker=lane.index,
+            round_number=task.round_number,
+            result_slot=task.slot,
+        ):
+            lane.process = subprocess.Popen(
+                _worker_command(),
+                cwd=str(base_dir),
+                env=child_env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
         lane.last_activity_at = time.monotonic()
+        lane.started_at = lane.last_activity_at
         lane.timed_out = False
         lane.startup_confirmed = False
         lane.startup_failed = False
@@ -871,10 +972,15 @@ def _run_continuous_loop(
         if compatibility_mode:
             sandbox_options["include_executable"] = False
         try:
-            sandbox = create_game_sandbox(
-                game_executable.parent,
-                **sandbox_options,
-            )
+            with timing.phase(
+                "sandbox_create",
+                worker=index,
+                compatibility_mode=compatibility_mode,
+            ):
+                sandbox = create_game_sandbox(
+                    game_executable.parent,
+                    **sandbox_options,
+                )
         except OSError as exc:
             if compatibility_mode:
                 raise CompatibilitySandboxSetupError(str(exc)) from exc
@@ -894,6 +1000,8 @@ def _run_continuous_loop(
         )
         for index in range(len(lanes) + 1, worker_count + 1):
             launch_next(create_lane(index))
+            if index < worker_count:
+                time.sleep(CONCURRENT_STARTUP_STAGGER_SECONDS)
 
     def trip_startup_circuit() -> None:
         nonlocal fatal_error, startup_circuit_open
@@ -987,7 +1095,11 @@ def _run_continuous_loop(
                             if critical
                             else CONCURRENT_STOP_GRACE_SECONDS
                         )
-                        if stop_elapsed > grace_seconds:
+                        if (
+                            stop_elapsed > grace_seconds
+                            or stop_elapsed
+                            > CONCURRENT_STOP_HARD_TIMEOUT_SECONDS
+                        ):
                             _stop_worker_process(
                                 process,
                                 wait_seconds=1.0,
@@ -1025,6 +1137,22 @@ def _run_continuous_loop(
                     lane.output_thread.join(timeout=1)
                 drain_output()
                 task = active.pop(lane.index)
+                timing.write(
+                    "timing_finished",
+                    phase="worker_total_runtime",
+                    worker=lane.index,
+                    round_number=task.round_number,
+                    result_slot=task.slot,
+                    elapsed_ms=round(
+                        (time.monotonic() - lane.started_at) * 1000
+                    ),
+                    outcome=(
+                        "ok"
+                        if lane.result_saved
+                        else "error"
+                    ),
+                    returncode=process.returncode,
+                )
                 source = (
                     lane.sandbox
                     / "SV"
@@ -1072,22 +1200,40 @@ def _run_continuous_loop(
                         / "SV"
                         / source.name
                     )
-                    _publish_save(source, target_save)
-                    panel_published = _copy_updated_panel(
-                        lane.sandbox,
-                        task.slot,
-                        lane.panel_baseline,
-                        round_state.workspace
-                        / "panels"
-                        / f"save{task.slot}.png",
-                    )
+                    with timing.phase(
+                        "result_save_publish",
+                        worker=lane.index,
+                        round_number=task.round_number,
+                        result_slot=task.slot,
+                    ):
+                        _publish_save(source, target_save)
+                    with timing.phase(
+                        "panel_copy",
+                        worker=lane.index,
+                        round_number=task.round_number,
+                        result_slot=task.slot,
+                    ):
+                        panel_published = _copy_updated_panel(
+                            lane.sandbox,
+                            task.slot,
+                            lane.panel_baseline,
+                            round_state.workspace
+                            / "panels"
+                            / f"save{task.slot}.png",
+                        )
                     if panel_published:
                         grid_path = round_state.workspace / "random.png"
-                        _update_result_grid(
-                            round_state.workspace / "panels",
-                            grid_path,
-                            result_count,
-                        )
+                        with timing.phase(
+                            "grid_compose",
+                            round_number=task.round_number,
+                            result_slot=task.slot,
+                            panel_count=len(round_state.completed_slots) + 1,
+                        ):
+                            _update_result_grid(
+                                round_state.workspace / "panels",
+                                grid_path,
+                                result_count,
+                            )
                         round_state.grid_path = grid_path
                         if not round_state.grid_announced:
                             round_state.grid_announced = True
@@ -1141,10 +1287,16 @@ def _run_continuous_loop(
                             flush=True,
                         )
 
-                shutil.rmtree(
-                    lane.sandbox / "randResult",
-                    ignore_errors=True,
-                )
+                with timing.phase(
+                    "worker_cleanup",
+                    worker=lane.index,
+                    round_number=task.round_number,
+                    result_slot=task.slot,
+                ):
+                    shutil.rmtree(
+                        lane.sandbox / "randResult",
+                        ignore_errors=True,
+                    )
                 lane.process = None
                 lane.output_thread = None
                 lane.slot = None
@@ -1156,6 +1308,7 @@ def _run_continuous_loop(
                 lane.startup_failed = False
                 lane.attempt_completed = False
                 lane.result_saved = False
+                lane.started_at = 0.0
                 if not stopped and not fatal_error:
                     launch_next(lane)
 
@@ -1188,7 +1341,11 @@ def _run_continuous_loop(
             if process is None:
                 continue
             _stop_worker_process(process)
-        remove_sandbox_tree(session_root)
+        try:
+            with timing.phase("sandbox_cleanup"):
+                remove_sandbox_tree(session_root)
+        finally:
+            timing.close()
 
 
 def _run_concurrent_batch(
@@ -1232,6 +1389,11 @@ def _run_concurrent_batch(
     published_slots: set[int] = set()
     result_panel_dir, result_grid_path = _unique_batch_result_paths(base_dir)
     result_path_announced = False
+    timing = _TimingRecorder(
+        base_dir,
+        mode=mode,
+        worker_count=worker_count,
+    )
 
     def forward_output(
         worker_index: int,
@@ -1322,22 +1484,31 @@ def _run_concurrent_batch(
                 ),
             }
         )
+        if not compatibility_mode:
+            child_env["CCZ_DISABLE_AUDIO_MUTE"] = "1"
         if compatibility_mode:
             child_env["CCZ_GAME_RUNTIME_DIR"] = str(lane.sandbox)
         if stop_file is not None:
             child_env["CCZ_STOP_FILE"] = str(stop_file)
-        lane.process = subprocess.Popen(
-            _worker_command(),
-            cwd=str(base_dir),
-            env=child_env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-        )
+        with timing.phase(
+            "worker_launch",
+            worker=lane.index,
+            round_number=round_number,
+            result_slot=slot,
+        ):
+            lane.process = subprocess.Popen(
+                _worker_command(),
+                cwd=str(base_dir),
+                env=child_env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
         lane.last_activity_at = time.monotonic()
+        lane.started_at = lane.last_activity_at
         lane.timed_out = False
         lane.startup_confirmed = False
         lane.startup_failed = False
@@ -1369,10 +1540,15 @@ def _run_concurrent_batch(
         if compatibility_mode:
             sandbox_options["include_executable"] = False
         try:
-            sandbox = create_game_sandbox(
-                game_executable.parent,
-                **sandbox_options,
-            )
+            with timing.phase(
+                "sandbox_create",
+                worker=index,
+                compatibility_mode=compatibility_mode,
+            ):
+                sandbox = create_game_sandbox(
+                    game_executable.parent,
+                    **sandbox_options,
+                )
         except OSError as exc:
             if compatibility_mode:
                 raise CompatibilitySandboxSetupError(str(exc)) from exc
@@ -1420,6 +1596,7 @@ def _run_concurrent_batch(
                 if not stopped:
                     stopped = True
                     stop_requested_at = time.monotonic()
+                    slot_queue.cancel_pending()
                 assert stop_requested_at is not None
                 if (
                     time.monotonic() - stop_requested_at
@@ -1439,7 +1616,11 @@ def _run_concurrent_batch(
                             if critical
                             else CONCURRENT_STOP_GRACE_SECONDS
                         )
-                        if stop_elapsed > grace_seconds:
+                        if (
+                            stop_elapsed > grace_seconds
+                            or stop_elapsed
+                            > CONCURRENT_STOP_HARD_TIMEOUT_SECONDS
+                        ):
                             _stop_worker_process(
                                 process,
                                 wait_seconds=1.0,
@@ -1478,6 +1659,22 @@ def _run_concurrent_batch(
                 drain_output()
                 assert lane.slot is not None
                 slot = lane.slot
+                timing.write(
+                    "timing_finished",
+                    phase="worker_total_runtime",
+                    worker=lane.index,
+                    round_number=round_number,
+                    result_slot=slot,
+                    elapsed_ms=round(
+                        (time.monotonic() - lane.started_at) * 1000
+                    ),
+                    outcome=(
+                        "ok"
+                        if lane.result_saved
+                        else "error"
+                    ),
+                    returncode=process.returncode,
+                )
                 source = lane.sandbox / "SV" / f"SV{slot:03}.E5S"
                 current_hash = _file_hash(source)
                 task_succeeded = (
@@ -1511,36 +1708,55 @@ def _run_concurrent_batch(
                     if task_succeeded
                     else slot_failures.get(slot, 0) + 1
                 )
+                should_retry = (
+                    not task_succeeded
+                    and not stopped
+                    and not startup_circuit_open
+                    and next_failure_count
+                    < CONCURRENT_SLOT_MAX_FAILURES
+                )
                 slot_queue.finish(
                     lane.index,
-                    retry=(
-                        not task_succeeded
-                        and not stopped
-                        and not startup_circuit_open
-                        and next_failure_count
-                        < CONCURRENT_SLOT_MAX_FAILURES
-                    ),
+                    retry=should_retry,
                 )
                 if task_succeeded:
                     consecutive_startup_failures = 0
                     open_startup_gate()
                     slot_failures.pop(slot, None)
-                    _publish_save(
-                        source,
-                        game_executable.parent / "SV" / source.name,
-                    )
-                    panel_published = _copy_updated_panel(
-                        lane.sandbox,
-                        slot,
-                        lane.panel_baseline,
-                        result_panel_dir / f"save{slot}.png",
-                    )
-                    if panel_published:
-                        _update_result_grid(
-                            result_panel_dir,
-                            result_grid_path,
-                            result_count,
+                    with timing.phase(
+                        "result_save_publish",
+                        worker=lane.index,
+                        round_number=round_number,
+                        result_slot=slot,
+                    ):
+                        _publish_save(
+                            source,
+                            game_executable.parent / "SV" / source.name,
                         )
+                    with timing.phase(
+                        "panel_copy",
+                        worker=lane.index,
+                        round_number=round_number,
+                        result_slot=slot,
+                    ):
+                        panel_published = _copy_updated_panel(
+                            lane.sandbox,
+                            slot,
+                            lane.panel_baseline,
+                            result_panel_dir / f"save{slot}.png",
+                        )
+                    if panel_published:
+                        with timing.phase(
+                            "grid_compose",
+                            round_number=round_number,
+                            result_slot=slot,
+                            panel_count=len(published_slots) + 1,
+                        ):
+                            _update_result_grid(
+                                result_panel_dir,
+                                result_grid_path,
+                                result_count,
+                            )
                         if not result_path_announced:
                             result_path_announced = True
                             print(
@@ -1579,6 +1795,18 @@ def _run_concurrent_batch(
                             f"{CONCURRENT_SLOT_MAX_FAILURES} 次",
                             flush=True,
                         )
+                        lifecycle_prefix = (
+                            CONCURRENT_SLOT_RETRY_PREFIX
+                            if should_retry
+                            else CONCURRENT_SLOT_FAILED_PREFIX
+                        )
+                        print(
+                            encode_concurrent_event(
+                                lane.index,
+                                f"{lifecycle_prefix}{slot}",
+                            ),
+                            flush=True,
+                        )
                 lane.process = None
                 lane.output_thread = None
                 lane.slot = None
@@ -1589,6 +1817,7 @@ def _run_concurrent_batch(
                 lane.startup_failed = False
                 lane.attempt_completed = False
                 lane.result_saved = False
+                lane.started_at = 0.0
                 if (
                     not stopped
                     and not startup_circuit_open
@@ -1633,6 +1862,11 @@ def _run_concurrent_batch(
             if tracked_lanes and not made_progress:
                 time.sleep(0.1)
         drain_output()
+        if result_grid_path.is_file():
+            print(
+                f"{CONCURRENT_RESULT_IMAGE_PREFIX}{result_grid_path}",
+                flush=True,
+            )
         if stopped:
             return 0
         if (
@@ -1650,4 +1884,8 @@ def _run_concurrent_batch(
             if process is None:
                 continue
             _stop_worker_process(process)
-        remove_sandbox_tree(sandbox_root)
+        try:
+            with timing.phase("sandbox_cleanup"):
+                remove_sandbox_tree(sandbox_root)
+        finally:
+            timing.close()

@@ -36,6 +36,7 @@ EXCLUDED_NAMES = frozenset(
         "随即工具",
     }
 )
+SILENT_AUDIO_DIRECTORIES = frozenset({"soundtrk", "wav"})
 
 
 def _root_file_can_be_linked(path: Path) -> bool:
@@ -50,6 +51,7 @@ def _should_skip(item: Path) -> bool:
     name = item.name
     return (
         name in EXCLUDED_NAMES
+        or name.casefold() in SILENT_AUDIO_DIRECTORIES
         or name.startswith("ccz-inspect-")
         or name.endswith("随机工具.exe")
         or name.casefold() == "ekd5.ccz-fast-random.exe"

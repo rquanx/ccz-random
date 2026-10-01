@@ -5,6 +5,7 @@ import io
 import tempfile
 import threading
 import unittest
+import json
 from pathlib import Path
 from unittest.mock import patch
 
@@ -14,6 +15,7 @@ from ccz_randomizer.runtime.concurrent import (
     DynamicSlotQueue,
     _run_concurrent_batch,
     _run_continuous_loop,
+    _TimingRecorder,
     _is_worker_progress_line,
     _should_forward_line,
     decode_concurrent_event,
@@ -24,7 +26,10 @@ from ccz_randomizer.runtime.concurrent import (
 )
 from ccz_randomizer.ui.concurrent_console import (
     ConcurrentConsoleState,
+    build_console_render_signature,
+    extract_result_image_path,
     format_round_heading,
+    is_completion_console_line,
 )
 from ccz_randomizer.ui.result_details import (
     decode_result_detail,
@@ -34,11 +39,42 @@ from ccz_randomizer.ui.result_details import (
 
 
 class ConcurrentSchedulingTests(unittest.TestCase):
+    def test_timing_recorder_writes_success_and_error_records(self):
+        with tempfile.TemporaryDirectory() as directory:
+            recorder = _TimingRecorder(
+                Path(directory),
+                mode="seven",
+                worker_count=1,
+            )
+            try:
+                with recorder.phase("success", result_slot=1):
+                    pass
+                with self.assertRaisesRegex(RuntimeError, "expected"):
+                    with recorder.phase("failure", result_slot=2):
+                        raise RuntimeError("expected")
+            finally:
+                recorder.close()
+
+            records = [
+                json.loads(line)
+                for line in recorder.path.read_text(encoding="utf-8").splitlines()
+            ]
+            finished = {
+                record["phase"]: record
+                for record in records
+                if record["event"] == "timing_finished"
+            }
+            self.assertEqual("ok", finished["success"]["outcome"])
+            self.assertEqual("error", finished["failure"]["outcome"])
+            self.assertGreaterEqual(finished["success"]["elapsed_ms"], 0)
+            self.assertIn("expected", finished["failure"]["error"])
+
     def _run_single_slot_scheduler(
         self,
         process_factory,
         *,
         stop_file_enabled: bool = False,
+        result_count: int = 1,
     ) -> int:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -84,7 +120,7 @@ class ConcurrentSchedulingTests(unittest.TestCase):
             ):
                 return _run_concurrent_batch(
                     game_executable=game_executable,
-                    result_count=1,
+                    result_count=result_count,
                     mode="three",
                     stop_file=stop_file,
                     base_dir=root,
@@ -114,6 +150,120 @@ class ConcurrentSchedulingTests(unittest.TestCase):
             partition_slots(15, 30),
         )
 
+    def test_console_render_signature_changes_only_for_visible_output(self):
+        state = ConcurrentConsoleState(3, 2)
+        rounds = {1: state}
+        images: dict[int, Path] = {}
+
+        initial = build_console_render_signature(
+            rounds,
+            images,
+            active_round=1,
+            footer="",
+            mode="three",
+            loop_enabled=False,
+        )
+        self.assertEqual(
+            initial,
+            build_console_render_signature(
+                rounds,
+                images,
+                active_round=1,
+                footer="",
+                mode="three",
+                loop_enabled=False,
+            ),
+        )
+
+        state.consume_line(1, "@@CCZ_SLOT_ASSIGNED@@1")
+        assigned = build_console_render_signature(
+            rounds,
+            images,
+            active_round=1,
+            footer="",
+            mode="three",
+            loop_enabled=False,
+        )
+        self.assertNotEqual(initial, assigned)
+
+        state.slots[1].history.append("仅详情窗口显示的诊断")
+        self.assertEqual(
+            assigned,
+            build_console_render_signature(
+                rounds,
+                images,
+                active_round=1,
+                footer="",
+                mode="three",
+                loop_enabled=False,
+            ),
+        )
+
+        state.slots[1].stage = "正在检查特技条件"
+        progressed = build_console_render_signature(
+            rounds,
+            images,
+            active_round=1,
+            footer="",
+            mode="three",
+            loop_enabled=False,
+        )
+        self.assertNotEqual(assigned, progressed)
+
+        images[1] = Path("round-1.png")
+        with_image = build_console_render_signature(
+            rounds,
+            images,
+            active_round=1,
+            footer="",
+            mode="three",
+            loop_enabled=False,
+        )
+        self.assertNotEqual(progressed, with_image)
+
+        self.assertNotEqual(
+            with_image,
+            build_console_render_signature(
+                rounds,
+                images,
+                active_round=1,
+                footer="本次流程已完成。",
+                mode="three",
+                loop_enabled=False,
+            ),
+        )
+
+    def test_concurrent_console_extracts_incremental_result_image_path(self):
+        path = extract_result_image_path(
+            "第 3 号结果图已生成，总图已更新：C:\\results\\random.png"
+        )
+
+        self.assertEqual(Path("C:\\results\\random.png"), path)
+        self.assertTrue(
+            is_completion_console_line(
+                "第 3 号结果图已生成，总图已更新："
+                "C:\\results\\random.png"
+            )
+        )
+        self.assertTrue(
+            is_completion_console_line(
+                "第 3 号结果存档已通过游戏菜单保存"
+            )
+        )
+        self.assertFalse(is_completion_console_line("正在执行随机流程……"))
+
+    def test_concurrent_console_extracts_final_partial_result_image_path(self):
+        path = extract_result_image_path(
+            "@@CCZ_RESULT_IMAGE@@C:\\results\\partial-random.png"
+        )
+
+        self.assertEqual(Path("C:\\results\\partial-random.png"), path)
+        self.assertTrue(
+            is_completion_console_line(
+                "@@CCZ_RESULT_IMAGE@@C:\\results\\partial-random.png"
+            )
+        )
+
     def test_dynamic_queue_gives_next_slot_to_first_free_worker(self):
         slots = DynamicSlotQueue(9)
 
@@ -130,6 +280,16 @@ class ConcurrentSchedulingTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             slots.claim(1)
 
+    def test_dynamic_queue_cancels_unclaimed_slots(self):
+        slots = DynamicSlotQueue(3)
+        self.assertEqual(1, slots.claim(1))
+        slots.cancel_pending()
+
+        self.assertTrue(slots.has_active)
+        self.assertFalse(slots.has_pending)
+        self.assertEqual(1, slots.finish(1))
+        self.assertFalse(slots.has_active)
+
     def test_failed_slot_can_be_taken_over_by_another_worker(self):
         slots = DynamicSlotQueue(5)
 
@@ -137,6 +297,21 @@ class ConcurrentSchedulingTests(unittest.TestCase):
         self.assertEqual(2, slots.claim(2))
         self.assertEqual(1, slots.finish(1, retry=True))
         self.assertEqual(1, slots.claim(3))
+
+    def test_console_marks_worker_failure_as_retry_or_final_failure(self):
+        state = ConcurrentConsoleState(result_count=3, concurrency=2)
+        state.consume_line(2, "@@CCZ_SLOT_ASSIGNED@@2")
+
+        self.assertTrue(state.consume_line(2, "@@CCZ_SLOT_RETRY@@2"))
+        self.assertEqual(
+            "后台实例异常，等待重试",
+            state.slots[2].stage,
+        )
+        self.assertFalse(state.slots[2].completed)
+
+        self.assertTrue(state.consume_line(2, "@@CCZ_SLOT_FAILED@@2"))
+        self.assertEqual("执行失败", state.slots[2].stage)
+        self.assertTrue(state.slots[2].completed)
 
     def test_worker_heartbeat_is_emitted_on_independent_thread(self):
         written = threading.Event()
@@ -1358,6 +1533,48 @@ class ConcurrentSchedulingTests(unittest.TestCase):
         self.assertEqual(1, len(processes))
         self.assertFalse(processes[0].terminated)
 
+    def test_stop_file_clears_unclaimed_batch_tasks(self):
+        processes = []
+
+        class FakeProcess:
+            def __init__(self, _command, *, env, **_kwargs):
+                self.stdout = io.StringIO("")
+                self.returncode = None
+                self.terminated = False
+                Path(env["CCZ_STOP_FILE"]).write_text(
+                    "stop",
+                    encoding="ascii",
+                )
+                processes.append(self)
+
+            def poll(self):
+                return self.returncode
+
+            def terminate(self):
+                self.terminated = True
+                self.returncode = 130
+
+            def kill(self):
+                self.terminate()
+
+            def wait(self, timeout=None):
+                del timeout
+                return self.returncode
+
+        with patch(
+            "ccz_randomizer.runtime.concurrent.CONCURRENT_STOP_GRACE_SECONDS",
+            -1.0,
+        ):
+            code = self._run_single_slot_scheduler(
+                FakeProcess,
+                stop_file_enabled=True,
+                result_count=3,
+            )
+
+        self.assertEqual(0, code)
+        self.assertEqual(1, len(processes))
+        self.assertTrue(processes[0].terminated)
+
     def test_stop_waits_for_critical_save_to_finish_cooperatively(self):
         processes = []
 
@@ -2101,6 +2318,38 @@ class ConcurrentSchedulingTests(unittest.TestCase):
         self.assertEqual("已完成：合格", state.slots[2].stage)
         self.assertFalse(state.slots[3].started)
         self.assertEqual((1, 2), state.visible_slots())
+
+    def test_console_distinguishes_stopping_from_stopped(self):
+        state = ConcurrentConsoleState(result_count=4, concurrency=2)
+        state.consume_line(1, "@@CCZ_SLOT_ASSIGNED@@1")
+        state.consume_line(2, "@@CCZ_SLOT_ASSIGNED@@2")
+        state.consume_line(2, "第 2 号结果存档已通过游戏菜单保存")
+
+        state.mark_stopping()
+
+        self.assertEqual("正在停止", state.slots[1].stage)
+        self.assertEqual("已完成：合格", state.slots[2].stage)
+
+        state.mark_stopped()
+
+        self.assertEqual("已停止", state.slots[1].stage)
+
+    def test_stopped_slot_keeps_late_accepted_score_without_resuming(self):
+        state = ConcurrentConsoleState(result_count=3, concurrency=2)
+        state.consume_line(1, "@@CCZ_SLOT_ASSIGNED@@1")
+        state.mark_stopping()
+        accepted = {
+            "resultSlot": 1,
+            "attempt": 1,
+            "status": "accepted",
+            "label": "合格",
+        }
+
+        state.consume_result(accepted, preserve_stopped=True)
+
+        self.assertEqual("正在停止", state.slots[1].stage)
+        self.assertEqual(accepted, state.slots[1].detail)
+        self.assertEqual(accepted, state.slots[1].attempts[-1].detail)
 
     def test_save_updates_slot_independent_of_worker_current_slot(self):
         state = ConcurrentConsoleState(result_count=6, concurrency=3)

@@ -71,7 +71,10 @@ from ccz_randomizer.runtime.s00_guard import (
     repair_game_s00,
     restore_bundled_original_s00,
 )
-from ccz_randomizer.runtime.scratch_save_guard import ScratchSaveGuard
+from ccz_randomizer.runtime.scratch_save_guard import (
+    ScratchSaveGuard,
+    publish_candidate_save,
+)
 from ccz_randomizer.runtime.concurrent import (
     decode_concurrent_event,
     run_concurrent_workers,
@@ -86,7 +89,10 @@ from ccz_randomizer.ui.member_panel import (
 )
 from ccz_randomizer.ui.concurrent_console import (
     ConcurrentConsoleState,
+    build_console_render_signature,
+    extract_result_image_path,
     format_round_heading,
+    is_completion_console_line,
 )
 from ccz_randomizer.preferences import (
     load_compatibility_mode,
@@ -116,6 +122,8 @@ ImageDraw = None
 ImageFont = None
 _SKILL_SCORE_CATALOG = None
 _SKILL_SCORE_CATALOG_LOCK = threading.Lock()
+CONCURRENT_CONSOLE_RENDER_INTERVAL_SECONDS = 0.2
+CONCURRENT_CONSOLE_QUEUE_BATCH_SIZE = 250
 
 
 def load_media_modules() -> None:
@@ -165,6 +173,63 @@ JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x00002000
 JOB_OBJECT_EXTENDED_LIMIT_INFORMATION_CLASS = 9
 BM_CLICK = 0x00F5
 SMTO_ABORTIFHUNG = 0x0002
+WAIT_OBJECT_0 = 0x00000000
+WAIT_TIMEOUT = 0x00000102
+NATIVE_CONTROL_SEMAPHORE_NAME = "Local\\CCZFastNativeControlSlots"
+NATIVE_CONTROL_DEFAULT_SLOTS = 6
+NATIVE_CONTROL_RETRY_DELAY_SECONDS = 0.35
+NATIVE_CONTROL_RETRY_ACTIONS = frozenset(
+    {"wake", "list", "loadui", "openload", "real-load"}
+)
+PERSISTENT_NATIVE_ACTION_CODES = {
+    "list": 1,
+    "click": 2,
+    "guard": 3,
+    "wake": 4,
+    "load": 5,
+    "save": 6,
+    "loadui": 7,
+    "closedialog": 8,
+    "status": 9,
+    "wndproc": 10,
+    "trace-random": 11,
+    "notifylist": 12,
+    "reallist": 13,
+    "trace-dialog": 14,
+    "openload": 15,
+    "trace-load": 16,
+    "trace-address": 17,
+    "event": 18,
+    "confirm-choice": 19,
+    "mouse": 20,
+    "frame-click": 21,
+    "silent-click": 22,
+    "dump-list": 23,
+    "dialog-dblclick": 24,
+    "real-load": 25,
+    "dialog-enter": 26,
+    "dialog-notify": 27,
+    "dialog-window": 28,
+    "dialog-accessible": 29,
+    "tick": 30,
+    "process-state": 31,
+    "dispatch-state": 32,
+    "mark-ready": 33,
+    "dump-contexts": 34,
+    "loop-load": 35,
+    "start-loop": 36,
+    "title-load": 37,
+    "pulse-click": 38,
+    "arm-first-choice": 39,
+    "pulse-burst": 40,
+    "silent-burst": 41,
+    "list-window": 42,
+    "end-dialog": 43,
+    "mute-audio": 44,
+    "silent-click-timed": 45,
+    "silent-burst-timed": 46,
+    "enable-acceleration": 47,
+}
 OFFSCREEN_X = -3000
 OFFSCREEN_Y = -3000
 SOURCE_SAVE_NUMBER = 20
@@ -1071,6 +1136,21 @@ kernel32.SetInformationJobObject.argtypes = [
 kernel32.SetInformationJobObject.restype = wintypes.BOOL
 kernel32.AssignProcessToJobObject.argtypes = [wintypes.HANDLE, wintypes.HANDLE]
 kernel32.AssignProcessToJobObject.restype = wintypes.BOOL
+kernel32.CreateSemaphoreW.argtypes = [
+    ctypes.c_void_p,
+    ctypes.c_long,
+    ctypes.c_long,
+    wintypes.LPCWSTR,
+]
+kernel32.CreateSemaphoreW.restype = wintypes.HANDLE
+kernel32.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+kernel32.WaitForSingleObject.restype = wintypes.DWORD
+kernel32.ReleaseSemaphore.argtypes = [
+    wintypes.HANDLE,
+    ctypes.c_long,
+    ctypes.POINTER(ctypes.c_long),
+]
+kernel32.ReleaseSemaphore.restype = wintypes.BOOL
 user32.CreateDesktopW.restype = wintypes.HANDLE
 user32.CreateDesktopW.argtypes = [
     wintypes.LPCWSTR,
@@ -1154,6 +1234,52 @@ def diagnostic_log(event: str, **fields) -> None:
             DIAGNOSTIC_LOG_WRITER.flush()
     except Exception:
         pass
+
+
+@contextmanager
+def diagnostic_timing(
+    phase: str,
+    *,
+    result_slot: int | None = None,
+    attempt: int | None = None,
+    round_number: int | None = None,
+    **fields,
+):
+    started = time.perf_counter()
+    diagnostic_log(
+        "timing_started",
+        phase=phase,
+        result_slot=result_slot,
+        attempt=attempt,
+        round_number=round_number,
+        **fields,
+    )
+    try:
+        yield
+    except BaseException as exc:
+        diagnostic_log(
+            "timing_finished",
+            phase=phase,
+            result_slot=result_slot,
+            attempt=attempt,
+            round_number=round_number,
+            elapsed_ms=round((time.perf_counter() - started) * 1000),
+            outcome="error",
+            error=repr(exc),
+            **fields,
+        )
+        raise
+    else:
+        diagnostic_log(
+            "timing_finished",
+            phase=phase,
+            result_slot=result_slot,
+            attempt=attempt,
+            round_number=round_number,
+            elapsed_ms=round((time.perf_counter() - started) * 1000),
+            outcome="ok",
+            **fields,
+        )
 
 
 def diagnostic_error(
@@ -1503,7 +1629,8 @@ def native_control_error_hint(
     return_code: int,
     details: str = "",
 ) -> str:
-    if "ntstatus=0xc000010a" in details.casefold():
+    normalized_details = details.casefold()
+    if "ntstatus=0xc000010a" in normalized_details:
         return (
             "\n后台游戏进程正在退出，工具将重新启动游戏后继续。"
         )
@@ -1528,6 +1655,18 @@ def native_control_error_hint(
             "\n电脑拒绝加载后台控制组件。最常见原因是 360、火绒、"
             "电脑管家、Windows 安全中心或单位安全软件进行了拦截。"
             + native_control_security_steps()
+        )
+    control_module_loaded = bool(
+        re.search(r"remote_module=0x0*[1-9a-f][0-9a-f]*", normalized_details)
+        and re.search(
+            r"remote_export=0x0*[1-9a-f][0-9a-f]*",
+            normalized_details,
+        )
+    )
+    if return_code == 7 and control_module_loaded:
+        return (
+            "\n后台控制组件已加载，但本次操作未完成。"
+            "工具将重新启动当前后台游戏实例后继续。"
         )
     if return_code in (6, 7, 8):
         return (
@@ -1685,6 +1824,157 @@ class NativeControlError(RuntimeError):
         )
 
 
+class PersistentNativeController:
+    """Keep one injected controller alive for the lifetime of a game PID."""
+
+    def __init__(self, pid: int) -> None:
+        injector = native_dir() / "ccz_injector.exe"
+        control_dll = native_dir() / "ccz_control.dll"
+        self.pid = pid
+        self.process = subprocess.Popen(
+            [
+                str(injector),
+                "--server",
+                str(pid),
+                str(control_dll),
+            ],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="ascii",
+            errors="replace",
+            bufsize=1,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+        ready = self.process.stdout.readline() if self.process.stdout else ""
+        if ready.strip() != "READY":
+            stderr = (
+                self.process.stderr.read().strip()
+                if self.process.stderr
+                else ""
+            )
+            return_code = self.process.poll() or 7
+            self.close()
+            raise NativeControlError(
+                return_code,
+                stderr or "持久化控件模块未就绪",
+            )
+        self._responses: queue.Queue[int] = queue.Queue()
+        self._reader = threading.Thread(
+            target=self._read_responses,
+            name=f"ccz-native-{pid}",
+            daemon=True,
+        )
+        self._reader.start()
+        self._write_lock = threading.Lock()
+
+    def _read_responses(self) -> None:
+        stdout = self.process.stdout
+        if stdout is None:
+            return
+        for line in stdout:
+            try:
+                self._responses.put(int(line.strip()))
+            except ValueError:
+                continue
+        self._responses.put(-1)
+
+    def execute(
+        self,
+        arguments: list[str],
+        *,
+        interruptible: bool = True,
+    ) -> None:
+        if not arguments or arguments[0] not in PERSISTENT_NATIVE_ACTION_CODES:
+            raise ValueError(f"持久化控件不支持操作：{arguments!r}")
+        values = [
+            PERSISTENT_NATIVE_ACTION_CODES[arguments[0]],
+            *[int(value, 0) for value in arguments[1:]],
+        ]
+        values.extend([0] * (7 - len(values)))
+        if len(values) != 7:
+            raise ValueError(f"控件参数数量不正确：{arguments!r}")
+        line = " ".join(str(value) for value in values) + "\n"
+        started = time.perf_counter()
+        with self._write_lock:
+            if self.process.poll() is not None:
+                raise NativeControlError(
+                    self.process.returncode or 7,
+                    "持久化控件进程已退出",
+                )
+            if self.process.stdin is None:
+                raise NativeControlError(7, "持久化控件输入通道不可用")
+            self.process.stdin.write(line)
+            self.process.stdin.flush()
+            while True:
+                if interruptible and stop_is_requested():
+                    self.close()
+                    raise KeyboardInterrupt
+                try:
+                    result = self._responses.get(timeout=0.25)
+                    break
+                except queue.Empty:
+                    if self.process.poll() is not None:
+                        raise NativeControlError(
+                            self.process.returncode or 7,
+                            "持久化控件进程异常退出",
+                        )
+        elapsed_ms = round((time.perf_counter() - started) * 1000)
+        if result != 0:
+            raise NativeControlError(
+                result,
+                f"持久化控件返回错误，耗时 {elapsed_ms} 毫秒",
+            )
+        if elapsed_ms >= 1000:
+            diagnostic_log(
+                "persistent_native_control_completed",
+                pid=self.pid,
+                action=arguments,
+                elapsed_ms=elapsed_ms,
+            )
+
+    def close(self) -> None:
+        process = getattr(self, "process", None)
+        if process is None:
+            return
+        if process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=1)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=1)
+        self.process = None
+
+
+_PERSISTENT_CONTROLLERS: dict[int, PersistentNativeController] = {}
+_PERSISTENT_CONTROLLERS_LOCK = threading.Lock()
+
+
+def start_persistent_native_controller(pid: int) -> None:
+    if os.environ.get("CCZ_DISABLE_PERSISTENT_NATIVE") == "1":
+        return
+    with _PERSISTENT_CONTROLLERS_LOCK:
+        if pid in _PERSISTENT_CONTROLLERS:
+            return
+        try:
+            _PERSISTENT_CONTROLLERS[pid] = PersistentNativeController(pid)
+        except Exception as exc:
+            diagnostic_error(
+                "persistent_native_controller_start_failed",
+                exc,
+                pid=pid,
+            )
+
+
+def stop_persistent_native_controller(pid: int) -> None:
+    with _PERSISTENT_CONTROLLERS_LOCK:
+        controller = _PERSISTENT_CONTROLLERS.pop(pid, None)
+    if controller is not None:
+        controller.close()
+
+
 class NativeControlTimeout(RuntimeError):
     pass
 
@@ -1779,7 +2069,56 @@ def critical_random_operation(name: str):
             marker.unlink(missing_ok=True)
 
 
-def run_native_control(
+def native_control_slot_count() -> int:
+    configured = os.environ.get(
+        "CCZ_NATIVE_CONTROL_CONCURRENCY",
+        str(NATIVE_CONTROL_DEFAULT_SLOTS),
+    ).strip()
+    try:
+        value = int(configured)
+    except ValueError:
+        value = NATIVE_CONTROL_DEFAULT_SLOTS
+    return max(1, min(value, 32))
+
+
+@contextmanager
+def native_control_gate():
+    """Limit cross-process DLL/window-control bursts on one machine."""
+    slot_count = native_control_slot_count()
+    semaphore = kernel32.CreateSemaphoreW(
+        None,
+        slot_count,
+        slot_count,
+        NATIVE_CONTROL_SEMAPHORE_NAME,
+    )
+    if not semaphore:
+        diagnostic_log(
+            "native_control_gate_unavailable",
+            slot_count=slot_count,
+            error=ctypes.WinError(ctypes.get_last_error()),
+        )
+        yield
+        return
+
+    acquired = False
+    try:
+        while True:
+            result = kernel32.WaitForSingleObject(semaphore, 250)
+            if result == WAIT_OBJECT_0:
+                acquired = True
+                break
+            if result == WAIT_TIMEOUT:
+                check_stop_requested()
+                continue
+            raise ctypes.WinError(ctypes.get_last_error())
+        yield
+    finally:
+        if acquired:
+            kernel32.ReleaseSemaphore(semaphore, 1, None)
+        kernel32.CloseHandle(semaphore)
+
+
+def _run_native_control_once(
     pid: int,
     arguments: list[str],
     *,
@@ -1906,6 +2245,59 @@ def run_native_control(
             stdout=result.stdout.decode(errors="replace").strip(),
             stderr=result.stderr.decode(errors="replace").strip(),
         )
+
+
+def run_native_control(
+    pid: int,
+    arguments: list[str],
+    *,
+    interruptible: bool = True,
+) -> None:
+    action = arguments[0] if arguments else ""
+    attempts = 2 if action in NATIVE_CONTROL_RETRY_ACTIONS else 1
+    for attempt in range(attempts):
+        try:
+            with native_control_gate():
+                with _PERSISTENT_CONTROLLERS_LOCK:
+                    persistent = _PERSISTENT_CONTROLLERS.get(pid)
+                if persistent is not None:
+                    try:
+                        persistent.execute(
+                            arguments,
+                            interruptible=interruptible,
+                        )
+                        return
+                    except KeyboardInterrupt:
+                        raise
+                    except Exception as exc:
+                        diagnostic_error(
+                            "persistent_native_controller_failed",
+                            exc,
+                            pid=pid,
+                            action=arguments,
+                            attempt=attempt + 1,
+                        )
+                        stop_persistent_native_controller(pid)
+                return _run_native_control_once(
+                    pid,
+                    arguments,
+                    interruptible=interruptible,
+                )
+        except NativeControlError as exc:
+            if (
+                exc.return_code != 7
+                or attempt + 1 >= attempts
+            ):
+                raise
+            diagnostic_log(
+                "native_control_retry",
+                pid=pid,
+                action=arguments,
+                return_code=exc.return_code,
+                attempt=attempt + 1,
+                delay_seconds=NATIVE_CONTROL_RETRY_DELAY_SECONDS,
+            )
+            interruptible_sleep(NATIVE_CONTROL_RETRY_DELAY_SECONDS)
 
 
 def native_silent_click(
@@ -2307,22 +2699,10 @@ def ensure_game_menu_ready(runner) -> None:
 def save_result_via_game_menu(
     runner,
     slot: int,
-    *,
-    restore_slot: int | None = None,
 ) -> None:
     if not 1 <= slot <= 15:
         raise ValueError("结果存档槽位只能是第 1–15 号")
     ensure_game_menu_ready(runner)
-    if restore_slot is not None:
-        original_load = getattr(
-            type(runner),
-            "_ccz_original_load_and_confirm",
-            None,
-        )
-        if original_load is None:
-            raise RuntimeError("游戏菜单读档功能尚未初始化")
-        original_load(runner, restore_slot)
-        time.sleep(0.5)
     runner.saveAndConfirm(slot)
 
 
@@ -2385,6 +2765,37 @@ def wait_for_game_menu_save(
     )
 
 
+def commit_qualified_result_save(
+    runner,
+    slot: int,
+    target_path: Path,
+    *,
+    candidate_save: bytes | None = None,
+) -> tuple[
+    tuple[int, int, int] | None,
+    tuple[int, int, int],
+    str,
+]:
+    previous_signature = save_file_signature(target_path)
+    if candidate_save is None:
+        save_result_via_game_menu(runner, slot)
+        saved_signature = wait_for_game_menu_save(
+            target_path,
+            previous_signature,
+        )
+        return previous_signature, saved_signature, "game_menu"
+
+    publish_candidate_save(target_path, candidate_save)
+    saved_signature = save_file_signature(target_path)
+    if saved_signature is None:
+        raise RuntimeError(f"{target_path.name} 发布后无法读取")
+    return (
+        previous_signature,
+        saved_signature,
+        "game_menu_candidate_copy",
+    )
+
+
 def drive_game_menu_save(
     pid: int,
     game: int,
@@ -2410,6 +2821,7 @@ def drive_game_menu_save(
     control_stdout = ""
     control_stderr = ""
     control_forced_stop = False
+    control_early_stopped = False
     diagnostic_log(
         "game_menu_save_interaction_started",
         pid=pid,
@@ -2476,8 +2888,20 @@ def drive_game_menu_save(
             if (
                 saved_signature is not None
                 and not remaining_alerts
-                and control.poll() is not None
             ):
+                if control.poll() is None:
+                    # The save file changed and the overwrite confirmation
+                    # is gone. The helper may still be waiting for a remote
+                    # thread to report completion; it is no longer needed
+                    # to keep the game operation alive.
+                    control_early_stopped = True
+                    control_forced_stop = True
+                    control.terminate()
+                    try:
+                        control.wait(timeout=0.25)
+                    except subprocess.TimeoutExpired:
+                        control.kill()
+                        control.wait(timeout=1)
                 break
             interruptible_sleep(0.08)
     finally:
@@ -2525,6 +2949,7 @@ def drive_game_menu_save(
         control_return_code=control.returncode,
         control_timeout_observed=control_error is not None,
         control_forced_stop=control_forced_stop,
+        control_early_stopped=control_early_stopped,
         control_stdout=control_stdout,
         control_stderr=control_stderr,
         confirmation_clicks=confirmation_clicks,
@@ -2609,17 +3034,28 @@ def drive_game_menu_load(
                 not user32.IsWindow(load_window)
                 and user32.IsWindowEnabled(game)
             )
-            if load_finished and control.poll() is None:
-                interruptible_sleep(0.05)
-                continue
             if load_finished:
-                if control.returncode != 0:
+                if (
+                    control.poll() is not None
+                    and control.returncode != 0
+                ):
                     stdout, stderr = control.communicate()
                     raise NativeControlError(
                         control.returncode,
                         stderr.decode(errors="replace").strip()
                         or stdout.decode(errors="replace").strip(),
                     )
+                if control.poll() is None:
+                    # The game has closed the load dialog and re-enabled its
+                    # main window. Memory verification happens immediately
+                    # after this function, so do not wait for the injector's
+                    # remote-thread cleanup to report completion.
+                    control.terminate()
+                    try:
+                        control.wait(timeout=0.25)
+                    except subprocess.TimeoutExpired:
+                        control.kill()
+                        control.wait(timeout=1)
                 native_wake_game(pid, game, 80)
                 diagnostic_log(
                     "game_menu_load_interaction_completed",
@@ -2970,6 +3406,7 @@ class HiddenGameSession:
             )
         if kernel32.WaitForSingleObject(self.process, 0) == 0:
             self._raise_process_exited("主窗口初始化完成")
+        start_persistent_native_controller(self.pid)
         if self.announce:
             print(
                 f"隐藏游戏实例已{'重新' if self.restarted else ''}启动，"
@@ -2991,6 +3428,8 @@ class HiddenGameSession:
         if self.audio_mute_monitor is not None:
             self.audio_mute_monitor.stop()
             self.audio_mute_monitor = None
+        if self.pid:
+            stop_persistent_native_controller(self.pid)
         if self.process:
             if kernel32.WaitForSingleObject(self.process, 0) != 0:
                 kernel32.TerminateProcess(self.process, 0)
@@ -4099,7 +4538,7 @@ def find_process_window_by_class(pid: int, class_name: str) -> int:
 
 def recover_stale_windows(pid: int, main_window: int = 0) -> int:
     closed_windows = []
-    for hwnd in process_windows(pid):
+    for hwnd in process_windows(pid, visible_only=False):
         if window_class(hwnd) == "#32770":
             user32.PostMessageW(hwnd, 0x0010, 0, 0)
             closed_windows.append(
@@ -4115,7 +4554,6 @@ def recover_stale_windows(pid: int, main_window: int = 0) -> int:
             check_stop_requested()
             if not any(
                 user32.IsWindow(row["hwnd"])
-                and user32.IsWindowVisible(row["hwnd"])
                 for row in closed_windows
             ):
                 break
@@ -7609,10 +8047,14 @@ def patch_runtime(
             task_module.TEAM_MEMBER_LIST,
             self._r0_average,
         )
+        forced_accept = (
+            os.environ.get("CCZ_TEST_ACCEPT_FIRST") == "1"
+            and not evaluation.qualified
+        )
         result = {
             "completed": True,
-            "qualified": evaluation.qualified,
-            "reasons": list(evaluation.reasons),
+            "qualified": forced_accept or evaluation.qualified,
+            "reasons": [] if forced_accept else list(evaluation.reasons),
             "job_names": [JOB_MAP[job_id][0] for job_id in job_ids],
             "skills": [
                 [skill.name for skill in member.skillList]
@@ -7625,6 +8067,9 @@ def patch_runtime(
                 task_module.TEAM_MEMBER_LIST,
             ),
         }
+        if forced_accept:
+            result["skill_detail"]["qualified"] = True
+            result["skill_detail"]["reasons"] = []
         diagnostic_log(
             "same_session_seven_member_memory_inspection_completed",
             pid=pid,
@@ -7661,20 +8106,23 @@ def patch_runtime(
         if not 1 <= self.savePos <= 15:
             raise ValueError("结果存档槽位只能是第 1–15 号")
 
-        def save_qualified_result(*, restore_slot: int | None = None) -> None:
+        def save_qualified_result(
+            *,
+            candidate_save: bytes | None = None,
+        ) -> None:
             target_path = (
                 game_path.parent / "SV" / f"SV{self.savePos:03}.E5S"
             )
-            previous_signature = save_file_signature(target_path)
             with critical_random_operation("qualified-result-save"):
-                save_result_via_game_menu(
+                (
+                    previous_signature,
+                    saved_signature,
+                    save_method,
+                ) = commit_qualified_result_save(
                     self,
                     self.savePos,
-                    restore_slot=restore_slot,
-                )
-                saved_signature = wait_for_game_menu_save(
                     target_path,
-                    previous_signature,
+                    candidate_save=candidate_save,
                 )
             diagnostic_log(
                 "game_menu_save_confirmed",
@@ -7682,6 +8130,7 @@ def patch_runtime(
                 save_path=target_path,
                 previous_signature=previous_signature,
                 saved_signature=saved_signature,
+                save_method=save_method,
             )
             self._result_save_committed = True
             self._result_save_path = target_path
@@ -8021,6 +8470,18 @@ def patch_runtime(
             try:
                 self.saveAndConfirm(scratch_slot)
                 check_stop_requested()
+                candidate_path = scratch_guard.target
+                if not candidate_path.is_file():
+                    raise RuntimeError("游戏菜单保存后未找到候选存档")
+                candidate_save = candidate_path.read_bytes()
+                if not candidate_save:
+                    raise RuntimeError("游戏菜单保存的候选存档为空")
+                diagnostic_log(
+                    "seven_member_candidate_save_captured",
+                    save_path=candidate_path,
+                    size=len(candidate_save),
+                    sha256=hashlib.sha256(candidate_save).hexdigest(),
+                )
                 print("候选存档已通过游戏菜单保存")
 
                 inspection = inspect_current_seven_members(self)
@@ -8046,7 +8507,7 @@ def patch_runtime(
                     return False
                 self._result_outcome = "accepted"
                 print("用户进度: 本轮最终结果=合格，开始保存")
-                save_qualified_result(restore_slot=scratch_slot)
+                save_qualified_result(candidate_save=candidate_save)
             finally:
                 if inspection_dir is not None:
                     shutil.rmtree(inspection_dir, ignore_errors=True)
@@ -8301,6 +8762,9 @@ def gui_main() -> int:
     concurrent_console_active_round = 1
     concurrent_console_finished = False
     concurrent_console_footer = ""
+    concurrent_console_render_pending = False
+    concurrent_console_last_render_at = 0.0
+    concurrent_console_last_signature: tuple | None = None
     mode_var = tk.StringVar(value=load_random_mode(app_dir()))
     loop_var = tk.BooleanVar(value=load_loop_random(app_dir()))
     concurrency_var = tk.IntVar(value=load_concurrency(app_dir()))
@@ -8445,14 +8909,14 @@ def gui_main() -> int:
 
     seven_mode_button = tk.Radiobutton(
         mode_frame,
-        text="完整7人",
+        text="7人",
         variable=mode_var,
         value="seven",
         command=persist_random_mode,
     )
     three_mode_button = tk.Radiobutton(
         mode_frame,
-        text="只随机初始3人",
+        text="3人",
         variable=mode_var,
         value="three",
         command=persist_random_mode,
@@ -9388,9 +9852,33 @@ def gui_main() -> int:
 
         refresh_detail()
 
-    def render_concurrent_console() -> None:
+    def render_concurrent_console(*, force: bool = False) -> bool:
+        nonlocal concurrent_console_render_pending
+        nonlocal concurrent_console_last_render_at
+        nonlocal concurrent_console_last_signature
         if concurrent_console_state is None:
-            return
+            concurrent_console_render_pending = False
+            return False
+        signature = build_console_render_signature(
+            concurrent_console_rounds,
+            concurrent_console_round_images,
+            active_round=concurrent_console_active_round,
+            footer=concurrent_console_footer,
+            mode=mode_var.get(),
+            loop_enabled=loop_var.get(),
+        )
+        if not force and signature == concurrent_console_last_signature:
+            concurrent_console_render_pending = False
+            return False
+        now = time.monotonic()
+        if (
+            not force
+            and concurrent_console_last_render_at
+            and now - concurrent_console_last_render_at
+            < CONCURRENT_CONSOLE_RENDER_INTERVAL_SECONDS
+        ):
+            concurrent_console_render_pending = True
+            return False
         output.configure(state="normal")
         output.delete("1.0", "end")
         output.insert("end", "曹操传随机工具 - 内存快筛版\n")
@@ -9404,7 +9892,7 @@ def gui_main() -> int:
             "end",
             f"工具版本：V{version_text}\n"
             f"运行模式："
-            f"{'初始 3 人' if mode_var.get() == 'three' else '完整 7 人'}\n"
+            f"{'3 人' if mode_var.get() == 'three' else '7 人'}\n"
             f"目标存档：1-{concurrent_console_state.result_count}\n"
             f"同时运行数量：{concurrent_console_state.concurrency}\n"
             f"循环随机：{'开启' if loop_var.get() else '关闭'}\n\n",
@@ -9420,7 +9908,7 @@ def gui_main() -> int:
             for slot in round_state.visible_slots():
                 progress = round_state.slots[slot]
                 info_tag = f"concurrent-slot-info-{round_number}-{slot}"
-                output.insert("end", "ⓘ", info_tag)
+                output.insert("end", "明细", info_tag)
                 output.tag_configure(
                     info_tag,
                     foreground="#0563c1",
@@ -9454,6 +9942,34 @@ def gui_main() -> int:
                     output.insert(
                         "end",
                         f"存档{slot}　{progress.stage}",
+                    )
+                if progress.detail is not None:
+                    output.insert("end", "　")
+                    score_tag = (
+                        f"concurrent-slot-score-{round_number}-{slot}"
+                    )
+                    output.insert("end", "查看评分", score_tag)
+                    output.tag_configure(
+                        score_tag,
+                        foreground="#0563c1",
+                        underline=True,
+                    )
+                    output.tag_bind(
+                        score_tag,
+                        "<Button-1>",
+                        lambda _event, value=progress.detail: (
+                            show_result_detail(value)
+                        ),
+                    )
+                    output.tag_bind(
+                        score_tag,
+                        "<Enter>",
+                        lambda _event: output.configure(cursor="hand2"),
+                    )
+                    output.tag_bind(
+                        score_tag,
+                        "<Leave>",
+                        lambda _event: output.configure(cursor=""),
                     )
                 output.insert("end", "\n")
             round_image = concurrent_console_round_images.get(round_number)
@@ -9524,6 +10040,10 @@ def gui_main() -> int:
                 )
         output.see("end")
         output.configure(state="disabled")
+        concurrent_console_last_signature = signature
+        concurrent_console_last_render_at = now
+        concurrent_console_render_pending = False
+        return True
 
     def append_attempt_result(detail: dict) -> None:
         label = str(detail.get("label") or "未知")
@@ -9619,12 +10139,16 @@ def gui_main() -> int:
         nonlocal concurrent_console_round_images
         nonlocal concurrent_console_active_round
         nonlocal concurrent_console_finished, concurrent_console_footer
+        nonlocal concurrent_console_render_pending
         console_dirty = False
-        while True:
+        force_console_render = False
+        processed_line_count = 0
+        while processed_line_count < CONCURRENT_CONSOLE_QUEUE_BATCH_SIZE:
             try:
                 line = output_queue.get_nowait()
             except queue.Empty:
                 break
+            processed_line_count += 1
             display_line = line
             worker_prefix = ""
             worker_index: int | None = None
@@ -9691,10 +10215,21 @@ def gui_main() -> int:
                 concurrent_console_footer = ""
                 console_dirty = True
                 continue
+            image_candidate = extract_result_image_path(display_line)
+            if image_candidate is not None and image_candidate.is_file():
+                result_image_path = image_candidate
+                if concurrent_console_state is not None:
+                    concurrent_console_round_images[
+                        event_round or concurrent_console_active_round
+                    ] = image_candidate
+                    console_dirty = True
             if (
                 concurrent_console_state is not None
                 and worker_index is not None
-                and not stop_requested_by_user
+                and (
+                    not stop_requested_by_user
+                    or is_completion_console_line(display_line)
+                )
                 and concurrent_console_rounds.get(
                     event_round or concurrent_console_active_round,
                     concurrent_console_state,
@@ -9717,38 +10252,20 @@ def gui_main() -> int:
                 )
             if result_detail is not None:
                 if concurrent_console_state is not None:
-                    if not stop_requested_by_user:
-                        concurrent_console_rounds.get(
-                            event_round or concurrent_console_active_round,
-                            concurrent_console_state,
-                        ).consume_result(result_detail)
-                        console_dirty = True
+                    concurrent_console_rounds.get(
+                        event_round or concurrent_console_active_round,
+                        concurrent_console_state,
+                    ).consume_result(
+                        result_detail,
+                        preserve_stopped=stop_requested_by_user,
+                    )
+                    console_dirty = True
                 else:
                     append_attempt_result(result_detail)
                 last_formatted_line = (
                     f"结果：{result_detail.get('label', '未知')}"
                 )
                 continue
-            if display_line.startswith("本轮总图路径："):
-                candidate = Path(display_line.split("：", 1)[1].strip())
-                if candidate.is_file() or not loop_var.get():
-                    result_image_path = candidate
-                    if concurrent_console_state is not None:
-                        concurrent_console_round_images[
-                            event_round or concurrent_console_active_round
-                        ] = candidate
-                        console_dirty = True
-            elif "总图已更新：" in display_line:
-                candidate = Path(
-                    display_line.split("总图已更新：", 1)[1].strip()
-                )
-                if candidate.is_file():
-                    result_image_path = candidate
-                    if concurrent_console_state is not None:
-                        concurrent_console_round_images[
-                            event_round or concurrent_console_active_round
-                        ] = candidate
-                        console_dirty = True
             formatted = format_user_log(display_line)
             if formatted:
                 if worker_prefix:
@@ -9760,6 +10277,20 @@ def gui_main() -> int:
                     formatted = "\n" + formatted
                 append(formatted)
                 last_formatted_line = formatted.strip()
+        queue_batch_exhausted = (
+            processed_line_count >= CONCURRENT_CONSOLE_QUEUE_BATCH_SIZE
+            and not output_queue.empty()
+        )
+        if console_dirty:
+            concurrent_console_render_pending = True
+        if (
+            concurrent_console_render_pending
+            and concurrent_console_state is not None
+        ):
+            render_concurrent_console()
+        if queue_batch_exhausted:
+            root.after(1, poll_worker)
+            return
         if worker is not None and worker.poll() is not None:
             code = worker.returncode
             worker = None
@@ -9788,6 +10319,9 @@ def gui_main() -> int:
             repair_button.configure(state="normal")
             stopped = stop_requested_by_user or code == 130
             if concurrent_console_state is not None:
+                if stopped:
+                    for round_state in concurrent_console_rounds.values():
+                        round_state.mark_stopped()
                 concurrent_console_finished = stopped or code == 0
                 concurrent_console_footer = (
                     "本次流程已停止。"
@@ -9799,6 +10333,7 @@ def gui_main() -> int:
                     )
                 )
                 console_dirty = True
+                force_console_render = True
             elif stopped:
                 append_stopped_summary()
             elif code == 0:
@@ -9817,8 +10352,11 @@ def gui_main() -> int:
                 stop_file.unlink(missing_ok=True)
                 stop_file = None
             stop_requested_by_user = False
-        if console_dirty and concurrent_console_state is not None:
-            render_concurrent_console()
+        if (
+            concurrent_console_render_pending
+            and concurrent_console_state is not None
+        ):
+            render_concurrent_console(force=force_console_render)
         root.after(100, poll_worker)
 
     def start() -> None:
@@ -9831,6 +10369,9 @@ def gui_main() -> int:
         nonlocal concurrent_console_round_images
         nonlocal concurrent_console_active_round
         nonlocal concurrent_console_finished, concurrent_console_footer
+        nonlocal concurrent_console_render_pending
+        nonlocal concurrent_console_last_render_at
+        nonlocal concurrent_console_last_signature
         if worker is not None:
             return
         try:
@@ -9920,7 +10461,10 @@ def gui_main() -> int:
             concurrent_console_active_round = 1
             concurrent_console_finished = False
             concurrent_console_footer = ""
-            render_concurrent_console()
+            concurrent_console_render_pending = True
+            concurrent_console_last_render_at = 0.0
+            concurrent_console_last_signature = None
+            render_concurrent_console(force=True)
         else:
             concurrent_console_state = None
             concurrent_console_rounds = {}
@@ -9928,14 +10472,17 @@ def gui_main() -> int:
             concurrent_console_active_round = 1
             concurrent_console_finished = False
             concurrent_console_footer = ""
+            concurrent_console_render_pending = False
+            concurrent_console_last_render_at = 0.0
+            concurrent_console_last_signature = None
             stamp = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             append(f"\n========== 开始随机：{stamp} ==========")
             append(
                 "运行模式："
                 + (
-                    "只随机初始3人"
+                    "3人"
                     if mode_var.get() == "three"
-                    else "完整7人"
+                    else "7人"
                 )
             )
             append("循环随机：" + ("开启" if loop_var.get() else "关闭"))
@@ -9997,14 +10544,20 @@ def gui_main() -> int:
 
     def stop() -> None:
         nonlocal stop_requested_by_user
+        nonlocal concurrent_console_footer
+        nonlocal concurrent_console_render_pending
         if worker is not None and worker.poll() is None:
             target_worker = worker
             stop_requested_by_user = True
             action_button.configure(state="disabled")
             for round_state in concurrent_console_rounds.values():
-                round_state.mark_stopped()
+                round_state.mark_stopping()
             if concurrent_console_state is not None:
-                render_concurrent_console()
+                concurrent_console_footer = (
+                    "正在停止随机并关闭后台实例……"
+                )
+                concurrent_console_render_pending = True
+                render_concurrent_console(force=True)
             if stop_file is not None:
                 stop_file.write_text("stop", encoding="ascii")
             root.after(
@@ -10542,7 +11095,16 @@ def main() -> int:
                         runner._target_save_pos = result_slot
                         runner._source_loaded = loaded
                         try:
-                            accepted = runner.run()
+                            with diagnostic_timing(
+                                "attempt_runner",
+                                result_slot=result_slot,
+                                attempt=_round_index,
+                                round_number=(
+                                    round_number if loop_random else None
+                                ),
+                                loaded=loaded,
+                            ):
+                                accepted = runner.run()
                         finally:
                             if getattr(
                                 runner,
@@ -10679,14 +11241,30 @@ def main() -> int:
                                 / f"SV{result_slot:03}.E5S"
                             ),
                         )
-                        equip_info = runner.collect_equipment()
+                        with diagnostic_timing(
+                            "accepted_collect_equipment",
+                            result_slot=result_slot,
+                            attempt=result.round_index,
+                        ):
+                            equip_info = runner.collect_equipment()
                         check_stop_requested()
-                        panel_paths[result_slot] = save_result_image(
-                            runner,
-                            equip_info,
-                            result_slot,
-                        )
-                        current_grid = compose_result_grid(panel_paths)
+                        with diagnostic_timing(
+                            "accepted_render_panel",
+                            result_slot=result_slot,
+                            attempt=result.round_index,
+                        ):
+                            panel_paths[result_slot] = save_result_image(
+                                runner,
+                                equip_info,
+                                result_slot,
+                            )
+                        with diagnostic_timing(
+                            "accepted_render_grid",
+                            result_slot=result_slot,
+                            attempt=result.round_index,
+                            panel_count=len(panel_paths),
+                        ):
+                            current_grid = compose_result_grid(panel_paths)
                         check_stop_requested()
                         save_path = (
                             game_dir
@@ -10702,10 +11280,15 @@ def main() -> int:
                                 equip_info=equip_info,
                                 save_path=save_path,
                             )
-                            history_repository.save_result(
-                                history_round_id,
-                                snapshot,
-                            )
+                            with diagnostic_timing(
+                                "accepted_write_history",
+                                result_slot=result_slot,
+                                attempt=result.round_index,
+                            ):
+                                history_repository.save_result(
+                                    history_round_id,
+                                    snapshot,
+                                )
                         except Exception as history_exc:
                             diagnostic_error(
                                 "history_result_write_failed",

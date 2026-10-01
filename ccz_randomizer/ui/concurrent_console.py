@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Mapping
 
 
 ATTEMPT_PATTERN = re.compile(
@@ -11,6 +13,11 @@ SAVE_SUCCESS_PATTERN = re.compile(
     r"^第\s+(\d+)\s+号结果存档已通过游戏菜单保存"
 )
 SLOT_ASSIGNED_PATTERN = re.compile(r"^@@CCZ_SLOT_ASSIGNED@@(\d+)$")
+SLOT_RETRY_PATTERN = re.compile(r"^@@CCZ_SLOT_RETRY@@(\d+)$")
+SLOT_FAILED_PATTERN = re.compile(r"^@@CCZ_SLOT_FAILED@@(\d+)$")
+RESULT_IMAGE_UPDATED_MARKER = "总图已更新："
+ROUND_IMAGE_PATH_PREFIX = "本轮总图路径："
+RESULT_IMAGE_PATH_PREFIX = "@@CCZ_RESULT_IMAGE@@"
 
 
 def chinese_ordinal(value: int) -> str:
@@ -31,6 +38,68 @@ def chinese_ordinal(value: int) -> str:
 
 def format_round_heading(round_number: int) -> str:
     return f"第{chinese_ordinal(round_number)}轮"
+
+
+def extract_result_image_path(line: str) -> Path | None:
+    text = line.strip()
+    if text.startswith(RESULT_IMAGE_PATH_PREFIX):
+        value = text[len(RESULT_IMAGE_PATH_PREFIX) :].strip()
+    elif text.startswith(ROUND_IMAGE_PATH_PREFIX):
+        value = text[len(ROUND_IMAGE_PATH_PREFIX) :].strip()
+    elif RESULT_IMAGE_UPDATED_MARKER in text:
+        value = text.split(RESULT_IMAGE_UPDATED_MARKER, 1)[1].strip()
+    else:
+        return None
+    return Path(value) if value else None
+
+
+def is_completion_console_line(line: str) -> bool:
+    text = line.strip()
+    return bool(
+        SAVE_SUCCESS_PATTERN.match(text)
+        or extract_result_image_path(text) is not None
+    )
+
+
+def build_console_render_signature(
+    rounds: Mapping[int, ConcurrentConsoleState],
+    round_images: Mapping[int, Path],
+    *,
+    active_round: int,
+    footer: str,
+    mode: str,
+    loop_enabled: bool,
+) -> tuple:
+    round_signatures = []
+    for round_number, state in sorted(rounds.items()):
+        slots = tuple(
+            (
+                slot,
+                progress.attempt,
+                progress.stage,
+                progress.completed,
+                progress.detail is not None,
+            )
+            for slot in state.visible_slots()
+            for progress in (state.slots[slot],)
+        )
+        image = round_images.get(round_number)
+        round_signatures.append(
+            (
+                round_number,
+                state.result_count,
+                state.concurrency,
+                slots,
+                str(image) if image is not None else "",
+            )
+        )
+    return (
+        mode,
+        loop_enabled,
+        active_round,
+        footer,
+        tuple(round_signatures),
+    )
 
 
 @dataclass
@@ -123,6 +192,30 @@ class ConcurrentConsoleState:
             self._record_history(progress, "已领取任务，正在启动随机流程")
             return True
 
+        retry_match = SLOT_RETRY_PATTERN.match(text)
+        if retry_match:
+            slot = int(retry_match.group(1))
+            if slot not in self.slots:
+                return False
+            progress = self.slots[slot]
+            progress.started = True
+            progress.stage = "后台实例异常，等待重试"
+            progress.completed = False
+            self._record_history(progress, "后台实例异常，任务已重新排队")
+            return True
+
+        failed_match = SLOT_FAILED_PATTERN.match(text)
+        if failed_match:
+            slot = int(failed_match.group(1))
+            if slot not in self.slots:
+                return False
+            progress = self.slots[slot]
+            progress.started = True
+            progress.stage = "执行失败"
+            progress.completed = True
+            self._record_history(progress, "后台实例连续失败，已停止重试")
+            return True
+
         attempt_match = ATTEMPT_PATTERN.match(text)
         if attempt_match:
             slot = int(attempt_match.group(1))
@@ -206,7 +299,12 @@ class ConcurrentConsoleState:
             return True
         return False
 
-    def consume_result(self, detail: dict) -> bool:
+    def consume_result(
+        self,
+        detail: dict,
+        *,
+        preserve_stopped: bool = False,
+    ) -> bool:
         try:
             slot = int(detail["resultSlot"])
             attempt = int(detail["attempt"])
@@ -215,6 +313,12 @@ class ConcurrentConsoleState:
         if slot not in self.slots:
             return False
         progress = self.slots[slot]
+        was_stopped = (
+            preserve_stopped
+            and progress.started
+            and not progress.completed
+            and progress.stage in {"正在停止", "已停止"}
+        )
         progress.started = True
         progress.attempt = attempt
         status = str(detail.get("status", ""))
@@ -228,6 +332,11 @@ class ConcurrentConsoleState:
             progress.result_details.append(detail)
             if len(progress.result_details) > 100:
                 del progress.result_details[:20]
+        if was_stopped:
+            if status == "accepted":
+                progress.detail = detail
+            self._record_history(progress, f"结果：{label}")
+            return True
         if status == "accepted":
             if progress.completed:
                 progress.detail = detail
@@ -247,3 +356,8 @@ class ConcurrentConsoleState:
         for progress in self.slots.values():
             if progress.started and not progress.completed:
                 progress.stage = "已停止"
+
+    def mark_stopping(self) -> None:
+        for progress in self.slots.values():
+            if progress.started and not progress.completed:
+                progress.stage = "正在停止"

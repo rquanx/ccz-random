@@ -4,7 +4,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from ccz_randomizer.runtime.scratch_save_guard import ScratchSaveGuard
+from ccz_randomizer.runtime.scratch_save_guard import (
+    ScratchSaveGuard,
+    publish_candidate_save,
+)
 
 
 class ScratchSaveGuardTests(unittest.TestCase):
@@ -93,3 +96,21 @@ class ScratchSaveGuardTests(unittest.TestCase):
                 f"save-{slot}".encode("ascii"),
                 path.read_bytes(),
             )
+
+    def test_candidate_save_is_published_without_modifying_content(self):
+        target = self.game_dir / "SV" / "SV005.E5S"
+        target.write_bytes(b"previous")
+        candidate = b"game-created-save-at-initial-scene"
+
+        publish_candidate_save(target, candidate)
+
+        self.assertEqual(candidate, target.read_bytes())
+
+    def test_empty_candidate_does_not_replace_existing_result(self):
+        target = self.game_dir / "SV" / "SV005.E5S"
+        target.write_bytes(b"previous")
+
+        with self.assertRaisesRegex(ValueError, "候选存档内容为空"):
+            publish_candidate_save(target, b"")
+
+        self.assertEqual(b"previous", target.read_bytes())

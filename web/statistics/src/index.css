@@ -1,0 +1,110 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+}
+
+:root {
+  --radius: .375rem;
+  --background: #f3f5f8;
+  --foreground: #162136;
+  --card: #ffffff;
+  --card-foreground: #162136;
+  --popover: #ffffff;
+  --popover-foreground: #162136;
+  --primary: #3472e8;
+  --primary-foreground: #ffffff;
+  --secondary: #eef2f7;
+  --secondary-foreground: #26364d;
+  --muted: #edf1f5;
+  --muted-foreground: #667085;
+  --accent: #e9f0ff;
+  --accent-foreground: #2458b8;
+  --destructive: #c2414b;
+  --border: #d9e0e9;
+  --input: #d9e0e9;
+  --ring: #6c98ef;
+  font-family: "Microsoft YaHei UI", "Segoe UI", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+html {
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  display: none;
+}
+
+* {
+  border-color: var(--border);
+  letter-spacing: 0;
+}
+
+body {
+  margin: 0;
+  min-width: 720px;
+  min-height: 100vh;
+  color: var(--foreground);
+  background: var(--background);
+}
+
+button,
+[role="button"] {
+  cursor: pointer;
+}
+
+.hide-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.filter-label {
+  display: grid;
+  gap: .35rem;
+  color: var(--muted-foreground);
+  font-size: .75rem;
+}
+
+.recharts-default-tooltip {
+  border-radius: .375rem !important;
+  border-color: var(--border) !important;
+  box-shadow: 0 12px 30px rgba(22, 33, 54, .08);
+}
+
+@media print {
+  header > div:last-child,
+  section[aria-label="统计筛选"],
+  [role="tablist"],
+  button {
+    display: none !important;
+  }
+}

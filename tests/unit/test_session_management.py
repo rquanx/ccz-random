@@ -676,6 +676,30 @@ class ManualRepairUiTests(unittest.TestCase):
             calls[0][1],
         )
 
+    def test_random_start_warns_about_temporary_s00_replacement(self):
+        parent = object()
+        calls = []
+
+        app_module.notify_random_s00_warning(
+            parent,
+            toast=lambda target, message, duration: calls.append(
+                (target, message, duration)
+            ),
+        )
+
+        self.assertEqual(
+            [
+                (
+                    parent,
+                    app_module.RANDOM_S00_WARNING_MESSAGE,
+                    9000,
+                )
+            ],
+            calls,
+        )
+        self.assertIn("请勿新开游戏或游玩第一关", calls[0][1])
+        self.assertIn("其他关卡", calls[0][1])
+
 
 class SessionManagementTests(unittest.TestCase):
     def test_title_load_verification_honors_stop_between_memory_checks(self):
@@ -1312,6 +1336,7 @@ class SessionManagementTests(unittest.TestCase):
             'append(f"\\n========== 开始随机：{stamp} ==========")',
             start_source,
         )
+        self.assertIn("notify_random_s00_warning(root)", start_source)
 
     def test_main_settings_keep_repair_action_on_a_separate_row(self):
         source = (

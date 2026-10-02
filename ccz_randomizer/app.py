@@ -22,11 +22,20 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from ccz_randomizer.rules.config import (
+    AFFINITY_TYPES,
+    JOB_AFFINITY_TYPES,
+    SIMPLE_PRESET_OPTIONS,
+    SKILL_AFFINITY_TYPES,
+    TEAM_MEMBER_NAMES,
+    THREE_MEMBER_NAMES,
     active_profile,
+    apply_simple_settings,
+    build_rule_export,
     default_rule_config,
     evaluate_job_rules,
     evaluate_skill_rules,
     load_rule_config,
+    merge_rule_export,
     save_rule_config,
     skill_types_match,
     validate_rule_config,
@@ -36,6 +45,15 @@ from ccz_randomizer.history import HistoryRepository, rule_snapshot_hash
 from ccz_randomizer.statistics import StatisticsRepository
 from ccz_randomizer.ui.history import show_history_window
 from ccz_randomizer.ui.statistics import show_statistics_window
+from ccz_randomizer.ui.statistics_web import (
+    create_statistics_url,
+    show_statistics_web,
+)
+from ccz_randomizer.ui.main_web import (
+    MainWebSession,
+    TkDispatcher,
+    show_main_web,
+)
 from ccz_randomizer.ui.result_details import (
     decode_result_detail,
     encode_result_detail,
@@ -1151,10 +1169,20 @@ DIAGNOSTIC_SCREENSHOT_LIMIT = 10
 DIAGNOSTIC_SCREENSHOT_TYPES: set[str] = set()
 UNKNOWN_EQUIPMENT_EFFECTS: set[tuple[int, int]] = set()
 SISHUI_REPAIR_UNAVAILABLE_MESSAGE = "此功能未完善，请联系作者"
+RANDOM_S00_WARNING_MESSAGE = (
+    "随机过程中会临时替换 S_00，请勿新开游戏或游玩第一关；"
+    "游玩其他关卡正常情况下不受影响。"
+)
 
 
 def notify_sishui_repair_unavailable(parent, toast=show_toast) -> None:
     toast(parent, SISHUI_REPAIR_UNAVAILABLE_MESSAGE, 3200)
+
+
+def notify_random_s00_warning(parent, toast=show_toast) -> None:
+    toast(parent, RANDOM_S00_WARNING_MESSAGE, 9000)
+
+
 CWP_SKIPINVISIBLE = 0x0001
 CWP_SKIPDISABLED = 0x0002
 CWP_SKIPTRANSPARENT = 0x0004
@@ -8953,6 +8981,7 @@ def gui_main() -> int:
     root.title("2.10 随机工具")
     root.geometry("980x680")
     root.minsize(760, 520)
+    root.withdraw()
 
     worker: subprocess.Popen[str] | None = None
     running_rule_name: str | None = None
@@ -8975,6 +9004,14 @@ def gui_main() -> int:
     concurrent_console_render_pending = False
     concurrent_console_last_render_at = 0.0
     concurrent_console_last_signature: tuple | None = None
+    single_attempt_details: list[dict] = []
+    main_web_window = None
+    web_dispatcher = None
+    web_close_requested = False
+    web_start_requested = False
+    web_page_generation = 0
+    web_notification_id = 0
+    web_notifications: list[dict[str, object]] = []
     mode_var = tk.StringVar(value=load_random_mode(app_dir()))
     loop_var = tk.BooleanVar(value=load_loop_random(app_dir()))
     concurrency_var = tk.IntVar(value=load_concurrency(app_dir()))
@@ -8986,6 +9023,22 @@ def gui_main() -> int:
     rule_profile_var = tk.StringVar(
         value=current_rules["activeProfile"]
     )
+
+    def notify_user(message: str, duration: int = 3200) -> None:
+        nonlocal web_notification_id
+        if main_web_window is None:
+            show_toast(root, message, duration)
+            return
+        web_notification_id += 1
+        web_notifications.append(
+            {
+                "id": web_notification_id,
+                "message": message,
+                "duration": duration,
+            }
+        )
+        if len(web_notifications) > 20:
+            del web_notifications[:5]
 
     outer = tk.Frame(root, padx=14, pady=12)
     outer.pack(fill="both", expand=True)
@@ -9104,7 +9157,7 @@ def gui_main() -> int:
         try:
             save_random_mode(app_dir(), mode_var.get())
         except (OSError, ValueError):
-            show_toast(root, "运行模式保存失败，请检查工具目录是否可写。")
+            notify_user("运行模式保存失败，请检查工具目录是否可写。")
 
     def persist_runtime_settings(_event=None) -> None:
         try:
@@ -9115,7 +9168,7 @@ def gui_main() -> int:
                 compatibility_mode=bool(compatibility_mode_var.get()),
             )
         except (OSError, ValueError, TypeError, tk.TclError):
-            show_toast(root, "运行参数保存失败，请检查输入和工具目录。")
+            notify_user("运行参数保存失败，请检查输入和工具目录。")
 
     seven_mode_button = tk.Radiobutton(
         mode_frame,
@@ -9786,16 +9839,11 @@ def gui_main() -> int:
             return
         show_history_window(root, repository)
 
-    def open_statistics() -> None:
+    def statistics_context() -> tuple[StatisticsRepository, str | None]:
         try:
             repository = StatisticsRepository(app_dir())
         except Exception as exc:
-            messagebox.showerror(
-                "统计无法打开",
-                str(exc),
-                parent=root,
-            )
-            return
+            raise RuntimeError(str(exc)) from exc
         if running_rule_snapshot:
             try:
                 active_statistics_rule = json.loads(running_rule_snapshot)
@@ -9806,17 +9854,40 @@ def gui_main() -> int:
                 current_rules["activeProfile"],
                 {},
             )
-        show_statistics_window(
-            root,
-            repository,
-            current_run_id=statistics_run_id,
-            current_rule_hash=(
-                rule_snapshot_hash(active_statistics_rule)
-                if isinstance(active_statistics_rule, dict)
-                and active_statistics_rule
-                else None
-            ),
+        statistics_rule_hash = (
+            rule_snapshot_hash(active_statistics_rule)
+            if isinstance(active_statistics_rule, dict)
+            and active_statistics_rule
+            else None
         )
+        return repository, statistics_rule_hash
+
+    def open_statistics() -> None:
+        try:
+            repository, statistics_rule_hash = statistics_context()
+        except Exception as exc:
+            messagebox.showerror(
+                "统计无法打开",
+                str(exc),
+                parent=root,
+            )
+            return
+        try:
+            opened = show_statistics_web(
+                root,
+                repository,
+                current_run_id=statistics_run_id,
+                current_rule_hash=statistics_rule_hash,
+            )
+        except Exception:
+            opened = False
+        if not opened:
+            show_statistics_window(
+                root,
+                repository,
+                current_run_id=statistics_run_id,
+                current_rule_hash=statistics_rule_hash,
+            )
 
     def select_rule_profile(_event=None) -> None:
         nonlocal current_rules
@@ -10294,6 +10365,9 @@ def gui_main() -> int:
         return True
 
     def append_attempt_result(detail: dict) -> None:
+        single_attempt_details.append(detail)
+        if len(single_attempt_details) > 200:
+            del single_attempt_details[:40]
         label = str(detail.get("label") or "未知")
         output.configure(state="normal")
         output.insert("end", f"结果：{label}（")
@@ -10389,6 +10463,7 @@ def gui_main() -> int:
         nonlocal concurrent_console_active_round
         nonlocal concurrent_console_finished, concurrent_console_footer
         nonlocal concurrent_console_render_pending
+        nonlocal web_close_requested
         console_dirty = False
         force_console_render = False
         processed_line_count = 0
@@ -10590,17 +10665,16 @@ def gui_main() -> int:
                 append_result_link()
             elif security_blocked_details is not None:
                 append(SECURITY_SOFTWARE_BLOCKED_MESSAGE)
-                show_toast(
-                    root,
-                    SECURITY_SOFTWARE_BLOCKED_MESSAGE,
-                    8000,
-                )
+                notify_user(SECURITY_SOFTWARE_BLOCKED_MESSAGE, 8000)
             else:
                 append("本次流程执行失败，详细信息已写入日志文件。")
             if stop_file is not None:
                 stop_file.unlink(missing_ok=True)
                 stop_file = None
             stop_requested_by_user = False
+            if web_close_requested:
+                root.after(50, lambda: close(force=True))
+                return
         if (
             concurrent_console_render_pending
             and concurrent_console_state is not None
@@ -10622,6 +10696,10 @@ def gui_main() -> int:
         nonlocal concurrent_console_render_pending
         nonlocal concurrent_console_last_render_at
         nonlocal concurrent_console_last_signature
+        nonlocal single_attempt_details
+        nonlocal web_start_requested
+        web = web_start_requested
+        web_start_requested = False
         if worker is not None:
             return
         try:
@@ -10632,15 +10710,15 @@ def gui_main() -> int:
                 "gui_start_cleanup",
             )
         except Exception as exc:
-            messagebox.showerror(
-                "无法开始随机",
-                str(exc),
-                parent=root,
-            )
+            if web:
+                raise RuntimeError(str(exc)) from exc
+            messagebox.showerror("无法开始随机", str(exc), parent=root)
             return
         try:
             concurrency = int(concurrency_var.get())
         except (TypeError, ValueError):
+            if web:
+                raise ValueError("同时运行数量必须是大于 0 的整数。")
             messagebox.showwarning(
                 "同时运行数量设置",
                 "同时运行数量必须是大于 0 的整数。",
@@ -10648,6 +10726,8 @@ def gui_main() -> int:
             )
             return
         if concurrency < 1:
+            if web:
+                raise ValueError("同时运行数量必须大于 0。")
             messagebox.showwarning(
                 "同时运行数量设置",
                 "同时运行数量必须大于 0。",
@@ -10655,6 +10735,11 @@ def gui_main() -> int:
             )
             return
         if not loop_var.get() and concurrency > 15:
+            if web:
+                raise ValueError(
+                    "非循环模式同时运行数量必须位于 1-15；"
+                    "循环模式可设置更高数量。"
+                )
             messagebox.showwarning(
                 "同时运行数量设置",
                 "非循环模式同时运行数量必须位于 1-15；"
@@ -10669,8 +10754,7 @@ def gui_main() -> int:
         active_game_executable = game_executable
         security_processes = detect_360_security_processes()
         if security_processes:
-            show_toast(
-                root,
+            notify_user(
                 "检测到 360 安全软件，可能会影响后台随机。"
                 "若运行异常，请退出 360 后重试。",
                 5200,
@@ -10686,12 +10770,16 @@ def gui_main() -> int:
             current_rules["profiles"][running_rule_name]
         )
         if latest_rules.warning:
-            messagebox.showwarning(
-                "规则文件无法使用",
-                latest_rules.warning,
-                parent=root,
-            )
+            if web:
+                append(f"规则文件提示：{latest_rules.warning}")
+            else:
+                messagebox.showwarning(
+                    "规则文件无法使用",
+                    latest_rules.warning,
+                    parent=root,
+                )
         result_image_path = None
+        single_attempt_details = []
         stop_requested_by_user = False
         last_formatted_line = ""
         security_blocked_details = None
@@ -10789,6 +10877,8 @@ def gui_main() -> int:
             args=(worker.stdout,),
             daemon=True,
         ).start()
+        if not web:
+            notify_random_s00_warning(root)
         action_button.configure(
             text="停止随机",
             command=stop,
@@ -10843,7 +10933,8 @@ def gui_main() -> int:
         except Exception as exc:
             diagnostic_error("gui_forced_stop_cleanup_failed", exc)
 
-    def close() -> None:
+    def close(force: bool = False) -> None:
+        nonlocal main_web_window
         try:
             save_random_runtime_settings(
                 app_dir(),
@@ -10854,7 +10945,10 @@ def gui_main() -> int:
         except (OSError, ValueError, TypeError, tk.TclError):
             pass
         if worker is not None and worker.poll() is None:
-            if not messagebox.askyesno("确认退出", "随机仍在运行，确定停止并退出吗？"):
+            if not force and not messagebox.askyesno(
+                "确认退出",
+                "随机仍在运行，确定停止并退出吗？",
+            ):
                 return
             if stop_file is not None:
                 stop_file.write_text("stop", encoding="ascii")
@@ -10874,7 +10968,341 @@ def gui_main() -> int:
             )
         except Exception as exc:
             diagnostic_error("gui_close_cleanup_failed", exc)
+        if main_web_window is not None:
+            window = main_web_window
+            main_web_window = None
+            try:
+                window.close()
+            except Exception as exc:
+                diagnostic_error("main_web_close_failed", exc)
+        if web_dispatcher is not None:
+            web_dispatcher.close()
         root.destroy()
+
+    def web_console_state() -> dict[str, object]:
+        rounds = []
+        for round_number, round_state in sorted(
+            concurrent_console_rounds.items()
+        ):
+            slots = []
+            for slot in round_state.visible_slots():
+                progress = round_state.slots[slot]
+                slots.append(
+                    {
+                        "slot": slot,
+                        "attempt": progress.attempt,
+                        "stage": progress.stage,
+                        "completed": progress.completed,
+                        "detail": progress.detail,
+                        "attempts": [
+                            {
+                                "attempt": attempt.attempt,
+                                "memberSummary": attempt.member_summary,
+                                "detail": attempt.detail,
+                            }
+                            for attempt in progress.attempts
+                        ],
+                    }
+                )
+            image = concurrent_console_round_images.get(round_number)
+            rounds.append(
+                {
+                    "round": round_number,
+                    "slots": slots,
+                    "image": (
+                        str(image)
+                        if image is not None and image.is_file()
+                        else ""
+                    ),
+                }
+            )
+        return {
+            "enabled": concurrent_console_state is not None,
+            "rounds": rounds,
+            "activeRound": concurrent_console_active_round,
+            "footer": concurrent_console_footer,
+        }
+
+    def web_state() -> dict[str, object]:
+        running = worker is not None and worker.poll() is None
+        try:
+            text = output.get("1.0", "end-1c")
+        except tk.TclError:
+            text = ""
+        return {
+            "running": running,
+            "stopping": stop_requested_by_user,
+            "settings": {
+                "mode": mode_var.get(),
+                "loopRandom": bool(loop_var.get()),
+                "concurrency": int(concurrency_var.get()),
+                "compatibilityMode": bool(compatibility_mode_var.get()),
+                "activeProfile": rule_profile_var.get(),
+            },
+            "profiles": list(current_rules["profiles"]),
+            "consoleText": text,
+            "singleDetails": list(single_attempt_details),
+            "concurrent": web_console_state(),
+            "resultImage": (
+                str(result_image_path)
+                if result_image_path is not None
+                and result_image_path.is_file()
+                else ""
+            ),
+            "notifications": list(web_notifications),
+        }
+
+    def web_rule_catalogs() -> dict[str, object]:
+        jobs = []
+        seen_jobs = set()
+        for name, score, job_type in JOB_MAP.values():
+            if name in seen_jobs:
+                continue
+            seen_jobs.add(name)
+            jobs.append(
+                {
+                    "name": name,
+                    "score": float(score),
+                    "type": job_type,
+                }
+            )
+        skills = [
+            {
+                "name": name,
+                "score": float(score),
+                "tier": tier,
+                "type": skill_type,
+            }
+            for name, score, tier, skill_type in skill_score_catalog()
+        ]
+        return {
+            "jobs": jobs,
+            "skills": skills,
+            "members": list(TEAM_MEMBER_NAMES),
+            "threeMembers": list(THREE_MEMBER_NAMES),
+            "affinityTypes": list(AFFINITY_TYPES),
+            "jobTypes": list(JOB_AFFINITY_TYPES),
+            "skillTypes": list(SKILL_AFFINITY_TYPES),
+            "typeLabels": {
+                "ALL_ROUNDER": "全能型",
+                "WARRIOR": "武将型",
+                "MASTER": "文官型",
+                "NONE": "无",
+            },
+            "simpleOptions": {
+                key: list(values)
+                for key, values in SIMPLE_PRESET_OPTIONS.items()
+            },
+        }
+
+    def web_bootstrap() -> dict[str, object]:
+        nonlocal web_page_generation
+        web_page_generation += 1
+        return {
+            "build": application_build_info(),
+            "changelog": list(application_changelog()),
+            "rules": current_rules,
+            "catalogs": web_rule_catalogs(),
+            "state": web_state(),
+            "startupWarning": rule_load.warning or "",
+        }
+
+    def web_save_rules(config: dict) -> dict[str, object]:
+        nonlocal current_rules
+        for profile in config.get("profiles", {}).values():
+            if (
+                isinstance(profile, dict)
+                and profile.get("editorMode") == "simple"
+            ):
+                apply_simple_settings(profile)
+        normalized = validate_rule_config(config)
+        save_rule_config(app_dir(), normalized)
+        current_rules = normalized
+        rule_profile_combo.configure(values=tuple(normalized["profiles"]))
+        rule_profile_var.set(normalized["activeProfile"])
+        notice = current_run_rule_save_notice(
+            normalized,
+            running_rule_name,
+            running_rule_snapshot,
+        )
+        return {"rules": normalized, "notice": notice or "规则已保存"}
+
+    def web_import_rules(value: dict) -> dict[str, object]:
+        nonlocal current_rules
+        merged, names = merge_rule_export(current_rules, value)
+        if names:
+            merged["activeProfile"] = names[-1]
+        save_rule_config(app_dir(), merged)
+        current_rules = merged
+        rule_profile_combo.configure(values=tuple(merged["profiles"]))
+        rule_profile_var.set(merged["activeProfile"])
+        return {
+            "rules": merged,
+            "notice": f"已导入 {len(names)} 套规则",
+        }
+
+    def web_export_rules() -> dict:
+        return build_rule_export(current_rules)
+
+    def web_history(page: int) -> dict[str, object]:
+        repository = HistoryRepository(app_dir())
+        page_size = 20
+        total = repository.count_rounds()
+        return {
+            "rows": repository.list_rounds(page, page_size),
+            "page": max(1, page),
+            "pageSize": page_size,
+            "pageCount": max(1, (total + page_size - 1) // page_size),
+            "total": total,
+        }
+
+    def web_history_round(round_id: int) -> dict[str, object]:
+        repository = HistoryRepository(app_dir())
+        rows = repository.get_round_results(round_id)
+        return {"roundId": round_id, "results": rows}
+
+    def web_history_manage(
+        action: str,
+        payload: dict[str, object],
+    ) -> dict[str, object]:
+        repository = HistoryRepository(app_dir())
+        if action == "delete-round":
+            repository.delete_round(int(payload.get("roundId") or 0))
+        elif action == "clear":
+            repository.clear()
+        else:
+            raise ValueError("未知历史记录操作")
+        return web_history(1)
+
+    def web_repair_sound() -> ManualRepairResult:
+        try:
+            game_executable = locate_game_executable()
+            return repair_normal_game_audio(
+                game_executable,
+                find_process_ids=find_process_ids,
+                process_executable=process_executable,
+                restore_sessions=restore_process_audio_sessions,
+            )
+        except Exception as exc:
+            return ManualRepairResult("unable", f"游戏声音修复失败：{exc}")
+
+    def web_repair_s00() -> ManualRepairResult:
+        try:
+            game_executable = locate_game_executable()
+            result = restore_bundled_original_s00(
+                game_executable.parent,
+                bundled_original_s00(),
+                bundled_random_s00(),
+            )
+            if not result.restored:
+                return ManualRepairResult(
+                    "not_needed",
+                    "当前 S_00.eex 已是正常版本，不需要修复。",
+                )
+            message = "第一关脚本已恢复为正常版本。"
+            if result.backup_path is not None:
+                message += f"原有未知脚本已备份为 {result.backup_path.name}。"
+            return ManualRepairResult("repaired", message)
+        except Exception as exc:
+            return ManualRepairResult("unable", f"第一关脚本恢复失败：{exc}")
+
+    def web_action(
+        name: str,
+        payload: dict[str, object],
+    ) -> dict[str, object]:
+        nonlocal current_rules, web_close_requested, web_start_requested
+        nonlocal web_page_generation
+        if name == "settings":
+            if worker is not None and worker.poll() is None:
+                raise RuntimeError("随机过程中不能修改运行参数")
+            mode = str(payload.get("mode") or mode_var.get())
+            if mode not in {"three", "seven"}:
+                raise ValueError("随机模式不正确")
+            concurrency = int(
+                payload.get("concurrency") or concurrency_var.get()
+            )
+            loop_random = bool(payload.get("loopRandom"))
+            if concurrency < 1:
+                raise ValueError("同时运行数量必须大于 0")
+            if not loop_random and concurrency > 15:
+                raise ValueError("非循环模式同时运行数量必须位于 1-15")
+            mode_var.set(mode)
+            loop_var.set(loop_random)
+            concurrency_var.set(concurrency)
+            compatibility_mode_var.set(
+                bool(payload.get("compatibilityMode"))
+            )
+            persist_random_mode()
+            persist_runtime_settings()
+            return web_state()
+        if name == "profile":
+            if worker is not None and worker.poll() is None:
+                raise RuntimeError("随机过程中不能切换规则")
+            selected = str(payload.get("profile") or "")
+            current_rules = activate_rule_profile(
+                app_dir(),
+                current_rules,
+                selected,
+            )
+            rule_profile_var.set(selected)
+            return web_state()
+        if name == "start":
+            web_start_requested = True
+            start()
+            return {
+                "state": web_state(),
+                "toast": RANDOM_S00_WARNING_MESSAGE,
+            }
+        if name == "stop":
+            stop()
+            return {"state": web_state()}
+        if name == "statistics":
+            repository, statistics_rule_hash = statistics_context()
+            return {
+                "url": create_statistics_url(
+                    repository,
+                    current_run_id=statistics_run_id,
+                    current_rule_hash=statistics_rule_hash,
+                )
+            }
+        if name == "open-file":
+            path = Path(str(payload.get("path") or ""))
+            if not path.is_file():
+                raise FileNotFoundError("文件不存在")
+            os.startfile(path)
+            return {"ok": True}
+        if name == "repair-sishui":
+            return {
+                "status": "unable",
+                "message": SISHUI_REPAIR_UNAVAILABLE_MESSAGE,
+            }
+        if name == "repair-sound":
+            result = web_repair_sound()
+            return {"status": result.status, "message": result.message}
+        if name == "repair-s00":
+            result = web_repair_s00()
+            return {"status": result.status, "message": result.message}
+        if name == "close":
+            web_close_requested = True
+            if worker is not None and worker.poll() is None:
+                stop()
+                return {"closing": True, "stopping": True}
+            root.after(100, lambda: close(force=True))
+            return {"closing": True, "stopping": False}
+        if name == "page-hidden":
+            web_page_generation += 1
+            closing_generation = web_page_generation
+
+            def close_if_page_stayed_closed() -> None:
+                if (
+                    main_web_window is not None
+                    and web_page_generation == closing_generation
+                ):
+                    close(force=True)
+
+            root.after(1800, close_if_page_stayed_closed)
+            return {"ok": True}
+        raise ValueError("未知界面操作")
 
     action_button.configure(command=start)
     rule_button.configure(command=open_rule_editor)
@@ -10882,7 +11310,34 @@ def gui_main() -> int:
     statistics_button.configure(command=open_statistics)
     rule_profile_combo.bind("<<ComboboxSelected>>", select_rule_profile)
     root.protocol("WM_DELETE_WINDOW", close)
-    if rule_load.warning:
+    web_dispatcher = TkDispatcher(root)
+    web_dispatcher.start()
+    web_assets = (
+        Path(sys._MEIPASS) / "resources" / "statistics_web"
+        if getattr(sys, "frozen", False)
+        else source_root() / "resources" / "statistics_web"
+    )
+    main_web_window = show_main_web(
+        root,
+        MainWebSession(
+            web_dispatcher,
+            bootstrap=web_bootstrap,
+            state=web_state,
+            action=web_action,
+            save_rules=web_save_rules,
+            import_rules=web_import_rules,
+            export_rules=web_export_rules,
+            history=web_history,
+            history_round=web_history_round,
+            history_manage=web_history_manage,
+        ),
+        assets=web_assets,
+    )
+    if main_web_window is None:
+        web_dispatcher.close()
+        web_dispatcher = None
+        root.deiconify()
+    if rule_load.warning and main_web_window is None:
         root.after(
             150,
             lambda: messagebox.showwarning(

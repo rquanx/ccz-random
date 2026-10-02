@@ -1,5 +1,6 @@
 # Python environments and caches
 /.venv*/
+/web/statistics/node_modules/
 /__pycache__/
 *.py[cod]
 

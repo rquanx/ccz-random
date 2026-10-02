@@ -27,6 +27,7 @@ class StatisticsFilters:
     member_id: str | None = None
     attempt_id: int | None = None
     status: str | None = None
+    status_group: str | None = None
     failure_reason: str | None = None
     content_kind: str | None = None
     content_value: str | None = None
@@ -129,6 +130,12 @@ class StatisticsRepository:
         if filters.status:
             clauses.append(f"{alias}.status = ?")
             values.append(filters.status)
+        if filters.status_group == "other":
+            clauses.append(
+                f"{alias}.status NOT IN ('accepted', 'rejected')"
+            )
+        elif filters.status_group not in {None, ""}:
+            raise ValueError(f"未知状态分组：{filters.status_group}")
         if filters.failure_reason:
             clauses.append(f"{alias}.failure_reason = ?")
             values.append(filters.failure_reason)
@@ -438,6 +445,7 @@ class StatisticsRepository:
                 member_id=filters.member_id,
                 attempt_id=filters.attempt_id,
                 status=filters.status,
+                status_group=filters.status_group,
                 failure_reason=filters.failure_reason,
                 content_kind=filters.content_kind,
                 content_value=filters.content_value,
@@ -540,17 +548,25 @@ class StatisticsRepository:
         filters: StatisticsFilters,
         *,
         member_column: str,
+        include_global: bool = False,
     ) -> tuple[str, tuple[Any, ...]]:
         if not filters.member_id:
             return "", ()
         if member_column == "x.member_id":
             return " AND x.member_id = ?", (filters.member_id,)
+        global_clause = (
+            f"{member_column} = -1 OR "
+            if include_global
+            else ""
+        )
         return (
-            " AND EXISTS ("
+            " AND ("
+            + global_clause
+            + "EXISTS ("
             "SELECT 1 FROM result_members rm_filter "
             "WHERE rm_filter.attempt_id = x.attempt_id "
             f"AND rm_filter.position = {member_column} "
-            "AND rm_filter.member_id = ?)",
+            "AND rm_filter.member_id = ?))",
             (filters.member_id,),
         )
 
@@ -584,13 +600,11 @@ class StatisticsRepository:
         if empty_field and known_field:
             label = (
                 f"CASE WHEN x.{empty_field} = 1 THEN '无' "
-                f"WHEN x.{known_field} = 0 THEN '未知' "
                 f"ELSE COALESCE(NULLIF(x.{label_field}, ''), '未知') END"
             )
         elif known_field:
             label = (
-                f"CASE WHEN x.{known_field} = 0 THEN '未知' "
-                f"ELSE COALESCE(NULLIF(x.{label_field}, ''), '未知') END"
+                f"COALESCE(NULLIF(x.{label_field}, ''), '未知')"
             )
         else:
             label = (
@@ -619,6 +633,71 @@ class StatisticsRepository:
         )
         with closing(self._connect()) as connection:
             rows = [dict(row) for row in connection.execute(query, values)]
+        if filters.rule_mode == "all_grouped":
+            totals: dict[str, int] = {}
+            for row in rows:
+                key = str(row.get("rule_snapshot_hash") or "")
+                totals[key] = totals.get(key, 0) + int(row["count"])
+            for row in rows:
+                total = totals.get(str(row.get("rule_snapshot_hash") or ""), 0)
+                row["ratio"] = row["count"] / total if total else 0.0
+                row["position_count"] = total
+        else:
+            total = sum(int(row["count"]) for row in rows)
+            for row in rows:
+                row["ratio"] = row["count"] / total if total else 0.0
+                row["position_count"] = total
+        return rows
+
+    def _related_distribution(
+        self,
+        filters: StatisticsFilters,
+        *,
+        value_expression: str,
+        label_expression: str,
+        from_clause: str,
+        relation_clause: str,
+        relation_values: Iterable[Any],
+        member_expression: str,
+    ) -> list[dict[str, Any]]:
+        where, values = self._where(filters)
+        rule_select = (
+            ", r.rule_snapshot_hash AS rule_snapshot_hash"
+            if filters.rule_mode == "all_grouped"
+            else ""
+        )
+        group_rule = (
+            ", r.rule_snapshot_hash"
+            if filters.rule_mode == "all_grouped"
+            else ""
+        )
+        query = f"""
+            SELECT
+                {value_expression} AS value,
+                {label_expression} AS label,
+                COUNT(*) AS count,
+                COUNT(DISTINCT a.id) AS attempt_count,
+                COUNT(DISTINCT r.id || ':' || rd.id || ':' || a.slot)
+                    AS save_count,
+                COUNT(DISTINCT {member_expression}) AS member_count
+                {rule_select}
+            {from_clause}
+            JOIN attempts a ON a.id = x.attempt_id
+            JOIN rounds rd ON rd.id = a.round_id
+            JOIN runs r ON r.id = rd.run_id
+            WHERE {where}
+              AND {relation_clause}
+            GROUP BY value, label {group_rule}
+            ORDER BY count DESC, label
+        """
+        with closing(self._connect()) as connection:
+            rows = [
+                dict(row)
+                for row in connection.execute(
+                    query,
+                    [*values, *relation_values],
+                )
+            ]
         if filters.rule_mode == "all_grouped":
             totals: dict[str, int] = {}
             for row in rows:
@@ -674,6 +753,23 @@ class StatisticsRepository:
     ) -> list[dict[str, Any]]:
         return self.get_job_distribution(filters)
 
+    def get_members_for_job(
+        self,
+        filters: StatisticsFilters,
+        job_id: str,
+    ) -> list[dict[str, Any]]:
+        return self._related_distribution(
+            filters,
+            value_expression="x.member_id",
+            label_expression=(
+                "COALESCE(NULLIF(x.member_name, ''), '未知武将')"
+            ),
+            from_clause="FROM result_members x",
+            relation_clause="x.job_id = ?",
+            relation_values=(job_id,),
+            member_expression="x.member_id",
+        )
+
     def get_skill_distribution(
         self,
         filters: StatisticsFilters,
@@ -709,6 +805,35 @@ class StatisticsRepository:
         filters: StatisticsFilters,
     ) -> list[dict[str, Any]]:
         return self.get_skill_distribution(filters, scope="job")
+
+    def get_members_for_skill(
+        self,
+        filters: StatisticsFilters,
+        *,
+        scope: str,
+        skill_id: str,
+    ) -> list[dict[str, Any]]:
+        if scope not in {"personal", "job"}:
+            raise ValueError("skill scope must be personal or job")
+        return self._related_distribution(
+            filters,
+            value_expression="rm.member_id",
+            label_expression=(
+                "COALESCE(NULLIF(rm.member_name, ''), '未知武将')"
+            ),
+            from_clause=(
+                "FROM result_skills x "
+                "JOIN result_members rm "
+                "ON rm.attempt_id = x.attempt_id "
+                "AND rm.position = x.member_position"
+            ),
+            relation_clause=(
+                "x.skill_scope = ? AND x.skill_id = ? "
+                "AND x.is_empty_marker = 0"
+            ),
+            relation_values=(scope, skill_id),
+            member_expression="rm.member_id",
+        )
 
     def get_skill_combination_distribution(
         self,
@@ -869,6 +994,7 @@ class StatisticsRepository:
         clause, values = self._member_scope(
             filters,
             member_column="x.member_position",
+            include_global=True,
         )
         return self._distribution(
             filters,
@@ -886,6 +1012,7 @@ class StatisticsRepository:
         clause, values = self._member_scope(
             filters,
             member_column="x.member_position",
+            include_global=True,
         )
         return self._distribution(
             filters,
@@ -897,6 +1024,49 @@ class StatisticsRepository:
             empty_field="is_empty_marker",
         )
 
+    def get_properties_for_treasure(
+        self,
+        filters: StatisticsFilters,
+        treasure_id: str,
+    ) -> list[dict[str, Any]]:
+        return self._related_distribution(
+            filters,
+            value_expression="x.property_id",
+            label_expression=(
+                "CASE WHEN x.is_empty_marker = 1 THEN '无' "
+                "ELSE COALESCE(NULLIF(x.property_name, ''), '未知') END"
+            ),
+            from_clause="FROM result_treasure_properties x",
+            relation_clause="x.treasure_id = ?",
+            relation_values=(treasure_id,),
+            member_expression="x.member_position",
+        )
+
+    def get_treasures_for_property(
+        self,
+        filters: StatisticsFilters,
+        property_id: str,
+    ) -> list[dict[str, Any]]:
+        return self._related_distribution(
+            filters,
+            value_expression="t.treasure_id",
+            label_expression=(
+                "COALESCE(NULLIF(t.treasure_name, ''), '未知宝物')"
+            ),
+            from_clause=(
+                "FROM result_treasure_properties x "
+                "JOIN result_treasures t "
+                "ON t.attempt_id = x.attempt_id "
+                "AND t.member_position = x.member_position "
+                "AND t.treasure_id = x.treasure_id"
+            ),
+            relation_clause=(
+                "x.property_id = ? AND x.is_empty_marker = 0"
+            ),
+            relation_values=(property_id,),
+            member_expression="t.treasure_id",
+        )
+
     def get_combination_distribution(
         self,
         filters: StatisticsFilters,
@@ -904,6 +1074,7 @@ class StatisticsRepository:
         clause, values = self._member_scope(
             filters,
             member_column="x.member_position",
+            include_global=True,
         )
         return self._distribution(
             filters,
@@ -988,10 +1159,11 @@ class StatisticsRepository:
                        THEN r.id || ':' || rd.id || ':' || a.slot END)
                        AS completed,
                    COUNT(DISTINCT CASE WHEN a.status = 'accepted'
-                       AND a.is_final_result = 1
+                       AND a.scored = 1
                        THEN r.id || ':' || rd.id || ':' || a.slot END)
                        AS accepted,
                    COUNT(DISTINCT CASE WHEN a.status = 'rejected'
+                       AND a.scored = 1
                        THEN r.id || ':' || rd.id || ':' || a.slot END)
                        AS rejected,
                    COUNT(DISTINCT CASE
@@ -1107,10 +1279,13 @@ class StatisticsRepository:
                 completed_tasks.add(task_key)
             if (
                 str(row["status"]) == "accepted"
-                and int(row["is_final_result"] or 0)
+                and int(row["scored"] or 0)
             ):
                 accepted_tasks.add(task_key)
-            elif str(row["status"]) == "rejected":
+            elif (
+                str(row["status"]) == "rejected"
+                and int(row["scored"] or 0)
+            ):
                 rejected_tasks.add(task_key)
             try:
                 snapshot = json.loads(row["snapshot_json"])

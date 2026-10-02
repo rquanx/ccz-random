@@ -1,13 +1,39 @@
 from __future__ import annotations
 
 import csv
+import datetime as dt
 import json
 import tempfile
+import time
+import tkinter as tk
 import unittest
 from pathlib import Path
+from tkinter import ttk
+from unittest import mock
 
+from ccz_randomizer.catalogs import (
+    job_catalog_rows,
+    skill_catalog_rows,
+    treasure_property_catalog_rows,
+)
 from ccz_randomizer.history import HistoryRepository
 from ccz_randomizer.statistics import StatisticsFilters, StatisticsRepository
+from ccz_randomizer.ui.statistics import (
+    _choice_picker,
+    _include_zero_rows,
+    _line_chart,
+    _ranked_distribution,
+    _release_entry_focus,
+    _scroll_canvas,
+    _show_calendar,
+    show_statistics_window,
+)
+
+
+def descendants(widget):
+    for child in widget.winfo_children():
+        yield child
+        yield from descendants(child)
 
 
 def snapshot(
@@ -143,6 +169,33 @@ class StatisticsRepositoryTests(unittest.TestCase):
         )
         self.assertEqual(2, completed["attempt_count"])
         self.assertEqual(1, completed["completed_count"])
+
+    def test_other_status_group_excludes_accepted_and_rejected(self):
+        round_id = self.add_run("run-status-groups", {"id": "rule-a"})
+        self.history.save_attempt(
+            round_id,
+            snapshot(slot=1, attempt=1, verified=False, published=False),
+            status="rejected",
+            scored=True,
+        )
+        self.history.save_attempt(
+            round_id,
+            snapshot(slot=2, attempt=1, verified=False, published=False),
+            status="failed",
+            scored=False,
+        )
+        repository = StatisticsRepository(self.base)
+
+        other = repository.get_summary(
+            StatisticsFilters(
+                metric="attempts",
+                status_group="other",
+            )
+        )
+
+        self.assertEqual(1, other["attempt_count"])
+        self.assertEqual(1, other["failed"])
+        self.assertEqual(0, other["rejected"])
 
     def test_rules_can_be_merged_or_selected_by_hash(self):
         first_round = self.add_run("run-1", {"id": "rule-a", "score": 1})
@@ -292,6 +345,149 @@ class StatisticsRepositoryTests(unittest.TestCase):
         self.assertEqual(1, combo_filtered["save_count"])
         self.assertTrue(repository.validate_statistics(StatisticsFilters()).valid)
 
+    def test_named_unknown_skill_keeps_its_recorded_name(self):
+        round_id = self.add_run("run-named-unknown", {"id": "rule-a"})
+        self.history.save_result(
+            round_id,
+            snapshot(
+                slot=1,
+                attempt=1,
+                personal=[
+                    {
+                        "skillId": "future-skill-1",
+                        "skillName": "新版天赋",
+                        "known": False,
+                    }
+                ],
+            ),
+        )
+        repository = StatisticsRepository(self.base)
+
+        rows = repository.get_personal_skill_distribution(StatisticsFilters())
+
+        self.assertEqual(["新版天赋"], [row["label"] for row in rows])
+
+    def test_related_distributions_only_count_the_selected_relation(self):
+        round_id = self.add_run("run-related", {"id": "rule-a"})
+        value = snapshot(slot=1, attempt=1)
+        value["members"] = [
+            {
+                "position": 0,
+                "memberId": "cao-cao",
+                "name": "曹操",
+                "jobId": "strategist",
+                "job": "策士",
+                "jobKnown": True,
+                "personalSkills": [
+                    {
+                        "skillId": "merit",
+                        "skillName": "获得功勋",
+                        "known": True,
+                    }
+                ],
+                "jobSkills": [],
+            },
+            {
+                "position": 1,
+                "memberId": "xiahou-dun",
+                "name": "夏侯惇",
+                "jobId": "cavalry",
+                "job": "骑兵",
+                "jobKnown": True,
+                "personalSkills": [
+                    {
+                        "skillId": "guard",
+                        "skillName": "一夫当关",
+                        "known": True,
+                    }
+                ],
+                "jobSkills": [],
+            },
+            {
+                "position": 2,
+                "memberId": "xiahou-yuan",
+                "name": "夏侯渊",
+                "jobId": "archer",
+                "job": "弓兵",
+                "jobKnown": True,
+                "personalSkills": [],
+                "jobSkills": [],
+            },
+        ]
+        value["treasures"] = [
+            {
+                "memberPosition": 0,
+                "treasureId": "heaven-sword",
+                "treasureName": "倚天剑",
+                "known": True,
+                "properties": [
+                    {
+                        "propertyId": "life-steal",
+                        "propertyName": "吸血",
+                        "known": True,
+                    }
+                ],
+            },
+            {
+                "memberPosition": 1,
+                "treasureId": "qinggang-sword",
+                "treasureName": "青釭剑",
+                "known": True,
+                "properties": [
+                    {
+                        "propertyId": "armor-break",
+                        "propertyName": "破甲",
+                        "known": True,
+                    }
+                ],
+            },
+        ]
+        self.history.save_result(round_id, value)
+        repository = StatisticsRepository(self.base)
+        filters = StatisticsFilters()
+
+        self.assertEqual(
+            ["曹操"],
+            [
+                row["label"]
+                for row in repository.get_members_for_job(
+                    filters,
+                    "strategist",
+                )
+            ],
+        )
+        self.assertEqual(
+            ["夏侯惇"],
+            [
+                row["label"]
+                for row in repository.get_members_for_skill(
+                    filters,
+                    scope="personal",
+                    skill_id="guard",
+                )
+            ],
+        )
+        self.assertEqual(
+            ["吸血"],
+            [
+                row["label"]
+                for row in repository.get_properties_for_treasure(
+                    filters,
+                    "heaven-sword",
+                )
+            ],
+        )
+        self.assertEqual(
+            ["青釭剑"],
+            [
+                row["label"]
+                for row in repository.get_treasures_for_property(
+                    filters,
+                    "armor-break",
+                )
+            ],
+        )
+
     def test_clear_rebuild_and_export(self):
         round_id = self.add_run("run-1", {"id": "rule-a"})
         self.history.save_result(round_id, snapshot(slot=1, attempt=1))
@@ -436,6 +632,40 @@ class StatisticsRepositoryTests(unittest.TestCase):
         rows = repository.get_detail_rows(content_filters)
         self.assertEqual([1], [int(row["slot"]) for row in rows])
 
+    def test_global_treasures_remain_visible_with_member_filter(self):
+        round_id = self.add_run("run-global-treasure", {"id": "rule-a"})
+        value = snapshot(slot=1, attempt=1)
+        value["members"][0]["memberId"] = "target-member"
+        value["members"][0]["name"] = "目标武将"
+        value["treasures"][0]["memberPosition"] = -1
+        self.history.save_result(round_id, value)
+        repository = StatisticsRepository(self.base)
+        filters = StatisticsFilters(member_id="target-member")
+
+        self.assertEqual(
+            ["倚天剑"],
+            [
+                row["label"]
+                for row in repository.get_treasure_distribution(filters)
+            ],
+        )
+        self.assertEqual(
+            ["吸血"],
+            [
+                row["label"]
+                for row in repository.get_treasure_property_distribution(
+                    filters
+                )
+            ],
+        )
+        self.assertEqual(
+            ["青龙套装"],
+            [
+                row["label"]
+                for row in repository.get_combination_distribution(filters)
+            ],
+        )
+
     def test_detail_iteration_and_latest_round_do_not_drop_pages(self):
         first_round = self.add_run("run-1", {"id": "rule-a"})
         for slot in range(1, 4):
@@ -481,6 +711,465 @@ class StatisticsRepositoryTests(unittest.TestCase):
         self.assertEqual([1, 2], [row["attempts"] for row in trend])
         self.assertEqual([0, 1], [row["accepted"] for row in trend])
         self.assertTrue(all(row["attempt_id"] for row in trend))
+
+    def test_statistics_window_loads_only_the_visible_tab(self):
+        round_id = self.add_run("run-ui", {"id": "rule-ui"})
+        self.history.save_result(round_id, snapshot(slot=1, attempt=1))
+        repository = StatisticsRepository(self.base)
+        root = tk.Tk()
+        root.withdraw()
+
+        def descendants(widget):
+            for child in widget.winfo_children():
+                yield child
+                yield from descendants(child)
+
+        try:
+            with (
+                mock.patch.object(
+                    repository,
+                    "get_job_distribution",
+                    wraps=repository.get_job_distribution,
+                ) as job_distribution,
+                mock.patch.object(
+                    repository,
+                    "get_personal_skill_distribution",
+                    wraps=repository.get_personal_skill_distribution,
+                ) as personal_distribution,
+                mock.patch.object(
+                    repository,
+                    "get_treasure_distribution",
+                    wraps=repository.get_treasure_distribution,
+                ) as treasure_distribution,
+            ):
+                show_statistics_window(root, repository)
+                root.update()
+                time.sleep(0.08)
+                root.update()
+
+                self.assertFalse(job_distribution.called)
+                self.assertFalse(personal_distribution.called)
+                self.assertFalse(treasure_distribution.called)
+
+                dialog = next(
+                    child
+                    for child in root.winfo_children()
+                    if isinstance(child, tk.Toplevel)
+                )
+                widgets = list(descendants(dialog))
+                selected_picker_values = {
+                    str(widget.getvar(widget.cget("textvariable")))
+                    for widget in widgets
+                    if isinstance(widget, tk.Button)
+                    and str(widget.cget("textvariable"))
+                }
+                label_texts = {
+                    str(widget.cget("text"))
+                    for widget in widgets
+                    if isinstance(widget, tk.Label)
+                }
+                self.assertIn("全部", selected_picker_values)
+                self.assertIn("全部规则", selected_picker_values)
+                self.assertNotIn("筛选条件", label_texts)
+                self.assertNotIn("统计范围", label_texts)
+                self.assertNotIn("存档范围", label_texts)
+                filter_fields = [
+                    widget.master
+                    for widget in widgets
+                    if isinstance(widget, tk.Label)
+                    and str(widget.cget("text"))
+                    in {"统计内容", "随机模式", "规则配置", "时间"}
+                ]
+                self.assertEqual(4, len(filter_fields))
+                self.assertEqual(
+                    {0},
+                    {
+                        int(field.grid_info()["row"])
+                        for field in filter_fields
+                    },
+                )
+                for field in filter_fields:
+                    picker = next(
+                        child
+                        for child in field.winfo_children()
+                        if isinstance(child, tk.Button)
+                        and str(child.cget("textvariable"))
+                    )
+                    self.assertEqual(16, int(picker.cget("width")))
+
+                scrolling_canvas = next(
+                    widget
+                    for widget in widgets
+                    if isinstance(widget, tk.Canvas)
+                    and str(widget.cget("yscrollcommand"))
+                )
+                scrolling_canvas.master.event_generate("<Enter>")
+                fake_canvas = mock.Mock()
+                _scroll_canvas(
+                    fake_canvas,
+                    type(
+                        "MouseWheelEvent",
+                        (),
+                        {"widget": scrolling_canvas, "delta": -120},
+                    )(),
+                )
+                fake_canvas.yview_scroll.assert_called_once_with(3, "units")
+
+                notebook = next(
+                    child
+                    for child in widgets
+                    if isinstance(child, ttk.Notebook)
+                )
+                notebook.select(1)
+                root.update()
+                time.sleep(0.08)
+                root.update()
+
+                self.assertTrue(job_distribution.called)
+                self.assertFalse(personal_distribution.called)
+                self.assertFalse(treasure_distribution.called)
+                job_labels = {
+                    str(widget.cget("text"))
+                    for widget in descendants(dialog)
+                    if isinstance(widget, tk.Label)
+                }
+                self.assertIn("兵种出现分布", job_labels)
+                self.assertIn("武将0的兵种分布", job_labels)
+                self.assertIn("策士分配给不同武将的分布", job_labels)
+                self.assertNotIn("武将分布", job_labels)
+                member_picker = next(
+                    widget
+                    for widget in descendants(dialog)
+                    if isinstance(widget, tk.Button)
+                    and str(widget.cget("textvariable"))
+                    and str(
+                        widget.getvar(widget.cget("textvariable"))
+                    )
+                    == "武将0"
+                )
+                calls_before_picker_change = job_distribution.call_count
+                member_picker.invoke()
+                root.update()
+                member_popup = member_picker._choice_popup
+                member_option = next(
+                    widget
+                    for widget in descendants(member_popup)
+                    if isinstance(widget, tk.Button)
+                    and str(widget.cget("text")) == "武将1"
+                )
+                member_option.invoke()
+                root.update()
+                self.assertEqual(
+                    calls_before_picker_change + 1,
+                    job_distribution.call_count,
+                )
+
+                notebook.select(2)
+                root.update()
+                time.sleep(0.08)
+                root.update()
+                skill_labels = {
+                    str(widget.cget("text"))
+                    for widget in descendants(dialog)
+                    if isinstance(widget, tk.Label)
+                }
+                self.assertIn("个人天赋出现分布", skill_labels)
+                self.assertIn("兵种技能出现分布", skill_labels)
+                self.assertIn("武将0的个人天赋分布", skill_labels)
+                self.assertTrue(
+                    any(
+                        label.endswith("分配给不同武将的分布")
+                        for label in skill_labels
+                    )
+                )
+                self.assertNotIn("个人天赋组合", skill_labels)
+                self.assertNotIn("个人天赋有无分布", skill_labels)
+
+                notebook.select(3)
+                root.update()
+                time.sleep(0.08)
+                root.update()
+                treasure_labels = {
+                    str(widget.cget("text"))
+                    for widget in descendants(dialog)
+                    if isinstance(widget, tk.Label)
+                }
+                self.assertIn("宝物特性出现分布", treasure_labels)
+                self.assertIn("倚天剑的特性分布", treasure_labels)
+                self.assertIn("吸血分配给不同宝物的分布", treasure_labels)
+                self.assertNotIn("宝物出现分布", treasure_labels)
+                self.assertNotIn("宝物套装与组合", treasure_labels)
+        finally:
+            root.destroy()
+
+    def test_choice_picker_uses_custom_popup_and_updates_selection(self):
+        root = tk.Tk()
+        root.geometry("420x240")
+        variable = tk.StringVar(value="全部规则")
+        selected = []
+        try:
+            picker = _choice_picker(
+                root,
+                variable,
+                ("全部规则", "规则一", "规则二"),
+                command=lambda: selected.append(variable.get()),
+            )
+            picker.pack()
+            root.update()
+            arrow = picker._choice_arrow
+            self.assertGreater(
+                arrow.winfo_rootx(),
+                picker.winfo_rootx() + picker.winfo_width() * 0.75,
+            )
+
+            picker.invoke()
+            root.update()
+            popup = next(
+                child
+                for child in picker.winfo_children()
+                if isinstance(child, tk.Toplevel)
+            )
+            option = next(
+                widget
+                for widget in descendants(popup)
+                if isinstance(widget, tk.Button)
+                and str(widget.cget("text")) == "规则二"
+            )
+            option.invoke()
+            root.update()
+
+            self.assertEqual("规则二", variable.get())
+            self.assertEqual(["规则二"], selected)
+
+            picker.invoke()
+            root.update()
+            popup = picker._choice_popup
+            popup.event_generate(
+                "<ButtonPress-1>",
+                x=-20,
+                y=-20,
+                rootx=popup.winfo_rootx() - 20,
+                rooty=popup.winfo_rooty() - 20,
+            )
+            root.update()
+            self.assertFalse(popup.winfo_exists())
+        finally:
+            root.destroy()
+
+    def test_choice_picker_scrolls_while_pointer_is_over_option(self):
+        root = tk.Tk()
+        root.geometry("420x240")
+        variable = tk.StringVar(value="选项 01")
+        values = tuple(f"选项 {index:02d}" for index in range(1, 21))
+        try:
+            picker = _choice_picker(
+                root,
+                variable,
+                values,
+                command=lambda: None,
+            )
+            picker.pack()
+            root.update()
+            picker.invoke()
+            root.update()
+            popup = picker._choice_popup
+            canvas = next(
+                widget
+                for widget in descendants(popup)
+                if isinstance(widget, tk.Canvas)
+            )
+            option = next(
+                widget
+                for widget in descendants(popup)
+                if isinstance(widget, tk.Button)
+                and str(widget.cget("text")) == "选项 05"
+            )
+            before = canvas.yview()
+
+            option.event_generate("<MouseWheel>", delta=-120)
+            root.update()
+
+            self.assertNotEqual(before, canvas.yview())
+            popup.destroy()
+        finally:
+            root.destroy()
+
+    def test_choice_picker_width_fits_long_history_metric(self):
+        root = tk.Tk()
+        root.geometry("520x240")
+        value = "每日不同宝物特性数量"
+        variable = tk.StringVar(value=value)
+        try:
+            picker = _choice_picker(
+                root,
+                variable,
+                ("合格数", value),
+                command=lambda: None,
+            )
+            picker.pack()
+            root.update()
+
+            self.assertGreaterEqual(int(picker.cget("width")), 20)
+            self.assertEqual(value, picker.cget("textvariable") and variable.get())
+        finally:
+            root.destroy()
+
+    def test_zero_rows_are_added_only_when_explicitly_requested(self):
+        rows = [
+            {
+                "value": "job-1",
+                "label": "策士",
+                "count": 2,
+                "ratio": 1.0,
+            }
+        ]
+        universe = [
+            {"value": "job-1", "label": "策士"},
+            {"value": "job-2", "label": "道士"},
+        ]
+
+        result = _include_zero_rows(rows, universe)
+
+        self.assertEqual(["策士", "道士"], [row["label"] for row in result])
+        self.assertEqual([2, 0], [int(row["count"]) for row in result])
+        self.assertEqual(0.0, float(result[1]["ratio"]))
+
+    def test_distribution_catalogs_cover_unseen_enum_values(self):
+        jobs = job_catalog_rows()
+        skills = skill_catalog_rows()
+        properties = treasure_property_catalog_rows()
+
+        self.assertGreaterEqual(len(jobs), 40)
+        self.assertGreaterEqual(len(skills), 230)
+        self.assertGreaterEqual(len(properties), 200)
+        self.assertIn("魔王", {row["label"] for row in jobs})
+        self.assertIn("万夫莫敌3%", {row["label"] for row in skills})
+        self.assertIn("吸血攻击33%", {row["label"] for row in properties})
+
+    def test_ranked_distribution_can_disable_search_for_detail_chart(self):
+        root = tk.Tk()
+        root.geometry("720x480")
+        rows = [
+            {
+                "value": f"job-{index}",
+                "label": f"兵种 {index}",
+                "count": index,
+                "ratio": index / 100,
+            }
+            for index in range(1, 14)
+        ]
+        try:
+            chart = _ranked_distribution(
+                root,
+                rows,
+                title="指定武将的兵种分布",
+                searchable=False,
+            )
+            chart.pack(fill="both", expand=True)
+            root.update()
+
+            self.assertFalse(
+                any(
+                    isinstance(widget, tk.Entry)
+                    for widget in descendants(chart)
+                )
+            )
+        finally:
+            root.destroy()
+
+    def test_line_chart_limits_date_ticks_and_labels_the_x_axis(self):
+        root = tk.Tk()
+        root.geometry("640x320")
+        rows = [
+            {
+                "date": f"2026-09-{day:02d}",
+                "accepted": day,
+            }
+            for day in range(1, 21)
+        ]
+        try:
+            chart = _line_chart(
+                root,
+                rows,
+                title="历史趋势",
+                x_label="日期",
+            )
+            chart.pack(fill="both", expand=True)
+            root.update()
+            canvas = next(
+                widget
+                for widget in descendants(chart)
+                if isinstance(widget, tk.Canvas)
+            )
+            texts = [
+                str(canvas.itemcget(item, "text"))
+                for item in canvas.find_all()
+                if canvas.type(item) == "text"
+            ]
+            date_ticks = [
+                text
+                for text in texts
+                if len(text) == 5 and text[2] == "-"
+            ]
+
+            self.assertLessEqual(len(date_ticks), 6)
+            self.assertIn("横轴：日期", texts)
+        finally:
+            root.destroy()
+
+    def test_clicking_outside_search_releases_entry_focus(self):
+        root = tk.Tk()
+        root.geometry("320x180")
+        entry = tk.Entry(root)
+        outside = tk.Label(root, text="图表")
+        entry.pack()
+        outside.pack()
+        try:
+            root.update()
+            entry.focus_force()
+            root.update()
+            self.assertIs(entry, root.focus_get())
+
+            _release_entry_focus(
+                root,
+                type("ClickEvent", (), {"widget": outside})(),
+            )
+            root.update()
+
+            self.assertIsNot(entry, root.focus_get())
+        finally:
+            root.destroy()
+
+    def test_calendar_selects_a_date_without_text_entry(self):
+        root = tk.Tk()
+        root.geometry("420x420")
+        selected = []
+        try:
+            popup = _show_calendar(
+                root,
+                title="选择日期",
+                initial=dt.date(2026, 10, 1),
+                on_select=selected.append,
+            )
+            root.update()
+            self.assertFalse(
+                any(
+                    isinstance(widget, tk.Entry)
+                    for widget in descendants(popup)
+                )
+            )
+            day_button = next(
+                widget
+                for widget in descendants(popup)
+                if isinstance(widget, tk.Button)
+                and str(widget.cget("text")) == "15"
+            )
+            day_button.invoke()
+            root.update()
+
+            self.assertEqual([dt.date(2026, 10, 15)], selected)
+        finally:
+            root.destroy()
 
 
 if __name__ == "__main__":

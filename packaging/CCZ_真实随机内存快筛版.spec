@@ -92,6 +92,21 @@ a = Analysis(
             ),
             'resources/data/skills',
         ),
+        (
+            str(project_root / 'resources/data/jobs/job_id_map.json'),
+            'resources/data/jobs',
+        ),
+        (
+            str(
+                project_root
+                / 'resources/data/equipment/equip_effect_map.json'
+            ),
+            'resources/data/equipment',
+        ),
+        (
+            str(project_root / 'resources/statistics_web'),
+            'resources/statistics_web',
+        ),
         (str(build_info_path), '.'),
         (str(project_root / 'CHANGELOG.json'), '.'),
         (str(project_root / 'native/ccz_control.dll'), 'native'),

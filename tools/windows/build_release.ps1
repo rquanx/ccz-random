@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
     [string]$GameDir = $env:CCZ_GAME_DIR,
+    [string]$SpecPath = "packaging\CCZ_真实随机内存快筛版.spec",
     [switch]$Clean,
     [switch]$RunTests,
     [switch]$SkipCopy
@@ -11,16 +12,20 @@ $ErrorActionPreference = "Stop"
 $ProjectRoot = Resolve-Path (Join-Path $PSScriptRoot "..\..")
 $Python = Join-Path $ProjectRoot ".venv-win10-py314\Scripts\python.exe"
 $Version = (Get-Content (Join-Path $ProjectRoot "VERSION") -Raw).Trim()
-$Spec = Get-ChildItem (Join-Path $ProjectRoot "packaging") -Filter "*.spec" |
-    Sort-Object Length -Descending |
-    Select-Object -First 1
+$SpecCandidate = if ([IO.Path]::IsPathRooted($SpecPath)) {
+    $SpecPath
+}
+else {
+    Join-Path $ProjectRoot $SpecPath
+}
 
 if (-not (Test-Path -LiteralPath $Python -PathType Leaf)) {
     throw "Build environment not found: $Python"
 }
-if ($null -eq $Spec) {
-    throw "PyInstaller spec not found."
+if (-not (Test-Path -LiteralPath $SpecCandidate -PathType Leaf)) {
+    throw "PyInstaller spec not found: $SpecCandidate"
 }
+$Spec = Get-Item -LiteralPath $SpecCandidate
 
 Push-Location $ProjectRoot
 try {

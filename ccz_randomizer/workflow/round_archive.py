@@ -119,15 +119,20 @@ def finalize_round(
     *,
     save_dir: Path,
     completed_slots: Iterable[int],
+    expected_slots: Iterable[int] = range(1, 16),
     metadata: dict[str, Any],
     complete: bool,
 ) -> Path | None:
     slots = tuple(sorted(set(completed_slots)))
+    expected = tuple(sorted(set(expected_slots)))
     if not slots and not complete:
         shutil.rmtree(workspace.staging_dir, ignore_errors=True)
         return None
-    if complete and slots != tuple(range(1, 16)):
-        raise RuntimeError("循环轮次归档前没有完整的15个结果存档")
+    if complete and slots != expected:
+        raise RuntimeError(
+            "循环轮次归档前结果存档不完整："
+            f"应有 {list(expected)}，实际 {list(slots)}"
+        )
     missing_panels = [
         slot
         for slot in slots
@@ -145,6 +150,7 @@ def finalize_round(
             "status": "complete" if complete else "incomplete",
             "runStamp": workspace.run_stamp,
             "roundNumber": workspace.round_number,
+            "expectedSlots": list(expected),
             "completedSlots": list(slots),
             "saveFiles": save_files,
             "resultArtifacts": {

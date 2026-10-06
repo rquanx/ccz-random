@@ -11034,6 +11034,10 @@ def main() -> int:
                         workspace,
                         save_dir=game_dir / "SV",
                         completed_slots=expected_results,
+                        expected_slots=range(
+                            result_slot_start,
+                            result_slot_start + result_count,
+                        ),
                         metadata=round_metadata(dt.datetime.now()),
                         complete=False,
                     )
@@ -11476,6 +11480,10 @@ def main() -> int:
                         workspace,
                         save_dir=game_dir / "SV",
                         completed_slots=expected_results,
+                        expected_slots=range(
+                            result_slot_start,
+                            result_slot_start + result_count,
+                        ),
                         metadata=round_metadata(dt.datetime.now()),
                         complete=True,
                     )

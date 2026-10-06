@@ -56,7 +56,12 @@ def main() -> None:
                 break
             continue
         output.append(line)
-        if "候选存档已由游戏原生保存" in line:
+        if line.strip().startswith(
+            (
+                "候选存档已由游戏原生保存",
+                "候选存档已通过游戏菜单保存",
+            )
+        ):
             marker_seen = True
             break
     if not marker_seen:

@@ -100,7 +100,8 @@ def main() -> int:
     args = parse_args()
     if args.command == "list-game":
         for case in CASES:
-            print(f"{case.name:22} {case.description}")
+            category = "默认" if case.default else "手动"
+            print(f"{case.name:30} [{category}] {case.description}")
         return 0
     if args.command == "unit":
         return run_unit_tests()

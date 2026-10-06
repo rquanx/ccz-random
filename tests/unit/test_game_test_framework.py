@@ -7,6 +7,16 @@ from tests.integration_game.manifest import CASES, select_cases
 
 
 class GameTestFrameworkTests(unittest.TestCase):
+    def test_default_selection_excludes_manual_diagnostics(self):
+        selected = select_cases([])
+
+        self.assertTrue(selected)
+        self.assertTrue(all(case.default for case in selected))
+        self.assertNotIn(
+            "scene-wait-benchmark",
+            [case.name for case in selected],
+        )
+
     def test_select_cases_preserves_manifest_order(self):
         selected = select_cases(["repeat-sv020", "dialog-message"])
         self.assertEqual(

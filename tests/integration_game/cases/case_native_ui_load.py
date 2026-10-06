@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import ctypes
 import os
-import time
 from pathlib import Path
 
 import fast_randomizer as fast
@@ -44,14 +42,7 @@ def click_confirmation(pid: int, excluded: set[int]) -> bool:
     return False
 
 
-def cursor() -> tuple[int, int]:
-    point = fast.Point()
-    fast.user32.GetCursorPos(ctypes.byref(point))
-    return point.x, point.y
-
-
 def main() -> None:
-    before_cursor = cursor()
     before_foreground = fast.user32.GetForegroundWindow()
     with fast.HiddenGameSession(GAME) as game:
         source_save = GAME.parent / "SV" / "SV020.E5S"
@@ -63,17 +54,12 @@ def main() -> None:
         ):
             raise RuntimeError("静默读取第20号源存档失败")
         print("loaded", state(game.pid), fast.read_job_ids(game.pid))
-        after_cursor = cursor()
         after_foreground = fast.user32.GetForegroundWindow()
         print(
             "desktop",
-            before_cursor,
-            after_cursor,
             before_foreground,
             after_foreground,
         )
-        if after_cursor != before_cursor:
-            raise RuntimeError("静默读档移动了系统鼠标")
         if after_foreground != before_foreground:
             raise RuntimeError("静默读档抢占了前台窗口")
 

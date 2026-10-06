@@ -8,6 +8,7 @@ class GameCase:
     name: str
     module: str
     description: str
+    default: bool = True
 
 
 CASES = (
@@ -15,11 +16,13 @@ CASES = (
         "dialog-message",
         "case_dialog_message.py",
         "验证对话消息与隐藏窗口交互",
+        default=False,
     ),
     GameCase(
         "direct-native-flow",
         "case_direct_native_flow.py",
         "验证原生直接读档后的游戏状态",
+        default=False,
     ),
     GameCase(
         "direct-native-random",
@@ -35,6 +38,7 @@ CASES = (
         "load-transition",
         "case_load_transition_probe.py",
         "记录读档状态切换",
+        default=False,
     ),
     GameCase(
         "randomizer-three-normal-load",
@@ -75,21 +79,25 @@ CASES = (
         "repeat-sv020",
         "case_repeat_sv020_reload.py",
         "重复读取第20号源存档并触发随机",
+        default=False,
     ),
     GameCase(
         "silent-click-tail-benchmark",
         "case_silent_click_tail_benchmark.py",
         "基准测试第二次随机点击的尾部等待",
+        default=False,
     ),
     GameCase(
         "scene-wait-benchmark",
         "case_scene_wait_benchmark.py",
         "分别基准测试读档前后的场景等待",
+        default=False,
     ),
     GameCase(
         "story-burst-benchmark",
         "case_story_burst_benchmark.py",
         "基准测试七人剧情连点间隔和就绪提前停止",
+        default=False,
     ),
     GameCase(
         "silent-real-flow",
@@ -110,13 +118,14 @@ CASES = (
         "tick-transition",
         "case_tick_transition.py",
         "记录游戏主循环状态切换",
+        default=False,
     ),
 )
 
 
 def select_cases(names: list[str]) -> tuple[GameCase, ...]:
     if not names:
-        return CASES
+        return tuple(case for case in CASES if case.default)
     requested = set(names)
     selected = tuple(case for case in CASES if case.name in requested)
     missing = sorted(requested - {case.name for case in selected})

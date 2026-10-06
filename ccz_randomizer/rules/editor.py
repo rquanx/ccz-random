@@ -1110,7 +1110,25 @@ def show_toast(parent, message: str, duration_ms: int = 1800) -> None:
     toast.geometry(f"{width}x{height}+{x}+{y}")
     toast.deiconify()
     toast.lift()
-    toast.after(duration_ms, toast.destroy)
+    after_id: str | None = None
+
+    def close_toast() -> None:
+        try:
+            if toast.winfo_exists():
+                toast.destroy()
+        except tk.TclError:
+            pass
+
+    def cancel_close(event) -> None:
+        if event.widget is not toast or after_id is None:
+            return
+        try:
+            toast.after_cancel(after_id)
+        except tk.TclError:
+            pass
+
+    toast.bind("<Destroy>", cancel_close, add="+")
+    after_id = toast.after(duration_ms, close_toast)
 
 
 def show_rule_editor(

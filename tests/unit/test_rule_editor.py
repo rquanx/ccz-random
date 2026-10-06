@@ -21,6 +21,7 @@ from rule_editor import (
     ADVANCED_HELP_SECTIONS,
     ScoreGrid,
     show_rule_editor,
+    show_toast,
 )
 
 
@@ -41,6 +42,28 @@ def descendants(widget):
 
 
 class RuleEditorTests(unittest.TestCase):
+    def test_destroyed_toast_cancels_pending_close_callback(self):
+        root = tk.Tk()
+        root.withdraw()
+        callback_errors = []
+        root.report_callback_exception = (
+            lambda *args: callback_errors.append(args)
+        )
+        try:
+            show_toast(root, "测试", duration_ms=10000)
+            root.update()
+            toast = next(
+                child
+                for child in root.winfo_children()
+                if isinstance(child, tk.Toplevel)
+            )
+            toast.destroy()
+            root.update()
+        finally:
+            root.destroy()
+
+        self.assertEqual([], callback_errors)
+
     def test_rule_help_describes_current_skill_type_behavior(self):
         help_text = "\n".join(
             text for _title, text in ADVANCED_HELP_SECTIONS

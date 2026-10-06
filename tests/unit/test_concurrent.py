@@ -17,6 +17,7 @@ from ccz_randomizer.runtime.concurrent import (
     _run_continuous_loop,
     _TimingRecorder,
     _is_worker_progress_line,
+    _result_signature_from_line,
     _should_forward_line,
     decode_concurrent_event,
     encode_concurrent_event,
@@ -39,6 +40,171 @@ from ccz_randomizer.ui.result_details import (
 
 
 class ConcurrentSchedulingTests(unittest.TestCase):
+    def test_result_signature_ignores_slot_attempt_and_scores(self):
+        first = encode_result_detail(
+            {
+                "resultSlot": 15,
+                "attempt": 42,
+                "mode": "seven",
+                "job": {
+                    "members": [
+                        {"name": "曹操", "job": "宛卫队", "score": 10.3},
+                    ],
+                },
+                "skill": {
+                    "members": [
+                        {"name": "曹操", "skills": ["一夫当关"], "score": 3},
+                    ],
+                },
+            }
+        )
+        second = encode_result_detail(
+            {
+                "resultSlot": 4,
+                "attempt": 44,
+                "mode": "seven",
+                "job": {
+                    "members": [
+                        {"name": "曹操", "job": "宛卫队", "score": 99},
+                    ],
+                },
+                "skill": {
+                    "members": [
+                        {"name": "曹操", "skills": ["一夫当关"], "score": 20},
+                    ],
+                },
+            }
+        )
+
+        self.assertEqual(
+            _result_signature_from_line(first),
+            _result_signature_from_line(second),
+        )
+
+    def test_duplicate_batch_result_is_retried_before_publication(self):
+        assignments: list[int] = []
+
+        class FakeProcess:
+            def __init__(self, _command, *, env, **_kwargs):
+                slot = int(env["CCZ_CONCURRENT_SLOT_LIST"])
+                assignments.append(slot)
+                duplicate = slot == 1 or assignments.count(2) == 1
+                job = "策士" if duplicate else "骑兵"
+                save = (
+                    Path(env["CCZ_GAME_EXE"]).parent
+                    / "SV"
+                    / f"SV{slot:03}.E5S"
+                )
+                save.write_bytes(
+                    b"duplicate" if duplicate else b"unique"
+                )
+                detail = encode_result_detail(
+                    {
+                        "resultSlot": slot,
+                        "attempt": assignments.count(slot),
+                        "mode": "three",
+                        "job": {
+                            "members": [
+                                {"name": "曹操", "job": job},
+                            ],
+                        },
+                        "skill": {
+                            "members": [
+                                {"name": "曹操", "skills": ["一夫当关"]},
+                            ],
+                        },
+                    }
+                )
+                self.stdout = io.StringIO(
+                    detail
+                    + "\n"
+                    + f"第 {slot} 号结果存档已通过游戏菜单保存\n"
+                )
+                self.returncode = 0
+                self.remaining_polls = 2
+
+            def poll(self):
+                if self.remaining_polls:
+                    self.remaining_polls -= 1
+                    return None
+                return self.returncode
+
+            def terminate(self):
+                self.returncode = 1
+                self.remaining_polls = 0
+
+            def kill(self):
+                self.terminate()
+
+            def wait(self, timeout=None):
+                del timeout
+                self.remaining_polls = 0
+                return self.returncode
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            game_dir = root / "game"
+            (game_dir / "SV").mkdir(parents=True)
+            game_executable = game_dir / "Ekd5.exe"
+            game_executable.write_bytes(b"game")
+            (game_dir / "SV" / "SV020.E5S").write_bytes(b"source")
+            for slot in (1, 2):
+                (game_dir / "SV" / f"SV{slot:03}.E5S").write_bytes(
+                    b"original"
+                )
+
+            def fake_sandbox(
+                _game_dir,
+                *,
+                root,
+                worker_name,
+                save_names,
+            ):
+                del _game_dir, worker_name, save_names
+                sandbox = root / "sandbox"
+                (sandbox / "SV").mkdir(parents=True)
+                (sandbox / "Ekd5.exe").write_bytes(b"game")
+                (sandbox / "SV" / "SV020.E5S").write_bytes(b"source")
+                for slot in (1, 2):
+                    (sandbox / "SV" / f"SV{slot:03}.E5S").write_bytes(
+                        b"original"
+                    )
+                return sandbox
+
+            with (
+                patch(
+                    "ccz_randomizer.runtime.concurrent.create_game_sandbox",
+                    side_effect=fake_sandbox,
+                ),
+                patch(
+                    "ccz_randomizer.runtime.concurrent.subprocess.Popen",
+                    side_effect=FakeProcess,
+                ),
+                patch(
+                    "ccz_randomizer.runtime.concurrent._collect_result_images",
+                    return_value=None,
+                ),
+                patch(
+                    "ccz_randomizer.runtime.concurrent.time.sleep",
+                    return_value=None,
+                ),
+            ):
+                code = _run_concurrent_batch(
+                    game_executable=game_executable,
+                    result_count=2,
+                    mode="three",
+                    stop_file=None,
+                    base_dir=root,
+                    worker_count=1,
+                    round_number=1,
+                )
+
+            second_save = game_dir / "SV" / "SV002.E5S"
+            self.assertEqual(b"unique", second_save.read_bytes())
+
+        self.assertEqual(0, code)
+        self.assertEqual([1, 2, 2], assignments)
+
     def test_timing_recorder_writes_success_and_error_records(self):
         with tempfile.TemporaryDirectory() as directory:
             recorder = _TimingRecorder(

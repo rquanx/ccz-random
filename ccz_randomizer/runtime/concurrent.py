@@ -52,6 +52,62 @@ _STARTUP_FAILURE_MARKERS = (
 _RESULT_SAVE_CONFIRMATION = re.compile(
     r"^第\s*(\d+)\s*号结果存档已通过游戏菜单保存(?:$|[，。])"
 )
+_RESULT_DETAIL_PREFIX = "@@CCZ_RESULT_DETAIL@@"
+
+
+def _result_signature_from_line(line: str) -> str | None:
+    """Build a slot-independent identity for a visible random result."""
+    if not line.startswith(_RESULT_DETAIL_PREFIX):
+        return None
+    try:
+        detail = json.loads(line[len(_RESULT_DETAIL_PREFIX):])
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return None
+    if not isinstance(detail, dict):
+        return None
+
+    jobs = []
+    job_detail = detail.get("job")
+    if isinstance(job_detail, dict):
+        for item in job_detail.get("members", []) or []:
+            if isinstance(item, dict):
+                jobs.append(
+                    (
+                        str(item.get("name") or ""),
+                        str(item.get("job") or ""),
+                    )
+                )
+
+    skills = []
+    skill_detail = detail.get("skill")
+    if isinstance(skill_detail, dict):
+        for item in skill_detail.get("members", []) or []:
+            if isinstance(item, dict):
+                skills.append(
+                    (
+                        str(item.get("name") or ""),
+                        tuple(
+                            str(value)
+                            for value in item.get("skills", []) or []
+                        ),
+                    )
+                )
+
+    if not jobs and not skills:
+        return None
+    payload = {
+        "mode": str(detail.get("mode") or ""),
+        "jobs": jobs,
+        "skills": skills,
+    }
+    return hashlib.sha256(
+        json.dumps(
+            payload,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
 
 
 class _TimingRecorder:
@@ -316,6 +372,7 @@ class _WorkerLane:
     startup_failed: bool = False
     attempt_completed: bool = False
     result_saved: bool = False
+    result_signature: str | None = None
     generation: int = 0
     started_at: float = 0.0
 
@@ -324,8 +381,9 @@ def _record_worker_output(lane: _WorkerLane, line: str) -> bool:
     was_confirmed = lane.startup_confirmed
     if line.startswith(_STARTUP_CONFIRMED_PREFIXES):
         lane.startup_confirmed = True
-    if line.startswith("@@CCZ_RESULT_DETAIL@@"):
+    if line.startswith(_RESULT_DETAIL_PREFIX):
         lane.attempt_completed = True
+        lane.result_signature = _result_signature_from_line(line)
     save_confirmation = _RESULT_SAVE_CONFIRMATION.match(line)
     if (
         save_confirmation is not None
@@ -348,6 +406,7 @@ class _LoopRound:
     number: int
     workspace: Path
     completed_slots: set[int]
+    accepted_signatures: set[str]
     archived_path: Path | None = None
     grid_path: Path | None = None
     grid_announced: bool = False
@@ -845,6 +904,7 @@ def _run_continuous_loop(
             number=round_number,
             workspace=workspace,
             completed_slots=set(),
+            accepted_signatures=set(),
         )
         pending.extend(
             _LoopTask(round_number, slot)
@@ -940,6 +1000,7 @@ def _run_continuous_loop(
         lane.startup_failed = False
         lane.attempt_completed = False
         lane.result_saved = False
+        lane.result_signature = None
         lane.generation += 1
         assert lane.process.stdout is not None
         lane.output_thread = threading.Thread(
@@ -1164,6 +1225,22 @@ def _run_continuous_loop(
                     and current_hash is not None
                     and (process.returncode == 0 or stopped)
                 )
+                round_state = rounds[task.round_number]
+                duplicate_result = (
+                    task_succeeded
+                    and lane.result_signature is not None
+                    and lane.result_signature
+                    in round_state.accepted_signatures
+                )
+                if duplicate_result:
+                    task_succeeded = False
+                    timing.write(
+                        "concurrent_duplicate_result",
+                        worker=lane.index,
+                        round_number=task.round_number,
+                        result_slot=task.slot,
+                        signature=lane.result_signature,
+                    )
                 probe_failed_now = (
                     compatibility_mode
                     and not compatibility_probe_passed
@@ -1194,7 +1271,6 @@ def _run_continuous_loop(
                     consecutive_startup_failures = 0
                     open_startup_gate()
                     task_failures.pop(task, None)
-                    round_state = rounds[task.round_number]
                     target_save = (
                         round_state.workspace
                         / "SV"
@@ -1246,6 +1322,10 @@ def _run_continuous_loop(
                                 flush=True,
                             )
                     round_state.completed_slots.add(task.slot)
+                    if lane.result_signature is not None:
+                        round_state.accepted_signatures.add(
+                            lane.result_signature
+                        )
                     if len(round_state.completed_slots) == result_count:
                         finalize_round(round_state)
                         publish_completed_rounds()
@@ -1260,9 +1340,13 @@ def _run_continuous_loop(
                     failure_count = task_failures.get(task, 0) + 1
                     task_failures[task] = failure_count
                     reason = (
-                        "失去响应"
-                        if lane.timed_out
-                        else f"退出码 {process.returncode}"
+                        "结果与本轮其他存档重复"
+                        if duplicate_result
+                        else (
+                            "失去响应"
+                            if lane.timed_out
+                            else f"退出码 {process.returncode}"
+                        )
                     )
                     print(
                         f"[实例 {lane.index}] 第 {task.round_number} 轮"
@@ -1308,6 +1392,7 @@ def _run_continuous_loop(
                 lane.startup_failed = False
                 lane.attempt_completed = False
                 lane.result_saved = False
+                lane.result_signature = None
                 lane.started_at = 0.0
                 if not stopped and not fatal_error:
                     launch_next(lane)
@@ -1387,6 +1472,7 @@ def _run_concurrent_batch(
     compatibility_probe_passed = not compatibility_mode
     compatibility_probe_failed = False
     published_slots: set[int] = set()
+    accepted_signatures: set[str] = set()
     result_panel_dir, result_grid_path = _unique_batch_result_paths(base_dir)
     result_path_announced = False
     timing = _TimingRecorder(
@@ -1514,6 +1600,7 @@ def _run_concurrent_batch(
         lane.startup_failed = False
         lane.attempt_completed = False
         lane.result_saved = False
+        lane.result_signature = None
         lane.generation += 1
         assert lane.process.stdout is not None
         lane.output_thread = threading.Thread(
@@ -1682,6 +1769,20 @@ def _run_concurrent_batch(
                     and current_hash is not None
                     and (process.returncode == 0 or stopped)
                 )
+                duplicate_result = (
+                    task_succeeded
+                    and lane.result_signature is not None
+                    and lane.result_signature in accepted_signatures
+                )
+                if duplicate_result:
+                    task_succeeded = False
+                    timing.write(
+                        "concurrent_duplicate_result",
+                        worker=lane.index,
+                        round_number=round_number,
+                        result_slot=slot,
+                        signature=lane.result_signature,
+                    )
                 probe_failed_now = (
                     compatibility_mode
                     and not compatibility_probe_passed
@@ -1768,6 +1869,8 @@ def _run_concurrent_batch(
                         flush=True,
                     )
                     published_slots.add(slot)
+                    if lane.result_signature is not None:
+                        accepted_signatures.add(lane.result_signature)
                 else:
                     if stopped:
                         next_failure_count = 0
@@ -1785,9 +1888,13 @@ def _run_concurrent_batch(
                         failure_count = next_failure_count
                         slot_failures[slot] = failure_count
                         reason = (
-                            "失去响应"
-                            if lane.timed_out
-                            else f"退出码 {process.returncode}"
+                            "结果与本轮其他存档重复"
+                            if duplicate_result
+                            else (
+                                "失去响应"
+                                if lane.timed_out
+                                else f"退出码 {process.returncode}"
+                            )
                         )
                         print(
                             f"[实例 {lane.index}] 第 {slot} 号任务失败，"
@@ -1817,6 +1924,7 @@ def _run_concurrent_batch(
                 lane.startup_failed = False
                 lane.attempt_completed = False
                 lane.result_saved = False
+                lane.result_signature = None
                 lane.started_at = 0.0
                 if (
                     not stopped

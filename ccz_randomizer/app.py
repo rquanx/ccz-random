@@ -11778,7 +11778,25 @@ def run_cli() -> int:
             ),
         )
     if "--worker" in sys.argv:
-        return main()
+        exit_code = main()
+        if (
+            getattr(sys, "frozen", False)
+            and os.environ.get("CCZ_CONCURRENT_MODE") == "1"
+            and os.environ.get("CCZ_CONCURRENT_WORKER") is None
+        ):
+            # The frozen coordinator can retain third-party runtime threads
+            # after all workers and sandboxes have been closed.  Flush the
+            # final result path before ending this dedicated child process.
+            for stream in (sys.stdout, sys.stderr):
+                flush = getattr(stream, "flush", None)
+                if flush is None:
+                    continue
+                try:
+                    flush()
+                except (BrokenPipeError, OSError, ValueError):
+                    pass
+            os._exit(exit_code)
+        return exit_code
     return gui_main()
 
 

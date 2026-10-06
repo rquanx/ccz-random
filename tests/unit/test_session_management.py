@@ -1237,6 +1237,34 @@ class SessionManagementTests(unittest.TestCase):
         }
         self.assertEqual(set(), used)
 
+    def test_native_controller_does_not_move_system_mouse(self):
+        source = (
+            Path(__file__).resolve().parents[2]
+            / "native"
+            / "ccz_control.c"
+        ).read_text(encoding="utf-8")
+
+        for function_name in ("SetCursorPos", "mouse_event", "SendInput"):
+            self.assertNotIn(f"{function_name}(", source)
+
+    def test_frozen_concurrent_coordinator_forces_clean_process_exit(self):
+        with (
+            patch.object(app_module.sys, "argv", ["tool.exe", "--worker"]),
+            patch.object(app_module.sys, "frozen", True, create=True),
+            patch.object(app_module.sys, "stdout", None),
+            patch.object(app_module.sys, "stderr", None),
+            patch.dict(
+                app_module.os.environ,
+                {"CCZ_CONCURRENT_MODE": "1"},
+                clear=True,
+            ),
+            patch.object(app_module, "main", return_value=0),
+            patch.object(app_module.os, "_exit") as force_exit,
+        ):
+            self.assertEqual(0, app_module.run_cli())
+
+        force_exit.assert_called_once_with(0)
+
     def test_random_session_uses_process_audio_without_file_hooks(self):
         source = (
             Path(__file__).resolve().parents[2]

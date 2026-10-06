@@ -16,6 +16,11 @@ def history_database_path(base_dir: Path) -> Path:
     return base_dir / "ccz_fast_data" / "history.sqlite3"
 
 
+def compatible_history_database_path(base_dir: Path) -> Path:
+    path = history_database_path(base_dir)
+    return path.with_name(f"{path.stem}-v{SCHEMA_VERSION}{path.suffix}")
+
+
 def _now() -> str:
     return dt.datetime.now().astimezone().isoformat(timespec="seconds")
 
@@ -24,7 +29,18 @@ class HistoryRepository:
     def __init__(self, base_dir: Path):
         self.path = history_database_path(base_dir)
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        if self._schema_version(self.path) > SCHEMA_VERSION:
+            self.path = compatible_history_database_path(base_dir)
         self._initialize()
+
+    @staticmethod
+    def _schema_version(path: Path) -> int:
+        if not path.is_file():
+            return 0
+        with closing(sqlite3.connect(path, timeout=5)) as connection:
+            return int(
+                connection.execute("PRAGMA user_version").fetchone()[0]
+            )
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.path, timeout=5)

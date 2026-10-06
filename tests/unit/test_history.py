@@ -2,9 +2,15 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+import sqlite3
+from contextlib import closing
 from pathlib import Path
 
-from ccz_randomizer.history import HistoryRepository
+from ccz_randomizer.history import (
+    HistoryRepository,
+    compatible_history_database_path,
+    history_database_path,
+)
 from ccz_randomizer.ui.history import (
     DETAIL_EQUIPMENT_COLUMNS,
     DETAIL_SPECIAL_MIN_WIDTH,
@@ -80,6 +86,36 @@ class HistoryRepositoryTests(unittest.TestCase):
             round_id = repository.start_round("run-2", 1)
             repository.delete_round(round_id)
             self.assertEqual([], repository.list_rounds())
+
+    def test_newer_history_database_is_preserved_and_uses_compatible_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            newer_path = history_database_path(base)
+            newer_path.parent.mkdir(parents=True)
+            with closing(sqlite3.connect(newer_path)) as connection:
+                connection.execute("CREATE TABLE newer_data (value TEXT)")
+                connection.execute("INSERT INTO newer_data VALUES ('keep')")
+                connection.execute("PRAGMA user_version = 5")
+                connection.commit()
+
+            repository = HistoryRepository(base)
+
+            self.assertEqual(
+                compatible_history_database_path(base),
+                repository.path,
+            )
+            self.assertTrue(repository.path.is_file())
+            with closing(sqlite3.connect(newer_path)) as connection:
+                self.assertEqual(
+                    5,
+                    connection.execute("PRAGMA user_version").fetchone()[0],
+                )
+                self.assertEqual(
+                    "keep",
+                    connection.execute(
+                        "SELECT value FROM newer_data"
+                    ).fetchone()[0],
+                )
 
 
 if __name__ == "__main__":

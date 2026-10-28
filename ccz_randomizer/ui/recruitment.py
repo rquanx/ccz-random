@@ -1,18 +1,19 @@
 from __future__ import annotations
 
 import json
+from collections import OrderedDict
 from pathlib import Path
 
-from ccz_randomizer.recruitment import filter_recruits, parse_recruits
+from ccz_randomizer.recruitment import Recruit, filter_recruits, parse_recruits
 
 
 def show_recruit_window(parent, catalog_path: Path | None = None, *, snapshot: dict | None = None) -> None:
+    """Show result-bound recruitment data as one horizontal card row per stage."""
     import tkinter as tk
     from tkinter import filedialog, messagebox, ttk
 
     if catalog_path is None and snapshot is None:
-        filename = filedialog.askopenfilename(parent=parent, title="打开 2.2 人员快照",
-            filetypes=[("人员快照", "*.json")])
+        filename = filedialog.askopenfilename(parent=parent, title="打开 2.2 人员快照", filetypes=[("人员快照", "*.json")])
         if not filename:
             return
         catalog_path = Path(filename)
@@ -22,102 +23,132 @@ def show_recruit_window(parent, catalog_path: Path | None = None, *, snapshot: d
     except (OSError, ValueError) as exc:
         messagebox.showerror("无法读取人员快照", str(exc), parent=parent)
         return
+
     dialog = tk.Toplevel(parent)
-    dialog.title("2.2 招募总览")
-    dialog.geometry("1060x640")
-    dialog.minsize(720, 460)
+    dialog.title("2.2 招募人物")
+    dialog.geometry("1180x760")
+    dialog.minsize(820, 560)
     dialog.transient(parent)
+    colors = {"ink": "#182230", "muted": "#667085", "surface": "#FFFFFF", "surface_alt": "#F4F6FA"}
     style = ttk.Style(dialog)
-    style.configure("Recruit.Treeview", rowheight=34, font=("Microsoft YaHei UI", 10),
-                    background="#FFFFFF", fieldbackground="#FFFFFF", foreground="#1F2937")
-    style.configure("Recruit.Treeview.Heading", font=("Microsoft YaHei UI", 10, "bold"))
-    style.map("Recruit.Treeview", background=[("selected", "#2457C5")],
-              foreground=[("selected", "#FFFFFF")])
-    outer = ttk.Frame(dialog, padding=20)
+    style.configure("Recruit.TFrame", background=colors["surface"])
+    style.configure("Recruit.Card.TFrame", background=colors["surface"], relief="solid", borderwidth=1)
+    style.configure("Recruit.Stage.TFrame", background=colors["surface_alt"])
+    style.configure("Recruit.CardTitle.TLabel", background=colors["surface"], foreground=colors["ink"], font=("Microsoft YaHei UI", 11, "bold"))
+    style.configure("Recruit.Body.TLabel", background=colors["surface"], foreground=colors["ink"], font=("Microsoft YaHei UI", 9))
+    style.configure("Recruit.Muted.TLabel", background=colors["surface"], foreground=colors["muted"], font=("Microsoft YaHei UI", 9))
+    style.configure("Recruit.Stage.TLabel", background=colors["surface_alt"], foreground=colors["ink"], font=("Microsoft YaHei UI", 11, "bold"))
+
+    outer = ttk.Frame(dialog, padding=20, style="Recruit.TFrame")
     outer.pack(fill="both", expand=True)
-    ttk.Label(outer, text="2.2 招募总览", font=("Microsoft YaHei UI", 15, "bold")).pack(anchor="w")
-    source = {"title": "标题界面基础数据，非随机结果", "randomized": "本次随机结果 · 已开启招募模式"}.get(payload.get("phase"), "读取时机待验证")
+    ttk.Label(outer, text="2.2 招募人物", style="Recruit.CardTitle.TLabel", font=("Microsoft YaHei UI", 17, "bold")).pack(anchor="w")
+    source = {"title": "标题界面基础数据，非随机结果", "randomized": "本次随机结果"}.get(payload.get("phase"), "读取时机待验证")
     label = catalog_path.name if catalog_path else f"第 {payload.get('slot', '-')} 号存档"
-    ttk.Label(outer, text=f"{label} · {source}").pack(anchor="w", pady=(4, 8))
-    guidance = ttk.Label(outer, wraplength=960, text="关卡结束后的招募候选 · 仅初始三人参与合格判断。共 15 次招募额度；彩蛋女武将只能选一名。" if all(row.availability_verified for row in recruits) else "招募关系未确认的记录可能包括敌军和占位人物，不参与合格判断。")
+    ttk.Label(outer, text=f"{label} · {source}", style="Recruit.Muted.TLabel").pack(anchor="w", pady=(4, 8))
+    guidance = ttk.Label(outer, text=("每行是一个关卡，卡片展示该关卡的招募人物。初始三人参与合格判断；招募候选受路线、15 次额度和特殊人物规则影响。" if all(row.availability_verified for row in recruits) else "招募关系未确认的记录可能包括敌军和占位人物，不参与合格判断。"), wraplength=1080, style="Recruit.Muted.TLabel")
     guidance.pack(anchor="w")
-    filters = ttk.Frame(outer)
+
+    filters = ttk.Frame(outer, style="Recruit.TFrame")
     filters.pack(fill="x", pady=12)
     query, stage = tk.StringVar(), tk.StringVar(value="全部关卡")
     only_selected = tk.BooleanVar(value=False)
-    selected: set[int] = set()
-    ttk.Label(filters, text="搜索").pack(side="left")
-    entry = ttk.Entry(filters, textvariable=query, width=24)
-    entry.pack(side="left", padx=8)
-    ttk.Combobox(filters, textvariable=stage, state="readonly", width=18,
-        values=("全部关卡", *dict.fromkeys(value for row in recruits for value in (row.stages or (row.stage,))))).pack(side="left", padx=(0, 8))
+    ttk.Label(filters, text="搜索人物、兵种或天赋", style="Recruit.Muted.TLabel").pack(side="left")
+    entry = ttk.Entry(filters, textvariable=query, width=28)
+    entry.pack(side="left", padx=(8, 12))
+    stage_values = tuple(OrderedDict.fromkeys(value for row in recruits for value in (row.stages or (row.stage,))))
+    ttk.Combobox(filters, textvariable=stage, state="readonly", width=24, values=("全部关卡", *stage_values)).pack(side="left", padx=(0, 12))
     ttk.Checkbutton(filters, text="只看关注人物", variable=only_selected).pack(side="left")
-    body = ttk.Frame(outer)
+
+    body = ttk.Frame(outer, style="Recruit.TFrame")
     body.pack(fill="both", expand=True)
     body.rowconfigure(0, weight=1)
     body.columnconfigure(0, weight=1)
-    columns = ("selected", "name", "stage", "cost", "job", "job_talents", "personal_talents")
-    tree = ttk.Treeview(body, columns=columns, show="headings", selectmode="extended", style="Recruit.Treeview")
-    tree.tag_configure("alternate", background="#F7F6F2")
-    for column, label, width in zip(columns,
-            ("关注", "人物", "招募关卡", "消耗", "兵种 / 预览", "兵种天赋", "人物天赋"),
-            (50, 90, 170, 50, 140, 240, 240)):
-        tree.heading(column, text=label)
-        tree.column(column, width=width, minwidth=width, anchor="w")
-    tree.grid(row=0, column=0, sticky="nsew")
-    vertical = ttk.Scrollbar(body, orient="vertical", command=tree.yview)
+    canvas = tk.Canvas(body, background=colors["surface_alt"], highlightthickness=0)
+    canvas.grid(row=0, column=0, sticky="nsew")
+    vertical = ttk.Scrollbar(body, orient="vertical", command=canvas.yview)
     vertical.grid(row=0, column=1, sticky="ns")
-    horizontal = ttk.Scrollbar(body, orient="horizontal", command=tree.xview)
+    horizontal = ttk.Scrollbar(body, orient="horizontal", command=canvas.xview)
     horizontal.grid(row=1, column=0, sticky="ew")
-    tree.configure(yscrollcommand=vertical.set, xscrollcommand=horizontal.set)
-    details = tk.StringVar(value="选择人物查看完整天赋；可用 Ctrl / Shift 多选后关注。")
-    detail_label = ttk.Label(outer, textvariable=details, wraplength=970, justify="left")
-    detail_label.pack(fill="x", pady=10)
-    def resize_details(event):
-        width = max(300, event.width - 40)
-        detail_label.configure(wraplength=width)
-        guidance.configure(wraplength=width)
-    outer.bind("<Configure>", resize_details)
-    footer = ttk.Frame(outer)
+    canvas.configure(yscrollcommand=vertical.set, xscrollcommand=horizontal.set)
+    content = ttk.Frame(canvas, style="Recruit.TFrame")
+    content_window = canvas.create_window((0, 0), window=content, anchor="nw")
+
+    details = tk.StringVar(value="点击人物卡片查看完整信息；关注状态只作用于本次查看。")
+    detail_label = ttk.Label(outer, textvariable=details, wraplength=1080, justify="left", style="Recruit.Muted.TLabel")
+    detail_label.pack(fill="x", pady=(10, 4))
+    footer = ttk.Frame(outer, style="Recruit.TFrame")
     footer.pack(fill="x")
-    count = ttk.Label(footer)
+    count = ttk.Label(footer, style="Recruit.Muted.TLabel")
     count.pack(side="left")
-    by_id = {str(row.record_index): row for row in recruits}
 
-    def refresh(*_args):
-        children = tree.get_children()
-        if children:
-            tree.delete(*children)
-        visible = filter_recruits(recruits, query.get(),
-            stage="" if stage.get() == "全部关卡" else stage.get(),
-            selected=frozenset(selected) if only_selected.get() else None)
-        for position, row in enumerate(visible):
-            tree.insert("", "end", iid=str(row.record_index), tags=("alternate",) if position % 2 else (), values=(
-                "是" if row.record_index in selected else "", row.name, row.stage, row.cost, row.job + ("（招募时可选）" if row.job_choices else "（固定配置）" if row.fixed_configuration else ""),
-                "、".join(row.job_talents) or "无", "、".join(row.personal_talents) or "无"))
-        count.configure(text=f"显示 {len(visible)} / {len(recruits)} 人 · 已关注 {len(selected)} 人")
+    selected: set[int] = set()
+    stage_people: OrderedDict[str, list[Recruit]] = OrderedDict()
+    for row in recruits:
+        for stage_name in row.stages or (row.stage,):
+            stage_people.setdefault(stage_name, []).append(row)
 
-    def toggle_selection():
-        for item in tree.selection():
-            index = int(item)
-            if index in selected:
-                selected.remove(index)
-            else:
-                selected.add(index)
+    def show_details(row: Recruit) -> None:
+        note = ""
+        if row.job_choices:
+            note += "\n招募兵种选项：" + "、".join(row.job_choices) + "。这是招募前预览，选择兵种后天赋可能变化。"
+        if row.fixed_configuration:
+            note += "\n固定配置人物：招募时可能另有装备或天赋调整；彩蛋女武将之间互斥。"
+        details.set(f"{row.name} · {row.job} · 招募消耗 {row.cost}\n兵种天赋：{'、'.join(row.job_talents) or '无'}\n人物天赋：{'、'.join(row.personal_talents) or '无'}{note}")
+
+    def toggle(row: Recruit) -> None:
+        if row.record_index in selected:
+            selected.remove(row.record_index)
+        else:
+            selected.add(row.record_index)
         refresh()
 
-    def show_details(_event):
-        if tree.selection():
-            row = by_id[tree.selection()[0]]
-            note = ""
-            if row.job_choices:
-                note += "\n招募兵种选项：" + "、".join(row.job_choices) + "。上表为招募前预览，选择兵种后天赋可能变化。"
-            if row.fixed_configuration:
-                note += "\n彩蛋人物使用固定配置，招募时可能另有装备或天赋调整；与其他彩蛋女武将互斥。"
-            details.set(f"{row.name} · {row.stage} · {row.job}\n兵种天赋：{'、'.join(row.job_talents) or '无'}\n人物天赋：{'、'.join(row.personal_talents) or '无'}" + note)
+    def card(parent_frame, row: Recruit) -> None:
+        card_frame = ttk.Frame(parent_frame, style="Recruit.Card.TFrame", padding=10, width=226, height=166)
+        card_frame.pack(side="left", anchor="n", padx=(0, 10), pady=(0, 8))
+        card_frame.pack_propagate(False)
+        title_row = ttk.Frame(card_frame, style="Recruit.Card.TFrame")
+        title_row.pack(fill="x")
+        ttk.Label(title_row, text=row.name, style="Recruit.CardTitle.TLabel").pack(side="left")
+        ttk.Label(title_row, text=f"{row.cost}次", style="Recruit.Muted.TLabel").pack(side="right")
+        job_text = row.job + (" · 可选兵种" if row.job_choices else " · 固定配置" if row.fixed_configuration else "")
+        ttk.Label(card_frame, text=job_text, style="Recruit.Body.TLabel").pack(anchor="w", pady=(5, 0))
+        ttk.Label(card_frame, text="兵种天赋：" + ("、".join(row.job_talents) or "无"), style="Recruit.Muted.TLabel", wraplength=204, justify="left").pack(anchor="w", pady=(3, 0))
+        ttk.Label(card_frame, text="人物天赋：" + ("、".join(row.personal_talents) or "无"), style="Recruit.Muted.TLabel", wraplength=204, justify="left").pack(anchor="w", pady=(3, 0))
+        ttk.Button(card_frame, text="取消关注" if row.record_index in selected else "关注", command=lambda: toggle(row)).pack(anchor="e", side="bottom")
+        for widget in (card_frame, title_row):
+            widget.bind("<Button-1>", lambda _event, item=row: show_details(item))
 
-    ttk.Button(footer, text="关注 / 取消关注所选", command=toggle_selection).pack(side="right")
-    tree.bind("<<TreeviewSelect>>", show_details)
+    def refresh(*_args) -> None:
+        for child in content.winfo_children():
+            child.destroy()
+        visible = filter_recruits(recruits, query.get(), stage="" if stage.get() == "全部关卡" else stage.get(), selected=frozenset(selected) if only_selected.get() else None)
+        visible_ids = {row.record_index for row in visible}
+        shown_stages = 0
+        for stage_name, people in stage_people.items():
+            people = [row for row in people if row.record_index in visible_ids]
+            if not people:
+                continue
+            shown_stages += 1
+            stage_frame = ttk.Frame(content, style="Recruit.Stage.TFrame", padding=(12, 10, 12, 2))
+            stage_frame.pack(fill="x", pady=(0, 10))
+            ttk.Label(stage_frame, text=stage_name, style="Recruit.Stage.TLabel").pack(anchor="w", pady=(0, 8))
+            cards = ttk.Frame(stage_frame, style="Recruit.Stage.TFrame")
+            cards.pack(anchor="w", fill="x")
+            for row in people:
+                card(cards, row)
+        count.configure(text=f"显示 {len(visible)} / {len(recruits)} 人 · {shown_stages} 个关卡 · 已关注 {len(selected)} 人")
+        content.update_idletasks()
+        canvas.configure(scrollregion=canvas.bbox("all"))
+
+    def resize(_event=None) -> None:
+        width = max(400, outer.winfo_width() - 40)
+        detail_label.configure(wraplength=width)
+        guidance.configure(wraplength=width)
+        canvas.itemconfigure(content_window, width=max(content.winfo_reqwidth(), canvas.winfo_width()))
+
+    content.bind("<Configure>", lambda _event: canvas.configure(scrollregion=canvas.bbox("all")))
+    outer.bind("<Configure>", resize)
+    canvas.bind("<MouseWheel>", lambda event: canvas.yview_scroll(-int(event.delta / 120), "units"))
     for variable in (query, stage, only_selected):
         variable.trace_add("write", refresh)
     refresh()

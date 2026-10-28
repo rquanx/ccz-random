@@ -29,7 +29,7 @@ class RecruitmentHistoryTests(unittest.TestCase):
 
 
 class RecruitmentWindowTests(unittest.TestCase):
-    def test_all_people_multiselect_search_and_stage_filter(self):
+    def test_all_people_cards_filter_and_stage_grouping(self):
         import tkinter as tk
         from tkinter import ttk
         try:
@@ -47,18 +47,23 @@ class RecruitmentWindowTests(unittest.TestCase):
                 yield from descendants(child)
 
         widgets = list(descendants(root))
-        tree = next(w for w in widgets if isinstance(w, ttk.Treeview))
-        self.assertEqual(116, len(tree.get_children()))
-        tree.selection_set("146", "147")
-        next(w for w in widgets if isinstance(w, ttk.Button)).invoke()
+        self.assertGreaterEqual(sum(1 for w in widgets if isinstance(w, tk.Canvas)), 1)
+        self.assertGreaterEqual(sum(1 for w in widgets if isinstance(w, ttk.Label) and w.cget("text") == "曹仁"), 1)
         watched = next(w for w in widgets if isinstance(w, ttk.Checkbutton))
+        watch_button = next(w for w in widgets if isinstance(w, ttk.Button) and w.cget("text") in {"关注", "取消关注"})
+        watch_button.invoke()
+        root.update()
         watched.invoke()
-        self.assertEqual({"146", "147"}, set(tree.get_children()))
+        root.update()
+        self.assertGreaterEqual(sum(1 for w in descendants(root) if isinstance(w, ttk.Label) and "已关注 1 人" in w.cget("text")), 1)
         watched.invoke()
-        search = next(w for w in widgets if isinstance(w, ttk.Entry) and not isinstance(w, ttk.Combobox))
+        search = next(w for w in descendants(root) if isinstance(w, ttk.Entry) and not isinstance(w, ttk.Combobox))
         search.insert(0, "曹仁")
-        self.assertEqual(("5",), tree.get_children())
+        root.update()
+        self.assertEqual(1, sum(1 for w in descendants(root) if isinstance(w, ttk.Label) and w.cget("text") == "曹仁"))
         search.delete(0, "end")
-        stage = next(w for w in widgets if isinstance(w, ttk.Combobox))
+        stage = next(w for w in descendants(root) if isinstance(w, ttk.Combobox))
         stage.set("共通 · 颍川之战")
-        self.assertEqual({"146", "147", "5"}, set(tree.get_children()))
+        root.update()
+        self.assertGreaterEqual(sum(1 for w in descendants(root) if isinstance(w, ttk.Label) and w.cget("text") == "共通 · 颍川之战"), 1)
+

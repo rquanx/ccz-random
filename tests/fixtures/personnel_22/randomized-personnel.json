@@ -1,0 +1,2601 @@
+[
+  {
+    "recordIndex": 146,
+    "memberId": 146,
+    "name": "张宝",
+    "jobId": 45,
+    "currentJobId": 45,
+    "jobTalents": [
+      "附加伤害 爆发 12%"
+    ],
+    "personalTalents": [
+      "攻击追加 诱惑"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 颍川之战"
+    ],
+    "stage": "共通 · 颍川之战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 147,
+    "memberId": 147,
+    "name": "张梁",
+    "jobId": 30,
+    "currentJobId": 30,
+    "jobTalents": [
+      "强化策略穿透"
+    ],
+    "personalTalents": [
+      "策略破坏 防"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 颍川之战"
+    ],
+    "stage": "共通 · 颍川之战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 5,
+    "memberId": 3,
+    "name": "曹仁",
+    "jobId": 57,
+    "currentJobId": 39,
+    "jobTalents": [
+      "辅助连击率 25%"
+    ],
+    "personalTalents": [
+      "随机属性攻击",
+      "天人之勇"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 颍川之战"
+    ],
+    "stage": "共通 · 颍川之战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 134,
+    "memberId": 134,
+    "name": "华雄",
+    "jobId": 3,
+    "currentJobId": 60,
+    "jobTalents": [
+      "攻击绝对命中"
+    ],
+    "personalTalents": [
+      "致命一击",
+      "强化反击 15%"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 汜水关之战"
+    ],
+    "stage": "共通 · 汜水关之战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 135,
+    "memberId": 135,
+    "name": "李肃",
+    "jobId": 33,
+    "currentJobId": 24,
+    "jobTalents": [
+      "策略绝对命中"
+    ],
+    "personalTalents": [
+      "策略绝对命中"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 汜水关之战"
+    ],
+    "stage": "共通 · 汜水关之战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 10,
+    "memberId": 11,
+    "name": "乐进",
+    "jobId": 15,
+    "currentJobId": 42,
+    "jobTalents": [
+      "仇恨攻击 +12%"
+    ],
+    "personalTalents": [
+      "主动连击"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 汜水关之战"
+    ],
+    "stage": "共通 · 汜水关之战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 11,
+    "memberId": 9,
+    "name": "李典",
+    "jobId": 18,
+    "currentJobId": 3,
+    "jobTalents": [
+      "同仇敌忾 2"
+    ],
+    "personalTalents": [
+      "减少斜向伤害 40%"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 虎牢关之战"
+    ],
+    "stage": "共通 · 虎牢关之战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 132,
+    "memberId": 132,
+    "name": "李儒",
+    "jobId": 24,
+    "currentJobId": 24,
+    "jobTalents": [
+      "妨碍策略增伤 25%"
+    ],
+    "personalTalents": [
+      "纵横无阻"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 荥阳追击战"
+    ],
+    "stage": "共通 · 荥阳追击战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 133,
+    "memberId": 133,
+    "name": "樊稠",
+    "jobId": 30,
+    "currentJobId": 60,
+    "jobTalents": [
+      "强化策略穿透"
+    ],
+    "personalTalents": [
+      "HP辅助能力 防精"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 荥阳追击战"
+    ],
+    "stage": "共通 · 荥阳追击战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 128,
+    "memberId": 128,
+    "name": "张济",
+    "jobId": 65,
+    "currentJobId": 60,
+    "jobTalents": [
+      "策略无视地形",
+      "策略模仿"
+    ],
+    "personalTalents": [
+      "策略免疫"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 荥阳追击战"
+    ],
+    "stage": "共通 · 荥阳追击战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 130,
+    "memberId": 130,
+    "name": "徐荣",
+    "jobId": 6,
+    "currentJobId": 54,
+    "jobTalents": [
+      "随机属性攻击"
+    ],
+    "personalTalents": [
+      "忽视能力 精士"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 荥阳追击战"
+    ],
+    "stage": "共通 · 荥阳追击战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 24,
+    "memberId": 24,
+    "name": "荀攸",
+    "jobId": 42,
+    "currentJobId": 27,
+    "jobTalents": [
+      "再次移动"
+    ],
+    "personalTalents": [
+      "附加伤害 士气 12%"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 荥阳追击战"
+    ],
+    "stage": "共通 · 荥阳追击战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 99,
+    "memberId": 99,
+    "name": "孙坚",
+    "jobId": 27,
+    "currentJobId": 0,
+    "jobTalents": [
+      "策略破坏 精"
+    ],
+    "personalTalents": [
+      "每回合恢复HP 20%",
+      "混乱攻击 50%"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 青州讨伐战"
+    ],
+    "stage": "共通 · 青州讨伐战",
+    "recruitmentCost": 2,
+    "jobChoices": [
+      "群雄",
+      "保持当前随机结果"
+    ],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 145,
+    "memberId": 145,
+    "name": "陶谦",
+    "jobId": 9,
+    "currentJobId": 27,
+    "jobTalents": [
+      "破坏移动"
+    ],
+    "personalTalents": [
+      "绝对克制 18%"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 徐州之战"
+    ],
+    "stage": "共通 · 徐州之战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 14,
+    "memberId": 12,
+    "name": "于禁",
+    "jobId": 24,
+    "currentJobId": 6,
+    "jobTalents": [
+      "妨碍策略增伤 25%"
+    ],
+    "personalTalents": [
+      "冲锋攻击 +6%",
+      "突破攻击"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 徐州之战"
+    ],
+    "stage": "共通 · 徐州之战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 21,
+    "memberId": 25,
+    "name": "程昱",
+    "jobId": 39,
+    "currentJobId": 68,
+    "jobTalents": [
+      "万夫莫敌 3%"
+    ],
+    "personalTalents": [
+      "万夫莫敌 3%"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 徐州之战"
+    ],
+    "stage": "共通 · 徐州之战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 18,
+    "memberId": 18,
+    "name": "刘晔",
+    "jobId": 27,
+    "currentJobId": 15,
+    "jobTalents": [
+      "策略破坏 精"
+    ],
+    "personalTalents": [
+      "反弹异常攻击",
+      "一夫当关 10%"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 濮阳夺回战"
+    ],
+    "stage": "共通 · 濮阳夺回战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 131,
+    "memberId": 131,
+    "name": "李傕",
+    "jobId": 39,
+    "currentJobId": 3,
+    "jobTalents": [
+      "万夫莫敌 3%"
+    ],
+    "personalTalents": [
+      "万里龙城"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 天子救援战"
+    ],
+    "stage": "共通 · 天子救援战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 129,
+    "memberId": 129,
+    "name": "郭汜",
+    "jobId": 57,
+    "currentJobId": 45,
+    "jobTalents": [
+      "辅助连击率 25%"
+    ],
+    "personalTalents": [
+      "辅助山战 110%"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 天子救援战"
+    ],
+    "stage": "共通 · 天子救援战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 13,
+    "memberId": 13,
+    "name": "徐晃",
+    "jobId": 21,
+    "currentJobId": 60,
+    "jobTalents": [
+      "一夫当关 10%"
+    ],
+    "personalTalents": [
+      "能力辅助 精→防精"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 天子救援战"
+    ],
+    "stage": "共通 · 天子救援战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 149,
+    "memberId": 149,
+    "name": "刘协",
+    "jobId": 9,
+    "currentJobId": 72,
+    "jobTalents": [
+      "破坏移动"
+    ],
+    "personalTalents": [
+      "绝对克制 18%"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 天子救援战"
+    ],
+    "stage": "共通 · 天子救援战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 144,
+    "memberId": 144,
+    "name": "胡车儿",
+    "jobId": 42,
+    "currentJobId": 76,
+    "jobTalents": [
+      "再次移动"
+    ],
+    "personalTalents": [
+      "步兵攻击 35%"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 宛城之战"
+    ],
+    "stage": "共通 · 宛城之战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 205,
+    "memberId": 288,
+    "name": "邹氏",
+    "jobId": 27,
+    "currentJobId": 27,
+    "jobTalents": [
+      "策略破坏 精"
+    ],
+    "personalTalents": [
+      "每回合恢复MP 8"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 宛城之战"
+    ],
+    "stage": "共通 · 宛城之战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": true
+  },
+  {
+    "recordIndex": 25,
+    "memberId": 21,
+    "name": "满宠",
+    "jobId": 51,
+    "currentJobId": 65,
+    "jobTalents": [
+      "突击移动"
+    ],
+    "personalTalents": [
+      "猛击 20%",
+      "固定增伤"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 宛城之战"
+    ],
+    "stage": "共通 · 宛城之战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 137,
+    "memberId": 137,
+    "name": "纪灵",
+    "jobId": 51,
+    "currentJobId": 57,
+    "jobTalents": [
+      "突击移动"
+    ],
+    "personalTalents": [
+      "随机状态攻击"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 寿春之战"
+    ],
+    "stage": "共通 · 寿春之战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 124,
+    "memberId": 124,
+    "name": "曹性",
+    "jobId": 45,
+    "currentJobId": 12,
+    "jobTalents": [
+      "附加伤害 爆发 12%"
+    ],
+    "personalTalents": [
+      "固定增伤"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 小沛救援战"
+    ],
+    "stage": "共通 · 小沛救援战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 125,
+    "memberId": 125,
+    "name": "臧霸",
+    "jobId": 30,
+    "currentJobId": 21,
+    "jobTalents": [
+      "强化策略穿透"
+    ],
+    "personalTalents": [
+      "再次移动"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 小沛救援战"
+    ],
+    "stage": "共通 · 小沛救援战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 119,
+    "memberId": 119,
+    "name": "吕布",
+    "jobId": 78,
+    "currentJobId": 78,
+    "jobTalents": [
+      "每回合恢复HP 20%",
+      "自动提升 攻防"
+    ],
+    "personalTalents": [
+      "破坏攻击",
+      "增加连击上限 +1",
+      "附加伤害 爆发 12%"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 下邳包围战"
+    ],
+    "stage": "共通 · 下邳包围战",
+    "recruitmentCost": 4,
+    "jobChoices": [
+      "宿卫骑",
+      "保持随机结果"
+    ],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 122,
+    "memberId": 122,
+    "name": "高顺",
+    "jobId": 42,
+    "currentJobId": 61,
+    "jobTalents": [
+      "再次移动"
+    ],
+    "personalTalents": [
+      "疾风攻击 12",
+      "夺锐攻击"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 下邳包围战"
+    ],
+    "stage": "共通 · 下邳包围战",
+    "recruitmentCost": 2,
+    "jobChoices": [
+      "西凉骑",
+      "先锋",
+      "保持原兵种"
+    ],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 126,
+    "memberId": 126,
+    "name": "陈宫",
+    "jobId": 33,
+    "currentJobId": 65,
+    "jobTalents": [
+      "策略绝对命中"
+    ],
+    "personalTalents": [
+      "学会策略-天象"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 下邳包围战"
+    ],
+    "stage": "共通 · 下邳包围战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 123,
+    "memberId": 123,
+    "name": "侯成",
+    "jobId": 18,
+    "currentJobId": 3,
+    "jobTalents": [
+      "同仇敌忾 2"
+    ],
+    "personalTalents": [
+      "辅助地形状态"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 下邳包围战"
+    ],
+    "stage": "共通 · 下邳包围战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 143,
+    "memberId": 143,
+    "name": "张绣",
+    "jobId": 42,
+    "currentJobId": 9,
+    "jobTalents": [
+      "再次移动"
+    ],
+    "personalTalents": [
+      "攻击限伤 70"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 下邳包围战"
+    ],
+    "stage": "共通 · 下邳包围战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 17,
+    "memberId": 17,
+    "name": "貂蝉",
+    "jobId": 18,
+    "currentJobId": 36,
+    "jobTalents": [
+      "同仇敌忾 2"
+    ],
+    "personalTalents": [
+      "每回合恢复状态",
+      "海纳百川 10",
+      "再顾倾国"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 下邳包围战"
+    ],
+    "stage": "共通 · 下邳包围战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 23,
+    "memberId": 262,
+    "name": "贾诩",
+    "jobId": 64,
+    "currentJobId": 30,
+    "jobTalents": [
+      "辅助攻击格挡 +20%",
+      "步兵防御 35%"
+    ],
+    "personalTalents": [
+      "能力辅助 攻→精爆",
+      "提升周围 攻防"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 徐州平定战"
+    ],
+    "stage": "共通 · 徐州平定战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 108,
+    "memberId": 108,
+    "name": "颜良",
+    "jobId": 42,
+    "currentJobId": 61,
+    "jobTalents": [
+      "再次移动"
+    ],
+    "personalTalents": [
+      "辅助全格挡 +16%",
+      "恶路移动"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 白马之战"
+    ],
+    "stage": "共通 · 白马之战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 120,
+    "memberId": 120,
+    "name": "魏续",
+    "jobId": 70,
+    "currentJobId": 9,
+    "jobTalents": [
+      "中毒攻击 100%",
+      "增加连击上限 +1"
+    ],
+    "personalTalents": [
+      "无反击攻击"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 白马之战"
+    ],
+    "stage": "共通 · 白马之战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 121,
+    "memberId": 121,
+    "name": "宋宪",
+    "jobId": 54,
+    "currentJobId": 6,
+    "jobTalents": [
+      "反击成双"
+    ],
+    "personalTalents": [
+      "能力辅助 士→全能力"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 白马之战"
+    ],
+    "stage": "共通 · 白马之战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 100,
+    "memberId": 100,
+    "name": "孙策",
+    "jobId": 21,
+    "currentJobId": 54,
+    "jobTalents": [
+      "一夫当关 10%"
+    ],
+    "personalTalents": [
+      "穿透攻击 九宫",
+      "夺锐攻击"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 延津之战"
+    ],
+    "stage": "共通 · 延津之战",
+    "recruitmentCost": 3,
+    "jobChoices": [
+      "群雄",
+      "勇将",
+      "保持当前随机结果"
+    ],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 109,
+    "memberId": 109,
+    "name": "文丑",
+    "jobId": 12,
+    "currentJobId": 61,
+    "jobTalents": [
+      "辅助攻击命中 +20%"
+    ],
+    "personalTalents": [
+      "冲锋攻击 +6%",
+      "能力替换 攻→防"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 延津之战"
+    ],
+    "stage": "共通 · 延津之战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 105,
+    "memberId": 105,
+    "name": "沮授",
+    "jobId": 33,
+    "currentJobId": 24,
+    "jobTalents": [
+      "策略绝对命中"
+    ],
+    "personalTalents": [
+      "穿透攻击 十字",
+      "减少斜向伤害 40%"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 官渡决战"
+    ],
+    "stage": "共通 · 官渡决战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 110,
+    "memberId": 110,
+    "name": "田丰",
+    "jobId": 30,
+    "currentJobId": 24,
+    "jobTalents": [
+      "强化策略穿透"
+    ],
+    "personalTalents": [
+      "状态强化 12",
+      "落井下石 15%"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 官渡决战"
+    ],
+    "stage": "共通 · 官渡决战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 107,
+    "memberId": 107,
+    "name": "高览",
+    "jobId": 18,
+    "currentJobId": 12,
+    "jobTalents": [
+      "同仇敌忾 2"
+    ],
+    "personalTalents": [
+      "骑马攻击 35%",
+      "破坏MP攻击"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 官渡决战"
+    ],
+    "stage": "共通 · 官渡决战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 111,
+    "memberId": 111,
+    "name": "淳于琼",
+    "jobId": 27,
+    "currentJobId": 3,
+    "jobTalents": [
+      "策略破坏 精"
+    ],
+    "personalTalents": [
+      "纵横无阻"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 官渡决战"
+    ],
+    "stage": "共通 · 官渡决战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 7,
+    "memberId": 8,
+    "name": "张郃",
+    "jobId": 15,
+    "currentJobId": 51,
+    "jobTalents": [
+      "仇恨攻击 +12%"
+    ],
+    "personalTalents": [
+      "策略无视天气",
+      "四向夺锋"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 官渡决战"
+    ],
+    "stage": "共通 · 官渡决战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 74,
+    "memberId": 74,
+    "name": "刘辟",
+    "jobId": 9,
+    "currentJobId": 21,
+    "jobTalents": [
+      "破坏移动"
+    ],
+    "personalTalents": [
+      "反弹伤害 60%"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 穰山之战"
+    ],
+    "stage": "共通 · 穰山之战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 75,
+    "memberId": 75,
+    "name": "龚都",
+    "jobId": 74,
+    "currentJobId": 21,
+    "jobTalents": [
+      "反击后反击",
+      "远距攻击 大爆炎"
+    ],
+    "personalTalents": [
+      "减轻物理损伤 -30%"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 穰山之战"
+    ],
+    "stage": "共通 · 穰山之战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 8,
+    "memberId": 14,
+    "name": "曹丕",
+    "jobId": 51,
+    "currentJobId": 67,
+    "jobTalents": [
+      "突击移动"
+    ],
+    "personalTalents": [
+      "策略连击",
+      "策略保底伤害 50"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 黎阳之战"
+    ],
+    "stage": "共通 · 黎阳之战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 106,
+    "memberId": 106,
+    "name": "审配",
+    "jobId": 24,
+    "currentJobId": 33,
+    "jobTalents": [
+      "妨碍策略增伤 25%"
+    ],
+    "personalTalents": [
+      "减轻策略损伤 -40%",
+      "众志成城 6%"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 邺城之战"
+    ],
+    "stage": "共通 · 邺城之战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 206,
+    "memberId": 287,
+    "name": "甄宓",
+    "jobId": 36,
+    "currentJobId": 36,
+    "jobTalents": [
+      "恢复周围状态",
+      "忽视能力 精"
+    ],
+    "personalTalents": [
+      "防御特殊攻击",
+      "翩若惊鸿"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 邺城之战"
+    ],
+    "stage": "共通 · 邺城之战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": true
+  },
+  {
+    "recordIndex": 113,
+    "memberId": 113,
+    "name": "袁谭",
+    "jobId": 33,
+    "currentJobId": 9,
+    "jobTalents": [
+      "策略绝对命中"
+    ],
+    "personalTalents": [
+      "每回合恢复MP 8"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 南皮攻略战"
+    ],
+    "stage": "共通 · 南皮攻略战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 112,
+    "memberId": 112,
+    "name": "辛评",
+    "jobId": 3,
+    "currentJobId": 74,
+    "jobTalents": [
+      "攻击绝对命中"
+    ],
+    "personalTalents": [
+      "妨碍策略增伤 25%"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 南皮攻略战"
+    ],
+    "stage": "共通 · 南皮攻略战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 103,
+    "memberId": 103,
+    "name": "郭图",
+    "jobId": 27,
+    "currentJobId": 30,
+    "jobTalents": [
+      "策略破坏 精"
+    ],
+    "personalTalents": [
+      "能力辅助 防→攻精"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 南皮攻略战"
+    ],
+    "stage": "共通 · 南皮攻略战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 114,
+    "memberId": 114,
+    "name": "袁熙",
+    "jobId": 60,
+    "currentJobId": 57,
+    "jobTalents": [
+      "引导攻击"
+    ],
+    "personalTalents": [
+      "减少斜向伤害 40%"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 柳城平定战"
+    ],
+    "stage": "共通 · 柳城平定战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 115,
+    "memberId": 115,
+    "name": "袁尚",
+    "jobId": 12,
+    "currentJobId": 0,
+    "jobTalents": [
+      "辅助攻击命中 +20%"
+    ],
+    "personalTalents": [
+      "众志成城 6%"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 柳城平定战"
+    ],
+    "stage": "共通 · 柳城平定战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 116,
+    "memberId": 116,
+    "name": "高干",
+    "jobId": 45,
+    "currentJobId": 12,
+    "jobTalents": [
+      "附加伤害 爆发 12%"
+    ],
+    "personalTalents": [
+      "禁咒攻击 100%"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 柳城平定战"
+    ],
+    "stage": "共通 · 柳城平定战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 27,
+    "memberId": 27,
+    "name": "文聘",
+    "jobId": 24,
+    "currentJobId": 57,
+    "jobTalents": [
+      "妨碍策略增伤 25%"
+    ],
+    "personalTalents": [
+      "致命一击"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 长坂坡之战"
+    ],
+    "stage": "共通 · 长坂坡之战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 26,
+    "memberId": 26,
+    "name": "夏侯恩",
+    "jobId": 75,
+    "currentJobId": 9,
+    "jobTalents": [
+      "吸血攻击 40%"
+    ],
+    "personalTalents": [
+      "自身治疗强化 75%"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 长坂坡之战"
+    ],
+    "stage": "共通 · 长坂坡之战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 28,
+    "memberId": 28,
+    "name": "夏侯杰",
+    "jobId": 30,
+    "currentJobId": 9,
+    "jobTalents": [
+      "强化策略穿透"
+    ],
+    "personalTalents": [
+      "一夫当关 10%"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 长坂坡之战"
+    ],
+    "stage": "共通 · 长坂坡之战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 64,
+    "memberId": 64,
+    "name": "刘琦",
+    "jobId": 3,
+    "currentJobId": 0,
+    "jobTalents": [
+      "攻击绝对命中"
+    ],
+    "personalTalents": [
+      "自动提升 防移",
+      "HP辅助能力 攻士"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 长坂坡之战"
+    ],
+    "stage": "共通 · 长坂坡之战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 91,
+    "memberId": 91,
+    "name": "黄盖",
+    "jobId": 39,
+    "currentJobId": 54,
+    "jobTalents": [
+      "万夫莫敌 3%"
+    ],
+    "personalTalents": [
+      "冲锋攻击 +6%",
+      "增加正向伤害 35%"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 赤壁之战"
+    ],
+    "stage": "共通 · 赤壁之战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 207,
+    "memberId": 289,
+    "name": "大乔",
+    "jobId": 15,
+    "currentJobId": 15,
+    "jobTalents": [
+      "仇恨攻击 +12%"
+    ],
+    "personalTalents": [
+      "强化物理穿透 25%"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 赤壁之战"
+    ],
+    "stage": "共通 · 赤壁之战",
+    "recruitmentCost": 1,
+    "jobChoices": [
+      "炮车（携带床弩）",
+      "步兵（携带手戟）"
+    ],
+    "fixedConfiguration": true
+  },
+  {
+    "recordIndex": 98,
+    "memberId": 98,
+    "name": "程普",
+    "jobId": 42,
+    "currentJobId": 57,
+    "jobTalents": [
+      "再次移动"
+    ],
+    "personalTalents": [
+      "反弹伤害 60%",
+      "步兵攻击 35%"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 赤壁突围战"
+    ],
+    "stage": "共通 · 赤壁突围战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 208,
+    "memberId": 290,
+    "name": "小乔",
+    "jobId": 9,
+    "currentJobId": 9,
+    "jobTalents": [
+      "破坏移动"
+    ],
+    "personalTalents": [
+      "转移伤害 20%",
+      "锦帆踏江"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "共通 · 赤壁突围战"
+    ],
+    "stage": "共通 · 赤壁突围战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": true
+  },
+  {
+    "recordIndex": 77,
+    "memberId": 77,
+    "name": "周瑜",
+    "jobId": 65,
+    "currentJobId": 65,
+    "jobTalents": [
+      "策略无视地形",
+      "策略模仿"
+    ],
+    "personalTalents": [
+      "攻击追加 诱惑",
+      "自动提升 全能力"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "红线 · 合肥退敌战"
+    ],
+    "stage": "红线 · 合肥退敌战",
+    "recruitmentCost": 3,
+    "jobChoices": [
+      "都督",
+      "将军",
+      "骑策"
+    ],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 95,
+    "memberId": 95,
+    "name": "太史慈",
+    "jobId": 6,
+    "currentJobId": 69,
+    "jobTalents": [
+      "随机属性攻击"
+    ],
+    "personalTalents": [
+      "破坏移动",
+      "侧翼突袭 35%"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "红线 · 合肥退敌战"
+    ],
+    "stage": "红线 · 合肥退敌战",
+    "recruitmentCost": 2,
+    "jobChoices": [
+      "宿卫骑",
+      "神羿骑",
+      "保持随机结果"
+    ],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 209,
+    "memberId": 291,
+    "name": "孙尚香",
+    "jobId": 74,
+    "currentJobId": 74,
+    "jobTalents": [
+      "反击后反击",
+      "远距攻击 大爆炎"
+    ],
+    "personalTalents": [
+      "同心协力 3%",
+      "娇纵三江"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "红线 · 合肥退敌战"
+    ],
+    "stage": "红线 · 合肥退敌战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": true
+  },
+  {
+    "recordIndex": 90,
+    "memberId": 90,
+    "name": "庞统",
+    "jobId": 27,
+    "currentJobId": 66,
+    "jobTalents": [
+      "策略破坏 精"
+    ],
+    "personalTalents": [
+      "提升施法范围",
+      "自身治疗强化 75%"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "红线 · 渭水迎击战"
+    ],
+    "stage": "红线 · 渭水迎击战",
+    "recruitmentCost": 2,
+    "jobChoices": [
+      "咒术师",
+      "保持随机结果"
+    ],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 140,
+    "memberId": 140,
+    "name": "张鲁",
+    "jobId": 24,
+    "currentJobId": 30,
+    "jobTalents": [
+      "妨碍策略增伤 25%"
+    ],
+    "personalTalents": [
+      "策略绝对命中"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "红线 · 汉中讨伐战"
+    ],
+    "stage": "红线 · 汉中讨伐战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 141,
+    "memberId": 141,
+    "name": "张卫",
+    "jobId": 70,
+    "currentJobId": 3,
+    "jobTalents": [
+      "中毒攻击 100%",
+      "增加连击上限 +1"
+    ],
+    "personalTalents": [
+      "减轻策略损伤 -40%"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "红线 · 汉中讨伐战"
+    ],
+    "stage": "红线 · 汉中讨伐战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 142,
+    "memberId": 142,
+    "name": "阎圃",
+    "jobId": 30,
+    "currentJobId": 24,
+    "jobTalents": [
+      "强化策略穿透"
+    ],
+    "personalTalents": [
+      "策略保底伤害 50"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "红线 · 汉中讨伐战"
+    ],
+    "stage": "红线 · 汉中讨伐战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 89,
+    "memberId": 89,
+    "name": "陈武",
+    "jobId": 57,
+    "currentJobId": 3,
+    "jobTalents": [
+      "辅助连击率 25%"
+    ],
+    "personalTalents": [
+      "辅助攻击格挡 +20%",
+      "回复周围HP 12%"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "红线 · 逍遥津之战",
+      "蓝线 · 赤壁之战  贰"
+    ],
+    "stage": "红线 · 逍遥津之战 / 蓝线 · 赤壁之战  贰",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 78,
+    "memberId": 78,
+    "name": "鲁肃",
+    "jobId": 65,
+    "currentJobId": 24,
+    "jobTalents": [
+      "策略无视地形",
+      "策略模仿"
+    ],
+    "personalTalents": [
+      "能力替换 防→精",
+      "MP辅助能力 攻防"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "红线 · 濡须口之战",
+      "蓝线 · 建业决战"
+    ],
+    "stage": "红线 · 濡须口之战 / 蓝线 · 建业决战",
+    "recruitmentCost": 2,
+    "jobChoices": [
+      "都督",
+      "咒术士",
+      "保留随机结果"
+    ],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 38,
+    "memberId": 38,
+    "name": "法正",
+    "jobId": 24,
+    "currentJobId": 30,
+    "jobTalents": [
+      "妨碍策略增伤 25%"
+    ],
+    "personalTalents": [
+      "万夫莫敌 3%",
+      "转移伤害 20%"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "红线 · 定军山之战",
+      "蓝线 · 定军山之战·异"
+    ],
+    "stage": "红线 · 定军山之战 / 蓝线 · 定军山之战·异",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 63,
+    "memberId": 63,
+    "name": "雷铜",
+    "jobId": 51,
+    "currentJobId": 18,
+    "jobTalents": [
+      "突击移动"
+    ],
+    "personalTalents": [
+      "防御远距攻击",
+      "回复周围HP 12%"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "红线 · 定军山之战"
+    ],
+    "stage": "红线 · 定军山之战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 33,
+    "memberId": 33,
+    "name": "张飞",
+    "jobId": 42,
+    "currentJobId": 42,
+    "jobTalents": [
+      "再次移动"
+    ],
+    "personalTalents": [
+      "每回合恢复HP 20%",
+      "自动提升 全能力",
+      "勇冠三军"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "红线 · 樊城救援战",
+      "蓝线 · 麦城救援战"
+    ],
+    "stage": "红线 · 樊城救援战 / 蓝线 · 麦城救援战",
+    "recruitmentCost": 3,
+    "jobChoices": [
+      "宿卫骑",
+      "保持随机结果"
+    ],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 36,
+    "memberId": 36,
+    "name": "黄忠",
+    "jobId": 45,
+    "currentJobId": 69,
+    "jobTalents": [
+      "附加伤害 爆发 12%"
+    ],
+    "personalTalents": [
+      "自动提升 攻爆",
+      "固定增伤"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "红线 · 樊城救援战",
+      "蓝线 · 定军山之战·异"
+    ],
+    "stage": "红线 · 樊城救援战 / 蓝线 · 定军山之战·异",
+    "recruitmentCost": 3,
+    "jobChoices": [
+      "弓兵",
+      "穿杨手",
+      "弓骑兵",
+      "神羿骑",
+      "保留随机结果"
+    ],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 80,
+    "memberId": 80,
+    "name": "吕蒙",
+    "jobId": 18,
+    "currentJobId": 57,
+    "jobTalents": [
+      "同仇敌忾 2"
+    ],
+    "personalTalents": [
+      "混乱攻击 50%",
+      "策略反击 烈火"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "红线 · 樊城救援战",
+      "蓝线 · 建业决战"
+    ],
+    "stage": "红线 · 樊城救援战 / 蓝线 · 建业决战",
+    "recruitmentCost": 3,
+    "jobChoices": [
+      "策士",
+      "将军",
+      "都督",
+      "保留随机结果"
+    ],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 45,
+    "memberId": 45,
+    "name": "刘封",
+    "jobId": 45,
+    "currentJobId": 42,
+    "jobTalents": [
+      "附加伤害 爆发 12%"
+    ],
+    "personalTalents": [
+      "策略模仿",
+      "能力辅助 防→攻精"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "红线 · 樊城救援战"
+    ],
+    "stage": "红线 · 樊城救援战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 65,
+    "memberId": 65,
+    "name": "孟达",
+    "jobId": 21,
+    "currentJobId": 65,
+    "jobTalents": [
+      "一夫当关 10%"
+    ],
+    "personalTalents": [
+      "二次行动",
+      "猛击 20%"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "红线 · 樊城救援战"
+    ],
+    "stage": "红线 · 樊城救援战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 46,
+    "memberId": 46,
+    "name": "关平",
+    "jobId": 51,
+    "currentJobId": 9,
+    "jobTalents": [
+      "突击移动"
+    ],
+    "personalTalents": [
+      "攻击绝对命中",
+      "远距攻击 大爆炎"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "红线 · 樊城救援战",
+      "蓝线 · 麦城救援战"
+    ],
+    "stage": "红线 · 樊城救援战 / 蓝线 · 麦城救援战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 47,
+    "memberId": 47,
+    "name": "周仓",
+    "jobId": 39,
+    "currentJobId": 76,
+    "jobTalents": [
+      "万夫莫敌 3%"
+    ],
+    "personalTalents": [
+      "骑马防御 35%",
+      "固定减伤"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "红线 · 樊城救援战",
+      "蓝线 · 定军山之战·异"
+    ],
+    "stage": "红线 · 樊城救援战 / 蓝线 · 定军山之战·异",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 40,
+    "memberId": 40,
+    "name": "孙乾",
+    "jobId": 27,
+    "currentJobId": 6,
+    "jobTalents": [
+      "策略破坏 精"
+    ],
+    "personalTalents": [
+      "策略模仿"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "红线 · 阳平关之战"
+    ],
+    "stage": "红线 · 阳平关之战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 43,
+    "memberId": 43,
+    "name": "简雍",
+    "jobId": 36,
+    "currentJobId": 6,
+    "jobTalents": [
+      "恢复周围状态",
+      "忽视能力 精"
+    ],
+    "personalTalents": [
+      "反弹异常攻击"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "红线 · 阳平关之战"
+    ],
+    "stage": "红线 · 阳平关之战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 41,
+    "memberId": 41,
+    "name": "糜竺",
+    "jobId": 30,
+    "currentJobId": 24,
+    "jobTalents": [
+      "强化策略穿透"
+    ],
+    "personalTalents": [
+      "固定减伤"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "红线 · 阳平关之战"
+    ],
+    "stage": "红线 · 阳平关之战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 42,
+    "memberId": 42,
+    "name": "糜芳",
+    "jobId": 30,
+    "currentJobId": 6,
+    "jobTalents": [
+      "强化策略穿透"
+    ],
+    "personalTalents": [
+      "防御特殊攻击"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "红线 · 阳平关之战"
+    ],
+    "stage": "红线 · 阳平关之战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 61,
+    "memberId": 61,
+    "name": "吴懿",
+    "jobId": 39,
+    "currentJobId": 58,
+    "jobTalents": [
+      "万夫莫敌 3%"
+    ],
+    "personalTalents": [
+      "防御远距攻击",
+      "远距攻击 大爆炎"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "红线 · 剑阁之战"
+    ],
+    "stage": "红线 · 剑阁之战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 68,
+    "memberId": 68,
+    "name": "张嶷",
+    "jobId": 36,
+    "currentJobId": 21,
+    "jobTalents": [
+      "恢复周围状态",
+      "忽视能力 精"
+    ],
+    "personalTalents": [
+      "突击移动",
+      "破坏MP攻击"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "红线 · 剑阁之战"
+    ],
+    "stage": "红线 · 剑阁之战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 70,
+    "memberId": 70,
+    "name": "张翼",
+    "jobId": 27,
+    "currentJobId": 39,
+    "jobTalents": [
+      "策略破坏 精"
+    ],
+    "personalTalents": [
+      "减轻物理损伤 -30%",
+      "提升周围 爆士"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "红线 · 剑阁之战"
+    ],
+    "stage": "红线 · 剑阁之战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 73,
+    "memberId": 73,
+    "name": "孟优",
+    "jobId": 36,
+    "currentJobId": 62,
+    "jobTalents": [
+      "恢复周围状态",
+      "忽视能力 精"
+    ],
+    "personalTalents": [
+      "破坏移动"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "红线 · 剑阁之战"
+    ],
+    "stage": "红线 · 剑阁之战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 57,
+    "memberId": 268,
+    "name": "马超",
+    "jobId": 69,
+    "currentJobId": 60,
+    "jobTalents": [
+      "主动连击",
+      "侧翼突袭 35%"
+    ],
+    "personalTalents": [
+      "穿透攻击 十字",
+      "MP辅助能力 攻爆"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "红线 · 成都决战",
+      "蓝线 · 鱼腹浦之战"
+    ],
+    "stage": "红线 · 成都决战 / 蓝线 · 鱼腹浦之战",
+    "recruitmentCost": 2,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 37,
+    "memberId": 37,
+    "name": "魏延",
+    "jobId": 21,
+    "currentJobId": 61,
+    "jobTalents": [
+      "一夫当关 10%"
+    ],
+    "personalTalents": [
+      "自动提升 防精",
+      "侧翼突袭 35%"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "红线 · 成都决战"
+    ],
+    "stage": "红线 · 成都决战",
+    "recruitmentCost": 2,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 66,
+    "memberId": 66,
+    "name": "关索",
+    "jobId": 45,
+    "currentJobId": 78,
+    "jobTalents": [
+      "附加伤害 爆发 12%"
+    ],
+    "personalTalents": [
+      "麻痹攻击 60%",
+      "神魔附体 4"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "红线 · 成都决战"
+    ],
+    "stage": "红线 · 成都决战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 44,
+    "memberId": 44,
+    "name": "廖化",
+    "jobId": 75,
+    "currentJobId": 45,
+    "jobTalents": [
+      "吸血攻击 40%"
+    ],
+    "personalTalents": [
+      "减轻物理损伤 -30%",
+      "铁索横江"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "红线 · 成都决战",
+      "蓝线 · 麦城救援战"
+    ],
+    "stage": "红线 · 成都决战 / 蓝线 · 麦城救援战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 59,
+    "memberId": 59,
+    "name": "王平",
+    "jobId": 68,
+    "currentJobId": 74,
+    "jobTalents": [
+      "破坏防御",
+      "减轻物理损伤 -30%"
+    ],
+    "personalTalents": [
+      "每回合恢复状态",
+      "提升周围 移"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "红线 · 成都决战"
+    ],
+    "stage": "红线 · 成都决战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 35,
+    "memberId": 35,
+    "name": "诸葛亮",
+    "jobId": 66,
+    "currentJobId": 66,
+    "jobTalents": [
+      "能力辅助 精→防精",
+      "MP辅助能力 攻爆"
+    ],
+    "personalTalents": [
+      "回复周围MP 10%",
+      "提升周围 精",
+      "步步为营"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "红线 · 白帝城之战"
+    ],
+    "stage": "红线 · 白帝城之战",
+    "recruitmentCost": 4,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 58,
+    "memberId": 269,
+    "name": "马岱",
+    "jobId": 12,
+    "currentJobId": 51,
+    "jobTalents": [
+      "辅助攻击命中 +20%"
+    ],
+    "personalTalents": [
+      "辅助策略格挡 +40%",
+      "回复周围HP 12%"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "红线 · 白帝城之战"
+    ],
+    "stage": "红线 · 白帝城之战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 60,
+    "memberId": 60,
+    "name": "李严",
+    "jobId": 18,
+    "currentJobId": 42,
+    "jobTalents": [
+      "同仇敌忾 2"
+    ],
+    "personalTalents": [
+      "学会策略-四系",
+      "强化成长 攻防"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "红线 · 白帝城之战"
+    ],
+    "stage": "红线 · 白帝城之战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 71,
+    "memberId": 71,
+    "name": "孟获",
+    "jobId": 39,
+    "currentJobId": 63,
+    "jobTalents": [
+      "万夫莫敌 3%"
+    ],
+    "personalTalents": [
+      "破坏攻击"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "红线 · 白帝城之战"
+    ],
+    "stage": "红线 · 白帝城之战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 72,
+    "memberId": 72,
+    "name": "祝融",
+    "jobId": 6,
+    "currentJobId": 36,
+    "jobTalents": [
+      "随机属性攻击"
+    ],
+    "personalTalents": [
+      "攻击限伤 70",
+      "再次移动"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "红线 · 白帝城之战"
+    ],
+    "stage": "红线 · 白帝城之战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 53,
+    "memberId": 53,
+    "name": "关兴",
+    "jobId": 3,
+    "currentJobId": 57,
+    "jobTalents": [
+      "攻击绝对命中"
+    ],
+    "personalTalents": [
+      "恢复周围状态",
+      "HP辅助能力 攻防"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "蓝线 · 麦城救援战"
+    ],
+    "stage": "蓝线 · 麦城救援战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 54,
+    "memberId": 54,
+    "name": "张苞",
+    "jobId": 9,
+    "currentJobId": 9,
+    "jobTalents": [
+      "破坏移动"
+    ],
+    "personalTalents": [
+      "唯我独尊",
+      "不惧敌围 3%"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "蓝线 · 麦城救援战"
+    ],
+    "stage": "蓝线 · 麦城救援战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 49,
+    "memberId": 49,
+    "name": "马良",
+    "jobId": 33,
+    "currentJobId": 27,
+    "jobTalents": [
+      "策略绝对命中"
+    ],
+    "personalTalents": [
+      "元素策略增伤 25%",
+      "攻击追加 诱惑"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "蓝线 · 麦城救援战"
+    ],
+    "stage": "蓝线 · 麦城救援战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 51,
+    "memberId": 51,
+    "name": "王甫",
+    "jobId": 27,
+    "currentJobId": 24,
+    "jobTalents": [
+      "策略破坏 精"
+    ],
+    "personalTalents": [
+      "每回合恢复MP 8"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "蓝线 · 麦城救援战"
+    ],
+    "stage": "蓝线 · 麦城救援战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 82,
+    "memberId": 82,
+    "name": "潘璋",
+    "jobId": 9,
+    "currentJobId": 54,
+    "jobTalents": [
+      "破坏移动"
+    ],
+    "personalTalents": [
+      "主动连击",
+      "辅助水战 110%"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "蓝线 · 麦城救援战"
+    ],
+    "stage": "蓝线 · 麦城救援战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 83,
+    "memberId": 83,
+    "name": "徐盛",
+    "jobId": 75,
+    "currentJobId": 12,
+    "jobTalents": [
+      "吸血攻击 40%"
+    ],
+    "personalTalents": [
+      "随机状态攻击",
+      "破坏MP攻击"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "蓝线 · 江陵之战"
+    ],
+    "stage": "蓝线 · 江陵之战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 87,
+    "memberId": 87,
+    "name": "蒋钦",
+    "jobId": 6,
+    "currentJobId": 48,
+    "jobTalents": [
+      "随机属性攻击"
+    ],
+    "personalTalents": [
+      "鬼神之勇 12%",
+      "突破攻击"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "蓝线 · 赤壁之战  贰"
+    ],
+    "stage": "蓝线 · 赤壁之战  贰",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 93,
+    "memberId": 93,
+    "name": "董袭",
+    "jobId": 30,
+    "currentJobId": 48,
+    "jobTalents": [
+      "强化策略穿透"
+    ],
+    "personalTalents": [
+      "辅助全格挡 +16%",
+      "增加正向伤害 35%"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "蓝线 · 濡须口之战"
+    ],
+    "stage": "蓝线 · 濡须口之战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 94,
+    "memberId": 94,
+    "name": "韩当",
+    "jobId": 39,
+    "currentJobId": 12,
+    "jobTalents": [
+      "万夫莫敌 3%"
+    ],
+    "personalTalents": [
+      "先手攻击",
+      "恶路移动"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "蓝线 · 濡须口之战"
+    ],
+    "stage": "蓝线 · 濡须口之战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 81,
+    "memberId": 81,
+    "name": "陆逊",
+    "jobId": 67,
+    "currentJobId": 67,
+    "jobTalents": [
+      "绝对克制 18%",
+      "附加伤害 精神 10%"
+    ],
+    "personalTalents": [
+      "突击移动",
+      "反击成双"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "蓝线 · 建业决战"
+    ],
+    "stage": "蓝线 · 建业决战",
+    "recruitmentCost": 3,
+    "jobChoices": [
+      "玉龙军",
+      "都督"
+    ],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 84,
+    "memberId": 84,
+    "name": "甘宁",
+    "jobId": 18,
+    "currentJobId": 48,
+    "jobTalents": [
+      "同仇敌忾 2"
+    ],
+    "personalTalents": [
+      "远距攻击 大爆炎",
+      "反击成双"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "蓝线 · 建业决战"
+    ],
+    "stage": "蓝线 · 建业决战",
+    "recruitmentCost": 3,
+    "jobChoices": [
+      "水贼",
+      "云川卫",
+      "勇将",
+      "保留随机结果"
+    ],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 85,
+    "memberId": 85,
+    "name": "凌统",
+    "jobId": 57,
+    "currentJobId": 61,
+    "jobTalents": [
+      "辅助连击率 25%"
+    ],
+    "personalTalents": [
+      "妨碍策略增伤 25%",
+      "辅助山战 110%"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "蓝线 · 建业决战"
+    ],
+    "stage": "蓝线 · 建业决战",
+    "recruitmentCost": 3,
+    "jobChoices": [
+      "西凉骑",
+      "游牧骑",
+      "保留随机结果"
+    ],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 86,
+    "memberId": 86,
+    "name": "周泰",
+    "jobId": 45,
+    "currentJobId": 76,
+    "jobTalents": [
+      "附加伤害 爆发 12%"
+    ],
+    "personalTalents": [
+      "突击移动",
+      "回马攻击 20%"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "蓝线 · 建业决战"
+    ],
+    "stage": "蓝线 · 建业决战",
+    "recruitmentCost": 2,
+    "jobChoices": [
+      "力士",
+      "保留随机结果"
+    ],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 88,
+    "memberId": 88,
+    "name": "张昭",
+    "jobId": 24,
+    "currentJobId": 24,
+    "jobTalents": [
+      "妨碍策略增伤 25%"
+    ],
+    "personalTalents": [
+      "防御远距攻击",
+      "绝对克制 18%"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "蓝线 · 建业决战"
+    ],
+    "stage": "蓝线 · 建业决战",
+    "recruitmentCost": 2,
+    "jobChoices": [
+      "策士",
+      "医师",
+      "保留随机结果"
+    ],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 79,
+    "memberId": 79,
+    "name": "诸葛瑾",
+    "jobId": 33,
+    "currentJobId": 27,
+    "jobTalents": [
+      "策略绝对命中"
+    ],
+    "personalTalents": [
+      "辅助攻击格挡 +20%",
+      "妨碍策略增伤 25%"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "蓝线 · 建业决战"
+    ],
+    "stage": "蓝线 · 建业决战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 96,
+    "memberId": 96,
+    "name": "丁奉",
+    "jobId": 57,
+    "currentJobId": 45,
+    "jobTalents": [
+      "辅助连击率 25%"
+    ],
+    "personalTalents": [
+      "引导攻击",
+      "能力辅助 防→攻精"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "蓝线 · 鱼腹浦之战"
+    ],
+    "stage": "蓝线 · 鱼腹浦之战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  },
+  {
+    "recordIndex": 92,
+    "memberId": 92,
+    "name": "全琮",
+    "jobId": 45,
+    "currentJobId": 74,
+    "jobTalents": [
+      "附加伤害 爆发 12%"
+    ],
+    "personalTalents": [
+      "远距攻击 圆环",
+      "落井下石 15%"
+    ],
+    "availabilityVerified": true,
+    "stages": [
+      "蓝线 · 鱼腹浦之战"
+    ],
+    "stage": "蓝线 · 鱼腹浦之战",
+    "recruitmentCost": 1,
+    "jobChoices": [],
+    "fixedConfiguration": false
+  }
+]

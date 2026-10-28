@@ -98,10 +98,11 @@ from ccz_randomizer.preferences import (
     load_compatibility_mode,
     load_concurrency,
     load_loop_random,
-    load_random_mode,
     save_random_runtime_settings,
-    save_random_mode,
 )
+from ccz_randomizer.game_versions import DEFAULT_GAME_VERSION
+from ccz_randomizer.runtime.personnel_memory import read_personnel
+from ccz_randomizer.recruitment_catalog import load_catalog, attach_recruitment
 from ccz_randomizer.workflow.randomization import (
     AcceptedResult,
     AttemptResult,
@@ -229,6 +230,7 @@ PERSISTENT_NATIVE_ACTION_CODES = {
     "silent-click-timed": 45,
     "silent-burst-timed": 46,
     "enable-acceleration": 47,
+    "async-sound": 48,
 }
 OFFSCREEN_X = -3000
 OFFSCREEN_Y = -3000
@@ -918,6 +920,9 @@ def build_history_result_snapshot(
     )
     return {
         "schemaVersion": 1,
+        "gameVersion": DEFAULT_GAME_VERSION,
+        "phase": "randomized" if getattr(runner, "_personnel_snapshot", None) else "unknown",
+        "personnel": getattr(runner, "_personnel_snapshot", None),
         "createdAt": dt.datetime.now().astimezone().isoformat(
             timespec="seconds"
         ),
@@ -5061,9 +5066,8 @@ def bundled_random_s00() -> Path:
 
 
 def bundled_original_s00() -> Path:
-    if getattr(sys, "frozen", False):
-        return Path(sys._MEIPASS) / "original_s00.eex"
-    return source_root() / "resources" / "app" / "original_s00.eex"
+    root = Path(sys._MEIPASS) if getattr(sys, "frozen", False) else source_root()
+    return root / "resources" / "app" / "2.2" / "original_s00.eex"
 
 
 def repair_runtime_s00(
@@ -8091,6 +8095,7 @@ def patch_runtime(
         self._result_save_verification_warning = ""
         self._job_evaluation_detail = None
         self._skill_evaluation_detail = None
+        self._personnel_snapshot = None
         diagnostic_log(
             "random_run_start",
             pid=pid,
@@ -8517,6 +8522,15 @@ def patch_runtime(
             self._result_outcome = "accepted"
             print("用户进度: 本轮最终结果=合格，开始保存")
             save_qualified_result()
+            if os.environ.get("CCZ_GAME_VERSION") == "2.2":
+                catalog = load_catalog()
+                self._personnel_snapshot = attach_recruitment(read_personnel(
+                    pid, [person["recordIndex"] for person in catalog], planned=True,
+                    fixed_indices=[person["recordIndex"] for person in catalog if person["fixedConfiguration"]],
+                ), catalog)
+                for row in self._personnel_snapshot:
+                    if row["jobId"] in JOB_MAP:
+                        row["job"] = JOB_MAP[row["jobId"]][0]
         return True
 
     BaseWindow.setForeground = set_foreground
@@ -8741,7 +8755,8 @@ def gui_main() -> int:
     from tkinter import messagebox, scrolledtext, ttk
 
     root = tk.Tk()
-    root.title("2.10 随机工具")
+    os.environ["CCZ_GAME_VERSION"] = DEFAULT_GAME_VERSION
+    root.title(f"曹操传随机工具 · {DEFAULT_GAME_VERSION}")
     root.geometry("980x680")
     root.minsize(760, 520)
 
@@ -8765,7 +8780,7 @@ def gui_main() -> int:
     concurrent_console_render_pending = False
     concurrent_console_last_render_at = 0.0
     concurrent_console_last_signature: tuple | None = None
-    mode_var = tk.StringVar(value=load_random_mode(app_dir()))
+    mode_var = tk.StringVar(value="three")
     loop_var = tk.BooleanVar(value=load_loop_random(app_dir()))
     concurrency_var = tk.IntVar(value=load_concurrency(app_dir()))
     compatibility_mode_var = tk.BooleanVar(
@@ -8782,12 +8797,13 @@ def gui_main() -> int:
 
     header = tk.Frame(outer)
     header.pack(fill="x")
-    tk.Label(
+    header_title = tk.Label(
         header,
-        text="2.10 随机工具",
+        text=f"曹操传随机工具 · {DEFAULT_GAME_VERSION}",
         font=("Microsoft YaHei UI", 16, "bold"),
         anchor="w",
-    ).pack(side="left")
+    )
+    header_title.pack(side="left")
     version = str(application_build_info().get("version", "")).strip()
     version_label = tk.Label(
         header,
@@ -8883,18 +8899,13 @@ def gui_main() -> int:
     settings_panel.pack(fill="x", pady=(0, 6))
     runtime_settings_bar = tk.Frame(settings_panel)
     runtime_settings_bar.pack(fill="x")
-    tk.Label(runtime_settings_bar, text="运行模式").pack(
-        side="left",
-        padx=(0, 6),
-    )
+    tk.Label(runtime_settings_bar, text="运行模式").pack(side="left", padx=(0, 6))
     mode_frame = tk.Frame(runtime_settings_bar)
     mode_frame.pack(side="left", padx=(0, 18))
-
-    def persist_random_mode() -> None:
-        try:
-            save_random_mode(app_dir(), mode_var.get())
-        except (OSError, ValueError):
-            show_toast(root, "运行模式保存失败，请检查工具目录是否可写。")
+    three_mode_button = tk.Radiobutton(
+        mode_frame, text="3人（2.2固定）", variable=mode_var, value="three", state="disabled"
+    )
+    three_mode_button.pack(side="left")
 
     def persist_runtime_settings(_event=None) -> None:
         try:
@@ -8907,51 +8918,10 @@ def gui_main() -> int:
         except (OSError, ValueError, TypeError, tk.TclError):
             show_toast(root, "运行参数保存失败，请检查输入和工具目录。")
 
-    seven_mode_button = tk.Radiobutton(
-        mode_frame,
-        text="7人",
-        variable=mode_var,
-        value="seven",
-        command=persist_random_mode,
+    recruit_button = tk.Button(
+        runtime_settings_bar, text="查看招募结果", command=lambda: open_history()
     )
-    three_mode_button = tk.Radiobutton(
-        mode_frame,
-        text="3人",
-        variable=mode_var,
-        value="three",
-        command=persist_random_mode,
-    )
-    seven_mode_button.pack(side="left")
-    three_mode_button.pack(side="left", padx=(8, 0))
-    loop_check = tk.Checkbutton(
-        runtime_settings_bar,
-        text="循环随机（每轮15个）",
-        variable=loop_var,
-        command=persist_runtime_settings,
-    )
-    loop_check.pack(side="left", padx=(0, 18))
-    tk.Label(runtime_settings_bar, text="同时运行数量").pack(
-        side="left", padx=(0, 4)
-    )
-    concurrency_spin = tk.Spinbox(
-        runtime_settings_bar,
-        from_=1,
-        to=2_147_483_647,
-        width=7,
-        textvariable=concurrency_var,
-        justify="center",
-        command=persist_runtime_settings,
-    )
-    concurrency_spin.pack(side="left", padx=(0, 18))
-    concurrency_spin.bind("<FocusOut>", persist_runtime_settings)
-    concurrency_spin.bind("<Return>", persist_runtime_settings)
-    compatibility_check = tk.Checkbutton(
-        runtime_settings_bar,
-        text="兼容模式",
-        variable=compatibility_mode_var,
-        command=persist_runtime_settings,
-    )
-    compatibility_check.pack(side="left")
+    recruit_button.pack(side="right")
 
     rule_settings_bar = tk.Frame(settings_panel)
     rule_settings_bar.pack(fill="x", pady=(6, 0))
@@ -10309,8 +10279,6 @@ def gui_main() -> int:
                 command=start,
                 state="normal",
             )
-            seven_mode_button.configure(state="normal")
-            three_mode_button.configure(state="normal")
             loop_check.configure(state="normal")
             concurrency_spin.configure(state="normal")
             compatibility_check.configure(state="normal")
@@ -10497,7 +10465,8 @@ def gui_main() -> int:
         env["CCZ_AUTOSTART"] = "1"
         env["CCZ_NO_PAUSE"] = "1"
         env["CCZ_STOP_FILE"] = str(stop_file)
-        env["CCZ_RANDOM_MODE"] = mode_var.get()
+        env["CCZ_RANDOM_MODE"] = "three"
+        env["CCZ_GAME_VERSION"] = DEFAULT_GAME_VERSION
         env["CCZ_LOOP_RANDOM"] = "1" if loop_var.get() else "0"
         env["CCZ_CONCURRENT_MODE"] = "1"
         env["CCZ_CONCURRENT_COUNT"] = str(concurrency)
@@ -10533,8 +10502,6 @@ def gui_main() -> int:
             command=stop,
             state="normal",
         )
-        seven_mode_button.configure(state="disabled")
-        three_mode_button.configure(state="disabled")
         loop_check.configure(state="disabled")
         concurrency_spin.configure(state="disabled")
         compatibility_check.configure(state="disabled")
@@ -10645,6 +10612,9 @@ def gui_main() -> int:
 def main() -> int:
     global RESULT_BASE_DIR, DIAGNOSTIC_LOG_PATH, DIAGNOSTIC_LOG_WRITER
     global DIAGNOSTIC_SUMMARY_PATH, STOP_FILE_PATH
+    # Preserve legacy CLI invocations that have no game version argument.
+    os.environ["CCZ_GAME_VERSION"] = DEFAULT_GAME_VERSION
+    os.environ["CCZ_RANDOM_MODE"] = "three"
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     if hasattr(sys.stderr, "reconfigure"):
@@ -10658,7 +10628,7 @@ def main() -> int:
     ):
         game_executable = locate_game_executable()
         result_count = int(os.environ.get("CCZ_RESULT_COUNT", "15"))
-        mode = os.environ.get("CCZ_RANDOM_MODE", "seven")
+        mode = os.environ.get("CCZ_RANDOM_MODE", "three")
         worker_count = int(os.environ.get("CCZ_CONCURRENT_COUNT", "2"))
         stop_file_value = os.environ.get("CCZ_STOP_FILE", "")
         return run_concurrent_workers(

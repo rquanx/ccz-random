@@ -247,7 +247,7 @@ def _show_detail(parent, snapshot: dict[str, Any]) -> None:
     import tkinter as tk
 
     detail_dialog = tk.Toplevel(parent)
-    detail_dialog.title(f"第 {snapshot.get('slot', '-')} 号存档详情")
+    detail_dialog.title(f"{snapshot.get('gameVersion', '2.2')} · 第 {snapshot.get('slot', '-')} 号存档详情")
     detail_dialog.minsize(960, 620)
     detail_dialog.transient(parent)
     detail_dialog.configure(bg=COLORS["page"])
@@ -303,6 +303,10 @@ def _show_detail(parent, snapshot: dict[str, Any]) -> None:
         pady=7,
     )
     member_section.pack(fill="x", pady=(0, 7))
+    if snapshot.get("gameVersion") == "2.2" and snapshot.get("personnel"):
+        from ccz_randomizer.ui.recruitment import show_recruit_window
+        tk.Button(member_section, text="查看本次全部招募候选", command=lambda: show_recruit_window(
+            detail_dialog, snapshot=snapshot)).pack(anchor="e")
     _section_heading(member_section, "武将与特技", color=COLORS["blue"])
     member_grid = tk.Frame(member_section, bg=COLORS["surface"])
     member_grid.pack(fill="x")

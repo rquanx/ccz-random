@@ -257,6 +257,7 @@ def read_skill_memory(
     record_indices: Iterable[int],
     *,
     reader_factory: Callable[[int], object] = ProcessMemoryReader,
+    planned_job_ids: dict[int, int] | None = None,
 ) -> SkillMemorySnapshot:
     positions = tuple(record_indices)
     if not positions:
@@ -302,7 +303,9 @@ def read_skill_memory(
                 (record_index + 1) * RECORD_SIZE
             ]
             member_id = struct.unpack_from("<I", record, MEMBER_ID_OFFSET)[0]
-            job_id = record[JOB_ID_OFFSET]
+            job_id = (planned_job_ids or {}).get(record_index, record[JOB_ID_OFFSET])
+            if type(job_id) is not int or not 0 <= job_id <= 255:
+                raise ValueError(f"人物 {record_index} 的预生成兵种编号无效")
             personal_ids, job_ids = resolve_skill_ids(
                 record_index=record_index,
                 job_id=job_id,

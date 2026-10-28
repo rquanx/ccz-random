@@ -25,7 +25,7 @@ from ccz_randomizer.preferences import (
 
 
 class PreferencesTests(unittest.TestCase):
-    def test_missing_preferences_use_seven_person_mode(self) -> None:
+    def test_missing_preferences_use_three_person_mode(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             self.assertEqual(
                 DEFAULT_RANDOM_MODE,

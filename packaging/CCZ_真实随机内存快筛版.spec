@@ -76,7 +76,8 @@ a = Analysis(
     binaries=[],
     datas=original_datas + [
         (str(project_root / 'resources/app/random_s00.eex'), '.'),
-        (str(project_root / 'resources/app/original_s00.eex'), '.'),
+        (str(project_root / 'resources/app/2.2/original_s00.eex'), 'resources/app/2.2'),
+        (str(project_root / 'resources/data/recruitment/recruits_2.2.json'), 'resources/data/recruitment'),
         (str(project_root / 'resources/app/source_slot_20_help.png'), '.'),
         (
             str(
@@ -113,8 +114,8 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='2.10随机工具',
-    icon=str(project_root / 'resources/icons/2.10随机工具.ico'),
+    name='2.2随机工具',
+    icon=str(project_root / 'resources/icons/2.2随机工具.ico'),
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

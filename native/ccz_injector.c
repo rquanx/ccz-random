@@ -258,6 +258,10 @@ int wmain(int argc, wchar_t **argv) {
     ) {
         request.action = 47;
     } else if (
+        wcscmp(argv[3], L"async-sound") == 0 && argc == 4
+    ) {
+        request.action = 48;
+    } else if (
         wcscmp(argv[3], L"list-window") == 0 && argc == 6
     ) {
         request.action = 42;

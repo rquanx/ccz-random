@@ -6,8 +6,8 @@ from pathlib import Path
 
 
 PREFERENCES_FILE_NAME = "randomizer_settings.json"
-DEFAULT_RANDOM_MODE = "seven"
-VALID_RANDOM_MODES = frozenset({"three", "seven"})
+DEFAULT_RANDOM_MODE = "three"
+VALID_RANDOM_MODES = frozenset({"three"})
 DEFAULT_LOOP_RANDOM = False
 DEFAULT_CONCURRENCY = 1
 DEFAULT_COMPATIBILITY_MODE = False

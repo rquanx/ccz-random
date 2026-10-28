@@ -1,0 +1,110 @@
+{
+  "schemaVersion": 1,
+  "gameVersion": "2.2",
+  "phase": "title",
+  "capturedAt": "2026-10-28T18:27:41.025687+08:00",
+  "executableSha256": "e1bb57dd9f0820466e9104452fde3b178c0bc19e37bfd02e90f19c50e2c3cda3",
+  "personnel": [
+    {
+      "recordIndex": 0,
+      "memberId": 0,
+      "name": "曹操",
+      "jobId": 0,
+      "jobTalents": [],
+      "personalTalents": [
+        "能力辅助 防→攻精",
+        "超世之杰"
+      ],
+      "availabilityVerified": false
+    },
+    {
+      "recordIndex": 1,
+      "memberId": 1,
+      "name": "夏侯惇",
+      "jobId": 9,
+      "jobTalents": [
+        "回马攻击 20%"
+      ],
+      "personalTalents": [
+        "提升攻击范围",
+        "减少斜向伤害 40%"
+      ],
+      "availabilityVerified": false
+    },
+    {
+      "recordIndex": 2,
+      "memberId": 2,
+      "name": "张辽",
+      "jobId": 54,
+      "jobTalents": [],
+      "personalTalents": [
+        "不惧敌围 3%"
+      ],
+      "availabilityVerified": false
+    },
+    {
+      "recordIndex": 3,
+      "memberId": 6,
+      "name": "关羽",
+      "jobId": 57,
+      "jobTalents": [
+        "致命一击"
+      ],
+      "personalTalents": [
+        "攻击绝对命中",
+        "万夫莫敌 3%"
+      ],
+      "availabilityVerified": false
+    },
+    {
+      "recordIndex": 4,
+      "memberId": 5,
+      "name": "曹彰",
+      "jobId": 73,
+      "jobTalents": [
+        "突击移动",
+        "椎锋突进 5%"
+      ],
+      "personalTalents": [
+        "再次移动",
+        "忽视能力 全能力"
+      ],
+      "availabilityVerified": false
+    },
+    {
+      "recordIndex": 5,
+      "memberId": 3,
+      "name": "曹仁",
+      "jobId": 39,
+      "jobTalents": [
+        "仇恨攻击 +12%"
+      ],
+      "personalTalents": [
+        "鬼神之勇 12%"
+      ],
+      "availabilityVerified": false
+    },
+    {
+      "recordIndex": 6,
+      "memberId": 7,
+      "name": "夏侯渊",
+      "jobId": 12,
+      "jobTalents": [],
+      "personalTalents": [
+        "附加伤害 攻击 10%"
+      ],
+      "availabilityVerified": false
+    },
+    {
+      "recordIndex": 7,
+      "memberId": 8,
+      "name": "张郃",
+      "jobId": 51,
+      "jobTalents": [],
+      "personalTalents": [
+        "减轻物理损伤 -30%"
+      ],
+      "availabilityVerified": false
+    }
+  ]
+}

@@ -8377,6 +8377,10 @@ def patch_runtime(
         print(f"游戏原生随机已触发: {before}->{current}")
         check_stop_requested()
         self._r0_initial_three = read_job_ids(pid, JOB_POSITIONS_R0)
+        if os.environ.get("CCZ_GAME_VERSION") == "2.2":
+            # Capture the complete job catalog immediately after the roll so
+            # failed score attempts can open the same detail entry.
+            self._job_talents_snapshot = read_job_talents(pid)
 
         if not self.checkPeopleAtR0():
             diagnostic_log(
@@ -8492,7 +8496,6 @@ def patch_runtime(
             print("用户进度: 本轮最终结果=合格，开始保存")
             save_qualified_result()
             if os.environ.get("CCZ_GAME_VERSION") == "2.2":
-                self._job_talents_snapshot = read_job_talents(pid)
                 catalog = load_catalog()
                 self._personnel_snapshot = attach_recruitment(read_personnel(
                     pid, [person["recordIndex"] for person in catalog], planned=True,

@@ -13,6 +13,15 @@ FIXTURES = Path(__file__).resolve().parents[1] / "fixtures/personnel_22"
 
 
 class JobTalentsTests(unittest.TestCase):
+    def test_runtime_catalog_includes_22_new_talents(self):
+        catalog_path = Path(__file__).resolve().parents[2] / "resources/data/skills/runtime_skill_catalog.json"
+        catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+        by_id = {row["id"]: row["name"] for row in catalog}
+        self.assertEqual(
+            {237: "超世之杰", 238: "战必先登", 239: "古之恶来"},
+            {key: by_id[key] for key in (237, 238, 239)},
+        )
+
     def test_live_catalog_matches_personnel_from_same_recorded_game(self):
         jobs = read_job_talents(0, reader_factory=RecordedReader)
         by_id = {row["jobId"]: row["talents"] for row in jobs}

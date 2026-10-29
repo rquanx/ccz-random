@@ -1657,5 +1657,26 @@
     "baseName": "娇纵三江",
     "formatType": 0,
     "parameter": 1
+  },
+  {
+    "id": 237,
+    "name": "超世之杰",
+    "baseName": "超世之杰",
+    "formatType": 0,
+    "parameter": 0
+  },
+  {
+    "id": 238,
+    "name": "战必先登",
+    "baseName": "战必先登",
+    "formatType": 0,
+    "parameter": 0
+  },
+  {
+    "id": 239,
+    "name": "古之恶来",
+    "baseName": "古之恶来",
+    "formatType": 0,
+    "parameter": 0
   }
 ]

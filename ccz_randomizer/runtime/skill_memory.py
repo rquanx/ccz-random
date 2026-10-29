@@ -58,6 +58,7 @@ class SkillMemorySnapshot:
     direct_job_match: bool
     catalog: tuple[SkillDefinition, ...]
     members: tuple[MemberSkillMemory, ...]
+    rule_table: bytes = b""
 
 
 class ProcessMemoryReader:
@@ -356,6 +357,7 @@ def read_skill_memory(
     return SkillMemorySnapshot(
         record_array_base=record_array_base,
         rule_table_base=rule_table_base,
+        rule_table=rule_table,
         direct_job_match=direct_job_match,
         catalog=tuple(
             definitions[skill_id] for skill_id in range(SKILL_RULE_COUNT)

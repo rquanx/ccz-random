@@ -78,7 +78,6 @@ a = Analysis(
         (str(project_root / 'resources/app/random_s00.eex'), '.'),
         (str(project_root / 'resources/app/2.2/original_s00.eex'), 'resources/app/2.2'),
         (str(project_root / 'resources/data/recruitment/recruits_2.2.json'), 'resources/data/recruitment'),
-        (str(project_root / 'resources/data/recruitment/job_talents_2.2.json'), 'resources/data/recruitment'),
         (str(project_root / 'resources/app/source_slot_20_help.png'), '.'),
         (
             str(

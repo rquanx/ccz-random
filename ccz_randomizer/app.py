@@ -102,6 +102,7 @@ from ccz_randomizer.preferences import (
 )
 from ccz_randomizer.game_versions import DEFAULT_GAME_VERSION
 from ccz_randomizer.runtime.personnel_memory import read_personnel
+from ccz_randomizer.runtime.job_talents import read_job_talents
 from ccz_randomizer.recruitment_catalog import load_catalog, attach_recruitment
 from ccz_randomizer.workflow.randomization import (
     AcceptedResult,
@@ -434,48 +435,8 @@ FORMATTED_EQUIPMENT_EFFECTS = {
     0x73: ("转移伤害", "%", 0),
 }
 
-JOB_MAP = {
-    0: ("群雄", 8, "ALL_ROUNDER"),
-    3: ("轻步兵", 6, "WARRIOR"),
-    6: ("弓兵", 5, "WARRIOR"),
-    9: ("轻骑兵", 5, "WARRIOR"),
-    12: ("弓骑兵", 5, "WARRIOR"),
-    15: ("轻炮车", 8, "WARRIOR"),
-    18: ("游侠", 6, "WARRIOR"),
-    21: ("山贼", 4, "WARRIOR"),
-    24: ("策士", 7, "MASTER"),
-    27: ("医师", 7, "MASTER"),
-    30: ("道士", 7, "MASTER"),
-    33: ("骑策士", 7, "ALL_ROUNDER"),
-    36: ("女侍", 4, "MASTER"),
-    39: ("刀兵", 6, "WARRIOR"),
-    42: ("枪兵", 4, "WARRIOR"),
-    45: ("先锋兵", 5, "WARRIOR"),
-    48: ("水贼", 4, "WARRIOR"),
-    51: ("轻战车", 6, "WARRIOR"),
-    54: ("重骑兵", 6, "WARRIOR"),
-    57: ("校尉", 6, "ALL_ROUNDER"),
-    60: ("西凉骑", 5, "WARRIOR"),
-    61: ("勇将", 9, "WARRIOR"),
-    62: ("游牧骑", 9, "WARRIOR"),
-    63: ("驯兽师", 7, "WARRIOR"),
-    64: ("杀手", 7, "WARRIOR"),
-    65: ("都督", 9, "ALL_ROUNDER"),
-    66: ("咒术师", 9, "MASTER"),
-    67: ("玉龙军", 9, "ALL_ROUNDER"),
-    68: ("辎重队", 9, "ALL_ROUNDER"),
-    69: ("神羿骑", 7, "WARRIOR"),
-    70: ("机关", 7, "WARRIOR"),
-    71: ("名将", 9, "ALL_ROUNDER"),
-    72: ("皇帝", 10, "ALL_ROUNDER"),
-    73: ("虎豹骑", 9, "WARRIOR"),
-    74: ("穿杨手", 7, "WARRIOR"),
-    75: ("虎贲军", 8, "WARRIOR"),
-    76: ("力士", 8, "WARRIOR"),
-    77: ("云川卫", 8, "WARRIOR"),
-    78: ("宿卫骑", 9, "WARRIOR"),
-    79: ("魔王", 12, "ALL_ROUNDER"),
-}
+from ccz_randomizer.jobs import JOB_MAP
+
 
 TEAM_MEMBERS = (
     ("曹操", "ALL_ROUNDER", "WARRIOR"),
@@ -828,6 +789,12 @@ def result_detail_for_runner(
         ),
         "job": getattr(runner, "_job_evaluation_detail", None),
         "skill": getattr(runner, "_skill_evaluation_detail", None),
+        "schemaVersion": 1,
+        "gameVersion": DEFAULT_GAME_VERSION,
+        "slot": result_slot,
+        "phase": "randomized",
+        "personnel": getattr(runner, "_personnel_snapshot", None),
+        "jobTalents": getattr(runner, "_job_talents_snapshot", None),
     }
 
 
@@ -923,6 +890,7 @@ def build_history_result_snapshot(
         "gameVersion": DEFAULT_GAME_VERSION,
         "phase": "randomized" if getattr(runner, "_personnel_snapshot", None) else "unknown",
         "personnel": getattr(runner, "_personnel_snapshot", None),
+        "jobTalents": getattr(runner, "_job_talents_snapshot", None),
         "createdAt": dt.datetime.now().astimezone().isoformat(
             timespec="seconds"
         ),
@@ -8096,6 +8064,7 @@ def patch_runtime(
         self._job_evaluation_detail = None
         self._skill_evaluation_detail = None
         self._personnel_snapshot = None
+        self._job_talents_snapshot = None
         diagnostic_log(
             "random_run_start",
             pid=pid,
@@ -8523,6 +8492,7 @@ def patch_runtime(
             print("用户进度: 本轮最终结果=合格，开始保存")
             save_qualified_result()
             if os.environ.get("CCZ_GAME_VERSION") == "2.2":
+                self._job_talents_snapshot = read_job_talents(pid)
                 catalog = load_catalog()
                 self._personnel_snapshot = attach_recruitment(read_personnel(
                     pid, [person["recordIndex"] for person in catalog], planned=True,
@@ -9572,89 +9542,8 @@ def gui_main() -> int:
         output.configure(state="disabled")
 
     def show_result_detail(detail: dict) -> None:
-        view = format_result_detail(detail)
-        dialog = tk.Toplevel(root)
-        dialog.title("评分详情")
-        dialog.geometry("720x590")
-        dialog.minsize(620, 460)
-        dialog.transient(root)
-
-        body = tk.Frame(dialog, padx=18, pady=16)
-        body.pack(fill="both", expand=True)
-        tk.Label(
-            body,
-            text=view["title"],
-            font=("Microsoft YaHei UI", 13, "bold"),
-            anchor="w",
-        ).pack(fill="x")
-        tk.Label(
-            body,
-            text=f"{view['mode']}　结果：{view['status']}",
-            font=("Microsoft YaHei UI", 10),
-            fg=(
-                "#16794b"
-                if view["status"] == "合格"
-                else "#b42318"
-            ),
-            anchor="w",
-        ).pack(fill="x", pady=(5, 12))
-
-        detail_text = scrolledtext.ScrolledText(
-            body,
-            wrap="word",
-            font=("Microsoft YaHei UI", 10),
-            bg="#ffffff",
-            relief="solid",
-            borderwidth=1,
-            padx=12,
-            pady=10,
-        )
-        detail_text.pack(fill="both", expand=True)
-        detail_text.tag_configure(
-            "section",
-            font=("Microsoft YaHei UI", 11, "bold"),
-            spacing1=10,
-            spacing3=5,
-        )
-        detail_text.tag_configure("pass", foreground="#16794b")
-        detail_text.tag_configure("fail", foreground="#b42318")
-        detail_text.tag_configure("muted", foreground="#666666")
-        for section in view["sections"]:
-            detail_text.insert("end", section["title"] + "\n", "section")
-            for row in section["rows"]:
-                detail_text.insert("end", row + "\n")
-            state = section["qualified"]
-            if state is None:
-                detail_text.insert(
-                    "end",
-                    section["explanation"] + "\n",
-                    "muted",
-                )
-            else:
-                detail_text.insert(
-                    "end",
-                    ("通过： " if state else "未通过： ")
-                    + section["explanation"]
-                    + "\n",
-                    "pass" if state else "fail",
-                )
-            detail_text.insert("end", "\n")
-        detail_text.configure(state="disabled")
-
-        tk.Button(
-            body,
-            text="关闭",
-            width=10,
-            command=dialog.destroy,
-        ).pack(anchor="e", pady=(12, 0))
-        dialog.update_idletasks()
-        x = root.winfo_rootx() + max(
-            0, (root.winfo_width() - dialog.winfo_width()) // 2
-        )
-        y = root.winfo_rooty() + max(
-            0, (root.winfo_height() - dialog.winfo_height()) // 2
-        )
-        dialog.geometry(f"+{x}+{y}")
+        from ccz_randomizer.ui.result_details import show_score_detail
+        show_score_detail(root, detail)
 
     def show_concurrent_slot_detail(
         round_number: int,

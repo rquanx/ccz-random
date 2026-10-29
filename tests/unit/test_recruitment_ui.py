@@ -31,10 +31,10 @@ class RecruitmentHistoryTests(unittest.TestCase):
 
 class JobTalentsTests(unittest.TestCase):
     def test_all_22_jobs_have_valid_talent_catalog(self):
-        jobs = load_job_talents()
+        jobs = load_job_talents(saved_snapshot())
         self.assertEqual(40, len(jobs))
         self.assertEqual({0, 79}, {job["jobId"] for job in jobs} & {0, 79})
-        self.assertTrue(any(job["talents"] for job in jobs))
+        self.assertTrue(all(job["talents"] is None for job in jobs))
 
 
 

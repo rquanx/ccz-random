@@ -23,6 +23,7 @@ from ccz_randomizer.runtime.game_sandbox import (
     ensure_hidden_runtime_directory,
     remove_sandbox_tree,
 )
+from ccz_randomizer.runtime.result_retention import cleanup_result_directory
 CONCURRENT_EVENT_PREFIX = "@@CCZ_CONCURRENT_EVENT@@"
 CONCURRENT_HEARTBEAT_LINE = "@@CCZ_CONCURRENT_HEARTBEAT@@"
 CONCURRENT_SLOT_ASSIGNED_PREFIX = "@@CCZ_SLOT_ASSIGNED@@"
@@ -808,6 +809,7 @@ def _run_continuous_loop(
             raise CompatibilitySandboxSetupError(str(exc)) from exc
         raise
     result_root = _unique_loop_result_root(base_dir)
+    cleanup_result_directory(base_dir / "randResult", protected=(result_root,))
     timing = _TimingRecorder(
         base_dir,
         mode=mode,
@@ -1130,6 +1132,7 @@ def _run_continuous_loop(
                 flush=True,
             )
             next_publish_round += 1
+            cleanup_result_directory(result_root, protected=(round_state.archived_path,))
 
     try:
         launch_next(create_lane(1))

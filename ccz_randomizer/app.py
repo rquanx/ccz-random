@@ -53,6 +53,7 @@ from ccz_randomizer.runtime.log_retention import (
     cleanup_log_directory,
     trim_text_widget,
 )
+from ccz_randomizer.runtime.result_retention import cleanup_result_directory
 from ccz_randomizer.runtime.audio_recovery import (
     ProcessAudioMuteMonitor,
     restore_process_audio_sessions,
@@ -10554,6 +10555,7 @@ def main() -> int:
     )
     log_dir.mkdir(parents=True, exist_ok=True)
     cleanup_result = cleanup_log_directory(log_dir)
+    cleanup_result_directory(RESULT_BASE_DIR / "randResult")
     worker_suffix = (
         f"_worker{os.environ['CCZ_CONCURRENT_WORKER']}"
         if os.environ.get("CCZ_CONCURRENT_WORKER")

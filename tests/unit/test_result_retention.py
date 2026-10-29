@@ -32,3 +32,16 @@ class ResultRetentionTests(unittest.TestCase):
             cleanup_result_directory(root, limit_bytes=50, target_bytes=0, protected=(active.parent,))
             self.assertFalse(old.parent.exists())
             self.assertTrue(active.exists())
+
+    def test_unrecognized_files_are_never_removed(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            user_file = root / "my-notes.txt"
+            user_dir = root / "keep-this"
+            user_dir.mkdir()
+            user_file.write_bytes(b"keep")
+            (user_dir / "data.bin").write_bytes(b"keep")
+            result = cleanup_result_directory(root, limit_bytes=1, target_bytes=0)
+            self.assertEqual(0, result.removed_files)
+            self.assertTrue(user_file.exists())
+            self.assertTrue(user_dir.exists())

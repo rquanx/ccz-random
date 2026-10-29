@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
@@ -8,6 +9,10 @@ from pathlib import Path
 
 DEFAULT_RESULT_LIMIT_BYTES = 2 * 1024 * 1024 * 1024
 DEFAULT_RESULT_TARGET_BYTES = 1536 * 1024 * 1024
+_RESULT_IMAGE_PATTERN = re.compile(
+    r"^\d{4}-\d{2}-\d{2} \d{2}\.\d{2}\.\d{2}(?: \(\d+\))?-random\.png$",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True)
@@ -33,12 +38,13 @@ def _managed_entries(root: Path) -> list[Path]:
     if not root.is_dir():
         return []
     entries: list[Path] = []
-    # Group each run directory independently so retaining a recent run does
-    # not accidentally delete the whole panels/loop tree.
+    # Only collect paths created by the result writer. User files placed in
+    # randResult are intentionally invisible to retention.
+    managed_containers = {"panels", "loop", "循环随机"}
     for child in root.iterdir():
-        if child.is_dir() and child.name in {"panels", "loop", "循环随机"}:
+        if child.is_dir() and child.name.casefold() in {name.casefold() for name in managed_containers}:
             entries.extend(item for item in child.iterdir())
-        else:
+        elif child.is_file() and _RESULT_IMAGE_PATTERN.fullmatch(child.name):
             entries.append(child)
     return entries
 
@@ -71,7 +77,7 @@ def cleanup_result_directory(
         total += size
     removed_files = removed_bytes = 0
     for _mtime, path, size in sorted(entries):
-        if total <= limit:
+        if total <= target:
             break
         try:
             if path.is_dir():

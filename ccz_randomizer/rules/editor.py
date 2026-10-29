@@ -7,6 +7,8 @@ from datetime import datetime
 from pathlib import Path
 from tkinter import filedialog, messagebox, simpledialog, ttk
 from typing import Callable
+from ccz_randomizer.runtime.skill_memory import normalize_skill_name
+
 
 from ccz_randomizer.rules.config import (
     AFFINITY_TYPES,
@@ -24,6 +26,18 @@ from ccz_randomizer.rules.config import (
     save_rule_config,
     validate_rule_config,
 )
+
+
+def skill_override(overrides: dict, name: str, fallback):
+    """Resolve saved settings using the same 2.2 names as live scoring."""
+    if name in overrides:
+        return overrides[name]
+    normalized = normalize_skill_name(name)
+    return next(
+        (value for key, value in reversed(tuple(overrides.items()))
+         if normalize_skill_name(key) == normalized),
+        fallback,
+    )
 
 
 TYPE_LABELS = {
@@ -2103,10 +2117,11 @@ def show_rule_editor(
                     skill_defaults[skill_name],
                 )
                 variable.set(
-                    f"{skill_overrides.get(skill_name, fallback_score):g}"
+                    f"{skill_override(skill_overrides, skill_name, fallback_score):g}"
                 )
                 skill_type_vars[skill_name].set(
-                    skill_type_overrides.get(
+                    skill_override(
+                        skill_type_overrides,
                         skill_name,
                         skill_default_types[skill_name],
                     )

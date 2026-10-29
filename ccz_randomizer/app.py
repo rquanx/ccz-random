@@ -481,7 +481,7 @@ def canonical_skill_names() -> tuple[str, ...]:
 
 
 @lru_cache(maxsize=1)
-def runtime_skill_catalog_names() -> tuple[str, ...]:
+def runtime_skill_catalog_rows() -> tuple[dict, ...]:
     if getattr(sys, "frozen", False):
         path = (
             Path(sys._MEIPASS)
@@ -500,7 +500,11 @@ def runtime_skill_catalog_names() -> tuple[str, ...]:
         )
     rows = json.loads(path.read_text(encoding="utf-8"))
     rows.sort(key=lambda row: int(row["id"]))
-    return tuple(str(row["name"]) for row in rows)
+    return tuple(rows)
+
+
+def runtime_skill_catalog_names() -> tuple[str, ...]:
+    return tuple(str(row["name"]) for row in runtime_skill_catalog_rows())
 
 
 def load_member_skills_from_memory(
@@ -631,14 +635,19 @@ def skill_score_catalog() -> tuple[tuple[str, float, str, str], ...]:
             os.chdir(previous_cwd)
 
         catalog = []
-        seen = set()
         canonical_names = canonical_skill_names()
-        for index, skill in enumerate(CCZ_MODELS.skills):
-            name = canonical_names[index]
-            if name in seen:
-                continue
-            seen.add(name)
-            if task_module.CczUtils.isSkillSpecial(skill):
+        models_by_name = {
+            normalize_skill_name(name): CCZ_MODELS.skills[index]
+            for index, name in enumerate(canonical_names)
+        }
+        for row in runtime_skill_catalog_rows():
+            name = row["name"]
+            skill = models_by_name.get(normalize_skill_name(name))
+            if skill is None:
+                skill = models_by_name.get(normalize_skill_name(row["baseName"]))
+            if skill is None:
+                default_score, category = 0.0, "其他"
+            elif task_module.CczUtils.isSkillSpecial(skill):
                 default_score, category = 5.0, "特殊"
             elif task_module.CczUtils.isSkillImba(skill):
                 default_score, category = 2.0, "强力"
@@ -651,15 +660,6 @@ def skill_score_catalog() -> tuple[tuple[str, float, str, str], ...]:
             if type_name not in {"ALL_ROUNDER", "WARRIOR", "MASTER"}:
                 type_name = "ALL_ROUNDER"
             catalog.append((name, default_score, category, type_name))
-        seen_normalized = {
-            normalize_skill_name(name) for name in seen
-        }
-        for name in runtime_skill_catalog_names():
-            normalized = normalize_skill_name(name)
-            if not name or normalized in seen_normalized:
-                continue
-            seen_normalized.add(normalized)
-            catalog.append((name, 0.0, "其他", "ALL_ROUNDER"))
         _SKILL_SCORE_CATALOG = tuple(catalog)
         return _SKILL_SCORE_CATALOG
 

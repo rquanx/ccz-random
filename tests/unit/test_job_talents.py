@@ -21,6 +21,9 @@ class JobTalentsTests(unittest.TestCase):
             {237: "超世之杰", 238: "战必先登", 239: "古之恶来"},
             {key: by_id[key] for key in (237, 238, 239)},
         )
+        self.assertIn("辅助攻击格挡 +20%", by_id.values())
+        self.assertIn("辅助全格挡 +16%", by_id.values())
+        self.assertIn("辅助连击率 25%", by_id.values())
 
     def test_live_catalog_matches_personnel_from_same_recorded_game(self):
         jobs = read_job_talents(0, reader_factory=RecordedReader)

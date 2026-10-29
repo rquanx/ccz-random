@@ -385,6 +385,17 @@ _IGNORED_NAME_CHARACTERS = re.compile(
     r"[\s\-—－_()（）:：+＋%％]"
 )
 
+# Confirmed numeric changes in the 2.2 rule table. Keep saved custom scores
+# attached to the same talent; do not alias changed ability/strategy targets.
+_SKILL_22_NUMERIC_ALIASES = {
+    "辅助攻击格挡24": "辅助攻击格挡20",
+    "辅助全格挡18": "辅助全格挡16",
+    "减轻远距损伤50": "减轻远距损伤40",
+    "强化反击20": "强化反击15",
+    "盾反20": "盾反15",
+    "辅助连击率40": "辅助连击率25",
+}
+
 
 def normalize_skill_name(name: str) -> str:
     normalized = str(name).strip()
@@ -392,4 +403,5 @@ def normalize_skill_name(name: str) -> str:
         normalized = normalized.replace("→", "替")
     elif normalized.startswith("能力辅助"):
         normalized = normalized.replace("→", "辅")
-    return _IGNORED_NAME_CHARACTERS.sub("", normalized)
+    normalized = _IGNORED_NAME_CHARACTERS.sub("", normalized)
+    return _SKILL_22_NUMERIC_ALIASES.get(normalized, normalized)

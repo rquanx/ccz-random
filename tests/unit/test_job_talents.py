@@ -73,6 +73,7 @@ class JobTalentsTests(unittest.TestCase):
         buttons["招募人员信息"].invoke()
         root.update()
         recruit_window = next(w for w in descendants(root) if isinstance(w, tk.Toplevel) and w.title() == "2.2 招募人物")
-        labels = [w.cget("text") for w in descendants(recruit_window) if isinstance(w, ttk.Label)]
-        self.assertIn("曹仁", labels)
-        self.assertIn("共通 · 颍川之战", labels)
+        canvas = next(w for w in descendants(recruit_window) if isinstance(w, tk.Canvas))
+        texts = [canvas.itemcget(item, "text") for item in canvas.find_all() if canvas.type(item) == "text"]
+        self.assertIn("曹仁", texts)
+        self.assertIn("共通 · 颍川之战", texts)

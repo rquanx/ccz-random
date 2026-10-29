@@ -5,6 +5,7 @@ import unittest
 
 from ccz_randomizer.history import HistoryRepository
 from ccz_randomizer.ui.recruitment import show_recruit_window
+from ccz_randomizer.ui.job_talents import load_job_talents
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures/personnel_22"
 
@@ -26,6 +27,15 @@ class RecruitmentHistoryTests(unittest.TestCase):
             repository.save_result(round_id, snapshot)
             reopened = HistoryRepository(Path(directory))
             self.assertEqual([snapshot], reopened.get_round_results(round_id))
+
+
+class JobTalentsTests(unittest.TestCase):
+    def test_all_22_jobs_have_valid_talent_catalog(self):
+        jobs = load_job_talents()
+        self.assertEqual(40, len(jobs))
+        self.assertEqual({0, 79}, {job["jobId"] for job in jobs} & {0, 79})
+        self.assertTrue(any(job["talents"] for job in jobs))
+
 
 
 class RecruitmentWindowTests(unittest.TestCase):

@@ -303,10 +303,14 @@ def _show_detail(parent, snapshot: dict[str, Any]) -> None:
         pady=7,
     )
     member_section.pack(fill="x", pady=(0, 7))
+    action_bar = tk.Frame(member_section, bg=COLORS["surface"])
+    action_bar.pack(fill="x", pady=(0, 7))
+    from ccz_randomizer.ui.job_talents import show_job_talents_window
+    tk.Button(action_bar, text="兵种天赋", command=lambda: show_job_talents_window(detail_dialog)).pack(side="right", padx=(6, 0))
     if snapshot.get("gameVersion") == "2.2" and snapshot.get("personnel"):
         from ccz_randomizer.ui.recruitment import show_recruit_window
-        tk.Button(member_section, text="查看本次全部招募候选", command=lambda: show_recruit_window(
-            detail_dialog, snapshot=snapshot)).pack(anchor="e")
+        tk.Button(action_bar, text="招募人员信息", command=lambda: show_recruit_window(
+            detail_dialog, snapshot=snapshot)).pack(side="right")
     _section_heading(member_section, "武将与特技", color=COLORS["blue"])
     member_grid = tk.Frame(member_section, bg=COLORS["surface"])
     member_grid.pack(fill="x")

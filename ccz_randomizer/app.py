@@ -9365,7 +9365,7 @@ def gui_main() -> int:
             app_dir(),
             current_rules,
             JOB_MAP,
-            TEAM_MEMBERS,
+            INITIAL_TEAM_MEMBERS,
             skill_score_catalog(),
             rules_saved,
             save_notice,

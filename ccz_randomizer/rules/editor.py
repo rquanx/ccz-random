@@ -16,7 +16,6 @@ from ccz_randomizer.rules.config import (
     JOB_AFFINITY_TYPES,
     SKILL_AFFINITY_TYPES,
     SIMPLE_PRESET_OPTIONS,
-    TEAM_MEMBER_NAMES,
     THREE_MEMBER_NAMES,
     apply_simple_settings,
     build_rule_export,
@@ -60,8 +59,8 @@ ADVANCED_HELP_SECTIONS = (
         """【随机结果怎样才会保存】
 每次随机都会先检查兵种，再检查特技。兵种和特技都合格，才会保存结果。
 
-3人：检查曹操、夏侯惇、夏侯渊的兵种和特技。
-7人：检查全部7人的兵种和特技。
+2.2 固定检查初始3人：曹操、夏侯惇、夏侯渊的兵种和特技。
+后续招募人员可查看和筛选，暂不参与合格判断。
 
 【简单模式和高级模式】
 普通用户建议使用简单模式，只需要选择“宽松、标准、严格”。
@@ -76,25 +75,21 @@ ADVANCED_HELP_SECTIONS = (
     (
         "阶段门槛",
         """【初始3人兵种合格门槛】
-只随机3人时使用。默认按三人的兵种平均分判断，也可以改为按达到门槛的人数判断。
+检查初始3人时使用。默认按三人的兵种平均分判断，也可以改为按达到门槛的人数判断。
 调高：兵种要求更严格，进入特技检查的结果更少。
 调低：兵种要求更宽松，但仍然需要通过特技检查。
-
-【7人兵种合格门槛】
-7人时使用。默认按7人的兵种平均分判断，也可以改为按达到门槛的人数判断。
-调高：更难通过。调低：更容易进入特技检查。
 
 【兵种合格方式】
 平均分达到门槛：队伍兵种平均分大于或等于门槛时合格。
 任意人数达到门槛：达到门槛的个人数量大于或等于指定人数时合格。例如门槛为7、人数为3，表示至少3人的个人兵种分大于或等于7。
 
 【指定参与判断的人物】
-只在“按达标人数判断”时生效。默认选择当前模式的全部人物。
+只在“按达标人数判断”时生效。默认选择初始3人。
 你可以只选择希望参与判断的人物，未选人物仍会正常随机和显示，但不会计入达标人数。
 例如只选择曹操、夏侯惇，并将人数设为2，表示两人的个人兵种分都必须达到门槛。
 
 【普通兵种质量分界】
-决定本轮使用哪一个特技合格门槛，3人和7人模式都会使用。
+根据初始3人的兵种平均分，决定本轮使用哪一个特技合格门槛。
 兵种平均分达到该数值时，使用“普通兵种组合所需特技分”；未达到时，使用要求更高的“较低兵种组合所需特技分”。
 
 【高兵种质量分界】
@@ -179,7 +174,7 @@ ADVANCED_HELP_SECTIONS = (
     (
         "特技评分",
         """【适用范围】
-3人和7人都会检查特技。3人模式统计初始3人的特技，7人模式统计全部7人的特技。
+只统计曹操、夏侯惇、夏侯渊的兵种天赋与人物天赋，按初始3人合计特技分判断；后续招募人员不计入。
 
 【优质、强力、特殊特技基础分】
 这三个数值同时是该档次的默认分数和分档门槛。
@@ -1173,6 +1168,9 @@ def show_rule_editor(
     loading = False
     editable_widgets: list[tk.Widget] = []
 
+    tk.Label(editor, text="2.2 · 固定随机初始3人：曹操、夏侯惇、夏侯渊\n兵种与特技均参与判断；后续招募人员仅供查看和筛选。",
+             justify="left", anchor="w", padx=14, pady=10, fg="#667085").pack(fill="x")
+
     top = tk.Frame(editor, padx=14, pady=12)
     top.pack(fill="x")
     tk.Label(top, text="规则方案").pack(side="left")
@@ -1216,7 +1214,7 @@ def show_rule_editor(
         (
             "skillQuality",
             "特技质量要求",
-            "控制七人模式需要达到的特技综合质量。",
+            "控制初始3人需要达到的特技总分，招募人员不计入。",
         ),
         (
             "strongSkillImportance",
@@ -1289,7 +1287,6 @@ def show_rule_editor(
     qualification_count_vars: dict[str, tk.StringVar] = {}
     qualification_member_values: dict[str, list[str]] = {
         "three": list(THREE_MEMBER_NAMES),
-        "seven": list(TEAM_MEMBER_NAMES),
     }
     qualification_controls: dict[
         str,
@@ -1320,8 +1317,8 @@ def show_rule_editor(
         threshold_tab,
         0,
         "three_min",
-        "3人兵种合格门槛",
-        "3人模式时使用",
+        "初始3人兵种合格门槛",
+        "曹操、夏侯惇、夏侯渊",
     )
     qualification_mode_labels = {
         "按平均分判断": "average",
@@ -1516,14 +1513,6 @@ def show_rule_editor(
     add_qualification_control(0, "three", THREE_MEMBER_NAMES)
     add_number(
         threshold_tab,
-        1,
-        "seven_min",
-        "7人兵种合格门槛",
-        "低于门槛时直接重新随机",
-    )
-    add_qualification_control(1, "seven", TEAM_MEMBER_NAMES)
-    add_number(
-        threshold_tab,
         2,
         "normal_average",
         "普通兵种质量分界",
@@ -1582,10 +1571,7 @@ def show_rule_editor(
     editable_widgets.extend((affinity_check, balance_check))
 
     affinity_vars: dict[str, tuple[tk.StringVar, tk.StringVar]] = {}
-    affinity_member_names = tuple(
-        member[0] if isinstance(member, tuple) else str(member)
-        for member in team_members
-    )
+    affinity_member_names = THREE_MEMBER_NAMES
     for member_name in affinity_member_names:
         affinity_vars[member_name] = (tk.StringVar(), tk.StringVar())
 
@@ -1927,16 +1913,6 @@ def show_rule_editor(
         }
         profile["sevenPerson"].update(
             {
-                "minJobAverage": float(number_vars["seven_min"].get()),
-                "jobQualificationMode": qualification_mode_labels[
-                    qualification_mode_vars["seven"].get()
-                ],
-                "minQualifiedCount": int(
-                    qualification_count_vars["seven"].get()
-                ),
-                "qualifiedMembers": list(
-                    qualification_member_values["seven"]
-                ),
                 "normalJobAverage": float(
                     number_vars["normal_average"].get()
                 ),
@@ -2006,13 +1982,13 @@ def show_rule_editor(
                 },
             }
         )
-        profile["memberAffinity"] = {
+        profile["memberAffinity"].update({
             member: {
                 "primaryType": TYPE_VALUES[primary.get()],
                 "secondaryType": TYPE_VALUES[secondary.get()],
             }
             for member, (primary, secondary) in affinity_vars.items()
-        }
+        })
         if profile["editorMode"] == "simple":
             apply_simple_settings(profile)
 
@@ -2029,7 +2005,6 @@ def show_rule_editor(
             scoring = profile["jobScoring"]
             values = {
                 "three_min": three["minJobAverage"],
-                "seven_min": seven["minJobAverage"],
                 "normal_average": seven["normalJobAverage"],
                 "high_average": seven["highJobAverage"],
                 "medium_skills": seven["mediumMinSkillScore"],
@@ -2046,10 +2021,8 @@ def show_rule_editor(
             }
             for key, value in values.items():
                 number_vars[key].set(f"{value:g}")
-            for key, settings in (("three", three), ("seven", seven)):
-                allowed_members = (
-                    THREE_MEMBER_NAMES if key == "three" else TEAM_MEMBER_NAMES
-                )
+            for key, settings in (("three", three),):
+                allowed_members = THREE_MEMBER_NAMES
                 qualification_member_values[key] = list(
                     settings["qualifiedMembers"]
                 )

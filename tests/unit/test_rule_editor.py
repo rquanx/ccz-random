@@ -273,7 +273,7 @@ class RuleEditorTests(unittest.TestCase):
                     self.assertIn("导入规则", buttons)
                     self.assertIn("导出规则", buttons)
                     self.assertIn("选择人员（3/3）", buttons)
-                    self.assertIn("选择人员（7/7）", buttons)
+                    self.assertNotIn("选择人员（7/7）", buttons)
                     self.assertIn("设置人物倾向", buttons)
                     self.assertNotIn("设为当前规则", buttons)
                     buttons["新建副本"].invoke()
@@ -583,7 +583,10 @@ class RuleEditorTests(unittest.TestCase):
                         for widget in descendants(dialog)
                         if isinstance(widget, ttk.Combobox)
                     ]
-                    self.assertEqual(len(TEAM_MEMBERS) * 2, len(combos))
+                    self.assertEqual(3 * 2, len(combos))
+                    labels = {widget.cget("text") for widget in descendants(dialog) if isinstance(widget, tk.Label)}
+                    self.assertTrue({"曹操", "夏侯惇", "夏侯渊"}.issubset(labels))
+                    self.assertFalse({"曹仁", "曹洪", "乐进", "李典"} & labels)
                     combos[0].set("文官型")
                     dialog_buttons = {
                         widget.cget("text"): widget

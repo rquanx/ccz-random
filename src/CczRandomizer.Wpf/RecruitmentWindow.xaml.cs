@@ -9,7 +9,8 @@ namespace CczRandomizer.Wpf;
 public partial class RecruitmentWindow : Window
 {
     private readonly RecruitmentCatalog _catalog;
-    public RecruitmentWindow(Window owner) { Owner = owner; InitializeComponent(); _catalog = LoadCatalog(); RenderCards(); }
+    private readonly IReadOnlyList<RecruitPerson> _people;
+    public RecruitmentWindow(Window owner) { Owner = owner; InitializeComponent(); _catalog = LoadCatalog(); _people = _catalog.People.Concat(FixedEntryCatalog.CreateRows()).ToArray(); RenderCards(); }
 
     private static RecruitmentCatalog LoadCatalog()
     {
@@ -22,7 +23,7 @@ public partial class RecruitmentWindow : Window
     private void RenderCards()
     {
         Cards.Children.Clear(); var filter = FilterBox?.Text.Trim() ?? "";
-        foreach (var person in _catalog.People.Where(person => filter.Length == 0 || Matches(person, filter)))
+        foreach (var person in _people.Where(person => filter.Length == 0 || Matches(person, filter)))
         {
             var card = new Border { Width = 270, Margin = new Thickness(0, 0, 14, 14), Padding = new Thickness(16), CornerRadius = new CornerRadius(12), Background = Brushes.White, BorderBrush = new SolidColorBrush(Color.FromRgb(226, 232, 240)), BorderThickness = new Thickness(1) };
             var content = new StackPanel();

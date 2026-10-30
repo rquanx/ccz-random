@@ -1,17 +1,20 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using CczRandomizer.Wpf.Core;
 
 namespace CczRandomizer.Wpf;
 
 public partial class MainWindow : Window
 {
     private readonly RuleStore _rules = new();
+    private readonly RuleDocumentStore _documentStore = new();
 
     public MainWindow()
     {
         InitializeComponent();
         _rules.TryLoad();
+        if (_rules.FilePath is not null) _documentStore.Load(_rules.FilePath);
         ShowPage("run");
     }
 
@@ -49,6 +52,21 @@ public partial class MainWindow : Window
         var panel = new StackPanel();
         panel.Children.Add(new TextBlock { Text = "当前规则概览", FontSize = 22, FontWeight = FontWeights.SemiBold });
         panel.Children.Add(new TextBlock { Text = "规则编辑器会先迁移为独立 ViewModel，保持 random_rules_v2.json 格式兼容。", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 12, 0, 20), Foreground = FindResource("MutedBrush") as Brush });
+        var thresholdRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 18) };
+        thresholdRow.Children.Add(new TextBlock { Text = "兵种门槛", Width = 110, VerticalAlignment = VerticalAlignment.Center });
+        var threshold = new TextBox { Text = _rules.JobThreshold.ToString("0.##"), Width = 100, Padding = new Thickness(8) };
+        thresholdRow.Children.Add(threshold);
+        var save = new Button { Content = "保存规则", Margin = new Thickness(12, 0, 0, 0) };
+        save.Click += (_, _) =>
+        {
+            if (!double.TryParse(threshold.Text, out var value) || value < 0 || value > 20)
+            {
+                MessageBox.Show("请输入 0 到 20 之间的数字。", "规则设置", MessageBoxButton.OK, MessageBoxImage.Warning); return;
+            }
+            try { _documentStore.SetJobThreshold(value); _documentStore.Save(); MessageBox.Show("规则已保存。", "规则设置", MessageBoxButton.OK, MessageBoxImage.Information); }
+            catch (Exception error) { MessageBox.Show(error.Message, "保存失败", MessageBoxButton.OK, MessageBoxImage.Error); }
+        };
+        thresholdRow.Children.Add(save); panel.Children.Add(thresholdRow);
         foreach (var member in _rules.QualifiedMembers) panel.Children.Add(new TextBlock { Text = $"• {member}", FontSize = 15, Margin = new Thickness(0, 4, 0, 4) });
         return panel;
     }

@@ -1,6 +1,8 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.IO;
+using Microsoft.Win32;
 using CczRandomizer.Wpf.Core;
 
 namespace CczRandomizer.Wpf;
@@ -9,6 +11,8 @@ public partial class MainWindow : Window
 {
     private readonly RuleStore _rules = new();
     private readonly RuleDocumentStore _documentStore = new();
+    private readonly GameSandboxService _sandboxService = new();
+    private string? _sandboxPath;
 
     public MainWindow()
     {
@@ -43,7 +47,30 @@ public partial class MainWindow : Window
         var status = new Border { Padding = new Thickness(18), Background = new SolidColorBrush(Color.FromRgb(241, 245, 249)), CornerRadius = new CornerRadius(12) };
         status.Child = new TextBlock { Text = _rules.FilePath is null ? "未找到 random_rules_v2.json" : $"已读取规则：{_rules.ActiveProfileName}\n参与人物：{string.Join("、", _rules.QualifiedMembers)}\n兵种门槛：{_rules.JobThreshold:0.##}（{_rules.JobMode}）", LineHeight = 24 };
         panel.Children.Add(status);
-        panel.Children.Add(new Button { Content = "开始迁移后的随机流程", IsEnabled = false, Margin = new Thickness(0, 22, 0, 0), HorizontalAlignment = HorizontalAlignment.Left });
+        panel.Children.Add(new TextBlock { Text = "游戏目录", FontSize = 15, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 24, 0, 8) });
+        var gamePath = new TextBox { Text = Environment.GetEnvironmentVariable("CCZ_GAME_DIR") ?? string.Empty, Padding = new Thickness(8), MinWidth = 420 };
+        var pathRow = new StackPanel { Orientation = Orientation.Horizontal };
+        pathRow.Children.Add(gamePath);
+        var browse = new Button { Content = "选择目录", Margin = new Thickness(10, 0, 0, 0) };
+        browse.Click += (_, _) =>
+        {
+            var dialog = new OpenFileDialog { Title = "选择游戏目录中的 Ekd5.exe", Filter = "游戏程序|Ekd5.exe" };
+            if (dialog.ShowDialog() == true) gamePath.Text = Path.GetDirectoryName(dialog.FileName) ?? string.Empty;
+        };
+        pathRow.Children.Add(browse); panel.Children.Add(pathRow);
+        var launch = new Button { Content = "创建沙箱并启动游戏", Margin = new Thickness(0, 18, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
+        launch.Click += (_, _) =>
+        {
+            try
+            {
+                if (!Directory.Exists(gamePath.Text)) throw new DirectoryNotFoundException("游戏目录不存在。");
+                _sandboxPath = _sandboxService.Create(gamePath.Text);
+                GameSandboxService.StartGame(_sandboxPath);
+                MessageBox.Show($"沙箱已启动：\n{_sandboxPath}", "随机运行", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception error) { MessageBox.Show(error.Message, "启动失败", MessageBoxButton.OK, MessageBoxImage.Error); }
+        };
+        panel.Children.Add(launch);
         return panel;
     }
 

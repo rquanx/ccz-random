@@ -8,9 +8,11 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from ccz_randomizer.runtime.skill_memory import normalize_skill_name
+from ccz_randomizer.rule_members import RULE_MEMBER_NAMES
+from ccz_randomizer.rules.skill_scores import migrate_skill_scores, DEFAULT_SCORES
 
 
-RULE_FILE_NAME = "random_rules.json"
+RULE_FILE_NAME = "random_rules_v2.json"
 RULE_VERSION = 2
 RULE_EXPORT_FORMAT = "ccz-random-rules"
 RULE_EXPORT_VERSION = 1
@@ -42,6 +44,10 @@ DEFAULT_MEMBER_AFFINITY = {
     "李典": {"primaryType": "MASTER", "secondaryType": "ALL_ROUNDER"},
     "曹洪": {"primaryType": "ALL_ROUNDER", "secondaryType": "WARRIOR"},
 }
+for _member_name in RULE_MEMBER_NAMES:
+    DEFAULT_MEMBER_AFFINITY.setdefault(
+        _member_name, {"primaryType": "NONE", "secondaryType": "NONE"}
+    )
 
 SIMPLE_PRESET_OPTIONS = {
     "jobQuality": {
@@ -95,6 +101,9 @@ def _default_profile() -> dict[str, Any]:
             "minQualifiedCount": 2,
             "qualifiedMembers": list(THREE_MEMBER_NAMES),
         },
+        "skillQualification": {
+            "mode": "total", "threshold": 5.0, "requiredCount": 1,
+        },
         "sevenPerson": {
             "minJobAverage": 7.4,
             "jobQualificationMode": "average",
@@ -121,9 +130,9 @@ def _default_profile() -> dict[str, Any]:
             "affinityMinBaseScore": 7.0,
             "primaryBonusRate": 0.06,
             "secondaryBonusRate": 0.03,
-            "xiahouDunMasterPenalty": 1.0,
-            "extraMasterPenaltyEnabled": True,
-            "extraMasterPenaltyWeight": 1.0,
+            "xiahouDunMasterPenalty": 0.0,
+            "extraMasterPenaltyEnabled": False,
+            "extraMasterPenaltyWeight": 0.0,
         },
         "memberAffinity": copy.deepcopy(DEFAULT_MEMBER_AFFINITY),
     }
@@ -275,9 +284,6 @@ def apply_simple_settings(profile: dict[str, Any]) -> dict[str, Any]:
     profile["sevenPerson"]["jobQualificationMode"] = "average"
     profile["jobScoring"]["primaryBonusRate"] = affinity["primary"]
     profile["jobScoring"]["secondaryBonusRate"] = affinity["secondary"]
-    profile["jobScoring"]["extraMasterPenaltyWeight"] = (
-        SIMPLE_PRESET_OPTIONS["teamBalance"][settings["teamBalance"]]
-    )
     skill_quality = SIMPLE_PRESET_OPTIONS["skillQuality"][
         settings["skillQuality"]
     ]
@@ -285,9 +291,12 @@ def apply_simple_settings(profile: dict[str, Any]) -> dict[str, Any]:
         skill_quality["medium"]
     )
     profile["sevenPerson"]["lowMinSkillScore"] = skill_quality["low"]
-    profile["sevenPerson"]["strongSkillWeight"] = SIMPLE_PRESET_OPTIONS[
-        "strongSkillImportance"
-    ][settings["strongSkillImportance"]]
+    profile.setdefault("skillQualification", {}).update(
+        mode="total", threshold=skill_quality["low"], requiredCount=1)
+    if not profile["sevenPerson"].get("individualSkillScores"):
+        profile["sevenPerson"]["strongSkillWeight"] = SIMPLE_PRESET_OPTIONS[
+            "strongSkillImportance"
+        ][settings["strongSkillImportance"]]
     profile["sevenPerson"]["highJobAverage"] = SIMPLE_PRESET_OPTIONS[
         "highJobPreference"
     ][settings["highJobPreference"]]
@@ -300,6 +309,7 @@ def _migrate_v1_profile(name: str, old: Any) -> dict[str, Any]:
     profile = _default_profile()
     profile["builtin"] = name == DEFAULT_PROFILE_NAME
     profile["editorMode"] = "advanced"
+    profile.pop("skillQualification", None)
     old_three = old.get("threePerson", {})
     old_seven = old.get("sevenPerson", {})
     old_scoring = old.get("jobScoring", {})
@@ -384,6 +394,8 @@ def validate_rule_config(config: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(name, str) or not name.strip():
             raise ValueError("规则名称不能为空")
         profile = _merge_defaults(default_profile, raw_profile)
+        if "skillQualification" not in raw_profile:
+            profile["skillQualification"]["threshold"] = profile["sevenPerson"]["lowMinSkillScore"]
         profile["builtin"] = bool(
             name == DEFAULT_PROFILE_NAME and profile.get("builtin", False)
         )
@@ -401,28 +413,33 @@ def validate_rule_config(config: dict[str, Any]) -> dict[str, Any]:
         seven = profile["sevenPerson"]
         scoring = profile["jobScoring"]
         three["minJobAverage"] = _require_number(
-            three["minJobAverage"], f"{name}.三人兵种门槛", 0, 20
+            three["minJobAverage"], f"{name}.兵种合格分", 0,
+            20 * len(RULE_MEMBER_NAMES) if three["jobQualificationMode"] == "total" else 20
         )
         three["jobQualificationMode"] = _require_choice(
             three["jobQualificationMode"],
             f"{name}.三人兵种合格方式",
-            ("average", "count"),
+            ("average", "count", "all", "total"),
         )
         three["minQualifiedCount"] = _require_integer(
             three["minQualifiedCount"],
             f"{name}.三人兵种合格人数",
             1,
-            3,
+            len(RULE_MEMBER_NAMES),
         )
         three["qualifiedMembers"] = _require_member_selection(
             three["qualifiedMembers"],
             f"{name}.三人兵种达标人物",
-            THREE_MEMBER_NAMES,
+            RULE_MEMBER_NAMES,
         )
         if three["minQualifiedCount"] > len(three["qualifiedMembers"]):
             raise ValueError(
                 f"{name}.三人兵种合格人数不能超过已选人物数量"
             )
+        skill_gate = profile["skillQualification"]
+        skill_gate["mode"] = _require_choice(skill_gate["mode"], f"{name}.特技算分模式", ("count", "average", "total"))
+        skill_gate["threshold"] = _require_number(skill_gate["threshold"], f"{name}.特技合格分", 0, 100000)
+        skill_gate["requiredCount"] = _require_integer(skill_gate["requiredCount"], f"{name}.特技合格人数", 1, len(three["qualifiedMembers"]))
         for key, label in (
             ("minJobAverage", "七人兵种门槛"),
             ("normalJobAverage", "普通兵种分界"),
@@ -542,7 +559,7 @@ def validate_rule_config(config: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(affinity, dict):
             raise ValueError(f"{name}.人物倾向格式错误")
         normalized_affinity = {}
-        for member in TEAM_MEMBER_NAMES:
+        for member in dict.fromkeys((*TEAM_MEMBER_NAMES, *RULE_MEMBER_NAMES)):
             row = affinity.get(member, DEFAULT_MEMBER_AFFINITY[member])
             if not isinstance(row, dict):
                 raise ValueError(f"{name}.{member}倾向格式错误")
@@ -561,10 +578,12 @@ def validate_rule_config(config: dict[str, Any]) -> dict[str, Any]:
                 "secondaryType": secondary,
             }
         profile["memberAffinity"] = normalized_affinity
+        migrate_skill_scores(profile)
         normalized["profiles"][name] = profile
 
     if DEFAULT_PROFILE_NAME not in normalized["profiles"]:
         normalized["profiles"][DEFAULT_PROFILE_NAME] = _default_profile()
+        migrate_skill_scores(normalized["profiles"][DEFAULT_PROFILE_NAME])
     normalized["profiles"][DEFAULT_PROFILE_NAME]["builtin"] = True
     return normalized
 
@@ -633,6 +652,7 @@ def build_rule_export(
 def merge_rule_export(
     config: dict[str, Any],
     payload: dict[str, Any],
+    *, legacy_mode: str | None = None,
 ) -> tuple[dict[str, Any], tuple[str, ...]]:
     merged = validate_rule_config(config)
     if not isinstance(payload, dict):
@@ -667,6 +687,8 @@ def merge_rule_export(
             raise ValueError("导入文件中存在名称为空的规则")
         if not isinstance(raw_profile, dict):
             raise ValueError(f"规则“{original_name}”格式错误")
+        from ccz_randomizer.rules.legacy_import import migrate_imported_profile
+        raw_profile = migrate_imported_profile(raw_profile, legacy_mode)
         base_name = original_name.strip()
         imported_name = base_name
         suffix = 1
@@ -739,16 +761,10 @@ def evaluate_job_rules(
                 attach_score += weighted_score * scoring["secondaryBonusRate"]
         if job_type == "MASTER":
             master_count += 1
-            if index == 1:
-                attach_score -= scoring["xiahouDunMasterPenalty"]
         member_score = weighted_score + attach_score
         member_scores.append(member_score)
         total_score += member_score
 
-    if scoring["extraMasterPenaltyEnabled"] and master_count > 1:
-        total_score -= (
-            (master_count - 1) ** 2
-        ) * scoring["extraMasterPenaltyWeight"]
     average = total_score / max(1, len(jobs))
     mode_settings = profile[
         "threePerson" if mode == "three" else "sevenPerson"
@@ -756,6 +772,8 @@ def evaluate_job_rules(
     threshold = mode_settings["minJobAverage"]
     qualification_mode = mode_settings["jobQualificationMode"]
     eligible_members = list(mode_settings["qualifiedMembers"])
+    if qualification_mode == "all":
+        eligible_members = [str(member["name"]) for member in members]
     member_score_by_name = {
         str(member["name"]): score
         for member, score in zip(members, member_scores)
@@ -767,11 +785,19 @@ def evaluate_job_rules(
         and member_score_by_name[member_name] >= threshold
     ]
     qualified_count = len(qualified_member_names)
+    eligible_scores = [member_score_by_name[name] for name in eligible_members
+                       if name in member_score_by_name]
+    qualification_average = sum(eligible_scores) / max(1, len(eligible_scores))
     required_count = int(mode_settings["minQualifiedCount"])
+    if qualification_mode == "all":
+        required_count = len(members)
+    qualification_total = sum(eligible_scores)
     qualified = (
-        average >= threshold
+        bool(eligible_scores) and qualification_total >= threshold
+        if qualification_mode == "total" else
+        bool(eligible_scores) and qualification_average >= threshold
         if qualification_mode == "average"
-        else qualified_count >= required_count
+        else required_count > 0 and qualified_count >= required_count
     )
     reasons = (
         ()
@@ -783,6 +809,8 @@ def evaluate_job_rules(
         reasons,
         {
             "average": average,
+            "qualificationAverage": qualification_average,
+            "qualificationTotal": qualification_total,
             "masterCount": master_count,
             "jobNames": job_names,
             "threshold": threshold,
@@ -804,6 +832,8 @@ def evaluate_skill_rules(
     strong_skill_names: set[str],
     special_skill_names: set[str],
     effective_skill_names: Iterable[str] | None = None,
+    *, qualification: dict | None = None,
+    effective_skills_by_member: dict | None = None,
 ) -> RuleEvaluation:
     profile = active_profile(config)
     seven = profile["sevenPerson"]
@@ -832,6 +862,10 @@ def evaluate_skill_rules(
     }
     skill_details: list[dict[str, Any]] = []
     for member_name, skills in member_skills.items():
+        if effective_skills_by_member is not None:
+            effective_remaining = {}
+            for skill in effective_skills_by_member.get(member_name, ()):
+                effective_remaining[skill] = effective_remaining.get(skill, 0) + 1
         for skill in skills:
             if skill in special_skill_names:
                 default_score = seven["specialSkillWeight"]
@@ -841,6 +875,8 @@ def evaluate_skill_rules(
                 default_score = seven["ordinarySkillWeight"]
             else:
                 default_score = 0.0
+            if qualification is not None:
+                default_score = DEFAULT_SCORES.get(skill, default_score)
             score = float(
                 overrides.get(
                     skill,
@@ -850,14 +886,18 @@ def evaluate_skill_rules(
                     ),
                 )
             )
-            category = classify_skill_score(
+            category = "individual" if qualification is not None else classify_skill_score(
                 score,
                 seven["ordinarySkillWeight"],
                 seven["strongSkillWeight"],
                 seven["specialSkillWeight"],
             )
             counted = False
-            if category == "special":
+            if qualification is not None:
+                counted = score > 0 and effective_remaining.get(skill, 0) > 0
+                if counted:
+                    effective_remaining[skill] -= 1
+            elif category == "special":
                 special_count += 1
                 counted = True
             elif category != "other" and effective_remaining.get(skill, 0) > 0:
@@ -881,7 +921,21 @@ def evaluate_skill_rules(
             )
 
     auto_pass_reason = ""
-    if seven["specialSkillAutoPass"] and special_count > 0:
+    gate_metrics = {}
+    if qualification is not None:
+        minimum = qualification["threshold"]
+        gate_mode = qualification["mode"]
+        eligible = list(member_skills)
+        passed = [name for name, score in member_skill_scores.items() if score >= minimum]
+        average = skill_score / max(1, len(eligible))
+        required = qualification["requiredCount"]
+        qualified = bool(eligible) and (
+            len(passed) >= required if gate_mode == "count" else
+            average >= minimum if gate_mode == "average" else skill_score >= minimum)
+        gate_metrics = dict(qualificationMode=gate_mode, eligibleMembers=eligible,
+            threshold=minimum, requiredCount=required, qualifiedCount=len(passed),
+            qualifiedMemberNames=passed, qualificationAverage=average)
+    elif seven["specialSkillAutoPass"] and special_count > 0:
         qualified = True
         minimum = 0.0
         auto_pass_reason = "special_skill"
@@ -916,5 +970,6 @@ def evaluate_skill_rules(
             "autoPassReason": auto_pass_reason,
             "memberSkillScores": member_skill_scores,
             "skillDetails": skill_details,
+            **gate_metrics,
         },
     )

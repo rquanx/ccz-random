@@ -1,3 +1,4 @@
+from ccz_randomizer.rule_members import RULE_MEMBER_NAMES
 import tempfile
 import tkinter as tk
 import unittest
@@ -69,14 +70,14 @@ class RuleEditorTests(unittest.TestCase):
             text for _title, text in ADVANCED_HELP_SECTIONS
         )
 
-        self.assertIn("武将当前兵种的类型", help_text)
+        self.assertIn("比较人物兵种的类型与特技匹配类型", help_text)
         self.assertIn("选择“无”表示该特技不限制匹配类型", help_text)
         self.assertIn("单击“基础分”整行可以编辑分数", help_text)
 
     def test_initial_skill_check_progress_is_visible(self):
         self.assertEqual(
             "正在检查特技条件……",
-            format_user_log("初始三人兵种合格，正在检查特技条件"),
+            format_user_log("所选人物兵种筛选通过，正在检查特技条件"),
         )
 
     def test_active_profile_can_be_switched_and_persisted(self):
@@ -272,8 +273,8 @@ class RuleEditorTests(unittest.TestCase):
                     }
                     self.assertIn("导入规则", buttons)
                     self.assertIn("导出规则", buttons)
-                    self.assertIn("选择人员（3/3）", buttons)
-                    self.assertNotIn("选择人员（7/7）", buttons)
+                    self.assertIn(f"选择人物（3/{len(RULE_MEMBER_NAMES)}）", buttons)
+                    self.assertNotIn("选择人物（7/7）", buttons)
                     self.assertIn("设置人物倾向", buttons)
                     self.assertNotIn("设为当前规则", buttons)
                     buttons["新建副本"].invoke()
@@ -292,7 +293,8 @@ class RuleEditorTests(unittest.TestCase):
                         if isinstance(widget, ttk.Notebook)
                     ]
                     self.assertEqual(1, len(help_books))
-                    self.assertEqual(7, len(help_books[0].tabs()))
+                    self.assertEqual(("先看这里", "阶段门槛", "兵种基础设置", "特技基础设置"),
+                        tuple(help_books[0].tab(tab, "text") for tab in help_books[0].tabs()))
                     self.assertEqual(
                         "先看这里",
                         help_books[0].tab(
@@ -319,7 +321,7 @@ class RuleEditorTests(unittest.TestCase):
                     )
                 ]
                 self.assertEqual(
-                    {}, profile["sevenPerson"]["skillBaseScores"]
+                    {name: score for name, score, *_ in SKILL_CATALOG}, profile["sevenPerson"]["skillBaseScores"]
                 )
         finally:
             root.destroy()
@@ -448,7 +450,7 @@ class RuleEditorTests(unittest.TestCase):
             ),
         )
 
-    def test_job_type_tab_edits_profile_override(self):
+    def test_job_card_edits_profile_override(self):
         root = tk.Tk()
         root.withdraw()
         saved = []
@@ -480,18 +482,21 @@ class RuleEditorTests(unittest.TestCase):
                     }
                     buttons["新建副本"].invoke()
                     root.update()
-                    combos = [
-                        widget
-                        for widget in descendants(editor)
-                        if isinstance(widget, ttk.Combobox)
-                        and tuple(widget.cget("values"))
-                        == ("全能型", "武将型", "文官型")
-                    ]
-                    self.assertEqual(len(JOB_MAP), len(combos))
-                    self.assertEqual("readonly", str(combos[0].cget("state")))
-                    combos[0].set("文官型")
-                    combos[0].event_generate("<<ComboboxSelected>>")
+                    grid = next(w for w in descendants(editor) if isinstance(w, ScoreGrid) and w.type_label == "兵种类型")
+                    book = grid.master.master
+                    book.select(grid.master)
                     root.update()
+                    self.assertNotIn("设置兵种类型", buttons)
+                    x1, y1, x2, y2, _ = grid.type_hit_boxes[0]
+                    grid._start_edit(SimpleNamespace(x=(x1+x2)//2, y=(y1+y2)//2))
+                    self.assertEqual(("全能型", "武将型", "文官型"), tuple(grid.editor.cget("values")))
+                    grid.editor.set("文官型")
+                    grid.editor.event_generate("<<ComboboxSelected>>")
+                    root.update()
+                    x1, y1, x2, y2, _ = grid.hit_boxes[0]
+                    grid._start_edit(SimpleNamespace(x=(x1+x2)//2, y=(y1+y2)//2))
+                    grid.editor.delete(0, "end")
+                    grid.editor.insert(0, "8.5")
                     buttons["保存规则"].invoke()
                     root.update()
 
@@ -506,6 +511,7 @@ class RuleEditorTests(unittest.TestCase):
                     "jobScoring"
                 ]["jobTypeOverrides"]
                 self.assertEqual("MASTER", overrides["群雄"])
+                self.assertEqual(8.5, saved[0]["profiles"][profile_name]["jobScoring"]["jobBaseScores"]["群雄"])
         finally:
             root.destroy()
 
@@ -551,11 +557,8 @@ class RuleEditorTests(unittest.TestCase):
                         )
                         == (
                             "阶段门槛",
-                            "兵种评分",
-                            "兵种基础分",
-                            "特技评分",
+                            "兵种基础设置",
                             "特技基础设置",
-                            "兵种类型",
                         )
                     )
                     self.assertNotIn(
@@ -583,10 +586,11 @@ class RuleEditorTests(unittest.TestCase):
                         for widget in descendants(dialog)
                         if isinstance(widget, ttk.Combobox)
                     ]
-                    self.assertEqual(3 * 2, len(combos))
+                    self.assertEqual(20, len(combos))
                     labels = {widget.cget("text") for widget in descendants(dialog) if isinstance(widget, tk.Label)}
                     self.assertTrue({"曹操", "夏侯惇", "夏侯渊"}.issubset(labels))
-                    self.assertFalse({"曹仁", "曹洪", "乐进", "李典"} & labels)
+                    self.assertTrue(set(RULE_MEMBER_NAMES[:10]).issubset(labels))
+                    self.assertFalse({"曹仁", "乐进", "李典"} & labels)
                     combos[0].set("文官型")
                     dialog_buttons = {
                         widget.cget("text"): widget
@@ -656,7 +660,7 @@ class RuleEditorTests(unittest.TestCase):
                         widget
                         for widget in descendants(editor)
                         if isinstance(widget, ScoreGrid)
-                        and widget.type_variables
+                        and widget.type_variables and widget.type_label == "匹配类型"
                     )
                     skill_grid.canvas.configure(width=800, height=300)
                     root.update()
@@ -745,9 +749,9 @@ class RuleEditorTests(unittest.TestCase):
                         for widget in descendants(editor)
                         if isinstance(widget, ttk.Combobox)
                         and tuple(widget.cget("values"))
-                        == ("按平均分判断", "按达标人数判断")
+                        == ("指定人数达标", "平均分达标", "总分达标")
                     ]
-                    mode_combos[0].set("按达标人数判断")
+                    mode_combos[0].set("指定人数达标")
                     mode_combos[0].event_generate("<<ComboboxSelected>>")
                     root.update()
                     buttons = {
@@ -755,7 +759,14 @@ class RuleEditorTests(unittest.TestCase):
                         for widget in descendants(editor)
                         if isinstance(widget, tk.Button)
                     }
-                    buttons["选择人员（3/3）"].invoke()
+                    mode_combos[0].set("平均分达标")
+                    mode_combos[0].event_generate("<<ComboboxSelected>>")
+                    root.update()
+                    self.assertEqual(str(buttons[f"选择人物（3/{len(RULE_MEMBER_NAMES)}）"].cget("state")), "normal")
+                    mode_combos[0].set("指定人数达标")
+                    mode_combos[0].event_generate("<<ComboboxSelected>>")
+                    root.update()
+                    buttons[f"选择人物（3/{len(RULE_MEMBER_NAMES)}）"].invoke()
                     root.update()
                     dialog = next(
                         child
@@ -767,7 +778,13 @@ class RuleEditorTests(unittest.TestCase):
                         for widget in descendants(dialog)
                         if isinstance(widget, tk.Checkbutton)
                     }
+                    self.assertTrue(set(RULE_MEMBER_NAMES[:24]).issubset(checks))
                     checks["夏侯惇"].invoke()
+                    search = next(widget for widget in descendants(dialog) if isinstance(widget, ttk.Entry))
+                    search.insert(0, "张飞")
+                    root.update()
+                    next(widget for widget in descendants(dialog)
+                         if isinstance(widget, tk.Checkbutton) and widget.cget("text") == "张飞").invoke()
                     dialog_buttons = {
                         widget.cget("text"): widget
                         for widget in descendants(dialog)
@@ -780,7 +797,7 @@ class RuleEditorTests(unittest.TestCase):
                         for widget in descendants(editor)
                         if isinstance(widget, tk.Button)
                     }
-                    self.assertIn("选择人员（2/3）", buttons)
+                    self.assertIn(f"选择人物（3/{len(RULE_MEMBER_NAMES)}）", buttons)
                     buttons["保存规则"].invoke()
                     root.update()
 
@@ -793,7 +810,7 @@ class RuleEditorTests(unittest.TestCase):
                 three = saved[0]["profiles"][profile_name]["threePerson"]
                 self.assertEqual("count", three["jobQualificationMode"])
                 self.assertEqual(
-                    ["曹操", "夏侯渊"],
+                    ["曹操", "夏侯渊", "张飞"],
                     three["qualifiedMembers"],
                 )
         finally:

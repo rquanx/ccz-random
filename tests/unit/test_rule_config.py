@@ -27,6 +27,83 @@ MEMBERS = [
 
 
 class RuleConfigTests(unittest.TestCase):
+    def test_new_rules_are_isolated_from_legacy_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            legacy = base / "random_rules.json"
+            legacy.write_bytes(b'{"old-version-file":true}')
+            self.assertEqual("builtin", load_rule_config(base).source)
+            config = default_rule_config()
+            config["profiles"][DEFAULT_PROFILE_NAME]["threePerson"]["minJobAverage"] = 8.2
+            path = save_rule_config(base, config)
+            self.assertEqual("random_rules_v2.json", path.name)
+            self.assertEqual(b'{"old-version-file":true}', legacy.read_bytes())
+            loaded = load_rule_config(base)
+            self.assertEqual("local", loaded.source)
+            self.assertEqual(8.2, loaded.config["profiles"][DEFAULT_PROFILE_NAME]["threePerson"]["minJobAverage"])
+
+    def test_job_total_only_counts_selected_people_and_reports_total(self):
+        from ccz_randomizer.ui.result_details import format_result_detail
+        config = default_rule_config()
+        profile = config["profiles"][DEFAULT_PROFILE_NAME]
+        profile["jobScoring"]["affinityEnabled"] = False
+        profile["threePerson"].update(jobQualificationMode="total", minJobAverage=15,
+            qualifiedMembers=["曹操", "夏侯渊"], minQualifiedCount=1)
+        config = validate_rule_config(config)
+        jobs = [dict(name="群雄", score=8, type="ALL_ROUNDER"),
+                dict(name="轻步兵", score=6, type="WARRIOR"),
+                dict(name="道士", score=7, type="MASTER")]
+        result = evaluate_job_rules(config, "three", jobs, MEMBERS)
+        self.assertTrue(result.qualified)
+        self.assertEqual(15, result.metrics["qualificationTotal"])
+        self.assertEqual(7.5, result.metrics["qualificationAverage"])
+        detail = format_result_detail({"job": {"qualified": result.qualified,
+            "metrics": result.metrics, "members": []}})
+        self.assertIn("总分 15", detail["sections"][0]["explanation"])
+        config["profiles"][DEFAULT_PROFILE_NAME]["threePerson"]["minJobAverage"] = 21
+        config = validate_rule_config(config)
+        self.assertFalse(evaluate_job_rules(config, "three", jobs, MEMBERS).qualified)
+        with tempfile.TemporaryDirectory() as directory:
+            save_rule_config(Path(directory), config)
+            loaded = load_rule_config(Path(directory)).config
+        self.assertEqual("total", loaded["profiles"][DEFAULT_PROFILE_NAME]["threePerson"]["jobQualificationMode"])
+
+    def test_average_qualification_only_uses_selected_people(self):
+        config = default_rule_config()
+        profile = config["profiles"][DEFAULT_PROFILE_NAME]
+        profile["jobScoring"]["affinityEnabled"] = False
+        profile["threePerson"].update({
+            "jobQualificationMode": "average", "minJobAverage": 7,
+            "qualifiedMembers": ["曹操", "夏侯渊"], "minQualifiedCount": 1,
+        })
+        jobs = [{"name": name, "score": score, "type": "ALL_ROUNDER"}
+                for name, score in (("甲", 7), ("乙", 1), ("丙", 7))]
+        result = evaluate_job_rules(config, "three", jobs, MEMBERS)
+        self.assertTrue(result.qualified)
+        self.assertEqual(result.metrics["qualificationAverage"], 7)
+        profile["threePerson"]["qualifiedMembers"] = ["夏侯惇"]
+        self.assertFalse(evaluate_job_rules(config, "three", jobs, MEMBERS).qualified)
+
+    def test_legacy_master_penalties_no_longer_reduce_job_scores(self):
+        config = default_rule_config()
+        profile = config["profiles"][DEFAULT_PROFILE_NAME]
+        profile["jobScoring"].update({
+            "affinityEnabled": False,
+            "xiahouDunMasterPenalty": 20,
+            "extraMasterPenaltyEnabled": True,
+            "extraMasterPenaltyWeight": 10,
+        })
+        profile["threePerson"].update({
+            "jobQualificationMode": "all", "minJobAverage": 7,
+        })
+        config = validate_rule_config(config)
+        jobs = [{"name": name, "score": 7, "type": "MASTER"}
+                for name in ("甲", "乙", "丙")]
+        result = evaluate_job_rules(config, "three", jobs, MEMBERS)
+        self.assertTrue(result.qualified)
+        self.assertEqual(result.metrics["memberScores"], [7, 7, 7])
+        self.assertEqual(result.metrics["average"], 7)
+
     def test_skill_type_matching_only_rejects_opposite_types(self):
         self.assertFalse(skill_types_match("WARRIOR", "MASTER"))
         self.assertFalse(skill_types_match("MASTER", "WARRIOR"))
@@ -141,6 +218,30 @@ class RuleConfigTests(unittest.TestCase):
         self.assertEqual(2, result.metrics["qualifiedCount"])
         self.assertEqual(2, result.metrics["requiredCount"])
 
+    def test_all_members_must_pass_even_when_average_passes(self):
+        config = default_rule_config()
+        profile = config["profiles"][DEFAULT_PROFILE_NAME]
+        profile["jobScoring"]["affinityEnabled"] = False
+        profile["threePerson"].update({
+            "minJobAverage": 7,
+            "jobQualificationMode": "all",
+            "qualifiedMembers": ["曹操"],
+            "minQualifiedCount": 1,
+        })
+        config = validate_rule_config(config)
+        jobs = [
+            {"name": "甲", "score": 10, "type": "ALL_ROUNDER"},
+            {"name": "乙", "score": 10, "type": "WARRIOR"},
+            {"name": "丙", "score": 6, "type": "MASTER"},
+        ]
+        result = evaluate_job_rules(config, "three", jobs, MEMBERS)
+        self.assertGreaterEqual(result.metrics["average"], 7)
+        self.assertFalse(result.qualified)
+        self.assertEqual(result.metrics["requiredCount"], len(MEMBERS))
+        jobs[2]["score"] = 7
+        self.assertTrue(evaluate_job_rules(config, "three", jobs, MEMBERS).qualified)
+        self.assertFalse(evaluate_job_rules(config, "three", [], []).qualified)
+
     def test_job_count_rule_fails_when_too_few_members_reach_threshold(self):
         config = default_rule_config()
         profile = config["profiles"][DEFAULT_PROFILE_NAME]
@@ -229,11 +330,11 @@ class RuleConfigTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "至少选择一名人物"):
             validate_rule_config(config)
 
-    def test_job_count_member_selection_rejects_wrong_mode_member(self):
+    def test_job_count_member_selection_rejects_unknown_member(self):
         config = default_rule_config()
         config["profiles"][DEFAULT_PROFILE_NAME]["threePerson"][
             "qualifiedMembers"
-        ] = ["曹操", "曹仁"]
+        ] = ["曹操", "不存在的人物"]
         with self.assertRaisesRegex(ValueError, "不适用于当前模式"):
             validate_rule_config(config)
 
@@ -530,7 +631,8 @@ class RuleConfigTests(unittest.TestCase):
         self.assertEqual(6.25, seven["minJobAverage"])
         self.assertEqual({"先手攻击": 3.5}, seven["skillBaseScores"])
         self.assertTrue(seven["skillTypeMatchingEnabled"])
-        self.assertEqual({}, seven["skillTypeOverrides"])
+        self.assertTrue(seven["individualSkillScores"])
+        self.assertIn("NONE", seven["skillTypeOverrides"].values())
 
     def test_old_export_without_rule_version_adds_new_type_fields(self):
         config = default_rule_config()
@@ -553,7 +655,8 @@ class RuleConfigTests(unittest.TestCase):
         self.assertEqual(("旧版导出",), names)
         self.assertEqual({"万夫莫敌": 4.0}, imported["skillBaseScores"])
         self.assertTrue(imported["skillTypeMatchingEnabled"])
-        self.assertEqual({}, imported["skillTypeOverrides"])
+        self.assertTrue(imported["individualSkillScores"])
+        self.assertIn("NONE", imported["skillTypeOverrides"].values())
 
     def test_version_one_full_config_import_uses_v1_migration(self):
         config = default_rule_config()
@@ -577,7 +680,7 @@ class RuleConfigTests(unittest.TestCase):
             },
         }
 
-        merged, names = merge_rule_export(config, payload)
+        merged, names = merge_rule_export(config, payload, legacy_mode="three")
         imported = merged["profiles"][names[0]]
 
         self.assertEqual(("旧规则",), names)
@@ -631,7 +734,7 @@ class RuleConfigTests(unittest.TestCase):
     def test_corrupt_file_falls_back_to_builtin(self):
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)
-            path = base / "random_rules.json"
+            path = base / "random_rules_v2.json"
             path.write_text("{broken", encoding="utf-8")
             fallback = load_rule_config(base)
             self.assertEqual("builtin", fallback.source)

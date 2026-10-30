@@ -49,3 +49,6 @@
 !/resources/app/source_slot_20_help.png
 !/resources/data/jobs/job_map.txt
 .tmp/
+
+/random_rules_v2.json
+/.random_rules_v2.json.*.tmp

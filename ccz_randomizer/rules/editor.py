@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+from ccz_randomizer.ui.window_position import centered_toplevel
+from ccz_randomizer.rule_members import RULE_MEMBER_NAMES
+from ccz_randomizer.rules.help_content import ADVANCED_HELP_SECTIONS
+from ccz_randomizer.rules.legacy_import import LegacyModeRequired, read_legacy_mode
+from ccz_randomizer.ui.member_pages import MemberPages
+
 import copy
 import json
 import tkinter as tk
@@ -19,7 +25,6 @@ from ccz_randomizer.rules.config import (
     THREE_MEMBER_NAMES,
     apply_simple_settings,
     build_rule_export,
-    classify_skill_score,
     default_rule_config,
     merge_rule_export,
     save_rule_config,
@@ -46,190 +51,6 @@ TYPE_LABELS = {
     "NONE": "无",
 }
 TYPE_VALUES = {label: value for value, label in TYPE_LABELS.items()}
-SKILL_TIER_LABELS = {
-    "other": "其他",
-    "ordinary": "优质",
-    "strong": "强力",
-    "special": "特殊",
-}
-
-ADVANCED_HELP_SECTIONS = (
-    (
-        "先看这里",
-        """【随机结果怎样才会保存】
-每次随机都会先检查兵种，再检查特技。兵种和特技都合格，才会保存结果。
-
-2.2 固定检查初始3人：曹操、夏侯惇、夏侯渊的兵种和特技。
-后续招募人员可查看和筛选，暂不参与合格判断。
-
-【简单模式和高级模式】
-普通用户建议使用简单模式，只需要选择“宽松、标准、严格”。
-高级模式适合希望调整评分侧重点的用户。它只改变工具怎样判断合格，不会修改游戏数据，也不会指定必须随机出某个兵种或特技。
-
-【调整数值时记住两点】
-合格门槛越高，越难通过，随机时间通常越长。
-兵种或特技分数越高，包含它的结果越容易通过。
-
-提示：不确定怎样设置时，保留默认规则即可。建议先创建规则副本，再进行调整。""",
-    ),
-    (
-        "阶段门槛",
-        """【初始3人兵种合格门槛】
-检查初始3人时使用。默认按三人的兵种平均分判断，也可以改为按达到门槛的人数判断。
-调高：兵种要求更严格，进入特技检查的结果更少。
-调低：兵种要求更宽松，但仍然需要通过特技检查。
-
-【兵种合格方式】
-平均分达到门槛：队伍兵种平均分大于或等于门槛时合格。
-任意人数达到门槛：达到门槛的个人数量大于或等于指定人数时合格。例如门槛为7、人数为3，表示至少3人的个人兵种分大于或等于7。
-
-【指定参与判断的人物】
-只在“按达标人数判断”时生效。默认选择初始3人。
-你可以只选择希望参与判断的人物，未选人物仍会正常随机和显示，但不会计入达标人数。
-例如只选择曹操、夏侯惇，并将人数设为2，表示两人的个人兵种分都必须达到门槛。
-
-【普通兵种质量分界】
-根据初始3人的兵种平均分，决定本轮使用哪一个特技合格门槛。
-兵种平均分达到该数值时，使用“普通兵种组合所需特技分”；未达到时，使用要求更高的“较低兵种组合所需特技分”。
-
-【高兵种质量分界】
-只有开启“达到高兵种质量分界时直接合格”后才生效。
-兵种平均分达到该数值时，不再要求特技总分，但工具仍会读取特技并生成结果图。
-
-提示：门槛越高，规则越严格。修改门槛不会改变兵种本身的基础分。""",
-    ),
-    (
-        "兵种评分",
-        """【兵种分数是怎样算出的】
-工具先取每个兵种的基础分，再考虑人物倾向和队伍结构，最后计算队伍的兵种平均分。
-
-【兵种基础分权重】
-统一放大或缩小所有兵种的基础分。1表示保持原值。
-大于1：兵种基础分的影响更大。小于1：人物倾向和扣分规则相对更明显。
-普通用户建议保持1。
-
-【人物兵种适配加成】
-开启后，人物获得符合主要倾向或次要倾向的兵种时会加分。
-关闭后，所有人物只看兵种基础分，不再考虑人物倾向。
-
-【适配加成最低基础分】
-基础分低于该数值的兵种不会获得人物倾向加成。
-它可以避免低质量兵种仅靠人物倾向获得过多加分。
-
-【主要倾向、次要倾向加成比例】
-主要倾向的加成通常高于次要倾向。0.06表示增加6%。
-
-【夏侯惇为文官型时扣分】
-夏侯惇得到文官型兵种时额外扣除的分数。数值越高，越不希望出现这种组合。
-
-【文官型兵种过多扣分】
-开启后，队伍中的文官型兵种越多，扣分越多，用于避免队伍结构过于集中。
-
-【人物倾向设置】
-点击“设置人物倾向”可以调整每个人物的主要倾向和次要倾向。
-人物倾向只用于加分，不会指定或禁止任何兵种。
-例如把曹操的主要倾向设为全能型，只代表曹操得到全能型兵种时更容易加分，并不代表曹操只能随机到全能型。
-
-【主要倾向】
-匹配时使用“主要倾向加成比例”，加成通常较高。
-
-【次要倾向】
-匹配时使用“次要倾向加成比例”，加成通常较低。
-
-【选择“无”】
-表示不设置该项倾向，也不会产生对应的加成。
-
-提示：如果不希望人物倾向影响结果，可以关闭“人物兵种适配加成”，不需要逐个人改成“无”。""",
-    ),
-    (
-        "兵种类型",
-        """【它有什么作用】
-这里统一设置每个兵种属于全能型、武将型还是文官型。
-
-同一份兵种类型会同时用于人物倾向加成、夏侯惇文官型扣分、文官型兵种过多扣分和特技类型匹配。
-
-【修改后的影响】
-例如把某个兵种改为文官型，使用该兵种的人物会按文官型参与兵种评分；启用特技类型匹配时，武将型特技也会被判定为不匹配。
-
-内置默认规则只能查看，请先新建规则副本再修改。这里的设置会随规则一起导入、导出，不会修改游戏数据。""",
-    ),
-    (
-        "兵种基础分",
-        """【它有什么作用】
-这里设置每个兵种在评分时使用的基础分。
-
-单击卡片中的任意位置即可编辑分数，按回车或点击其他位置完成修改。
-
-【调高某个兵种】
-包含该兵种的组合更容易达到兵种合格门槛。
-
-【调低某个兵种】
-包含该兵种的组合更难达到兵种合格门槛。
-
-【它不会做什么】
-修改分数不会改变游戏里的兵种数据，也不会指定或排除某个兵种。游戏仍然按照原本逻辑随机。
-
-提示：这里的分数还会受到“兵种基础分权重”、人物倾向加成和队伍结构扣分影响。普通用户不建议一次修改太多兵种。""",
-    ),
-    (
-        "特技评分",
-        """【适用范围】
-只统计曹操、夏侯惇、夏侯渊的兵种天赋与人物天赋，按初始3人合计特技分判断；后续招募人员不计入。
-
-【优质、强力、特殊特技基础分】
-这三个数值同时是该档次的默认分数和分档门槛。
-单项特技的最终基础分达到哪个门槛，就按哪个档次处理；达到特殊门槛后，也会参与“出现特殊特技时直接合格”。
-三个门槛必须满足：普通优质 ≤ 强力 ≤ 特殊。
-
-【普通兵种组合所需特技分】
-兵种平均分达到“普通兵种质量分界”时，特技总分需要达到该数值。
-
-【较低兵种组合所需特技分】
-兵种平均分未达到普通质量分界时使用。通常应比上一个门槛更高，用更好的特技弥补兵种不足。
-
-【出现特殊特技时直接合格】
-开启后，只要本次检查的人物中出现特殊特技，就不再要求特技总分。
-
-【达到高兵种质量分界时直接合格】
-开启后，兵种平均分足够高时，不再要求特技总分。
-
-【启用特技类型匹配】
-开启后，会比较武将当前兵种的类型和特技匹配类型。武将型兵种与文官型特技、文官型兵种与武将型特技不匹配，普通优质和强力特技不会计分。
-特技匹配类型设为“无”时，该特技不受兵种类型限制；特殊档次的特技同样不受类型限制。
-关闭后，特技不再受兵种类型影响。
-
-提示：特技合格门槛越高，结果越难通过，随机时间通常也会更长。""",
-    ),
-    (
-        "特技基础设置",
-        """【它有什么作用】
-这里可以单独调整某一个特技的分数。单独设置的分数优先于该特技所属类别的默认分数。
-单击“基础分”整行可以编辑分数，单击“匹配类型”整行可以选择类型。
-
-【分数会改变特技档次】
-最终基础分达到特殊门槛时按特殊特技处理；达到强力门槛时按强力特技处理；达到普通优质门槛时按优质特技处理。
-档次变化会影响类型匹配是否生效，以及“出现特殊特技时直接合格”。
-
-【举例】
-普通优质、强力、特殊门槛分别为1、2、5分时，把一个优质特技改为5分，它会按特殊特技处理；把特殊特技降到1分，它会按优质特技处理。
-
-【“其他”类别】
-“其他”类别默认不计分。你可以在这里给少数想要重视的特技单独设置分数。
-
-【兵种与特技类型是否匹配】
-启用类型匹配后，优质和强力特技需要符合武将当前兵种的类型。例如文官型特技出现在武将型兵种上时，不会计入有效分数。
-每项特技的匹配类型可以与基础分一起修改。
-选择“无”表示该特技不限制匹配类型，无论当前兵种属于哪一类都可以正常计分。
-当前分数达到特殊门槛的特技不受这一限制。
-
-【直接合格的优先级】
-如果开启“出现特殊特技时直接合格”，出现特殊特技后会直接通过，不再比较这个特技的单项分数。
-
-提示：这里适合少量微调。大范围调整时，优先修改“特技评分”中的分类分数。""",
-    ),
-)
-
-
 class ScrollableFrame(tk.Frame):
     def __init__(self, parent, **kwargs):
         super().__init__(parent, **kwargs)
@@ -288,12 +109,16 @@ class ScoreGrid(tk.Frame):
         items: list[tuple[str, tk.StringVar, str]],
         category_resolver: Callable[[str, str, str], str] | None = None,
         type_variables: dict[str, tk.StringVar] | None = None,
+        type_options: tuple[str, ...] = SKILL_AFFINITY_TYPES,
+        type_label: str = "匹配类型",
         **kwargs,
     ):
         super().__init__(parent, **kwargs)
         self.items = items
         self.category_resolver = category_resolver
         self.type_variables = type_variables or {}
+        self.type_options = type_options
+        self.type_label = type_label
         self.card_height = 88 if self.type_variables else self.CARD_HEIGHT
         self.enabled = True
         self.editor: tk.Widget | None = None
@@ -481,7 +306,7 @@ class ScoreGrid(tk.Frame):
                 self.canvas.create_text(
                     type_x1 + 8,
                     (type_y1 + type_y2) / 2,
-                    text="匹配类型",
+                    text=self.type_label,
                     anchor="w",
                     fill="#777777",
                     font=("Microsoft YaHei UI", 8),
@@ -721,7 +546,7 @@ class ScoreGrid(tk.Frame):
             self.editor = ttk.Combobox(
                 self.canvas,
                 values=tuple(
-                    TYPE_LABELS[value] for value in SKILL_AFFINITY_TYPES
+                    TYPE_LABELS[value] for value in self.type_options
                 ),
                 state="readonly",
             )
@@ -780,9 +605,9 @@ class ScoreGrid(tk.Frame):
 
 
 def show_advanced_help(parent, selected_index: int) -> None:
-    dialog = tk.Toplevel(parent)
+    dialog = centered_toplevel(parent)
     dialog.withdraw()
-    dialog.title("高级规则说明")
+    dialog.title("规则说明")
     dialog.geometry("760x560")
     dialog.minsize(680, 480)
     dialog.transient(parent)
@@ -857,114 +682,6 @@ def show_advanced_help(parent, selected_index: int) -> None:
     dialog.grab_set()
 
 
-def show_job_type_editor(
-    parent,
-    job_map: dict,
-    current_values: dict[str, str],
-    editable: bool,
-    on_apply: Callable[[dict[str, str]], None],
-) -> None:
-    dialog = tk.Toplevel(parent)
-    dialog.withdraw()
-    dialog.title("兵种所属类型")
-    dialog.geometry("820x500")
-    dialog.minsize(700, 420)
-    dialog.transient(parent)
-
-    header = tk.Frame(dialog, padx=16, pady=12)
-    header.pack(fill="x")
-    tk.Label(
-        header,
-        text="兵种所属类型",
-        font=("Microsoft YaHei UI", 11, "bold"),
-        anchor="w",
-    ).pack(fill="x")
-    tk.Label(
-        header,
-        text=(
-            "类型会影响人物倾向加成和文官型相关扣分。"
-            + ("" if editable else "内置规则仅供查看，请先新建副本再修改。")
-        ),
-        fg="#666666",
-        anchor="w",
-    ).pack(fill="x", pady=(4, 0))
-
-    body = ScrollableFrame(dialog)
-    body.pack(fill="both", expand=True, padx=16)
-    options = tuple(TYPE_LABELS[value] for value in JOB_AFFINITY_TYPES)
-    variables: dict[str, tk.StringVar] = {}
-    jobs = [job for _job_id, job in sorted(job_map.items())]
-    column_count = 4
-    rows_per_column = (len(jobs) + column_count - 1) // column_count
-    for index, (job_name, _score, default_type) in enumerate(jobs):
-        group = index // rows_per_column
-        row = index % rows_per_column
-        label_column = group * 2
-        value_column = label_column + 1
-        variable = tk.StringVar(
-            value=TYPE_LABELS[current_values.get(job_name, default_type)]
-        )
-        variables[job_name] = variable
-        tk.Label(body.body, text=job_name, anchor="w", width=9).grid(
-            row=row,
-            column=label_column,
-            sticky="w",
-            padx=(0 if group == 0 else 18, 6),
-            pady=4,
-        )
-        combo = ttk.Combobox(
-            body.body,
-            textvariable=variable,
-            values=options,
-            state="readonly" if editable else "disabled",
-            width=10,
-        )
-        combo.grid(
-            row=row,
-            column=value_column,
-            sticky="w",
-            pady=4,
-        )
-
-    footer = tk.Frame(dialog, padx=16, pady=12)
-    footer.pack(fill="x")
-
-    def apply_changes() -> None:
-        on_apply(
-            {
-                job_name: TYPE_VALUES[variable.get()]
-                for job_name, variable in variables.items()
-            }
-        )
-        dialog.destroy()
-
-    tk.Button(
-        footer,
-        text="取消" if editable else "关闭",
-        command=dialog.destroy,
-        width=10,
-    ).pack(side="right")
-    if editable:
-        tk.Button(
-            footer,
-            text="确定",
-            command=apply_changes,
-            width=10,
-        ).pack(side="right", padx=(0, 8))
-
-    dialog.update_idletasks()
-    width = max(820, dialog.winfo_reqwidth())
-    height = max(500, dialog.winfo_reqheight())
-    x = parent.winfo_rootx() + (parent.winfo_width() - width) // 2
-    y = parent.winfo_rooty() + (parent.winfo_height() - height) // 2
-    x = max(0, min(x, dialog.winfo_screenwidth() - width))
-    y = max(0, min(y, dialog.winfo_screenheight() - height))
-    dialog.geometry(f"{width}x{height}+{x}+{y}")
-    dialog.deiconify()
-    dialog.lift()
-    dialog.grab_set()
-
-
 def show_member_affinity_editor(
     parent,
     member_names: tuple[str, ...],
@@ -972,122 +689,66 @@ def show_member_affinity_editor(
     editable: bool,
     on_apply: Callable[[dict[str, tuple[str, str]]], None],
 ) -> None:
-    dialog = tk.Toplevel(parent)
-    dialog.withdraw()
+    dialog = centered_toplevel(parent)
     dialog.title("人物倾向设置")
-    dialog.resizable(False, False)
+    dialog.geometry("660x640")
+    dialog.minsize(600, 540)
     dialog.transient(parent)
-
     frame = tk.Frame(dialog, padx=20, pady=16)
     frame.pack(fill="both", expand=True)
-    tk.Label(
-        frame,
-        text="人物倾向设置",
-        font=("Microsoft YaHei UI", 11, "bold"),
-        anchor="w",
-    ).grid(row=0, column=0, columnspan=3, sticky="w")
-    tk.Label(
-        frame,
-        text=(
-            "人物倾向仅影响兵种适配加分。"
-            + ("" if editable else "内置规则仅供查看，请先新建副本再修改。")
-        ),
-        fg="#666666",
-        anchor="w",
-    ).grid(
-        row=1,
-        column=0,
-        columnspan=3,
-        sticky="w",
-        pady=(4, 14),
-    )
-    for column, text in enumerate(("人物", "主要倾向", "次要倾向")):
-        tk.Label(
-            frame,
-            text=text,
-            font=("Microsoft YaHei UI", 9, "bold"),
-            anchor="w",
-        ).grid(
-            row=2,
-            column=column,
-            sticky="w",
-            padx=(0 if column == 0 else 18, 0),
-            pady=(0, 6),
-        )
-
+    tk.Label(frame, text="人物倾向仅影响兵种适配加分。" +
+        ("" if editable else "内置规则仅供查看，请先新建副本再修改。"),
+        anchor="w").pack(fill="x", pady=(0, 12))
+    variables = {name: (tk.StringVar(value=TYPE_LABELS[current_values[name][0]]),
+                        tk.StringVar(value=TYPE_LABELS[current_values[name][1]]))
+                 for name in member_names}
     options = tuple(TYPE_LABELS[value] for value in AFFINITY_TYPES)
-    variables: dict[str, tuple[tk.StringVar, tk.StringVar]] = {}
-    for row, member_name in enumerate(member_names, start=3):
-        primary_value, secondary_value = current_values[member_name]
-        primary = tk.StringVar(value=TYPE_LABELS[primary_value])
-        secondary = tk.StringVar(value=TYPE_LABELS[secondary_value])
-        variables[member_name] = (primary, secondary)
-        tk.Label(frame, text=member_name, anchor="w", width=10).grid(
-            row=row,
-            column=0,
-            sticky="w",
-            pady=4,
-        )
-        for column, variable in ((1, primary), (2, secondary)):
-            combo = ttk.Combobox(
-                frame,
-                textvariable=variable,
-                values=options,
-                state="readonly" if editable else "disabled",
-                width=14,
-            )
-            combo.grid(
-                row=row,
-                column=column,
-                sticky="w",
-                padx=(18, 0),
-                pady=4,
-            )
+
+    row_widgets = []
+
+    def render(body, visible):
+        # Keep native controls alive; each page only rebinds them to its people.
+        if not row_widgets:
+            for column, title in enumerate(("人物", "主要倾向", "次要倾向")):
+                tk.Label(body, text=title, anchor="w").grid(row=0, column=column, sticky="w", pady=(0, 6))
+            for row in range(1, 11):
+                label = tk.Label(body, anchor="w", width=12)
+                label.grid(row=row, column=0, sticky="w", pady=4)
+                combos = []
+                for column in (1, 2):
+                    combo = ttk.Combobox(body, values=options,
+                        state="readonly" if editable else "disabled", width=14)
+                    combo.grid(row=row, column=column, sticky="w", padx=(12, 0), pady=4)
+                    combos.append(combo)
+                row_widgets.append((label, *combos))
+        for index, widgets in enumerate(row_widgets):
+            if index >= len(visible):
+                for widget in widgets:
+                    if widget.winfo_manager():
+                        widget.grid_remove()
+                continue
+            name = visible[index]
+            label, primary, secondary = widgets
+            label.configure(text=name)
+            primary.configure(textvariable=variables[name][0])
+            secondary.configure(textvariable=variables[name][1])
+            for widget in widgets:
+                if not widget.winfo_manager():
+                    widget.grid()
 
     actions = tk.Frame(frame)
-    actions.grid(
-        row=len(member_names) + 3,
-        column=0,
-        columnspan=3,
-        sticky="ew",
-        pady=(16, 0),
-    )
+    actions.pack(side="bottom", fill="x", pady=(12, 0))
+    pages = MemberPages(frame, member_names, render, page_size=10, reuse_widgets=True)
+    pages.pack(fill="both", expand=True)
 
-    def apply_changes() -> None:
-        on_apply(
-            {
-                member_name: (
-                    TYPE_VALUES[primary.get()],
-                    TYPE_VALUES[secondary.get()],
-                )
-                for member_name, (primary, secondary) in variables.items()
-            }
-        )
+    def apply_changes():
+        on_apply({name: (TYPE_VALUES[primary.get()], TYPE_VALUES[secondary.get()])
+                  for name, (primary, secondary) in variables.items()})
         dialog.destroy()
 
-    tk.Button(
-        actions,
-        text="取消" if editable else "关闭",
-        command=dialog.destroy,
-        width=10,
-    ).pack(side="right")
+    tk.Button(actions, text="取消" if editable else "关闭", command=dialog.destroy, width=10).pack(side="right")
     if editable:
-        tk.Button(
-            actions,
-            text="确定",
-            command=apply_changes,
-            width=10,
-        ).pack(side="right", padx=(0, 8))
-
-    dialog.update_idletasks()
-    width = max(470, dialog.winfo_reqwidth())
-    height = max(400, dialog.winfo_reqheight())
-    x = parent.winfo_rootx() + (parent.winfo_width() - width) // 2
-    y = parent.winfo_rooty() + (parent.winfo_height() - height) // 2
-    x = max(0, min(x, dialog.winfo_screenwidth() - width))
-    y = max(0, min(y, dialog.winfo_screenheight() - height))
-    dialog.geometry(f"{width}x{height}+{x}+{y}")
-    dialog.deiconify()
+        tk.Button(actions, text="确定", command=apply_changes, width=10).pack(side="right", padx=(0, 8))
     dialog.lift()
     dialog.grab_set()
 
@@ -1157,7 +818,7 @@ def show_rule_editor(
         sort_keys=True,
         separators=(",", ":"),
     )
-    editor = tk.Toplevel(parent)
+    editor = centered_toplevel(parent)
     editor.withdraw()
     editor.title("规则设置")
     editor.geometry("980x760")
@@ -1167,9 +828,6 @@ def show_rule_editor(
     selected_name = working["activeProfile"]
     loading = False
     editable_widgets: list[tk.Widget] = []
-
-    tk.Label(editor, text="2.2 · 固定随机初始3人：曹操、夏侯惇、夏侯渊\n兵种与特技均参与判断；后续招募人员仅供查看和筛选。",
-             justify="left", anchor="w", padx=14, pady=10, fg="#667085").pack(fill="x")
 
     top = tk.Frame(editor, padx=14, pady=12)
     top.pack(fill="x")
@@ -1207,25 +865,11 @@ def show_rule_editor(
             "越高越重视兵种类型是否符合人物倾向。",
         ),
         (
-            "teamBalance",
-            "队伍兵种平衡",
-            "越严格，文官型兵种过多时扣分越明显。",
-        ),
-        (
             "skillQuality",
             "特技质量要求",
-            "控制初始3人需要达到的特技总分，招募人员不计入。",
+            "控制所选人物需要达到的特技总分。",
         ),
-        (
-            "strongSkillImportance",
-            "强力特技重视程度",
-            "越高，强力特技在综合评价中占比越大。",
-        ),
-        (
-            "highJobPreference",
-            "高质量兵种优先程度",
-            "越高，优秀兵种组合越容易直接通过特技阶段。",
-        ),
+
     )
     for row, (key, label, description) in enumerate(simple_rows):
         tk.Label(
@@ -1269,17 +913,15 @@ def show_rule_editor(
     advanced_book = ttk.Notebook(advanced_tab)
     advanced_book.pack(fill="both", expand=True)
     threshold_tab = tk.Frame(advanced_book, padx=16, pady=14)
-    job_tab = tk.Frame(advanced_book, padx=16, pady=14)
-    job_type_tab = tk.Frame(advanced_book, padx=8, pady=8)
     base_score_tab = tk.Frame(advanced_book, padx=8, pady=8)
-    skill_tab = tk.Frame(advanced_book, padx=16, pady=14)
     skill_score_tab = tk.Frame(advanced_book, padx=8, pady=8)
     advanced_book.add(threshold_tab, text="阶段门槛")
-    advanced_book.add(job_tab, text="兵种评分")
-    advanced_book.add(base_score_tab, text="兵种基础分")
-    advanced_book.add(skill_tab, text="特技评分")
+    advanced_book.add(base_score_tab, text="兵种基础设置")
     advanced_book.add(skill_score_tab, text="特技基础设置")
-    advanced_book.add(job_type_tab, text="兵种类型")
+    job_tab = tk.LabelFrame(threshold_tab, text="兵种评分", padx=12, pady=8)
+    job_tab.grid(row=4, column=0, columnspan=7, sticky="ew", pady=(16, 0))
+    skill_tab = tk.LabelFrame(threshold_tab, text="特技评分", padx=12, pady=8)
+    skill_tab.grid(row=5, column=0, columnspan=7, sticky="ew", pady=(12, 0))
 
     number_vars: dict[str, tk.StringVar] = {}
     bool_vars: dict[str, tk.BooleanVar] = {}
@@ -1315,14 +957,15 @@ def show_rule_editor(
 
     add_number(
         threshold_tab,
-        0,
+        1,
         "three_min",
-        "初始3人兵种合格门槛",
-        "曹操、夏侯惇、夏侯渊",
+        "兵种合格分",
+        "",
     )
     qualification_mode_labels = {
-        "按平均分判断": "average",
-        "按达标人数判断": "count",
+        "指定人数达标": "count",
+        "平均分达标": "average",
+        "总分达标": "total",
     }
     qualification_mode_values = {
         value: label for label, value in qualification_mode_labels.items()
@@ -1369,14 +1012,14 @@ def show_rule_editor(
         count_label.grid(row=row, column=5, sticky="w", padx=(5, 0), pady=5)
         member_button = tk.Button(
             threshold_tab,
-            text=f"选择人员（{len(member_names)}/{len(member_names)}）",
+            text=f"选择人物（{len(member_names)}/{len(member_names)}）",
             width=18,
         )
         member_button.grid(
-            row=row,
-            column=6,
+            row=0,
+            column=1,
             sticky="w",
-            padx=(12, 0),
+            padx=(18, 10),
             pady=5,
         )
         qualification_controls[key] = (
@@ -1391,43 +1034,37 @@ def show_rule_editor(
             selected_count = len(qualification_member_values[key])
             member_button.configure(
                 text=(
-                    f"选择人员（{selected_count}/{len(member_names)}）"
+                    f"选择人物（{selected_count}/{len(member_names)}）"
                 )
             )
 
         def choose_members() -> None:
             selected = set(qualification_member_values[key])
-            dialog = tk.Toplevel(editor)
+            dialog = centered_toplevel(editor)
             dialog.withdraw()
-            dialog.title("选择参与判断的人物")
-            dialog.resizable(False, False)
+            dialog.title("选择人物")
+            dialog.resizable(True, True)
             dialog.transient(editor)
             frame = tk.Frame(dialog, padx=20, pady=16)
             frame.pack(fill="both", expand=True)
             tk.Label(
                 frame,
-                text="勾选参与兵种达标人数判断的人物",
+                text="所选人物同时参与兵种和特技判断",
                 anchor="w",
             ).pack(fill="x", pady=(0, 10))
             member_vars = {
                 member: tk.BooleanVar(value=member in selected)
                 for member in member_names
             }
-            member_frame = tk.Frame(frame)
-            member_frame.pack(fill="x")
-            for index, member in enumerate(member_names):
-                tk.Checkbutton(
-                    member_frame,
-                    text=member,
-                    variable=member_vars[member],
-                    anchor="w",
-                ).grid(
-                    row=index // 4,
-                    column=index % 4,
-                    sticky="w",
-                    padx=(0, 18),
-                    pady=4,
-                )
+            def render_members(body, visible):
+                for column in range(7):
+                    body.columnconfigure(column, weight=1, uniform="member-choice")
+                for index, member in enumerate(visible):
+                    tk.Checkbutton(body, text=member, variable=member_vars[member], anchor="w").grid(
+                        row=index // 7, column=index % 7, sticky="ew", padx=(0, 12), pady=4)
+
+            pages = MemberPages(frame, member_names, render_members, page_size=42)
+            pages.pack(fill="both", expand=True)
 
             button_frame = tk.Frame(frame)
             button_frame.pack(fill="x", pady=(14, 0))
@@ -1435,6 +1072,10 @@ def show_rule_editor(
             def select_all() -> None:
                 for variable in member_vars.values():
                     variable.set(True)
+
+            def clear_selection() -> None:
+                for variable in member_vars.values():
+                    variable.set(False)
 
             def confirm() -> None:
                 chosen = [
@@ -1459,6 +1100,9 @@ def show_rule_editor(
                 current_count = int(count_var.get() or "1")
                 if current_count > len(chosen):
                     count_var.set(str(len(chosen)))
+                skill_count_combo.configure(values=tuple(str(i) for i in range(1, len(chosen) + 1)))
+                if int(skill_count_var.get() or "1") > len(chosen):
+                    skill_count_var.set(str(len(chosen)))
                 refresh_member_button()
                 dialog.destroy()
 
@@ -1468,6 +1112,7 @@ def show_rule_editor(
                 command=select_all,
                 width=10,
             ).pack(side="left")
+            tk.Button(button_frame, text="清空选择", command=clear_selection, width=10).pack(side="left", padx=(8, 0))
             tk.Button(
                 button_frame,
                 text="取消",
@@ -1482,8 +1127,9 @@ def show_rule_editor(
             ).pack(side="right")
 
             dialog.update_idletasks()
-            width = max(430, dialog.winfo_reqwidth())
-            height = max(190, dialog.winfo_reqheight())
+            width = max(840, dialog.winfo_reqwidth())
+            height = max(430, dialog.winfo_reqheight())
+            dialog.minsize(width, height)
             x = editor.winfo_rootx() + (editor.winfo_width() - width) // 2
             y = editor.winfo_rooty() + (editor.winfo_height() - height) // 2
             dialog.geometry(
@@ -1497,12 +1143,12 @@ def show_rule_editor(
 
         def refresh_count_control(_event=None) -> None:
             enabled = (
-                mode_var.get() == "按达标人数判断"
+                mode_var.get() == "指定人数达标"
                 and str(mode_combo.cget("state")) != "disabled"
             )
             count_combo.configure(state="readonly" if enabled else "disabled")
             count_label.configure(fg="#222222" if enabled else "#999999")
-            member_button.configure(state="normal" if enabled else "disabled")
+            member_button.configure(state="normal" if str(mode_combo.cget("state")) != "disabled" else "disabled")
 
         mode_combo.bind(
             "<<ComboboxSelected>>",
@@ -1510,21 +1156,33 @@ def show_rule_editor(
             add="+",
         )
 
-    add_qualification_control(0, "three", THREE_MEMBER_NAMES)
-    add_number(
-        threshold_tab,
-        2,
-        "normal_average",
-        "普通兵种质量分界",
-        "达到后使用较低的特技要求",
-    )
-    add_number(
-        threshold_tab,
-        3,
-        "high_average",
-        "高兵种质量分界",
-        "开启直接合格时使用",
-    )
+    tk.Label(threshold_tab, text="人物设置", anchor="w").grid(row=0, column=0, sticky="w", pady=5)
+    add_qualification_control(1, "three", RULE_MEMBER_NAMES)
+    add_number(threshold_tab, 2, "skill_threshold", "特技合格分")
+    for row in (1, 2):
+        tk.Label(threshold_tab, text="算分模式").grid(row=row, column=2, padx=(12, 0))
+    skill_mode_labels = qualification_mode_labels
+    skill_mode_var = tk.StringVar()
+    skill_count_var = tk.StringVar()
+    skill_mode_combo = ttk.Combobox(threshold_tab, textvariable=skill_mode_var,
+        values=tuple(skill_mode_labels), state="readonly", width=18)
+    skill_mode_combo.grid(row=2, column=3, padx=(20, 8), sticky="w")
+    skill_count_combo = ttk.Combobox(threshold_tab, textvariable=skill_count_var,
+        values=tuple(str(i) for i in range(1, len(RULE_MEMBER_NAMES) + 1)), width=4, state="readonly")
+    skill_count_combo.grid(row=2, column=4, sticky="w")
+    skill_count_label = tk.Label(threshold_tab, text="人达到门槛")
+    skill_count_label.grid(row=2, column=5, padx=(5, 0), sticky="w")
+    editable_widgets.extend((skill_mode_combo, skill_count_combo))
+    def refresh_skill_count(*_):
+        enabled = skill_mode_var.get() == "指定人数达标" and str(skill_mode_combo.cget("state")) != "disabled"
+        skill_count_combo.configure(state="readonly" if enabled else "disabled")
+        skill_count_label.configure(fg="#222222" if enabled else "#999999")
+    skill_mode_combo.bind("<<ComboboxSelected>>", refresh_skill_count)
+    tk.Label(threshold_tab, text="兵种与特技均通过才会保留结果；特技分包含个人天赋和兵种天赋。",
+        fg="#666666", anchor="w").grid(row=3, column=0, columnspan=7, sticky="w", pady=(16, 0))
+    # Legacy fields stay available for reading old exports, but no longer gate this workflow.
+    for key in ("normal_average", "high_average", "medium_skills", "low_skills"):
+        number_vars[key] = tk.StringVar()
 
     add_number(job_tab, 0, "base_weight", "兵种基础分权重")
     add_number(
@@ -1548,30 +1206,19 @@ def show_rule_editor(
         "次要倾向加成比例",
         "0.03 表示增加3%",
     )
-    add_number(job_tab, 4, "xiahou_penalty", "夏侯惇为文官型时扣分")
-    add_number(job_tab, 5, "master_weight", "文官型兵种过多扣分权重")
     affinity_enabled = tk.BooleanVar()
-    balance_enabled = tk.BooleanVar()
     bool_vars["affinity_enabled"] = affinity_enabled
-    bool_vars["balance_enabled"] = balance_enabled
     affinity_check = tk.Checkbutton(
         job_tab,
         text="启用人物兵种适配加成",
         variable=affinity_enabled,
         anchor="w",
     )
-    affinity_check.grid(row=6, column=0, columnspan=2, sticky="w", pady=5)
-    balance_check = tk.Checkbutton(
-        job_tab,
-        text="启用文官型兵种过多扣分",
-        variable=balance_enabled,
-        anchor="w",
-    )
-    balance_check.grid(row=7, column=0, columnspan=2, sticky="w", pady=5)
-    editable_widgets.extend((affinity_check, balance_check))
+    affinity_check.grid(row=4, column=0, columnspan=2, sticky="w", pady=5)
+    editable_widgets.append(affinity_check)
 
     affinity_vars: dict[str, tuple[tk.StringVar, tk.StringVar]] = {}
-    affinity_member_names = THREE_MEMBER_NAMES
+    affinity_member_names = RULE_MEMBER_NAMES
     for member_name in affinity_member_names:
         affinity_vars[member_name] = (tk.StringVar(), tk.StringVar())
 
@@ -1600,30 +1247,11 @@ def show_rule_editor(
         )
 
     tk.Button(
-        job_tab,
+        threshold_tab,
         text="设置人物倾向",
         command=open_affinity_editor,
         width=16,
-    ).grid(
-        row=8,
-        column=0,
-        columnspan=2,
-        sticky="w",
-        pady=(14, 0),
-    )
-    tk.Label(
-        job_tab,
-        text="设置每个人物的主要倾向和次要倾向",
-        fg="#666666",
-        anchor="w",
-    ).grid(
-        row=9,
-        column=0,
-        columnspan=3,
-        sticky="w",
-        pady=(4, 0),
-    )
-
+    ).grid(row=0, column=2, columnspan=2, sticky="w", pady=5)
     job_default_types = {
         job_name: job_type
         for job_name, _score, job_type in job_map.values()
@@ -1632,69 +1260,6 @@ def show_rule_editor(
         job_name: tk.StringVar(value=job_type)
         for job_name, job_type in job_default_types.items()
     }
-    job_type_body = ScrollableFrame(job_type_tab)
-    job_type_body.pack(fill="both", expand=True)
-    job_type_options = tuple(
-        TYPE_LABELS[value] for value in JOB_AFFINITY_TYPES
-    )
-    jobs = [job for _job_id, job in sorted(job_map.items())]
-    job_type_columns = 4
-    job_type_rows = (
-        len(jobs) + job_type_columns - 1
-    ) // job_type_columns
-    for index, (job_name, _score, _default_type) in enumerate(jobs):
-        group = index // job_type_rows
-        row = index % job_type_rows
-        label_column = group * 2
-        value_column = label_column + 1
-        tk.Label(
-            job_type_body.body,
-            text=job_name,
-            anchor="w",
-            width=9,
-        ).grid(
-            row=row,
-            column=label_column,
-            sticky="w",
-            padx=(0 if group == 0 else 18, 6),
-            pady=4,
-        )
-        display_type = tk.StringVar(
-            value=TYPE_LABELS[job_type_vars[job_name].get()]
-        )
-        combo = ttk.Combobox(
-            job_type_body.body,
-            textvariable=display_type,
-            values=job_type_options,
-            state="readonly",
-            width=10,
-        )
-        combo.grid(
-            row=row,
-            column=value_column,
-            sticky="w",
-            pady=4,
-        )
-        editable_widgets.append(combo)
-
-        def sync_job_type(
-            _event=None,
-            *,
-            name=job_name,
-            display=display_type,
-        ) -> None:
-            job_type_vars[name].set(TYPE_VALUES[display.get()])
-
-        def refresh_job_type(
-            *_args,
-            name=job_name,
-            display=display_type,
-        ) -> None:
-            display.set(TYPE_LABELS[job_type_vars[name].get()])
-
-        combo.bind("<<ComboboxSelected>>", sync_job_type)
-        job_type_vars[job_name].trace_add("write", refresh_job_type)
-
     job_score_vars: dict[str, tk.StringVar] = {}
     job_score_items = []
     for _job_id, job in sorted(job_map.items()):
@@ -1702,59 +1267,16 @@ def show_rule_editor(
         variable = tk.StringVar(value=str(default_score))
         job_score_vars[job_name] = variable
         job_score_items.append((job_name, variable, ""))
-    job_score_grid = ScoreGrid(base_score_tab, job_score_items)
+    job_score_grid = ScoreGrid(base_score_tab, job_score_items,
+        type_variables=job_type_vars, type_options=JOB_AFFINITY_TYPES, type_label="兵种类型")
     job_score_grid.pack(fill="both", expand=True)
 
-    add_number(
-        skill_tab,
-        0,
-        "ordinary_weight",
-        "普通优质特技基础分 / 门槛",
-    )
-    add_number(
-        skill_tab,
-        1,
-        "strong_weight",
-        "强力特技基础分 / 门槛",
-    )
-    add_number(
-        skill_tab,
-        2,
-        "special_weight",
-        "特殊特技基础分 / 门槛",
-    )
-    add_number(
-        skill_tab,
-        3,
-        "medium_skills",
-        "普通兵种组合所需特技分",
-    )
-    add_number(
-        skill_tab,
-        4,
-        "low_skills",
-        "较低兵种组合所需特技分",
-    )
-    special_auto = tk.BooleanVar()
-    high_auto = tk.BooleanVar()
+    for key in ("ordinary_weight", "strong_weight", "special_weight"):
+        number_vars[key] = tk.StringVar()
+    special_auto = tk.BooleanVar(value=False)
+    high_auto = tk.BooleanVar(value=False)
     skill_type_matching = tk.BooleanVar()
-    bool_vars["special_auto"] = special_auto
-    bool_vars["high_auto"] = high_auto
     bool_vars["skill_type_matching"] = skill_type_matching
-    special_check = tk.Checkbutton(
-        skill_tab,
-        text="出现特殊特技时直接合格",
-        variable=special_auto,
-        anchor="w",
-    )
-    special_check.grid(row=5, column=0, columnspan=2, sticky="w", pady=5)
-    high_check = tk.Checkbutton(
-        skill_tab,
-        text="达到高兵种质量分界时直接合格",
-        variable=high_auto,
-        anchor="w",
-    )
-    high_check.grid(row=6, column=0, columnspan=2, sticky="w", pady=5)
     skill_type_check = tk.Checkbutton(
         skill_tab,
         text="启用特技类型匹配",
@@ -1762,19 +1284,18 @@ def show_rule_editor(
         anchor="w",
     )
     skill_type_check.grid(
-        row=7,
+        row=3,
         column=0,
         columnspan=2,
         sticky="w",
         pady=5,
     )
-    editable_widgets.extend((special_check, high_check, skill_type_check))
+    editable_widgets.append(skill_type_check)
 
     skill_score_vars: dict[str, tk.StringVar] = {}
     skill_type_vars: dict[str, tk.StringVar] = {}
     skill_defaults: dict[str, float] = {}
     skill_default_types: dict[str, str] = {}
-    skill_categories: dict[str, str] = {}
     skill_score_items = []
     for skill_item in skill_catalog:
         skill_name, default_score, category = skill_item[:3]
@@ -1788,60 +1309,15 @@ def show_rule_editor(
         skill_type_vars[skill_name] = tk.StringVar(value=default_type)
         skill_defaults[skill_name] = float(default_score)
         skill_default_types[skill_name] = default_type
-        skill_categories[skill_name] = category
-        skill_score_items.append((skill_name, variable, category))
-
-    def resolve_skill_tier(
-        _skill_name: str,
-        score_text: str,
-        original_category: str,
-    ) -> str:
-        try:
-            tier = classify_skill_score(
-                float(score_text),
-                float(number_vars["ordinary_weight"].get()),
-                float(number_vars["strong_weight"].get()),
-                float(number_vars["special_weight"].get()),
-            )
-            return SKILL_TIER_LABELS[tier]
-        except (KeyError, TypeError, ValueError):
-            return original_category
+        skill_score_items.append((skill_name, variable, ""))
 
     skill_score_grid = ScoreGrid(
         skill_score_tab,
         skill_score_items,
-        category_resolver=resolve_skill_tier,
         type_variables=skill_type_vars,
     )
     skill_score_grid.pack(fill="both", expand=True)
     score_grids = (job_score_grid, skill_score_grid)
-
-    refresh_skill_grid_job: str | None = None
-
-    def refresh_skill_grid() -> None:
-        nonlocal refresh_skill_grid_job
-        refresh_skill_grid_job = None
-        skill_score_grid.refresh()
-
-    def schedule_skill_grid_refresh(*_args) -> None:
-        nonlocal refresh_skill_grid_job
-        if refresh_skill_grid_job is not None:
-            editor.after_cancel(refresh_skill_grid_job)
-        refresh_skill_grid_job = editor.after(80, refresh_skill_grid)
-
-    def cancel_skill_grid_refresh(event) -> None:
-        nonlocal refresh_skill_grid_job
-        if event.widget != editor or refresh_skill_grid_job is None:
-            return
-        try:
-            editor.after_cancel(refresh_skill_grid_job)
-        except tk.TclError:
-            pass
-        refresh_skill_grid_job = None
-
-    editor.bind("<Destroy>", cancel_skill_grid_refresh, add="+")
-    for key in ("ordinary_weight", "strong_weight", "special_weight"):
-        number_vars[key].trace_add("write", schedule_skill_grid_refresh)
 
     def is_builtin(name: str) -> bool:
         return bool(working["profiles"][name].get("builtin"))
@@ -1853,7 +1329,7 @@ def show_rule_editor(
             count_enabled = (
                 enabled
                 and qualification_mode_vars[key].get()
-                == "按达标人数判断"
+                == "指定人数达标"
             )
             mode_combo.configure(state="readonly" if enabled else "disabled")
             count_combo.configure(
@@ -1863,7 +1339,7 @@ def show_rule_editor(
                 fg="#222222" if count_enabled else "#999999"
             )
             member_button.configure(
-                state="normal" if count_enabled else "disabled"
+                state="normal" if enabled else "disabled"
             )
 
     def set_editable(enabled: bool) -> None:
@@ -1876,6 +1352,7 @@ def show_rule_editor(
             except tk.TclError:
                 pass
         refresh_qualification_controls(enabled)
+        refresh_skill_count()
         for score_grid in score_grids:
             score_grid.set_enabled(enabled)
         reset_button.configure(state="normal" if enabled else "disabled")
@@ -1905,12 +1382,8 @@ def show_rule_editor(
         profile["threePerson"]["qualifiedMembers"] = list(
             qualification_member_values["three"]
         )
-        category_scores = {
-            "优质": float(number_vars["ordinary_weight"].get()),
-            "强力": float(number_vars["strong_weight"].get()),
-            "特殊": float(number_vars["special_weight"].get()),
-            "其他": 0.0,
-        }
+        profile["skillQualification"] = dict(mode=skill_mode_labels[skill_mode_var.get()],
+            threshold=float(number_vars["skill_threshold"].get()), requiredCount=int(skill_count_var.get()))
         profile["sevenPerson"].update(
             {
                 "normalJobAverage": float(
@@ -1931,21 +1404,17 @@ def show_rule_editor(
                     number_vars["special_weight"].get()
                 ),
                 "skillBaseScores": {
-                    skill_name: float(variable.get())
-                    for skill_name, variable in skill_score_vars.items()
-                    if float(variable.get())
-                    != category_scores.get(
-                        skill_categories[skill_name],
-                        skill_defaults[skill_name],
-                    )
+                    **profile["sevenPerson"]["skillBaseScores"],
+                    **{skill_name: float(variable.get())
+                       for skill_name, variable in skill_score_vars.items()},
                 },
                 "skillTypeMatchingEnabled": bool(
                     skill_type_matching.get()
                 ),
                 "skillTypeOverrides": {
-                    skill_name: variable.get()
-                    for skill_name, variable in skill_type_vars.items()
-                    if variable.get() != skill_default_types[skill_name]
+                    **profile["sevenPerson"]["skillTypeOverrides"],
+                    **{skill_name: variable.get()
+                       for skill_name, variable in skill_type_vars.items()},
                 },
                 "specialSkillAutoPass": bool(special_auto.get()),
                 "highJobAutoPass": bool(high_auto.get()),
@@ -1963,13 +1432,6 @@ def show_rule_editor(
                 ),
                 "secondaryBonusRate": float(
                     number_vars["secondary_bonus"].get()
-                ),
-                "xiahouDunMasterPenalty": float(
-                    number_vars["xiahou_penalty"].get()
-                ),
-                "extraMasterPenaltyEnabled": bool(balance_enabled.get()),
-                "extraMasterPenaltyWeight": float(
-                    number_vars["master_weight"].get()
                 ),
                 "jobBaseScores": {
                     job_name: float(variable.get())
@@ -2000,11 +1462,14 @@ def show_rule_editor(
             profile = working["profiles"][name]
             for key, variable in simple_vars.items():
                 variable.set(profile["simpleSettings"][key])
-            three = profile["threePerson"]
+            three = dict(profile["threePerson"])
+            if three["jobQualificationMode"] == "all":
+                three.update(jobQualificationMode="count", qualifiedMembers=list(THREE_MEMBER_NAMES), minQualifiedCount=len(THREE_MEMBER_NAMES))
             seven = profile["sevenPerson"]
             scoring = profile["jobScoring"]
             values = {
                 "three_min": three["minJobAverage"],
+                "skill_threshold": profile["skillQualification"]["threshold"],
                 "normal_average": seven["normalJobAverage"],
                 "high_average": seven["highJobAverage"],
                 "medium_skills": seven["mediumMinSkillScore"],
@@ -2016,13 +1481,11 @@ def show_rule_editor(
                 "affinity_min": scoring["affinityMinBaseScore"],
                 "primary_bonus": scoring["primaryBonusRate"],
                 "secondary_bonus": scoring["secondaryBonusRate"],
-                "xiahou_penalty": scoring["xiahouDunMasterPenalty"],
-                "master_weight": scoring["extraMasterPenaltyWeight"],
             }
             for key, value in values.items():
                 number_vars[key].set(f"{value:g}")
             for key, settings in (("three", three),):
-                allowed_members = THREE_MEMBER_NAMES
+                allowed_members = RULE_MEMBER_NAMES
                 qualification_member_values[key] = list(
                     settings["qualifiedMembers"]
                 )
@@ -2048,16 +1511,19 @@ def show_rule_editor(
                 )
                 member_button.configure(
                     text=(
-                        "选择人员"
+                        "选择人物"
                         f"（{len(qualification_member_values[key])}/"
                         f"{len(allowed_members)}）"
                     )
                 )
-            special_auto.set(seven["specialSkillAutoPass"])
-            high_auto.set(seven["highJobAutoPass"])
+            skill_mode_var.set(next(label for label, value in skill_mode_labels.items()
+                                    if value == profile["skillQualification"]["mode"]))
+            skill_count_var.set(str(profile["skillQualification"]["requiredCount"]))
+            skill_count_combo.configure(values=tuple(str(i) for i in range(1, len(three["qualifiedMembers"]) + 1)))
+            special_auto.set(False)
+            high_auto.set(False)
             skill_type_matching.set(seven["skillTypeMatchingEnabled"])
             affinity_enabled.set(scoring["affinityEnabled"])
-            balance_enabled.set(scoring["extraMasterPenaltyEnabled"])
             for member, (primary, secondary) in affinity_vars.items():
                 row = profile["memberAffinity"][member]
                 primary.set(TYPE_LABELS[row["primaryType"]])
@@ -2078,17 +1544,8 @@ def show_rule_editor(
                 )
             skill_overrides = seven["skillBaseScores"]
             skill_type_overrides = seven["skillTypeOverrides"]
-            category_scores = {
-                "优质": seven["ordinarySkillWeight"],
-                "强力": seven["strongSkillWeight"],
-                "特殊": seven["specialSkillWeight"],
-                "其他": 0.0,
-            }
             for skill_name, variable in skill_score_vars.items():
-                fallback_score = category_scores.get(
-                    skill_categories[skill_name],
-                    skill_defaults[skill_name],
-                )
+                fallback_score = skill_defaults[skill_name]
                 variable.set(
                     f"{skill_override(skill_overrides, skill_name, fallback_score):g}"
                 )
@@ -2208,7 +1665,7 @@ def show_rule_editor(
 
     def choose_export_scope() -> str | None:
         choice = {"value": None}
-        dialog = tk.Toplevel(editor)
+        dialog = centered_toplevel(editor)
         dialog.withdraw()
         dialog.title("导出规则")
         dialog.resizable(False, False)
@@ -2323,7 +1780,19 @@ def show_rule_editor(
             return
         try:
             payload = json.loads(Path(path).read_text(encoding="utf-8-sig"))
-            merged, imported_names = merge_rule_export(working, payload)
+            legacy_mode = read_legacy_mode(path)
+            try:
+                merged, imported_names = merge_rule_export(working, payload, legacy_mode=legacy_mode)
+            except LegacyModeRequired:
+                choice = messagebox.askyesnocancel(
+                    "选择旧版运行模式",
+                    "规则文件未记录当时使用3人还是7人，同目录也没有可用的 randomizer_settings.json。\n\n"
+                    "请按旧版主界面使用的模式选择：\n是：3人\n否：7人\n取消：不导入",
+                    parent=editor)
+                if choice is None:
+                    return
+                legacy_mode = "three" if choice else "seven"
+                merged, imported_names = merge_rule_export(working, payload, legacy_mode=legacy_mode)
             save_rule_config(base_dir, merged)
         except Exception as exc:
             messagebox.showerror(
@@ -2341,9 +1810,15 @@ def show_rule_editor(
         )
         on_saved(working)
         refresh_profiles(imported_names[0])
+        migration_note = ""
+        if any(merged["profiles"][name].get("legacyImport") for name in imported_names):
+            migration_note = (
+                "\n\n旧版规则已自动迁移：沿用原运行模式的人物名单和兵种门槛，保留基础分、类型和人物倾向。"
+                "\n特技改用原较低兵种档的特技分数要求作为总分门槛；取消高兵种／特殊特技直接通过及文官扣分。"
+                "\n迁移规则以高级模式打开，请检查门槛后使用。")
         messagebox.showinfo(
             "规则已导入",
-            f"已追加并保存 {len(imported_names)} 套规则。",
+            f"已追加并保存 {len(imported_names)} 套规则。" + migration_note,
             parent=editor,
         )
 

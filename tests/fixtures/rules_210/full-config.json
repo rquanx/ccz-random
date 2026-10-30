@@ -1,0 +1,97 @@
+{
+  "version": 2,
+  "activeProfile": "旧版自定义",
+  "profiles": {
+    "旧版自定义": {
+      "builtin": false,
+      "editorMode": "advanced",
+      "simpleSettings": {
+        "jobQuality": "标准",
+        "affinityImportance": "标准",
+        "teamBalance": "标准",
+        "skillQuality": "标准",
+        "strongSkillImportance": "标准",
+        "highJobPreference": "标准"
+      },
+      "threePerson": {
+        "minJobAverage": 8.1,
+        "jobQualificationMode": "count",
+        "minQualifiedCount": 1,
+        "qualifiedMembers": [
+          "曹操"
+        ]
+      },
+      "sevenPerson": {
+        "minJobAverage": 7.3,
+        "jobQualificationMode": "count",
+        "minQualifiedCount": 2,
+        "qualifiedMembers": [
+          "曹仁",
+          "曹洪"
+        ],
+        "normalJobAverage": 7.6,
+        "highJobAverage": 7.8,
+        "mediumMinSkillScore": 4.0,
+        "lowMinSkillScore": 9,
+        "ordinarySkillWeight": 1.0,
+        "strongSkillWeight": 3,
+        "specialSkillWeight": 5.0,
+        "skillBaseScores": {
+          "先手攻击": 6
+        },
+        "skillTypeMatchingEnabled": true,
+        "skillTypeOverrides": {
+          "先手攻击": "WARRIOR"
+        },
+        "specialSkillAutoPass": true,
+        "highJobAutoPass": true
+      },
+      "jobScoring": {
+        "baseScoreWeight": 1.0,
+        "jobBaseScores": {
+          "群雄": 8.5
+        },
+        "jobTypeOverrides": {
+          "群雄": "MASTER"
+        },
+        "affinityEnabled": true,
+        "affinityMinBaseScore": 7.0,
+        "primaryBonusRate": 0.06,
+        "secondaryBonusRate": 0.03,
+        "xiahouDunMasterPenalty": 1.0,
+        "extraMasterPenaltyEnabled": true,
+        "extraMasterPenaltyWeight": 1.0
+      },
+      "memberAffinity": {
+        "曹操": {
+          "primaryType": "ALL_ROUNDER",
+          "secondaryType": "WARRIOR"
+        },
+        "夏侯惇": {
+          "primaryType": "WARRIOR",
+          "secondaryType": "ALL_ROUNDER"
+        },
+        "曹仁": {
+          "primaryType": "ALL_ROUNDER",
+          "secondaryType": "WARRIOR"
+        },
+        "夏侯渊": {
+          "primaryType": "MASTER",
+          "secondaryType": "ALL_ROUNDER"
+        },
+        "乐进": {
+          "primaryType": "MASTER",
+          "secondaryType": "ALL_ROUNDER"
+        },
+        "李典": {
+          "primaryType": "MASTER",
+          "secondaryType": "ALL_ROUNDER"
+        },
+        "曹洪": {
+          "primaryType": "ALL_ROUNDER",
+          "secondaryType": "WARRIOR"
+        }
+      }
+    }
+  }
+}

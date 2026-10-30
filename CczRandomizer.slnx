@@ -1,0 +1,5 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/CczRandomizer.Wpf/CczRandomizer.Wpf.csproj" />
+  </Folder>
+</Solution>

@@ -52,3 +52,8 @@
 
 /random_rules_v2.json
 /.random_rules_v2.json.*.tmp
+
+# WPF build output
+**/bin/
+**/obj/
+

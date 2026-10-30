@@ -25,6 +25,15 @@ public sealed class RuleDocumentStore
         three["minJobAverage"] = value; profile["threePerson"] = three;
     }
 
+    public void SetQualifiedMembers(IEnumerable<string> members)
+    {
+        var profileName = Document["activeProfile"]?.GetValue<string>() ?? "默认规则";
+        var profile = Document["profiles"]?[profileName] as JsonObject ?? throw new InvalidDataException("activeProfile 不存在");
+        var three = profile["threePerson"] as JsonObject ?? new JsonObject();
+        three["qualifiedMembers"] = new JsonArray(members.Distinct(StringComparer.Ordinal).Select(member => JsonValue.Create(member)).ToArray());
+        profile["threePerson"] = three;
+    }
+
     public void Save()
     {
         if (Path is null) throw new InvalidOperationException("规则文件尚未加载");

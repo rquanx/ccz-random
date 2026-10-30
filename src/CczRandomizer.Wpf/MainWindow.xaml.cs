@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.IO;
 using Microsoft.Win32;
@@ -97,8 +98,33 @@ public partial class MainWindow : Window
             catch (Exception error) { MessageBox.Show(error.Message, "保存失败", MessageBoxButton.OK, MessageBoxImage.Error); }
         };
         thresholdRow.Children.Add(save); panel.Children.Add(thresholdRow);
-        foreach (var member in _rules.QualifiedMembers) panel.Children.Add(new TextBlock { Text = $"• {member}", FontSize = 15, Margin = new Thickness(0, 4, 0, 4) });
+        var selected = _rules.QualifiedMembers.ToHashSet(StringComparer.Ordinal);
+        var members = LoadAllMemberNames();
+        var memberGrid = new UniformGrid { Columns = 6, Margin = new Thickness(0, 0, 0, 16) };
+        foreach (var member in members)
+        {
+            var check = new CheckBox { Content = member, IsChecked = selected.Contains(member), Margin = new Thickness(4, 5, 10, 5) };
+            memberGrid.Children.Add(check);
+        }
+        panel.Children.Add(new TextBlock { Text = "关注人物", FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 4, 0, 8) });
+        panel.Children.Add(new ScrollViewer { Height = 300, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Content = memberGrid });
+        var saveMembers = new Button { Content = "保存人物设置", HorizontalAlignment = HorizontalAlignment.Left };
+        saveMembers.Click += (_, _) =>
+        {
+            var values = memberGrid.Children.OfType<CheckBox>().Where(x => x.IsChecked == true).Select(x => x.Content?.ToString() ?? "").Where(x => x.Length > 0).ToArray();
+            if (values.Length == 0) { MessageBox.Show("至少选择一名人物。", "人物设置", MessageBoxButton.OK, MessageBoxImage.Warning); return; }
+            try { _documentStore.SetQualifiedMembers(values); _documentStore.Save(); MessageBox.Show("人物设置已保存。", "人物设置", MessageBoxButton.OK, MessageBoxImage.Information); }
+            catch (Exception error) { MessageBox.Show(error.Message, "保存失败", MessageBoxButton.OK, MessageBoxImage.Error); }
+        };
+        panel.Children.Add(saveMembers);
         return panel;
+    }
+
+    private static IReadOnlyList<string> LoadAllMemberNames()
+    {
+        var path = Path.Combine(AppContext.BaseDirectory, "resources", "data", "recruitment", "recruits_2.2.json");
+        try { return RecruitmentCatalog.Load(path).People.Select(x => x.Name).Concat(FixedEntryCatalog.CreateRows().Select(x => x.Name)).Distinct().ToArray(); }
+        catch { return FixedEntryCatalog.CreateRows().Select(x => x.Name).ToArray(); }
     }
 
     private static UIElement BuildInfoPage(string title, string description)

@@ -71,6 +71,9 @@ public partial class MainWindow : Window
             catch (Exception error) { MessageBox.Show(error.Message, "启动失败", MessageBoxButton.OK, MessageBoxImage.Error); }
         };
         panel.Children.Add(launch);
+        var recruits = new Button { Content = "查看入队人员", Margin = new Thickness(0, 14, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
+        recruits.Click += (_, _) => new RecruitmentWindow(this).ShowDialog();
+        panel.Children.Add(recruits);
         return panel;
     }
 

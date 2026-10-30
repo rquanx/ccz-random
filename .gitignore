@@ -11,6 +11,7 @@
 *.exp
 /native/*.dll
 /native/*.exe
+/native/*.res
 
 # Runtime output
 /ccz_fast_logs/

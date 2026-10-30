@@ -8,6 +8,12 @@ public sealed record RecruitPerson(int RecordIndex, string Name, int Cost, bool 
 
 public sealed class RecruitmentCatalog
 {
+    public static RecruitmentCatalog Bundled { get; } = LoadBundled();
+    private static RecruitmentCatalog LoadBundled()
+    {
+        using var stream = typeof(RecruitmentCatalog).Assembly.GetManifestResourceStream("Recruitment.Catalog")!;
+        return Read(stream);
+    }
     public IReadOnlyList<RecruitPerson> People { get; }
     public IReadOnlyList<RecruitmentStage> Stages { get; }
     private RecruitmentCatalog(IReadOnlyList<RecruitPerson> people, IReadOnlyList<RecruitmentStage> stages) { People = people; Stages = stages; }
@@ -15,6 +21,10 @@ public sealed class RecruitmentCatalog
     public static RecruitmentCatalog Load(string path)
     {
         using var stream = File.OpenRead(path);
+        return Read(stream);
+    }
+    private static RecruitmentCatalog Read(Stream stream)
+    {
         using var document = JsonDocument.Parse(stream);
         var root = document.RootElement;
         if (root.GetProperty("schemaVersion").GetInt32() != 1 || root.GetProperty("gameVersion").GetString() != "2.2") throw new InvalidDataException("招募目录版本不匹配");

@@ -1,0 +1,1686 @@
+{
+  "skills": [
+    {
+      "name": "每回合恢复HP 20%",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "每回合恢复MP 8",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "每回合恢复状态",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "每回合获得exp +10",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "每回合武器exp +8",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "每回合护具exp +8",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "破坏攻击",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "破坏防御",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "破坏精神",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "破坏爆发",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "破坏士气",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "破坏移动",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "随机状态攻击",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "麻痹攻击 60%",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "禁咒攻击 100%",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "混乱攻击 50%",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "中毒攻击 100%",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "随机属性攻击",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "反弹异常攻击",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "反弹伤害 60%",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "吸血攻击 40%",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "吸收金钱",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "破甲攻击 25%",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "奋战攻击",
+      "score": 2.0,
+      "legacyCategory": "强力",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "引导攻击",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "冲锋攻击 +6%",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "先手攻击",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "策略绝对命中",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "MASTER"
+    },
+    {
+      "name": "提升策略命中 +20%",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "MASTER"
+    },
+    {
+      "name": "辅助策略格挡 +40%",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "攻击绝对命中",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "辅助攻击命中 +20%",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "辅助攻击格挡 +20%",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "辅助全格挡 +16%",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "减轻远距损伤 -40%",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "减轻物理损伤 -30%",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "集气加倍",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "反击后反击",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "无反击攻击",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "妨碍策略增伤 25%",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "元素策略增伤 25%",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "减轻策略损伤 -40%",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "策略无视天气",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "策略无视地形",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "MASTER"
+    },
+    {
+      "name": "仇恨攻击 +12%",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "策略模仿",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "MASTER"
+    },
+    {
+      "name": "节约MP -40%",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "MASTER"
+    },
+    {
+      "name": "防御远距攻击",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "防御特殊攻击",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "物理免疫",
+      "score": 5.0,
+      "legacyCategory": "特殊",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "MP防御",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "致命一击",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "主动连击",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "双枪攻击",
+      "score": 2.0,
+      "legacyCategory": "强力",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "穿越移动",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "突击移动",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "二次行动",
+      "score": 2.0,
+      "legacyCategory": "强力",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "唯我独尊",
+      "score": 2.0,
+      "legacyCategory": "强力",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "策略连击",
+      "score": 2.0,
+      "legacyCategory": "强力",
+      "type": "MASTER"
+    },
+    {
+      "name": "同仇敌忾 2",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "众志成城 6%",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "神魔附体 4",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "骑马攻击 35%",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "步兵攻击 35%",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "骑马防御 35%",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "步兵防御 35%",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "偷袭攻击",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "增加连击上限 +1",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "回马攻击 20%",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "获得功勋 +2",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "深入敌后",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "一夫当关 10%",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "强化反击 15%",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "学会策略-四系",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "MASTER"
+    },
+    {
+      "name": "学会策略-降能力",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "学会策略-妨碍",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "MASTER"
+    },
+    {
+      "name": "学会策略-补给",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "MASTER"
+    },
+    {
+      "name": "学会策略-升能力",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "MASTER"
+    },
+    {
+      "name": "学会策略-天象",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "MASTER"
+    },
+    {
+      "name": "学会策略-回归",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "MASTER"
+    },
+    {
+      "name": "学会策略-连击",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "鬼神之勇 12%",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "海纳百川 10",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "众矢之的 策略",
+      "score": 2.0,
+      "legacyCategory": "强力",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "弱点攻击 移动",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "万夫莫敌 3%",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "攻击限伤 70",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "转移伤害 20%",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "特效模仿",
+      "score": 5.0,
+      "legacyCategory": "特殊",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "特效屏蔽",
+      "score": 5.0,
+      "legacyCategory": "特殊",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "再次移动",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "提升攻击范围",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "提升施法范围",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "攻击追加 诱惑",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "策略先手 毒烟",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "策略反击 烈火",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "铁索横江",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "突破攻击",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "伤害增幅 +30%",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "策略免疫",
+      "score": 2.0,
+      "legacyCategory": "强力",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "恢复周围状态",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "回复周围HP 12%",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "回复周围MP 10%",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "空特技 0%",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "强化物理穿透 25%",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "同心协力 3%",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "迅捷之勇 12%",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "椎锋突进 5%",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "绝对反击",
+      "score": 2.0,
+      "legacyCategory": "强力",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "不惧敌围 3%",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "贵尚儒雅",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "削铁如泥",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "强化致命一击 +40%",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "援护攻击 3",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "猛击 20%",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "盾反 15%",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "状态强化 12",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "疾风攻击 12",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "绝对克制 18%",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "穿透攻击 十字",
+      "score": 2.0,
+      "legacyCategory": "强力",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "穿透攻击 九宫",
+      "score": 2.0,
+      "legacyCategory": "强力",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "穿透攻击 没羽箭",
+      "score": 2.0,
+      "legacyCategory": "强力",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "穿透攻击 二格",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "穿透攻击 三格",
+      "score": 2.0,
+      "legacyCategory": "强力",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "穿透攻击 六格",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "穿透攻击 横扫",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "穿透攻击 环击",
+      "score": 2.0,
+      "legacyCategory": "强力",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "穿透攻击 溅射",
+      "score": 2.0,
+      "legacyCategory": "强力",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "能力替换 攻→防",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "能力替换 防→精",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "能力替换 精→防爆",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "MASTER"
+    },
+    {
+      "name": "能力替换 攻→士",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "MASTER"
+    },
+    {
+      "name": "能力替换 防→攻",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "能力辅助 攻→精爆",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "能力辅助 防→攻精",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "能力辅助 精→防精",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "MASTER"
+    },
+    {
+      "name": "能力辅助 爆→攻防",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "能力辅助 士→全能力",
+      "score": 2.0,
+      "legacyCategory": "强力",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "忽视能力 全能力",
+      "score": 2.0,
+      "legacyCategory": "强力",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "忽视能力 攻防",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "忽视能力 精",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "忽视能力 防士",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "忽视能力 精士",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "忽视能力 攻精",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "自动提升 全能力",
+      "score": 2.0,
+      "legacyCategory": "强力",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "自动提升 攻精",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "自动提升 攻防",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "自动提升 攻爆",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "自动提升 防精",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "MASTER"
+    },
+    {
+      "name": "自动提升 精士",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "MASTER"
+    },
+    {
+      "name": "自动提升 防移",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "提升周围 攻",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "提升周围 防",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "提升周围 精",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "提升周围 爆士",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "提升周围 移",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "提升周围 攻防",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "远距攻击 八向",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "远距攻击 没羽箭",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "远距攻击 方格",
+      "score": 2.0,
+      "legacyCategory": "强力",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "远距攻击 大没羽",
+      "score": 2.0,
+      "legacyCategory": "强力",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "远距攻击 刺客",
+      "score": 2.0,
+      "legacyCategory": "强力",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "远距攻击 大爆炎",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "远距攻击 炮车",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "远距攻击 圆环",
+      "score": 2.0,
+      "legacyCategory": "强力",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "附加伤害 攻击 10%",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "附加伤害 防御 10%",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "附加伤害 精神 10%",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "附加伤害 爆发 12%",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "附加伤害 士气 12%",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "策略破坏 攻",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "策略破坏 防",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "MASTER"
+    },
+    {
+      "name": "策略破坏 精",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "MASTER"
+    },
+    {
+      "name": "策略破坏 爆士",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "MASTER"
+    },
+    {
+      "name": "策略破坏 攻精",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "MASTER"
+    },
+    {
+      "name": "策略破坏 全能力",
+      "score": 2.0,
+      "legacyCategory": "强力",
+      "type": "MASTER"
+    },
+    {
+      "name": "固定增伤",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "固定减伤",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "纵横无阻",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "辅助地形状态",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "恶路移动",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "破坏MP攻击",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "强化策略穿透",
+      "score": 2.0,
+      "legacyCategory": "强力",
+      "type": "MASTER"
+    },
+    {
+      "name": "自身治疗强化 75%",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "辅助治疗策略 50%",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "MASTER"
+    },
+    {
+      "name": "逆境减伤",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "反击成双",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "增加正向伤害 35%",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "减少斜向伤害 40%",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "远距离增伤 10%",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "落井下石 15%",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "止戈为武",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "MP转伤攻击 25%",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "化力为疗 15%",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "夺锐攻击",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "四向夺锋",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "侧翼突袭 35%",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "辅助移动力 +2",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "强化成长 攻",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "强化成长 防",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "强化成长 精",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "MASTER"
+    },
+    {
+      "name": "强化成长 爆",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "强化成长 士",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "强化成长 攻防",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "强化成长 防精",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "MASTER"
+    },
+    {
+      "name": "强化成长 爆士",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "强化成长 全能力",
+      "score": 2.0,
+      "legacyCategory": "强力",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "无视策略减伤",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "攻击保底伤害 40",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "致命成双",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "辅助连击率 25%",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "免疫异常状态",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "策略保底伤害 50",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "策略限伤 60",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "辅助山战 110%",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "辅助水战 110%",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "鹰视狼顾 2",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "勇冠三军",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "再顾倾国",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "白虎锐鸣",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "天人之勇",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "万里龙城",
+      "score": 2.0,
+      "legacyCategory": "强力",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "步步为营",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "锦帆踏江",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "山川易势",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "HP辅助能力 全能力",
+      "score": 2.0,
+      "legacyCategory": "强力",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "HP辅助能力 攻士",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "HP辅助能力 攻防",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "HP辅助能力 攻爆",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "HP辅助能力 防精",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "MP辅助能力 全能力",
+      "score": 2.0,
+      "legacyCategory": "强力",
+      "type": "MASTER"
+    },
+    {
+      "name": "MP辅助能力 攻防",
+      "score": 1.0,
+      "legacyCategory": "优质",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "MP辅助能力 精士",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "MASTER"
+    },
+    {
+      "name": "MP辅助能力 攻爆",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "WARRIOR"
+    },
+    {
+      "name": "MP辅助能力 防精",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "翩若惊鸿",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "娇纵三江",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "超世之杰",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "战必先登",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "name": "古之恶来",
+      "score": 0.0,
+      "legacyCategory": "其他",
+      "type": "ALL_ROUNDER"
+    }
+  ],
+  "jobs": [
+    {
+      "id": 0,
+      "name": "群雄",
+      "score": 8,
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "id": 3,
+      "name": "轻步兵",
+      "score": 6,
+      "type": "WARRIOR"
+    },
+    {
+      "id": 6,
+      "name": "弓兵",
+      "score": 5,
+      "type": "WARRIOR"
+    },
+    {
+      "id": 9,
+      "name": "轻骑兵",
+      "score": 5,
+      "type": "WARRIOR"
+    },
+    {
+      "id": 12,
+      "name": "弓骑兵",
+      "score": 5,
+      "type": "WARRIOR"
+    },
+    {
+      "id": 15,
+      "name": "轻炮车",
+      "score": 8,
+      "type": "WARRIOR"
+    },
+    {
+      "id": 18,
+      "name": "游侠",
+      "score": 6,
+      "type": "WARRIOR"
+    },
+    {
+      "id": 21,
+      "name": "山贼",
+      "score": 4,
+      "type": "WARRIOR"
+    },
+    {
+      "id": 24,
+      "name": "策士",
+      "score": 7,
+      "type": "MASTER"
+    },
+    {
+      "id": 27,
+      "name": "医师",
+      "score": 7,
+      "type": "MASTER"
+    },
+    {
+      "id": 30,
+      "name": "道士",
+      "score": 7,
+      "type": "MASTER"
+    },
+    {
+      "id": 33,
+      "name": "骑策士",
+      "score": 7,
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "id": 36,
+      "name": "女侍",
+      "score": 4,
+      "type": "MASTER"
+    },
+    {
+      "id": 39,
+      "name": "刀兵",
+      "score": 6,
+      "type": "WARRIOR"
+    },
+    {
+      "id": 42,
+      "name": "枪兵",
+      "score": 4,
+      "type": "WARRIOR"
+    },
+    {
+      "id": 45,
+      "name": "先锋兵",
+      "score": 5,
+      "type": "WARRIOR"
+    },
+    {
+      "id": 48,
+      "name": "水贼",
+      "score": 4,
+      "type": "WARRIOR"
+    },
+    {
+      "id": 51,
+      "name": "轻战车",
+      "score": 6,
+      "type": "WARRIOR"
+    },
+    {
+      "id": 54,
+      "name": "重骑兵",
+      "score": 6,
+      "type": "WARRIOR"
+    },
+    {
+      "id": 57,
+      "name": "校尉",
+      "score": 6,
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "id": 60,
+      "name": "西凉骑",
+      "score": 5,
+      "type": "WARRIOR"
+    },
+    {
+      "id": 61,
+      "name": "勇将",
+      "score": 9,
+      "type": "WARRIOR"
+    },
+    {
+      "id": 62,
+      "name": "游牧骑",
+      "score": 9,
+      "type": "WARRIOR"
+    },
+    {
+      "id": 63,
+      "name": "驯兽师",
+      "score": 7,
+      "type": "WARRIOR"
+    },
+    {
+      "id": 64,
+      "name": "杀手",
+      "score": 7,
+      "type": "WARRIOR"
+    },
+    {
+      "id": 65,
+      "name": "都督",
+      "score": 9,
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "id": 66,
+      "name": "咒术师",
+      "score": 9,
+      "type": "MASTER"
+    },
+    {
+      "id": 67,
+      "name": "玉龙军",
+      "score": 9,
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "id": 68,
+      "name": "辎重队",
+      "score": 9,
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "id": 69,
+      "name": "神羿骑",
+      "score": 7,
+      "type": "WARRIOR"
+    },
+    {
+      "id": 70,
+      "name": "机关",
+      "score": 7,
+      "type": "WARRIOR"
+    },
+    {
+      "id": 71,
+      "name": "名将",
+      "score": 9,
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "id": 72,
+      "name": "皇帝",
+      "score": 10,
+      "type": "ALL_ROUNDER"
+    },
+    {
+      "id": 73,
+      "name": "虎豹骑",
+      "score": 9,
+      "type": "WARRIOR"
+    },
+    {
+      "id": 74,
+      "name": "穿杨手",
+      "score": 7,
+      "type": "WARRIOR"
+    },
+    {
+      "id": 75,
+      "name": "虎贲军",
+      "score": 8,
+      "type": "WARRIOR"
+    },
+    {
+      "id": 76,
+      "name": "力士",
+      "score": 8,
+      "type": "WARRIOR"
+    },
+    {
+      "id": 77,
+      "name": "云川卫",
+      "score": 8,
+      "type": "WARRIOR"
+    },
+    {
+      "id": 78,
+      "name": "宿卫骑",
+      "score": 9,
+      "type": "WARRIOR"
+    },
+    {
+      "id": 79,
+      "name": "魔王",
+      "score": 12,
+      "type": "ALL_ROUNDER"
+    }
+  ]
+}

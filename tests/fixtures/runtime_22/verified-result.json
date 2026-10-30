@@ -1,0 +1,2870 @@
+{
+  "schemaVersion": 1,
+  "gameVersion": "2.2",
+  "mode": "three",
+  "slot": 1,
+  "acceptedAttempt": 1,
+  "createdAt": "2026-10-30T23:37:11.2709692\u002B08:00",
+  "qualified": true,
+  "members": [
+    {
+      "name": "\u5F20\u5B9D",
+      "job": "\u9053\u58EB",
+      "jobScore": 7,
+      "personalSkills": [
+        {
+          "name": "\u7B56\u7565\u9650\u4F24 60"
+        }
+      ],
+      "jobSkills": [
+        {
+          "name": "\u6BCF\u56DE\u5408\u6062\u590DHP 20%"
+        }
+      ]
+    }
+  ],
+  "personnel": [
+    {
+      "recordIndex": 146,
+      "memberId": 146,
+      "name": "\u5F20\u5B9D",
+      "jobId": 30,
+      "currentJobId": 30,
+      "job": "\u9053\u58EB",
+      "jobTalents": [
+        "\u6BCF\u56DE\u5408\u6062\u590DHP 20%"
+      ],
+      "personalTalents": [
+        "\u7B56\u7565\u9650\u4F24 60"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 147,
+      "memberId": 147,
+      "name": "\u5F20\u6881",
+      "jobId": 0,
+      "currentJobId": 39,
+      "job": "\u7FA4\u96C4",
+      "jobTalents": [
+        "\u589E\u52A0\u6B63\u5411\u4F24\u5BB3 35%"
+      ],
+      "personalTalents": [
+        "\u7B56\u7565\u65E0\u89C6\u5929\u6C14"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 5,
+      "memberId": 3,
+      "name": "\u66F9\u4EC1",
+      "jobId": 76,
+      "currentJobId": 39,
+      "job": "\u529B\u58EB",
+      "jobTalents": [
+        "\u7834\u574F\u7206\u53D1"
+      ],
+      "personalTalents": [
+        "\u9644\u52A0\u4F24\u5BB3 \u7206\u53D1 12%",
+        "\u5929\u4EBA\u4E4B\u52C7"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 134,
+      "memberId": 134,
+      "name": "\u534E\u96C4",
+      "jobId": 45,
+      "currentJobId": 60,
+      "job": "\u5148\u950B\u5175",
+      "jobTalents": [
+        "\u75BE\u98CE\u653B\u51FB 12"
+      ],
+      "personalTalents": [
+        "\u6B65\u6B65\u4E3A\u8425",
+        "MP\u8F85\u52A9\u80FD\u529B \u9632\u7CBE"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 135,
+      "memberId": 135,
+      "name": "\u674E\u8083",
+      "jobId": 27,
+      "currentJobId": 24,
+      "job": "\u533B\u5E08",
+      "jobTalents": [
+        "\u5B66\u4F1A\u7B56\u7565-\u8865\u7ED9"
+      ],
+      "personalTalents": [
+        "\u9632\u5FA1\u7279\u6B8A\u653B\u51FB"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 10,
+      "memberId": 11,
+      "name": "\u4E50\u8FDB",
+      "jobId": 9,
+      "currentJobId": 42,
+      "job": "\u8F7B\u9A91\u5175",
+      "jobTalents": [
+        "\u7834\u574F\u58EB\u6C14"
+      ],
+      "personalTalents": [
+        "\u6062\u590D\u5468\u56F4\u72B6\u6001"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 11,
+      "memberId": 9,
+      "name": "\u674E\u5178",
+      "jobId": 54,
+      "currentJobId": 3,
+      "job": "\u91CD\u9A91\u5175",
+      "jobTalents": [
+        "\u5F3A\u5316\u53CD\u51FB 15%"
+      ],
+      "personalTalents": [
+        "\u6062\u590D\u5468\u56F4\u72B6\u6001"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 132,
+      "memberId": 132,
+      "name": "\u674E\u5112",
+      "jobId": 27,
+      "currentJobId": 24,
+      "job": "\u533B\u5E08",
+      "jobTalents": [
+        "\u5B66\u4F1A\u7B56\u7565-\u8865\u7ED9"
+      ],
+      "personalTalents": [
+        "\u81EA\u52A8\u63D0\u5347 \u9632\u79FB"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 133,
+      "memberId": 133,
+      "name": "\u6A0A\u7A20",
+      "jobId": 0,
+      "currentJobId": 60,
+      "job": "\u7FA4\u96C4",
+      "jobTalents": [
+        "\u589E\u52A0\u6B63\u5411\u4F24\u5BB3 35%"
+      ],
+      "personalTalents": [
+        "\u5F3A\u5316\u6210\u957F \u9632"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 128,
+      "memberId": 128,
+      "name": "\u5F20\u6D4E",
+      "jobId": 6,
+      "currentJobId": 60,
+      "job": "\u5F13\u5175",
+      "jobTalents": [
+        "\u9B3C\u795E\u4E4B\u52C7 12%"
+      ],
+      "personalTalents": [
+        "\u540C\u4EC7\u654C\u5FFE 2"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 130,
+      "memberId": 130,
+      "name": "\u5F90\u8363",
+      "jobId": 6,
+      "currentJobId": 54,
+      "job": "\u5F13\u5175",
+      "jobTalents": [
+        "\u9B3C\u795E\u4E4B\u52C7 12%"
+      ],
+      "personalTalents": [
+        "\u5F3A\u5316\u6210\u957F \u58EB"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 24,
+      "memberId": 24,
+      "name": "\u8340\u6538",
+      "jobId": 24,
+      "currentJobId": 27,
+      "job": "\u7B56\u58EB",
+      "jobTalents": [
+        "\u5FFD\u89C6\u80FD\u529B \u653B\u9632"
+      ],
+      "personalTalents": [
+        "\u5F3A\u5316\u6210\u957F \u7CBE"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 99,
+      "memberId": 99,
+      "name": "\u5B59\u575A",
+      "jobId": 27,
+      "currentJobId": 0,
+      "job": "\u533B\u5E08",
+      "jobTalents": [
+        "\u5B66\u4F1A\u7B56\u7565-\u8865\u7ED9"
+      ],
+      "personalTalents": [
+        "\u7834\u574F\u58EB\u6C14",
+        "\u51CF\u8F7B\u7269\u7406\u635F\u4F24 -30%"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 145,
+      "memberId": 145,
+      "name": "\u9676\u8C26",
+      "jobId": 12,
+      "currentJobId": 27,
+      "job": "\u5F13\u9A91\u5175",
+      "jobTalents": [
+        "\u9644\u52A0\u4F24\u5BB3 \u9632\u5FA1 10%"
+      ],
+      "personalTalents": [
+        "\u81EA\u52A8\u63D0\u5347 \u9632\u7CBE"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 14,
+      "memberId": 12,
+      "name": "\u4E8E\u7981",
+      "jobId": 54,
+      "currentJobId": 6,
+      "job": "\u91CD\u9A91\u5175",
+      "jobTalents": [
+        "\u5F3A\u5316\u53CD\u51FB 15%"
+      ],
+      "personalTalents": [
+        "\u53CD\u5F39\u4F24\u5BB3 60%",
+        "\u81EA\u52A8\u63D0\u5347 \u653B\u7206"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 21,
+      "memberId": 25,
+      "name": "\u7A0B\u6631",
+      "jobId": 57,
+      "currentJobId": 68,
+      "job": "\u6821\u5C09",
+      "jobTalents": [
+        "\u968F\u673A\u5C5E\u6027\u653B\u51FB"
+      ],
+      "personalTalents": [
+        "\u51CF\u5C11\u659C\u5411\u4F24\u5BB3 40%"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 18,
+      "memberId": 18,
+      "name": "\u5218\u6654",
+      "jobId": 27,
+      "currentJobId": 15,
+      "job": "\u533B\u5E08",
+      "jobTalents": [
+        "\u5B66\u4F1A\u7B56\u7565-\u8865\u7ED9"
+      ],
+      "personalTalents": [
+        "\u4E00\u592B\u5F53\u5173 10%",
+        "\u8F85\u52A9\u6C34\u6218 110%"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 131,
+      "memberId": 131,
+      "name": "\u674E\u5095",
+      "jobId": 45,
+      "currentJobId": 3,
+      "job": "\u5148\u950B\u5175",
+      "jobTalents": [
+        "\u75BE\u98CE\u653B\u51FB 12"
+      ],
+      "personalTalents": [
+        "\u75BE\u98CE\u653B\u51FB 12"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 129,
+      "memberId": 129,
+      "name": "\u90ED\u6C5C",
+      "jobId": 18,
+      "currentJobId": 45,
+      "job": "\u6E38\u4FA0",
+      "jobTalents": [
+        "\u56FA\u5B9A\u51CF\u4F24"
+      ],
+      "personalTalents": [
+        "\u51CF\u5C11\u659C\u5411\u4F24\u5BB3 40%"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 13,
+      "memberId": 13,
+      "name": "\u5F90\u6643",
+      "jobId": 9,
+      "currentJobId": 60,
+      "job": "\u8F7B\u9A91\u5175",
+      "jobTalents": [
+        "\u7834\u574F\u58EB\u6C14"
+      ],
+      "personalTalents": [
+        "\u4FA7\u7FFC\u7A81\u88AD 35%"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 149,
+      "memberId": 149,
+      "name": "\u5218\u534F",
+      "jobId": 36,
+      "currentJobId": 72,
+      "job": "\u5973\u4F8D",
+      "jobTalents": [
+        "\u9632\u5FA1\u8FDC\u8DDD\u653B\u51FB",
+        "\u6062\u590D\u5468\u56F4\u72B6\u6001"
+      ],
+      "personalTalents": [
+        "\u7B56\u7565\u65E0\u89C6\u5929\u6C14"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 144,
+      "memberId": 144,
+      "name": "\u80E1\u8F66\u513F",
+      "jobId": 12,
+      "currentJobId": 76,
+      "job": "\u5F13\u9A91\u5175",
+      "jobTalents": [
+        "\u9644\u52A0\u4F24\u5BB3 \u9632\u5FA1 10%"
+      ],
+      "personalTalents": [
+        "\u8FDC\u8DDD\u653B\u51FB \u5927\u6CA1\u7FBD"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 205,
+      "memberId": 288,
+      "name": "\u90B9\u6C0F",
+      "jobId": 27,
+      "currentJobId": 27,
+      "job": "\u533B\u5E08",
+      "jobTalents": [
+        "\u5B66\u4F1A\u7B56\u7565-\u8865\u7ED9"
+      ],
+      "personalTalents": [
+        "\u6BCF\u56DE\u5408\u6062\u590DMP 8"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 25,
+      "memberId": 21,
+      "name": "\u6EE1\u5BA0",
+      "jobId": 24,
+      "currentJobId": 65,
+      "job": "\u7B56\u58EB",
+      "jobTalents": [
+        "\u5FFD\u89C6\u80FD\u529B \u653B\u9632"
+      ],
+      "personalTalents": [
+        "\u653B\u51FB\u8FFD\u52A0 \u8BF1\u60D1",
+        "\u81EA\u52A8\u63D0\u5347 \u9632\u79FB"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 137,
+      "memberId": 137,
+      "name": "\u7EAA\u7075",
+      "jobId": 36,
+      "currentJobId": 57,
+      "job": "\u5973\u4F8D",
+      "jobTalents": [
+        "\u9632\u5FA1\u8FDC\u8DDD\u653B\u51FB",
+        "\u6062\u590D\u5468\u56F4\u72B6\u6001"
+      ],
+      "personalTalents": [
+        "\u968F\u673A\u72B6\u6001\u653B\u51FB"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 124,
+      "memberId": 124,
+      "name": "\u66F9\u6027",
+      "jobId": 51,
+      "currentJobId": 12,
+      "job": "\u8F7B\u6218\u8F66",
+      "jobTalents": [
+        "\u81EA\u52A8\u63D0\u5347 \u7CBE\u58EB"
+      ],
+      "personalTalents": [
+        "\u7A7F\u900F\u653B\u51FB \u4E8C\u683C"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 125,
+      "memberId": 125,
+      "name": "\u81E7\u9738",
+      "jobId": 27,
+      "currentJobId": 21,
+      "job": "\u533B\u5E08",
+      "jobTalents": [
+        "\u5B66\u4F1A\u7B56\u7565-\u8865\u7ED9"
+      ],
+      "personalTalents": [
+        "\u56FA\u5B9A\u51CF\u4F24"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 119,
+      "memberId": 119,
+      "name": "\u5415\u5E03",
+      "jobId": 21,
+      "currentJobId": 78,
+      "job": "\u5C71\u8D3C",
+      "jobTalents": [
+        "\u7834\u574F\u7CBE\u795E"
+      ],
+      "personalTalents": [
+        "\u4E2D\u6BD2\u653B\u51FB 100%",
+        "\u518D\u6B21\u79FB\u52A8",
+        "\u94C1\u7D22\u6A2A\u6C5F"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 122,
+      "memberId": 122,
+      "name": "\u9AD8\u987A",
+      "jobId": 51,
+      "currentJobId": 61,
+      "job": "\u8F7B\u6218\u8F66",
+      "jobTalents": [
+        "\u81EA\u52A8\u63D0\u5347 \u7CBE\u58EB"
+      ],
+      "personalTalents": [
+        "\u6BCF\u56DE\u5408\u6062\u590DHP 20%",
+        "\u53CD\u51FB\u540E\u53CD\u51FB"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 126,
+      "memberId": 126,
+      "name": "\u9648\u5BAB",
+      "jobId": 33,
+      "currentJobId": 65,
+      "job": "\u9A91\u7B56\u58EB",
+      "jobTalents": [
+        "\u7B56\u7565\u5148\u624B \u6BD2\u70DF"
+      ],
+      "personalTalents": [
+        "\u63D0\u5347\u5468\u56F4 \u79FB"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 123,
+      "memberId": 123,
+      "name": "\u4FAF\u6210",
+      "jobId": 6,
+      "currentJobId": 3,
+      "job": "\u5F13\u5175",
+      "jobTalents": [
+        "\u9B3C\u795E\u4E4B\u52C7 12%"
+      ],
+      "personalTalents": [
+        "\u5148\u624B\u653B\u51FB"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 143,
+      "memberId": 143,
+      "name": "\u5F20\u7EE3",
+      "jobId": 21,
+      "currentJobId": 9,
+      "job": "\u5C71\u8D3C",
+      "jobTalents": [
+        "\u7834\u574F\u7CBE\u795E"
+      ],
+      "personalTalents": [
+        "\u63D0\u5347\u653B\u51FB\u8303\u56F4"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 17,
+      "memberId": 17,
+      "name": "\u8C82\u8749",
+      "jobId": 15,
+      "currentJobId": 36,
+      "job": "\u8F7B\u70AE\u8F66",
+      "jobTalents": [
+        "\u81F4\u547D\u4E00\u51FB"
+      ],
+      "personalTalents": [
+        "\u5FFD\u89C6\u80FD\u529B \u7CBE",
+        "\u7B56\u7565\u7834\u574F \u653B"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 23,
+      "memberId": 262,
+      "name": "\u8D3E\u8BE9",
+      "jobId": 51,
+      "currentJobId": 30,
+      "job": "\u8F7B\u6218\u8F66",
+      "jobTalents": [
+        "\u81EA\u52A8\u63D0\u5347 \u7CBE\u58EB"
+      ],
+      "personalTalents": [
+        "\u81F4\u547D\u4E00\u51FB",
+        "\u4E0D\u60E7\u654C\u56F4 3%"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 108,
+      "memberId": 108,
+      "name": "\u989C\u826F",
+      "jobId": 63,
+      "currentJobId": 61,
+      "job": "\u9A6F\u517D\u5E08",
+      "jobTalents": [
+        "\u9EBB\u75F9\u653B\u51FB 60%",
+        "\u56DE\u9A6C\u653B\u51FB 20%"
+      ],
+      "personalTalents": [
+        "\u7B56\u7565\u514D\u75AB",
+        "\u56FA\u5B9A\u51CF\u4F24"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 120,
+      "memberId": 120,
+      "name": "\u9B4F\u7EED",
+      "jobId": 39,
+      "currentJobId": 9,
+      "job": "\u5200\u5175",
+      "jobTalents": [
+        "MP\u8F6C\u4F24\u653B\u51FB 25%"
+      ],
+      "personalTalents": [
+        "\u8FDC\u8DDD\u653B\u51FB \u65B9\u683C"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 121,
+      "memberId": 121,
+      "name": "\u5B8B\u5BAA",
+      "jobId": 30,
+      "currentJobId": 6,
+      "job": "\u9053\u58EB",
+      "jobTalents": [
+        "\u6BCF\u56DE\u5408\u6062\u590DHP 20%"
+      ],
+      "personalTalents": [
+        "\u6B65\u5175\u9632\u5FA1 35%"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 100,
+      "memberId": 100,
+      "name": "\u5B59\u7B56",
+      "jobId": 69,
+      "currentJobId": 54,
+      "job": "\u795E\u7FBF\u9A91",
+      "jobTalents": [
+        "\u653B\u51FB\u7EDD\u5BF9\u547D\u4E2D",
+        "\u4FA7\u7FFC\u7A81\u88AD 35%"
+      ],
+      "personalTalents": [
+        "\u7EDD\u5BF9\u514B\u5236 18%",
+        "\u6B65\u6B65\u4E3A\u8425"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 109,
+      "memberId": 109,
+      "name": "\u6587\u4E11",
+      "jobId": 70,
+      "currentJobId": 61,
+      "job": "\u673A\u5173",
+      "jobTalents": [
+        "\u4E2D\u6BD2\u653B\u51FB 100%",
+        "\u9A91\u9A6C\u9632\u5FA1 35%"
+      ],
+      "personalTalents": [
+        "\u968F\u673A\u72B6\u6001\u653B\u51FB",
+        "\u80FD\u529B\u66FF\u6362 \u653B\u2192\u58EB"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 105,
+      "memberId": 105,
+      "name": "\u6CAE\u6388",
+      "jobId": 27,
+      "currentJobId": 24,
+      "job": "\u533B\u5E08",
+      "jobTalents": [
+        "\u5B66\u4F1A\u7B56\u7565-\u8865\u7ED9"
+      ],
+      "personalTalents": [
+        "\u5FFD\u89C6\u80FD\u529B \u653B\u7CBE",
+        "\u81EA\u8EAB\u6CBB\u7597\u5F3A\u5316 75%"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 110,
+      "memberId": 110,
+      "name": "\u7530\u4E30",
+      "jobId": 24,
+      "currentJobId": 24,
+      "job": "\u7B56\u58EB",
+      "jobTalents": [
+        "\u5FFD\u89C6\u80FD\u529B \u653B\u9632"
+      ],
+      "personalTalents": [
+        "\u4F17\u5FD7\u6210\u57CE 6%",
+        "\u6076\u8DEF\u79FB\u52A8"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 107,
+      "memberId": 107,
+      "name": "\u9AD8\u89C8",
+      "jobId": 3,
+      "currentJobId": 12,
+      "job": "\u8F7B\u6B65\u5175",
+      "jobTalents": [
+        "\u63D0\u5347\u653B\u51FB\u8303\u56F4"
+      ],
+      "personalTalents": [
+        "\u7A7F\u900F\u653B\u51FB \u516D\u683C",
+        "\u8FDC\u8DDD\u653B\u51FB \u5927\u7206\u708E"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 111,
+      "memberId": 111,
+      "name": "\u6DF3\u4E8E\u743C",
+      "jobId": 21,
+      "currentJobId": 3,
+      "job": "\u5C71\u8D3C",
+      "jobTalents": [
+        "\u7834\u574F\u7CBE\u795E"
+      ],
+      "personalTalents": [
+        "\u51CF\u8F7B\u7269\u7406\u635F\u4F24 -30%"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 7,
+      "memberId": 8,
+      "name": "\u5F20\u90C3",
+      "jobId": 24,
+      "currentJobId": 51,
+      "job": "\u7B56\u58EB",
+      "jobTalents": [
+        "\u5FFD\u89C6\u80FD\u529B \u653B\u9632"
+      ],
+      "personalTalents": [
+        "\u8FDC\u8DDD\u653B\u51FB \u5927\u6CA1\u7FBD",
+        "\u8F85\u52A9\u6C34\u6218 110%"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 74,
+      "memberId": 74,
+      "name": "\u5218\u8F9F",
+      "jobId": 61,
+      "currentJobId": 21,
+      "job": "\u52C7\u5C06",
+      "jobTalents": [
+        "\u5148\u624B\u653B\u51FB",
+        "\u4E3B\u52A8\u8FDE\u51FB"
+      ],
+      "personalTalents": [
+        "\u7EB5\u6A2A\u65E0\u963B"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 75,
+      "memberId": 75,
+      "name": "\u9F9A\u90FD",
+      "jobId": 12,
+      "currentJobId": 21,
+      "job": "\u5F13\u9A91\u5175",
+      "jobTalents": [
+        "\u9644\u52A0\u4F24\u5BB3 \u9632\u5FA1 10%"
+      ],
+      "personalTalents": [
+        "\u552F\u6211\u72EC\u5C0A"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 8,
+      "memberId": 14,
+      "name": "\u66F9\u4E15",
+      "jobId": 36,
+      "currentJobId": 67,
+      "job": "\u5973\u4F8D",
+      "jobTalents": [
+        "\u9632\u5FA1\u8FDC\u8DDD\u653B\u51FB",
+        "\u6062\u590D\u5468\u56F4\u72B6\u6001"
+      ],
+      "personalTalents": [
+        "\u6076\u8DEF\u79FB\u52A8",
+        "\u8F85\u52A9\u5C71\u6218 110%"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 106,
+      "memberId": 106,
+      "name": "\u5BA1\u914D",
+      "jobId": 30,
+      "currentJobId": 33,
+      "job": "\u9053\u58EB",
+      "jobTalents": [
+        "\u6BCF\u56DE\u5408\u6062\u590DHP 20%"
+      ],
+      "personalTalents": [
+        "\u6D77\u7EB3\u767E\u5DDD 10",
+        "\u7EB5\u6A2A\u65E0\u963B"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 206,
+      "memberId": 287,
+      "name": "\u7504\u5B93",
+      "jobId": 36,
+      "currentJobId": 36,
+      "job": "\u5973\u4F8D",
+      "jobTalents": [
+        "\u9632\u5FA1\u8FDC\u8DDD\u653B\u51FB",
+        "\u6062\u590D\u5468\u56F4\u72B6\u6001"
+      ],
+      "personalTalents": [
+        "\u9632\u5FA1\u7279\u6B8A\u653B\u51FB",
+        "\u7FE9\u82E5\u60CA\u9E3F"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 113,
+      "memberId": 113,
+      "name": "\u8881\u8C2D",
+      "jobId": 12,
+      "currentJobId": 9,
+      "job": "\u5F13\u9A91\u5175",
+      "jobTalents": [
+        "\u9644\u52A0\u4F24\u5BB3 \u9632\u5FA1 10%"
+      ],
+      "personalTalents": [
+        "MP\u8F85\u52A9\u80FD\u529B \u653B\u9632"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 112,
+      "memberId": 112,
+      "name": "\u8F9B\u8BC4",
+      "jobId": 63,
+      "currentJobId": 74,
+      "job": "\u9A6F\u517D\u5E08",
+      "jobTalents": [
+        "\u9EBB\u75F9\u653B\u51FB 60%",
+        "\u56DE\u9A6C\u653B\u51FB 20%"
+      ],
+      "personalTalents": [
+        "\u51CF\u5C11\u659C\u5411\u4F24\u5BB3 40%"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 103,
+      "memberId": 103,
+      "name": "\u90ED\u56FE",
+      "jobId": 27,
+      "currentJobId": 30,
+      "job": "\u533B\u5E08",
+      "jobTalents": [
+        "\u5B66\u4F1A\u7B56\u7565-\u8865\u7ED9"
+      ],
+      "personalTalents": [
+        "\u7B56\u7565\u5148\u624B \u6BD2\u70DF"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 114,
+      "memberId": 114,
+      "name": "\u8881\u7199",
+      "jobId": 6,
+      "currentJobId": 57,
+      "job": "\u5F13\u5175",
+      "jobTalents": [
+        "\u9B3C\u795E\u4E4B\u52C7 12%"
+      ],
+      "personalTalents": [
+        "\u63D0\u5347\u5468\u56F4 \u7206\u58EB"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 115,
+      "memberId": 115,
+      "name": "\u8881\u5C1A",
+      "jobId": 39,
+      "currentJobId": 0,
+      "job": "\u5200\u5175",
+      "jobTalents": [
+        "MP\u8F6C\u4F24\u653B\u51FB 25%"
+      ],
+      "personalTalents": [
+        "\u9632\u5FA1\u8FDC\u8DDD\u653B\u51FB"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 116,
+      "memberId": 116,
+      "name": "\u9AD8\u5E72",
+      "jobId": 39,
+      "currentJobId": 12,
+      "job": "\u5200\u5175",
+      "jobTalents": [
+        "MP\u8F6C\u4F24\u653B\u51FB 25%"
+      ],
+      "personalTalents": [
+        "\u5F3A\u5316\u53CD\u51FB 15%"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 27,
+      "memberId": 27,
+      "name": "\u6587\u8058",
+      "jobId": 51,
+      "currentJobId": 57,
+      "job": "\u8F7B\u6218\u8F66",
+      "jobTalents": [
+        "\u81EA\u52A8\u63D0\u5347 \u7CBE\u58EB"
+      ],
+      "personalTalents": [
+        "\u56DE\u9A6C\u653B\u51FB 20%"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 26,
+      "memberId": 26,
+      "name": "\u590F\u4FAF\u6069",
+      "jobId": 12,
+      "currentJobId": 9,
+      "job": "\u5F13\u9A91\u5175",
+      "jobTalents": [
+        "\u9644\u52A0\u4F24\u5BB3 \u9632\u5FA1 10%"
+      ],
+      "personalTalents": [
+        "\u56DE\u590D\u5468\u56F4HP 12%"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 28,
+      "memberId": 28,
+      "name": "\u590F\u4FAF\u6770",
+      "jobId": 42,
+      "currentJobId": 9,
+      "job": "\u67AA\u5175",
+      "jobTalents": [
+        "\u51CF\u5C11\u659C\u5411\u4F24\u5BB3 40%"
+      ],
+      "personalTalents": [
+        "\u6BCF\u56DE\u5408\u6062\u590D\u72B6\u6001"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 64,
+      "memberId": 64,
+      "name": "\u5218\u7426",
+      "jobId": 12,
+      "currentJobId": 0,
+      "job": "\u5F13\u9A91\u5175",
+      "jobTalents": [
+        "\u9644\u52A0\u4F24\u5BB3 \u9632\u5FA1 10%"
+      ],
+      "personalTalents": [
+        "\u53CD\u5F39\u4F24\u5BB3 60%",
+        "\u4E00\u592B\u5F53\u5173 10%"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 91,
+      "memberId": 91,
+      "name": "\u9EC4\u76D6",
+      "jobId": 21,
+      "currentJobId": 54,
+      "job": "\u5C71\u8D3C",
+      "jobTalents": [
+        "\u7834\u574F\u7CBE\u795E"
+      ],
+      "personalTalents": [
+        "\u4F17\u5FD7\u6210\u57CE 6%",
+        "\u8FDC\u8DDD\u653B\u51FB \u70AE\u8F66"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 207,
+      "memberId": 289,
+      "name": "\u5927\u4E54",
+      "jobId": 15,
+      "currentJobId": 15,
+      "job": "\u8F7B\u70AE\u8F66",
+      "jobTalents": [
+        "\u81F4\u547D\u4E00\u51FB"
+      ],
+      "personalTalents": [
+        "\u5F3A\u5316\u7269\u7406\u7A7F\u900F 25%"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 98,
+      "memberId": 98,
+      "name": "\u7A0B\u666E",
+      "jobId": 42,
+      "currentJobId": 57,
+      "job": "\u67AA\u5175",
+      "jobTalents": [
+        "\u51CF\u5C11\u659C\u5411\u4F24\u5BB3 40%"
+      ],
+      "personalTalents": [
+        "\u53CD\u5F39\u5F02\u5E38\u653B\u51FB",
+        "\u53CD\u51FB\u540E\u53CD\u51FB"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 208,
+      "memberId": 290,
+      "name": "\u5C0F\u4E54",
+      "jobId": 9,
+      "currentJobId": 9,
+      "job": "\u8F7B\u9A91\u5175",
+      "jobTalents": [
+        "\u7834\u574F\u58EB\u6C14"
+      ],
+      "personalTalents": [
+        "\u8F6C\u79FB\u4F24\u5BB3 20%",
+        "\u9526\u5E06\u8E0F\u6C5F"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 77,
+      "memberId": 77,
+      "name": "\u5468\u745C",
+      "jobId": 65,
+      "currentJobId": 65,
+      "job": "\u90FD\u7763",
+      "jobTalents": [
+        "\u7B56\u7565\u65E0\u89C6\u5730\u5F62",
+        "MP\u8F85\u52A9\u80FD\u529B \u653B\u9632"
+      ],
+      "personalTalents": [
+        "\u6DF7\u4E71\u653B\u51FB 50%",
+        "\u81F4\u547D\u4E00\u51FB"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 95,
+      "memberId": 95,
+      "name": "\u592A\u53F2\u6148",
+      "jobId": 12,
+      "currentJobId": 69,
+      "job": "\u5F13\u9A91\u5175",
+      "jobTalents": [
+        "\u9644\u52A0\u4F24\u5BB3 \u9632\u5FA1 10%"
+      ],
+      "personalTalents": [
+        "\u6BCF\u56DE\u5408\u6062\u590DMP 8",
+        "\u7834\u574F\u653B\u51FB"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 209,
+      "memberId": 291,
+      "name": "\u5B59\u5C1A\u9999",
+      "jobId": 74,
+      "currentJobId": 74,
+      "job": "\u7A7F\u6768\u624B",
+      "jobTalents": [
+        "\u56DE\u590D\u5468\u56F4HP 12%",
+        "\u8FDC\u8DDD\u653B\u51FB \u5927\u7206\u708E"
+      ],
+      "personalTalents": [
+        "\u540C\u5FC3\u534F\u529B 3%",
+        "\u5A07\u7EB5\u4E09\u6C5F"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 90,
+      "memberId": 90,
+      "name": "\u5E9E\u7EDF",
+      "jobId": 65,
+      "currentJobId": 66,
+      "job": "\u90FD\u7763",
+      "jobTalents": [
+        "\u7B56\u7565\u65E0\u89C6\u5730\u5F62",
+        "MP\u8F85\u52A9\u80FD\u529B \u653B\u9632"
+      ],
+      "personalTalents": [
+        "\u9632\u5FA1\u7279\u6B8A\u653B\u51FB",
+        "\u8F85\u52A9\u6CBB\u7597\u7B56\u7565 50%"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 140,
+      "memberId": 140,
+      "name": "\u5F20\u9C81",
+      "jobId": 30,
+      "currentJobId": 30,
+      "job": "\u9053\u58EB",
+      "jobTalents": [
+        "\u6BCF\u56DE\u5408\u6062\u590DHP 20%"
+      ],
+      "personalTalents": [
+        "HP\u8F85\u52A9\u80FD\u529B \u5168\u80FD\u529B"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 141,
+      "memberId": 141,
+      "name": "\u5F20\u536B",
+      "jobId": 62,
+      "currentJobId": 3,
+      "job": "\u6E38\u7267\u9A91",
+      "jobTalents": [
+        "\u65E0\u53CD\u51FB\u653B\u51FB",
+        "\u8FC5\u6377\u4E4B\u52C7 12%"
+      ],
+      "personalTalents": [
+        "\u6B65\u5175\u9632\u5FA1 35%"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 142,
+      "memberId": 142,
+      "name": "\u960E\u5703",
+      "jobId": 33,
+      "currentJobId": 24,
+      "job": "\u9A91\u7B56\u58EB",
+      "jobTalents": [
+        "\u7B56\u7565\u5148\u624B \u6BD2\u70DF"
+      ],
+      "personalTalents": [
+        "HP\u8F85\u52A9\u80FD\u529B \u653B\u7206"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 89,
+      "memberId": 89,
+      "name": "\u9648\u6B66",
+      "jobId": 30,
+      "currentJobId": 3,
+      "job": "\u9053\u58EB",
+      "jobTalents": [
+        "\u6BCF\u56DE\u5408\u6062\u590DHP 20%"
+      ],
+      "personalTalents": [
+        "\u53CD\u5F39\u5F02\u5E38\u653B\u51FB",
+        "\u7A7F\u8D8A\u79FB\u52A8"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 78,
+      "memberId": 78,
+      "name": "\u9C81\u8083",
+      "jobId": 33,
+      "currentJobId": 24,
+      "job": "\u9A91\u7B56\u58EB",
+      "jobTalents": [
+        "\u7B56\u7565\u5148\u624B \u6BD2\u70DF"
+      ],
+      "personalTalents": [
+        "\u8F85\u52A9\u653B\u51FB\u683C\u6321 \u002B20%",
+        "\u63D0\u5347\u65BD\u6CD5\u8303\u56F4"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 38,
+      "memberId": 38,
+      "name": "\u6CD5\u6B63",
+      "jobId": 33,
+      "currentJobId": 30,
+      "job": "\u9A91\u7B56\u58EB",
+      "jobTalents": [
+        "\u7B56\u7565\u5148\u624B \u6BD2\u70DF"
+      ],
+      "personalTalents": [
+        "\u8F6C\u79FB\u4F24\u5BB3 20%",
+        "\u8F85\u52A9\u5C71\u6218 110%"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 63,
+      "memberId": 63,
+      "name": "\u96F7\u94DC",
+      "jobId": 57,
+      "currentJobId": 18,
+      "job": "\u6821\u5C09",
+      "jobTalents": [
+        "\u968F\u673A\u5C5E\u6027\u653B\u51FB"
+      ],
+      "personalTalents": [
+        "\u9644\u52A0\u4F24\u5BB3 \u9632\u5FA1 10%",
+        "\u8F85\u52A9\u5730\u5F62\u72B6\u6001"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 33,
+      "memberId": 33,
+      "name": "\u5F20\u98DE",
+      "jobId": 78,
+      "currentJobId": 54,
+      "job": "\u5BBF\u536B\u9A91",
+      "jobTalents": [
+        "\u4F24\u5BB3\u589E\u5E45 \u002B30%",
+        "\u81EA\u52A8\u63D0\u5347 \u653B\u9632"
+      ],
+      "personalTalents": [
+        "\u7834\u574F\u79FB\u52A8",
+        "\u75BE\u98CE\u653B\u51FB 12"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 36,
+      "memberId": 36,
+      "name": "\u9EC4\u5FE0",
+      "jobId": 21,
+      "currentJobId": 69,
+      "job": "\u5C71\u8D3C",
+      "jobTalents": [
+        "\u7834\u574F\u7CBE\u795E"
+      ],
+      "personalTalents": [
+        "\u6BCF\u56DE\u5408\u6062\u590D\u72B6\u6001",
+        "\u6DF7\u4E71\u653B\u51FB 50%"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 80,
+      "memberId": 80,
+      "name": "\u5415\u8499",
+      "jobId": 21,
+      "currentJobId": 57,
+      "job": "\u5C71\u8D3C",
+      "jobTalents": [
+        "\u7834\u574F\u7CBE\u795E"
+      ],
+      "personalTalents": [
+        "\u4E0D\u60E7\u654C\u56F4 3%",
+        "\u80FD\u529B\u8F85\u52A9 \u58EB\u2192\u5168\u80FD\u529B"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 45,
+      "memberId": 45,
+      "name": "\u5218\u5C01",
+      "jobId": 18,
+      "currentJobId": 42,
+      "job": "\u6E38\u4FA0",
+      "jobTalents": [
+        "\u56FA\u5B9A\u51CF\u4F24"
+      ],
+      "personalTalents": [
+        "\u518D\u6B21\u79FB\u52A8",
+        "\u731B\u51FB 20%"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 65,
+      "memberId": 65,
+      "name": "\u5B5F\u8FBE",
+      "jobId": 24,
+      "currentJobId": 65,
+      "job": "\u7B56\u58EB",
+      "jobTalents": [
+        "\u5FFD\u89C6\u80FD\u529B \u653B\u9632"
+      ],
+      "personalTalents": [
+        "\u6D77\u7EB3\u767E\u5DDD 10",
+        "\u8F85\u52A9\u5730\u5F62\u72B6\u6001"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 46,
+      "memberId": 46,
+      "name": "\u5173\u5E73",
+      "jobId": 61,
+      "currentJobId": 9,
+      "job": "\u52C7\u5C06",
+      "jobTalents": [
+        "\u5148\u624B\u653B\u51FB",
+        "\u4E3B\u52A8\u8FDE\u51FB"
+      ],
+      "personalTalents": [
+        "\u7834\u574F\u653B\u51FB",
+        "\u51B2\u950B\u653B\u51FB \u002B6%"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 47,
+      "memberId": 47,
+      "name": "\u5468\u4ED3",
+      "jobId": 45,
+      "currentJobId": 76,
+      "job": "\u5148\u950B\u5175",
+      "jobTalents": [
+        "\u75BE\u98CE\u653B\u51FB 12"
+      ],
+      "personalTalents": [
+        "\u8F85\u52A9\u5168\u683C\u6321 \u002B16%",
+        "\u81EA\u52A8\u63D0\u5347 \u653B\u7206"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 40,
+      "memberId": 40,
+      "name": "\u5B59\u4E7E",
+      "jobId": 9,
+      "currentJobId": 6,
+      "job": "\u8F7B\u9A91\u5175",
+      "jobTalents": [
+        "\u7834\u574F\u58EB\u6C14"
+      ],
+      "personalTalents": [
+        "\u8282\u7EA6MP -40%"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 43,
+      "memberId": 43,
+      "name": "\u7B80\u96CD",
+      "jobId": 36,
+      "currentJobId": 6,
+      "job": "\u5973\u4F8D",
+      "jobTalents": [
+        "\u9632\u5FA1\u8FDC\u8DDD\u653B\u51FB",
+        "\u6062\u590D\u5468\u56F4\u72B6\u6001"
+      ],
+      "personalTalents": [
+        "\u540C\u5FC3\u534F\u529B 3%"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 41,
+      "memberId": 41,
+      "name": "\u7CDC\u7AFA",
+      "jobId": 63,
+      "currentJobId": 24,
+      "job": "\u9A6F\u517D\u5E08",
+      "jobTalents": [
+        "\u9EBB\u75F9\u653B\u51FB 60%",
+        "\u56DE\u9A6C\u653B\u51FB 20%"
+      ],
+      "personalTalents": [
+        "\u540C\u5FC3\u534F\u529B 3%"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 42,
+      "memberId": 42,
+      "name": "\u7CDC\u82B3",
+      "jobId": 68,
+      "currentJobId": 6,
+      "job": "\u8F8E\u91CD\u961F",
+      "jobTalents": [
+        "\u51CF\u8F7B\u7269\u7406\u635F\u4F24 -30%",
+        "\u81EA\u52A8\u63D0\u5347 \u9632\u7CBE"
+      ],
+      "personalTalents": [
+        "\u7A81\u7834\u653B\u51FB"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 61,
+      "memberId": 61,
+      "name": "\u5434\u61FF",
+      "jobId": 15,
+      "currentJobId": 58,
+      "job": "\u8F7B\u70AE\u8F66",
+      "jobTalents": [
+        "\u81F4\u547D\u4E00\u51FB"
+      ],
+      "personalTalents": [
+        "\u795E\u9B54\u9644\u4F53 4",
+        "\u7A81\u7834\u653B\u51FB"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 68,
+      "memberId": 68,
+      "name": "\u5F20\u5DB7",
+      "jobId": 57,
+      "currentJobId": 21,
+      "job": "\u6821\u5C09",
+      "jobTalents": [
+        "\u968F\u673A\u5C5E\u6027\u653B\u51FB"
+      ],
+      "personalTalents": [
+        "\u968F\u673A\u5C5E\u6027\u653B\u51FB",
+        "\u63D0\u5347\u653B\u51FB\u8303\u56F4"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 70,
+      "memberId": 70,
+      "name": "\u5F20\u7FFC",
+      "jobId": 15,
+      "currentJobId": 39,
+      "job": "\u8F7B\u70AE\u8F66",
+      "jobTalents": [
+        "\u81F4\u547D\u4E00\u51FB"
+      ],
+      "personalTalents": [
+        "\u552F\u6211\u72EC\u5C0A",
+        "\u5F3A\u5316\u6210\u957F \u653B\u9632"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 73,
+      "memberId": 73,
+      "name": "\u5B5F\u4F18",
+      "jobId": 36,
+      "currentJobId": 62,
+      "job": "\u5973\u4F8D",
+      "jobTalents": [
+        "\u9632\u5FA1\u8FDC\u8DDD\u653B\u51FB",
+        "\u6062\u590D\u5468\u56F4\u72B6\u6001"
+      ],
+      "personalTalents": [
+        "\u51B2\u950B\u653B\u51FB \u002B6%"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 57,
+      "memberId": 268,
+      "name": "\u9A6C\u8D85",
+      "jobId": 21,
+      "currentJobId": 60,
+      "job": "\u5C71\u8D3C",
+      "jobTalents": [
+        "\u7834\u574F\u7CBE\u795E"
+      ],
+      "personalTalents": [
+        "\u7A81\u51FB\u79FB\u52A8",
+        "\u75BE\u98CE\u653B\u51FB 12"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 37,
+      "memberId": 37,
+      "name": "\u9B4F\u5EF6",
+      "jobId": 12,
+      "currentJobId": 61,
+      "job": "\u5F13\u9A91\u5175",
+      "jobTalents": [
+        "\u9644\u52A0\u4F24\u5BB3 \u9632\u5FA1 10%"
+      ],
+      "personalTalents": [
+        "\u7834\u574F\u79FB\u52A8",
+        "\u94C1\u7D22\u6A2A\u6C5F"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 66,
+      "memberId": 66,
+      "name": "\u5173\u7D22",
+      "jobId": 21,
+      "currentJobId": 78,
+      "job": "\u5C71\u8D3C",
+      "jobTalents": [
+        "\u7834\u574F\u7CBE\u795E"
+      ],
+      "personalTalents": [
+        "\u8F85\u52A9\u5168\u683C\u6321 \u002B16%",
+        "\u4E3B\u52A8\u8FDE\u51FB"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 44,
+      "memberId": 44,
+      "name": "\u5ED6\u5316",
+      "jobId": 63,
+      "currentJobId": 45,
+      "job": "\u9A6F\u517D\u5E08",
+      "jobTalents": [
+        "\u9EBB\u75F9\u653B\u51FB 60%",
+        "\u56DE\u9A6C\u653B\u51FB 20%"
+      ],
+      "personalTalents": [
+        "\u4F24\u5BB3\u589E\u5E45 \u002B30%",
+        "\u56FA\u5B9A\u589E\u4F24"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 59,
+      "memberId": 59,
+      "name": "\u738B\u5E73",
+      "jobId": 57,
+      "currentJobId": 74,
+      "job": "\u6821\u5C09",
+      "jobTalents": [
+        "\u968F\u673A\u5C5E\u6027\u653B\u51FB"
+      ],
+      "personalTalents": [
+        "\u7B56\u7565\u6A21\u4EFF",
+        "\u56DE\u590D\u5468\u56F4HP 12%"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 35,
+      "memberId": 35,
+      "name": "\u8BF8\u845B\u4EAE",
+      "jobId": 66,
+      "currentJobId": 66,
+      "job": "\u5492\u672F\u5E08",
+      "jobTalents": [
+        "\u80FD\u529B\u8F85\u52A9 \u7CBE\u2192\u9632\u7CBE",
+        "HP\u8F85\u52A9\u80FD\u529B \u653B\u58EB"
+      ],
+      "personalTalents": [
+        "\u9632\u5FA1\u8FDC\u8DDD\u653B\u51FB",
+        "\u7B56\u7565\u53CD\u51FB \u70C8\u706B",
+        "\u56FA\u5B9A\u589E\u4F24"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 58,
+      "memberId": 269,
+      "name": "\u9A6C\u5CB1",
+      "jobId": 39,
+      "currentJobId": 51,
+      "job": "\u5200\u5175",
+      "jobTalents": [
+        "MP\u8F6C\u4F24\u653B\u51FB 25%"
+      ],
+      "personalTalents": [
+        "\u5438\u8840\u653B\u51FB 40%",
+        "\u5F15\u5BFC\u653B\u51FB"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 60,
+      "memberId": 60,
+      "name": "\u674E\u4E25",
+      "jobId": 39,
+      "currentJobId": 42,
+      "job": "\u5200\u5175",
+      "jobTalents": [
+        "MP\u8F6C\u4F24\u653B\u51FB 25%"
+      ],
+      "personalTalents": [
+        "\u81F4\u547D\u4E00\u51FB",
+        "\u6D77\u7EB3\u767E\u5DDD 10"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 71,
+      "memberId": 71,
+      "name": "\u5B5F\u83B7",
+      "jobId": 68,
+      "currentJobId": 63,
+      "job": "\u8F8E\u91CD\u961F",
+      "jobTalents": [
+        "\u51CF\u8F7B\u7269\u7406\u635F\u4F24 -30%",
+        "\u81EA\u52A8\u63D0\u5347 \u9632\u7CBE"
+      ],
+      "personalTalents": [
+        "\u9644\u52A0\u4F24\u5BB3 \u653B\u51FB 10%"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 72,
+      "memberId": 72,
+      "name": "\u795D\u878D",
+      "jobId": 12,
+      "currentJobId": 36,
+      "job": "\u5F13\u9A91\u5175",
+      "jobTalents": [
+        "\u9644\u52A0\u4F24\u5BB3 \u9632\u5FA1 10%"
+      ],
+      "personalTalents": [
+        "\u51CF\u8F7B\u7B56\u7565\u635F\u4F24 -40%",
+        "\u4E3B\u52A8\u8FDE\u51FB"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 53,
+      "memberId": 53,
+      "name": "\u5173\u5174",
+      "jobId": 42,
+      "currentJobId": 57,
+      "job": "\u67AA\u5175",
+      "jobTalents": [
+        "\u51CF\u5C11\u659C\u5411\u4F24\u5BB3 40%"
+      ],
+      "personalTalents": [
+        "\u795E\u9B54\u9644\u4F53 4",
+        "\u80FD\u529B\u8F85\u52A9 \u653B\u2192\u7CBE\u7206"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 54,
+      "memberId": 54,
+      "name": "\u5F20\u82DE",
+      "jobId": 39,
+      "currentJobId": 9,
+      "job": "\u5200\u5175",
+      "jobTalents": [
+        "MP\u8F6C\u4F24\u653B\u51FB 25%"
+      ],
+      "personalTalents": [
+        "\u6BCF\u56DE\u5408\u6062\u590DHP 20%",
+        "\u51CF\u8F7B\u7B56\u7565\u635F\u4F24 -40%"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 49,
+      "memberId": 49,
+      "name": "\u9A6C\u826F",
+      "jobId": 33,
+      "currentJobId": 27,
+      "job": "\u9A91\u7B56\u58EB",
+      "jobTalents": [
+        "\u7B56\u7565\u5148\u624B \u6BD2\u70DF"
+      ],
+      "personalTalents": [
+        "\u731B\u51FB 20%",
+        "\u7B56\u7565\u7834\u574F \u7206\u58EB"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 51,
+      "memberId": 51,
+      "name": "\u738B\u752B",
+      "jobId": 30,
+      "currentJobId": 24,
+      "job": "\u9053\u58EB",
+      "jobTalents": [
+        "\u6BCF\u56DE\u5408\u6062\u590DHP 20%"
+      ],
+      "personalTalents": [
+        "MP\u8F85\u52A9\u80FD\u529B \u7CBE\u58EB"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 82,
+      "memberId": 82,
+      "name": "\u6F58\u748B",
+      "jobId": 42,
+      "currentJobId": 54,
+      "job": "\u67AA\u5175",
+      "jobTalents": [
+        "\u51CF\u5C11\u659C\u5411\u4F24\u5BB3 40%"
+      ],
+      "personalTalents": [
+        "\u9644\u52A0\u4F24\u5BB3 \u653B\u51FB 10%",
+        "\u7834\u574FMP\u653B\u51FB"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 83,
+      "memberId": 83,
+      "name": "\u5F90\u76DB",
+      "jobId": 63,
+      "currentJobId": 12,
+      "job": "\u9A6F\u517D\u5E08",
+      "jobTalents": [
+        "\u9EBB\u75F9\u653B\u51FB 60%",
+        "\u56DE\u9A6C\u653B\u51FB 20%"
+      ],
+      "personalTalents": [
+        "\u9A91\u9A6C\u9632\u5FA1 35%",
+        "HP\u8F85\u52A9\u80FD\u529B \u653B\u58EB"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 87,
+      "memberId": 87,
+      "name": "\u848B\u94A6",
+      "jobId": 21,
+      "currentJobId": 48,
+      "job": "\u5C71\u8D3C",
+      "jobTalents": [
+        "\u7834\u574F\u7CBE\u795E"
+      ],
+      "personalTalents": [
+        "\u7981\u5492\u653B\u51FB 100%",
+        "\u94C1\u7D22\u6A2A\u6C5F"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 93,
+      "memberId": 93,
+      "name": "\u8463\u88AD",
+      "jobId": 51,
+      "currentJobId": 48,
+      "job": "\u8F7B\u6218\u8F66",
+      "jobTalents": [
+        "\u81EA\u52A8\u63D0\u5347 \u7CBE\u58EB"
+      ],
+      "personalTalents": [
+        "\u4E2D\u6BD2\u653B\u51FB 100%",
+        "\u7A81\u7834\u653B\u51FB"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 94,
+      "memberId": 94,
+      "name": "\u97E9\u5F53",
+      "jobId": 18,
+      "currentJobId": 12,
+      "job": "\u6E38\u4FA0",
+      "jobTalents": [
+        "\u56FA\u5B9A\u51CF\u4F24"
+      ],
+      "personalTalents": [
+        "\u6B65\u5175\u653B\u51FB 35%",
+        "\u5077\u88AD\u653B\u51FB"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 81,
+      "memberId": 81,
+      "name": "\u9646\u900A",
+      "jobId": 67,
+      "currentJobId": 67,
+      "job": "\u7389\u9F99\u519B",
+      "jobTalents": [
+        "\u7B56\u7565\u8FDE\u51FB",
+        "\u9644\u52A0\u4F24\u5BB3 \u7CBE\u795E 10%"
+      ],
+      "personalTalents": [
+        "\u81EA\u52A8\u63D0\u5347 \u653B\u7206",
+        "\u8F85\u52A9\u6CBB\u7597\u7B56\u7565 50%"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 84,
+      "memberId": 84,
+      "name": "\u7518\u5B81",
+      "jobId": 12,
+      "currentJobId": 48,
+      "job": "\u5F13\u9A91\u5175",
+      "jobTalents": [
+        "\u9644\u52A0\u4F24\u5BB3 \u9632\u5FA1 10%"
+      ],
+      "personalTalents": [
+        "\u72B6\u6001\u5F3A\u5316 12",
+        "\u63D0\u5347\u5468\u56F4 \u7CBE"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 85,
+      "memberId": 85,
+      "name": "\u51CC\u7EDF",
+      "jobId": 78,
+      "currentJobId": 61,
+      "job": "\u5BBF\u536B\u9A91",
+      "jobTalents": [
+        "\u4F24\u5BB3\u589E\u5E45 \u002B30%",
+        "\u81EA\u52A8\u63D0\u5347 \u653B\u9632"
+      ],
+      "personalTalents": [
+        "\u8282\u7EA6MP -40%",
+        "\u8FDC\u8DDD\u653B\u51FB \u523A\u5BA2"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 86,
+      "memberId": 86,
+      "name": "\u5468\u6CF0",
+      "jobId": 36,
+      "currentJobId": 76,
+      "job": "\u5973\u4F8D",
+      "jobTalents": [
+        "\u9632\u5FA1\u8FDC\u8DDD\u653B\u51FB",
+        "\u6062\u590D\u5468\u56F4\u72B6\u6001"
+      ],
+      "personalTalents": [
+        "\u51CF\u8F7B\u7269\u7406\u635F\u4F24 -30%",
+        "\u7834\u574FMP\u653B\u51FB"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 88,
+      "memberId": 88,
+      "name": "\u5F20\u662D",
+      "jobId": 27,
+      "currentJobId": 24,
+      "job": "\u533B\u5E08",
+      "jobTalents": [
+        "\u5B66\u4F1A\u7B56\u7565-\u8865\u7ED9"
+      ],
+      "personalTalents": [
+        "\u6BCF\u56DE\u5408\u6062\u590DHP 20%",
+        "\u7A7F\u900F\u653B\u51FB \u4E09\u683C"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 79,
+      "memberId": 79,
+      "name": "\u8BF8\u845B\u747E",
+      "jobId": 27,
+      "currentJobId": 27,
+      "job": "\u533B\u5E08",
+      "jobTalents": [
+        "\u5B66\u4F1A\u7B56\u7565-\u8865\u7ED9"
+      ],
+      "personalTalents": [
+        "\u56DE\u590D\u5468\u56F4MP 10%",
+        "\u9644\u52A0\u4F24\u5BB3 \u58EB\u6C14 12%"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 96,
+      "memberId": 96,
+      "name": "\u4E01\u5949",
+      "jobId": 0,
+      "currentJobId": 45,
+      "job": "\u7FA4\u96C4",
+      "jobTalents": [
+        "\u589E\u52A0\u6B63\u5411\u4F24\u5BB3 35%"
+      ],
+      "personalTalents": [
+        "\u731B\u51FB 20%",
+        "\u5F3A\u5316\u6210\u957F \u7CBE"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 92,
+      "memberId": 92,
+      "name": "\u5168\u742E",
+      "jobId": 21,
+      "currentJobId": 74,
+      "job": "\u5C71\u8D3C",
+      "jobTalents": [
+        "\u7834\u574F\u7CBE\u795E"
+      ],
+      "personalTalents": [
+        "\u8FDC\u8DDD\u653B\u51FB \u5927\u7206\u708E",
+        "\u5F3A\u5316\u6210\u957F \u7206"
+      ],
+      "availabilityVerified": true
+    }
+  ],
+  "fixedPersonnel": [
+    {
+      "recordIndex": 0,
+      "memberId": 0,
+      "name": "\u66F9\u64CD",
+      "jobId": 51,
+      "currentJobId": 51,
+      "job": "\u8F7B\u6218\u8F66",
+      "jobTalents": [
+        "\u81EA\u52A8\u63D0\u5347 \u7CBE\u58EB"
+      ],
+      "personalTalents": [
+        "\u690E\u950B\u7A81\u8FDB 5%",
+        "HP\u8F85\u52A9\u80FD\u529B \u653B\u58EB"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 1,
+      "memberId": 1,
+      "name": "\u590F\u4FAF\u60C7",
+      "jobId": 9,
+      "currentJobId": 9,
+      "job": "\u8F7B\u9A91\u5175",
+      "jobTalents": [
+        "\u7834\u574F\u58EB\u6C14"
+      ],
+      "personalTalents": [
+        "\u51B2\u950B\u653B\u51FB \u002B6%",
+        "\u6062\u590D\u5468\u56F4\u72B6\u6001"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 6,
+      "memberId": 7,
+      "name": "\u590F\u4FAF\u6E0A",
+      "jobId": 12,
+      "currentJobId": 12,
+      "job": "\u5F13\u9A91\u5175",
+      "jobTalents": [
+        "\u9644\u52A0\u4F24\u5BB3 \u9632\u5FA1 10%"
+      ],
+      "personalTalents": [
+        "\u7834\u574F\u653B\u51FB",
+        "\u6B65\u5175\u653B\u51FB 35%"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 12,
+      "memberId": 4,
+      "name": "\u66F9\u6D2A",
+      "jobId": 39,
+      "currentJobId": 63,
+      "job": "\u5200\u5175",
+      "jobTalents": [
+        "MP\u8F6C\u4F24\u653B\u51FB 25%"
+      ],
+      "personalTalents": [
+        "\u7B56\u7565\u6A21\u4EFF",
+        "\u7B56\u7565\u9650\u4F24 60"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 16,
+      "memberId": 16,
+      "name": "\u5178\u97E6",
+      "jobId": 21,
+      "currentJobId": 18,
+      "job": "\u5C71\u8D3C",
+      "jobTalents": [
+        "\u7834\u574F\u7CBE\u795E"
+      ],
+      "personalTalents": [
+        "\u4E3B\u52A8\u8FDE\u51FB",
+        "\u83B7\u5F97\u529F\u52CB \u002B2"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 20,
+      "memberId": 20,
+      "name": "\u8340\u5F67",
+      "jobId": 30,
+      "currentJobId": 24,
+      "job": "\u9053\u58EB",
+      "jobTalents": [
+        "\u6BCF\u56DE\u5408\u6062\u590DHP 20%"
+      ],
+      "personalTalents": [
+        "\u6BCF\u56DE\u5408\u6062\u590D\u72B6\u6001",
+        "\u80FD\u529B\u66FF\u6362 \u9632\u2192\u7CBE"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 22,
+      "memberId": 22,
+      "name": "\u90ED\u5609",
+      "jobId": 30,
+      "currentJobId": 66,
+      "job": "\u9053\u58EB",
+      "jobTalents": [
+        "\u6BCF\u56DE\u5408\u6062\u590DHP 20%"
+      ],
+      "personalTalents": [
+        "\u653B\u51FB\u9650\u4F24 70",
+        "\u4E0D\u60E7\u654C\u56F4 3%"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 15,
+      "memberId": 15,
+      "name": "\u8BB8\u891A",
+      "jobId": 57,
+      "currentJobId": 21,
+      "job": "\u6821\u5C09",
+      "jobTalents": [
+        "\u968F\u673A\u5C5E\u6027\u653B\u51FB"
+      ],
+      "personalTalents": [
+        "\u8F6C\u79FB\u4F24\u5BB3 20%"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 2,
+      "memberId": 2,
+      "name": "\u5F20\u8FBD",
+      "jobId": 54,
+      "currentJobId": 54,
+      "job": "\u91CD\u9A91\u5175",
+      "jobTalents": [
+        "\u5F3A\u5316\u53CD\u51FB 15%"
+      ],
+      "personalTalents": [
+        "\u540C\u4EC7\u654C\u5FFE 2",
+        "\u4F24\u5BB3\u589E\u5E45 \u002B30%"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 19,
+      "memberId": 19,
+      "name": "\u53F8\u9A6C\u61FF",
+      "jobId": 9,
+      "currentJobId": 33,
+      "job": "\u8F7B\u9A91\u5175",
+      "jobTalents": [
+        "\u7834\u574F\u58EB\u6C14"
+      ],
+      "personalTalents": [
+        "\u4F17\u5FD7\u6210\u57CE 6%",
+        "\u9644\u52A0\u4F24\u5BB3 \u58EB\u6C14 12%"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 9,
+      "memberId": 10,
+      "name": "\u5E9E\u5FB7",
+      "jobId": 39,
+      "currentJobId": 75,
+      "job": "\u5200\u5175",
+      "jobTalents": [
+        "MP\u8F6C\u4F24\u653B\u51FB 25%"
+      ],
+      "personalTalents": [
+        "\u5F3A\u5316\u6210\u957F \u653B",
+        "MP\u8F85\u52A9\u80FD\u529B \u7CBE\u58EB"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 29,
+      "memberId": 29,
+      "name": "\u90ED\u6DEE",
+      "jobId": 54,
+      "currentJobId": 57,
+      "job": "\u91CD\u9A91\u5175",
+      "jobTalents": [
+        "\u5F3A\u5316\u53CD\u51FB 15%"
+      ],
+      "personalTalents": [
+        "\u59A8\u788D\u7B56\u7565\u589E\u4F24 25%"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 4,
+      "memberId": 5,
+      "name": "\u66F9\u5F70",
+      "jobId": 0,
+      "currentJobId": 73,
+      "job": "\u7FA4\u96C4",
+      "jobTalents": [
+        "\u589E\u52A0\u6B63\u5411\u4F24\u5BB3 35%"
+      ],
+      "personalTalents": [
+        "\u83B7\u5F97\u529F\u52CB \u002B2",
+        "\u7834\u574FMP\u653B\u51FB"
+      ],
+      "availabilityVerified": true
+    },
+    {
+      "recordIndex": 34,
+      "memberId": 34,
+      "name": "\u8D75\u4E91",
+      "jobId": 30,
+      "currentJobId": 9,
+      "job": "\u9053\u58EB",
+      "jobTalents": [
+        "\u6BCF\u56DE\u5408\u6062\u590DHP 20%"
+      ],
+      "personalTalents": [
+        "\u81EA\u52A8\u63D0\u5347 \u653B\u7CBE",
+        "\u56FA\u5B9A\u589E\u4F24"
+      ],
+      "availabilityVerified": true
+    }
+  ],
+  "equipment": {
+    "categories": [
+      {
+        "name": "\u5251",
+        "items": [
+          {
+            "name": "\u96CC\u96C4\u53CC\u5251",
+            "effect": "\u4E3B\u52A8\u8FDE\u51FB"
+          },
+          {
+            "name": "\u501A\u5929\u5251",
+            "effect": "\u7834\u574F\u72B6\u6001\u653B\u51FB"
+          },
+          {
+            "name": "\u9752\u51A5\u5251",
+            "effect": "\u589E\u4F24\u5F3A\u547D\u002B17%"
+          }
+        ]
+      },
+      {
+        "name": "\u4F69\u5251",
+        "items": [
+          {
+            "name": "\u9752\u91ED\u5251",
+            "effect": "\u7A81\u51FB\u5148\u624B"
+          },
+          {
+            "name": "\u9F99\u6E0A\u5251",
+            "effect": "\u62D3\u5C55\u8303\u56F4"
+          }
+        ]
+      },
+      {
+        "name": "\u5200",
+        "items": [
+          {
+            "name": "\u53E4\u952D\u5200",
+            "effect": "\u7A7F\u900F\u653B\u51FB-\u4E09\u683C"
+          },
+          {
+            "name": "\u9752\u9F99\u5043\u6708\u5200",
+            "effect": "\u5F02\u5E38\u653B\u51FB"
+          },
+          {
+            "name": "\u6D41\u661F\u9524",
+            "effect": "\u80FD\u529B\u8F85\u52A9-\u9632-\u653B"
+          },
+          {
+            "name": "\u53CC\u97AD",
+            "effect": "\u6DF7\u4E71\u653B\u51FB47%"
+          },
+          {
+            "name": "\u53CC\u621F",
+            "effect": "HP\u8F85\u52A9-\u7206\u58EB"
+          }
+        ]
+      },
+      {
+        "name": "\u67AA",
+        "items": [
+          {
+            "name": "\u4E08\u516B\u86C7\u77DB",
+            "effect": "\u6B65\u5175\u514B\u523627%"
+          },
+          {
+            "name": "\u65B9\u5929\u753B\u621F",
+            "effect": "\u7EDD\u5BF9\u514B\u523617%"
+          },
+          {
+            "name": "\u9F99\u80C6\u67AA",
+            "effect": "\u80FD\u529B\u8F85\u52A9-\u653B-\u9632"
+          },
+          {
+            "name": "\u9738\u738B\u67AA",
+            "effect": "\u552F\u6211\u72EC\u5C0A"
+          },
+          {
+            "name": "\u5F00\u5C71\u65A7",
+            "effect": "\u7A81\u51FB\u5148\u624B"
+          },
+          {
+            "name": "\u9F99\u9A91\u67AA",
+            "effect": "HP\u8F85\u52A9\u653B\u7206"
+          }
+        ]
+      },
+      {
+        "name": "\u5F13",
+        "items": [
+          {
+            "name": "\u674E\u5E7F\u4E4B\u5F13",
+            "effect": "\u5F02\u5E38\u653B\u51FB"
+          },
+          {
+            "name": "\u5415\u5E03\u4E4B\u5F13",
+            "effect": "\u4E07\u592B\u83AB\u654C2%"
+          }
+        ]
+      },
+      {
+        "name": "\u70AE\u8F66",
+        "items": [
+          {
+            "name": "\u91D1\u706B\u7F50\u8F66",
+            "effect": "\u540C\u4EC7\u654C\u5FFE2"
+          }
+        ]
+      },
+      {
+        "name": "\u6247",
+        "items": [
+          {
+            "name": "\u767D\u7FBD\u6247",
+            "effect": "\u62D3\u5C55\u8303\u56F4"
+          },
+          {
+            "name": "\u4E94\u706B\u795E\u7130\u6247",
+            "effect": "\u7B56\u7565\u53CD\u51FB-\u72C2\u96F7"
+          },
+          {
+            "name": "\u82AD\u8549\u6247",
+            "effect": "\u4E8C\u6B21\u884C\u52A8"
+          }
+        ]
+      },
+      {
+        "name": "\u6CD5\u5251",
+        "items": [
+          {
+            "name": "\u5723\u8005\u5B9D\u5251",
+            "effect": "\u653B\u51FB\u8FFD\u52A0-\u5C01\u5492"
+          },
+          {
+            "name": "\u4E03\u661F\u5251",
+            "effect": "\u81EA\u52A8\u63D0\u5347\u5168\u80FD\u529B"
+          }
+        ]
+      },
+      {
+        "name": "\u94E0\u7532",
+        "items": [
+          {
+            "name": "\u955C\u94E0",
+            "effect": "\u9632\u5FA1\u8FDC\u8DDD\u653B\u51FB"
+          },
+          {
+            "name": "\u9EC4\u91D1\u94E0",
+            "effect": "\u8FC5\u6377\u4E4B\u52C79%"
+          },
+          {
+            "name": "\u767D\u94F6\u94E0",
+            "effect": "\u80FD\u529B\u8F85\u52A9-\u58EB-\u653B\u7CBE"
+          },
+          {
+            "name": "\u9F99\u9CDE\u94E0",
+            "effect": "\u7B56\u7565\u6A21\u4EFF"
+          },
+          {
+            "name": "\u8FDE\u73AF\u94E0",
+            "effect": "\u7B56\u7565\u514D\u75AB"
+          },
+          {
+            "name": "\u9738\u738B\u4E4C\u91D1\u7532",
+            "effect": "\u4E00\u592B\u5F53\u51739%"
+          },
+          {
+            "name": "\u86A9\u5C24\u6218\u7532",
+            "effect": "\u8F85\u52A9\u7B56\u7565\u683C\u632136%"
+          },
+          {
+            "name": "\u517D\u9762\u541E\u4E91\u94E0",
+            "effect": "\u9632\u5FA1\u7279\u6B8A\u653B\u51FB"
+          },
+          {
+            "name": "\u4EAE\u94F6\u7532",
+            "effect": "\u81EA\u52A8\u63D0\u5347-\u9632\u7206\u79FB"
+          },
+          {
+            "name": "\u864E\u8C79\u5636\u98CE\u94E0",
+            "effect": "\u7B56\u7565\u514D\u75AB"
+          },
+          {
+            "name": "\u4E0A\u5C06\u94E0",
+            "effect": "\u8F85\u52A9\u5168\u683C\u632117%"
+          }
+        ]
+      },
+      {
+        "name": "\u8863\u670D",
+        "items": [
+          {
+            "name": "\u9752\u4E91\u7FBD\u8863",
+            "effect": "\u76FE\u53CD\u7834\u963210%"
+          },
+          {
+            "name": "\u77ED\u6253\u52B2\u88C5",
+            "effect": "\u63F4\u62A4\u653B\u51FB2"
+          },
+          {
+            "name": "\u51E4\u51F0\u7FBD\u8863",
+            "effect": "\u8F85\u52A9\u7B56\u7565\u683C\u632136%"
+          },
+          {
+            "name": "\u98DE\u9F99\u6597\u888D",
+            "effect": "\u80FD\u529B\u66FF\u6362-\u9632-\u7CBE"
+          },
+          {
+            "name": "\u9752\u9F99\u6218\u888D",
+            "effect": "\u9650\u5236\u4F24\u5BB375"
+          },
+          {
+            "name": "\u5929\u4ED9\u6D1E\u8863",
+            "effect": "MP\u8F85\u52A9-\u653B\u7206"
+          },
+          {
+            "name": "\u9E64\u6C05",
+            "effect": "\u8F85\u7206\u5F3A\u8FDE\u002B19%"
+          },
+          {
+            "name": "\u56FD\u58EB\u65E0\u53CC\u888D",
+            "effect": "\u4E07\u592B\u83AB\u654C2%"
+          },
+          {
+            "name": "\u6F06\u9ED1\u9053\u888D",
+            "effect": "\u7EDD\u5BF9\u514B\u523618%"
+          },
+          {
+            "name": "\u540D\u58EB\u534E\u670D",
+            "effect": "\u6000\u6068\u5FC5\u4E2D13%"
+          },
+          {
+            "name": "\u8D2F\u65E5\u888D",
+            "effect": "\u63F4\u62A4\u653B\u51FB2"
+          }
+        ]
+      },
+      {
+        "name": "\u8F85\u52A9",
+        "items": [
+          {
+            "name": "\u767D\u94F6\u76FE",
+            "effect": "\u8FDC\u8DDD\u653B\u51FB12"
+          },
+          {
+            "name": "\u98CE\u795E\u76FE",
+            "effect": "\u4E2D\u6BD2\u7834\u58EB"
+          },
+          {
+            "name": "\u6DEE\u5357\u5B50",
+            "effect": "\u6062\u590DHP\u72B6\u600133%"
+          },
+          {
+            "name": "\u98CE\u8F66\u8F6E",
+            "effect": "\u7B56\u7565\u53CD\u51FB-\u7B56\u7565\u7F16\u53F712"
+          },
+          {
+            "name": "\u8BF8\u845B\u5DFE",
+            "effect": "\u7EB5\u6A2A\u65E0\u963B"
+          },
+          {
+            "name": "\u7CBE\u94C1\u76D4",
+            "effect": "\u8F85\u52A9\u653B\u51FB\u683C\u632119%"
+          },
+          {
+            "name": "\u7684\u5362",
+            "effect": "\u7A7F\u8D8A\u5077\u88AD"
+          },
+          {
+            "name": "\u7EDD\u5F71",
+            "effect": "\u8F85\u52A9\u653B\u51FB\u683C\u632121%"
+          },
+          {
+            "name": "\u8D64\u5154",
+            "effect": "\u6000\u6068\u5FC5\u4E2D14%"
+          },
+          {
+            "name": "\u722A\u9EC4\u98DE\u7535",
+            "effect": "\u8F85\u7206\u5F3A\u8FDE\u002B22%"
+          },
+          {
+            "name": "\u7167\u591C\u7389\u72EE\u5B50",
+            "effect": "\u5982\u5C65\u5E73\u5730"
+          },
+          {
+            "name": "\u98DE\u5200",
+            "effect": "\u76FE\u53CD\u7834\u963212%"
+          },
+          {
+            "name": "\u5B5F\u5FB7\u65B0\u4E66",
+            "effect": "\u80FD\u529B\u66FF\u6362-\u653B-\u7CBE"
+          },
+          {
+            "name": "\u516D\u97EC",
+            "effect": "\u5FFD\u89C6\u80FD\u529B-\u9632\u58EB"
+          },
+          {
+            "name": "\u4E09\u7565",
+            "effect": "\u4E00\u592B\u5F53\u517312%"
+          },
+          {
+            "name": "\u592A\u5E73\u6E05\u9886\u4E66",
+            "effect": "\u7B56\u7565\u6A21\u4EFF"
+          },
+          {
+            "name": "\u9041\u7532\u5929\u4E66",
+            "effect": "\u7834\u574F\u72B6\u6001\u653B\u51FB"
+          },
+          {
+            "name": "\u5B59\u5B50\u5175\u6CD5",
+            "effect": "\u51B2\u950B\u518D\u52A85%"
+          },
+          {
+            "name": "\u9752\u56CA\u4E66",
+            "effect": "\u51CF\u8F7B\u7B56\u7565\u635F\u4F24-50%"
+          },
+          {
+            "name": "\u7389\u73BA",
+            "effect": "\u53CD\u5F39\u4F24\u5BB3\u5F02\u5E3841%"
+          },
+          {
+            "name": "\u9752\u9F99\u5B9D\u7389",
+            "effect": "\u9B3C\u795E\u4E4B\u52C713%"
+          },
+          {
+            "name": "\u6731\u96C0\u5B9D\u7389",
+            "effect": "\u7279\u6548\u5C4F\u853D"
+          },
+          {
+            "name": "\u7384\u6B66\u5B9D\u7389",
+            "effect": "\u5C01\u7B56\u7834\u7CBE"
+          },
+          {
+            "name": "\u767D\u864E\u5B9D\u7389",
+            "effect": "\u5B66\u4F1A\u7B56\u7565"
+          }
+        ]
+      }
+    ],
+    "specials": [
+      {
+        "title": "\u8FFD\u51FB\u5957\u88C5",
+        "items": [
+          "\u501A\u5929\u5251\uFF1A\u7834\u574F\u72B6\u6001\u653B\u51FB",
+          "\u592A\u5E73\u6E05\u9886\u4E66\uFF1A\u7B56\u7565\u6A21\u4EFF",
+          "\u53E4\u952D\u5200\uFF1A\u7A7F\u900F\u653B\u51FB-\u4E09\u683C",
+          "\u9EC4\u91D1\u94E0\uFF1A\u8FC5\u6377\u4E4B\u52C79%",
+          "\u7EDD\u5F71\uFF1A\u8F85\u52A9\u653B\u51FB\u683C\u632121%"
+        ]
+      },
+      {
+        "title": "\u4F20\u627F\u5957\u88C5",
+        "items": [
+          "\u51E4\u51F0\u7FBD\u8863\uFF1A\u8F85\u52A9\u7B56\u7565\u683C\u632136%",
+          "\u9041\u7532\u5929\u4E66\uFF1A\u7834\u574F\u72B6\u6001\u653B\u51FB",
+          "\u722A\u9EC4\u98DE\u7535\uFF1A\u8F85\u7206\u5F3A\u8FDE\u002B22%",
+          "\u6D41\u661F\u9524\uFF1A\u80FD\u529B\u8F85\u52A9-\u9632-\u653B"
+        ]
+      },
+      {
+        "title": "\u5415\u5E03\u5957\u88C5",
+        "items": [
+          "\u65B9\u5929\u753B\u621F\uFF1A\u7EDD\u5BF9\u514B\u523617%",
+          "\u5415\u5E03\u4E4B\u5F13\uFF1A\u4E07\u592B\u83AB\u654C2%",
+          "\u517D\u9762\u541E\u4E91\u94E0\uFF1A\u9632\u5FA1\u7279\u6B8A\u653B\u51FB",
+          "\u8D64\u5154\uFF1A\u6000\u6068\u5FC5\u4E2D14%"
+        ]
+      },
+      {
+        "title": "\u8BF8\u845B\u4EAE\u5957\u88C5",
+        "items": [
+          "\u767D\u7FBD\u6247\uFF1A\u62D3\u5C55\u8303\u56F4",
+          "\u9E64\u6C05\uFF1A\u8F85\u7206\u5F3A\u8FDE\u002B19%",
+          "\u8BF8\u845B\u5DFE\uFF1A\u7EB5\u6A2A\u65E0\u963B"
+        ]
+      },
+      {
+        "title": "\u8D75\u4E91\u5957\u88C5",
+        "items": [
+          "\u9F99\u80C6\u67AA\uFF1A\u80FD\u529B\u8F85\u52A9-\u653B-\u9632",
+          "\u4EAE\u94F6\u7532\uFF1A\u81EA\u52A8\u63D0\u5347-\u9632\u7206\u79FB",
+          "\u7167\u591C\u7389\u72EE\u5B50\uFF1A\u5982\u5C65\u5E73\u5730"
+        ]
+      },
+      {
+        "title": "\u5218\u5907\u5957\u88C5",
+        "items": [
+          "\u96CC\u96C4\u53CC\u5251\uFF1A\u4E3B\u52A8\u8FDE\u51FB",
+          "\u7684\u5362\uFF1A\u7A7F\u8D8A\u5077\u88AD"
+        ]
+      },
+      {
+        "title": "\u5173\u7FBD\u5957\u88C5",
+        "items": [
+          "\u9752\u9F99\u5043\u6708\u5200\uFF1A\u5F02\u5E38\u653B\u51FB",
+          "\u9752\u9F99\u6218\u888D\uFF1A\u9650\u5236\u4F24\u5BB375",
+          "\u8D64\u5154\uFF1A\u6000\u6068\u5FC5\u4E2D14%"
+        ]
+      },
+      {
+        "title": "\u5F20\u98DE\u5957\u88C5",
+        "items": [
+          "\u4E08\u516B\u86C7\u77DB\uFF1A\u6B65\u5175\u514B\u523627%"
+        ]
+      },
+      {
+        "title": "\u597D\u4E1C\u897F",
+        "items": [
+          "\u9738\u738B\u67AA\uFF1A\u552F\u6211\u72EC\u5C0A",
+          "\u82AD\u8549\u6247\uFF1A\u4E8C\u6B21\u884C\u52A8",
+          "\u4E03\u661F\u5251\uFF1A\u81EA\u52A8\u63D0\u5347\u5168\u80FD\u529B",
+          "\u8FDE\u73AF\u94E0\uFF1A\u7B56\u7565\u514D\u75AB",
+          "\u864E\u8C79\u5636\u98CE\u94E0\uFF1A\u7B56\u7565\u514D\u75AB",
+          "\u8BF8\u845B\u5DFE\uFF1A\u7EB5\u6A2A\u65E0\u963B",
+          "\u7167\u591C\u7389\u72EE\u5B50\uFF1A\u5982\u5C65\u5E73\u5730",
+          "\u6731\u96C0\u5B9D\u7389\uFF1A\u7279\u6548\u5C4F\u853D"
+        ]
+      }
+    ]
+  },
+  "jobTalents": [
+    {
+      "jobId": 0,
+      "name": "\u7FA4\u96C4",
+      "talents": [
+        "\u589E\u52A0\u6B63\u5411\u4F24\u5BB3 35%"
+      ]
+    },
+    {
+      "jobId": 3,
+      "name": "\u8F7B\u6B65\u5175",
+      "talents": [
+        "\u63D0\u5347\u653B\u51FB\u8303\u56F4"
+      ]
+    },
+    {
+      "jobId": 6,
+      "name": "\u5F13\u5175",
+      "talents": [
+        "\u9B3C\u795E\u4E4B\u52C7 12%"
+      ]
+    },
+    {
+      "jobId": 9,
+      "name": "\u8F7B\u9A91\u5175",
+      "talents": [
+        "\u7834\u574F\u58EB\u6C14"
+      ]
+    },
+    {
+      "jobId": 12,
+      "name": "\u5F13\u9A91\u5175",
+      "talents": [
+        "\u9644\u52A0\u4F24\u5BB3 \u9632\u5FA1 10%"
+      ]
+    },
+    {
+      "jobId": 15,
+      "name": "\u8F7B\u70AE\u8F66",
+      "talents": [
+        "\u81F4\u547D\u4E00\u51FB"
+      ]
+    },
+    {
+      "jobId": 18,
+      "name": "\u6E38\u4FA0",
+      "talents": [
+        "\u56FA\u5B9A\u51CF\u4F24"
+      ]
+    },
+    {
+      "jobId": 21,
+      "name": "\u5C71\u8D3C",
+      "talents": [
+        "\u7834\u574F\u7CBE\u795E"
+      ]
+    },
+    {
+      "jobId": 24,
+      "name": "\u7B56\u58EB",
+      "talents": [
+        "\u5FFD\u89C6\u80FD\u529B \u653B\u9632"
+      ]
+    },
+    {
+      "jobId": 27,
+      "name": "\u533B\u5E08",
+      "talents": [
+        "\u5B66\u4F1A\u7B56\u7565-\u8865\u7ED9"
+      ]
+    },
+    {
+      "jobId": 30,
+      "name": "\u9053\u58EB",
+      "talents": [
+        "\u6BCF\u56DE\u5408\u6062\u590DHP 20%"
+      ]
+    },
+    {
+      "jobId": 33,
+      "name": "\u9A91\u7B56\u58EB",
+      "talents": [
+        "\u7B56\u7565\u5148\u624B \u6BD2\u70DF"
+      ]
+    },
+    {
+      "jobId": 36,
+      "name": "\u5973\u4F8D",
+      "talents": [
+        "\u9632\u5FA1\u8FDC\u8DDD\u653B\u51FB",
+        "\u6062\u590D\u5468\u56F4\u72B6\u6001"
+      ]
+    },
+    {
+      "jobId": 39,
+      "name": "\u5200\u5175",
+      "talents": [
+        "MP\u8F6C\u4F24\u653B\u51FB 25%"
+      ]
+    },
+    {
+      "jobId": 42,
+      "name": "\u67AA\u5175",
+      "talents": [
+        "\u51CF\u5C11\u659C\u5411\u4F24\u5BB3 40%"
+      ]
+    },
+    {
+      "jobId": 45,
+      "name": "\u5148\u950B\u5175",
+      "talents": [
+        "\u75BE\u98CE\u653B\u51FB 12"
+      ]
+    },
+    {
+      "jobId": 48,
+      "name": "\u6C34\u8D3C",
+      "talents": [
+        "\u7834\u574F\u79FB\u52A8"
+      ]
+    },
+    {
+      "jobId": 51,
+      "name": "\u8F7B\u6218\u8F66",
+      "talents": [
+        "\u81EA\u52A8\u63D0\u5347 \u7CBE\u58EB"
+      ]
+    },
+    {
+      "jobId": 54,
+      "name": "\u91CD\u9A91\u5175",
+      "talents": [
+        "\u5F3A\u5316\u53CD\u51FB 15%"
+      ]
+    },
+    {
+      "jobId": 57,
+      "name": "\u6821\u5C09",
+      "talents": [
+        "\u968F\u673A\u5C5E\u6027\u653B\u51FB"
+      ]
+    },
+    {
+      "jobId": 60,
+      "name": "\u897F\u51C9\u9A91",
+      "talents": [
+        "\u81EA\u52A8\u63D0\u5347 \u9632\u79FB"
+      ]
+    },
+    {
+      "jobId": 61,
+      "name": "\u52C7\u5C06",
+      "talents": [
+        "\u5148\u624B\u653B\u51FB",
+        "\u4E3B\u52A8\u8FDE\u51FB"
+      ]
+    },
+    {
+      "jobId": 62,
+      "name": "\u6E38\u7267\u9A91",
+      "talents": [
+        "\u65E0\u53CD\u51FB\u653B\u51FB",
+        "\u8FC5\u6377\u4E4B\u52C7 12%"
+      ]
+    },
+    {
+      "jobId": 63,
+      "name": "\u9A6F\u517D\u5E08",
+      "talents": [
+        "\u9EBB\u75F9\u653B\u51FB 60%",
+        "\u56DE\u9A6C\u653B\u51FB 20%"
+      ]
+    },
+    {
+      "jobId": 64,
+      "name": "\u6740\u624B",
+      "talents": [
+        "\u8F85\u52A9\u653B\u51FB\u683C\u6321 \u002B20%",
+        "\u9A91\u9A6C\u653B\u51FB 35%"
+      ]
+    },
+    {
+      "jobId": 65,
+      "name": "\u90FD\u7763",
+      "talents": [
+        "\u7B56\u7565\u65E0\u89C6\u5730\u5F62",
+        "MP\u8F85\u52A9\u80FD\u529B \u653B\u9632"
+      ]
+    },
+    {
+      "jobId": 66,
+      "name": "\u5492\u672F\u5E08",
+      "talents": [
+        "\u80FD\u529B\u8F85\u52A9 \u7CBE\u2192\u9632\u7CBE",
+        "HP\u8F85\u52A9\u80FD\u529B \u653B\u58EB"
+      ]
+    },
+    {
+      "jobId": 67,
+      "name": "\u7389\u9F99\u519B",
+      "talents": [
+        "\u7B56\u7565\u8FDE\u51FB",
+        "\u9644\u52A0\u4F24\u5BB3 \u7CBE\u795E 10%"
+      ]
+    },
+    {
+      "jobId": 68,
+      "name": "\u8F8E\u91CD\u961F",
+      "talents": [
+        "\u51CF\u8F7B\u7269\u7406\u635F\u4F24 -30%",
+        "\u81EA\u52A8\u63D0\u5347 \u9632\u7CBE"
+      ]
+    },
+    {
+      "jobId": 69,
+      "name": "\u795E\u7FBF\u9A91",
+      "talents": [
+        "\u653B\u51FB\u7EDD\u5BF9\u547D\u4E2D",
+        "\u4FA7\u7FFC\u7A81\u88AD 35%"
+      ]
+    },
+    {
+      "jobId": 70,
+      "name": "\u673A\u5173",
+      "talents": [
+        "\u4E2D\u6BD2\u653B\u51FB 100%",
+        "\u9A91\u9A6C\u9632\u5FA1 35%"
+      ]
+    },
+    {
+      "jobId": 71,
+      "name": "\u540D\u5C06",
+      "talents": [
+        "\u4F17\u5FD7\u6210\u57CE 6%",
+        "\u5FFD\u89C6\u80FD\u529B \u653B\u7CBE"
+      ]
+    },
+    {
+      "jobId": 72,
+      "name": "\u7687\u5E1D",
+      "talents": [
+        "\u4E07\u592B\u83AB\u654C 3%",
+        "\u80FD\u529B\u8F85\u52A9 \u58EB\u2192\u5168\u80FD\u529B"
+      ]
+    },
+    {
+      "jobId": 73,
+      "name": "\u864E\u8C79\u9A91",
+      "talents": [
+        "\u540C\u4EC7\u654C\u5FFE 2",
+        "\u690E\u950B\u7A81\u8FDB 5%"
+      ]
+    },
+    {
+      "jobId": 74,
+      "name": "\u7A7F\u6768\u624B",
+      "talents": [
+        "\u56DE\u590D\u5468\u56F4HP 12%",
+        "\u8FDC\u8DDD\u653B\u51FB \u5927\u7206\u708E"
+      ]
+    },
+    {
+      "jobId": 75,
+      "name": "\u864E\u8D32\u519B",
+      "talents": [
+        "\u9632\u5FA1\u7279\u6B8A\u653B\u51FB"
+      ]
+    },
+    {
+      "jobId": 76,
+      "name": "\u529B\u58EB",
+      "talents": [
+        "\u7834\u574F\u7206\u53D1"
+      ]
+    },
+    {
+      "jobId": 77,
+      "name": "\u4E91\u5DDD\u536B",
+      "talents": [
+        "\u53CD\u5F39\u5F02\u5E38\u653B\u51FB",
+        "\u4E00\u592B\u5F53\u5173 10%"
+      ]
+    },
+    {
+      "jobId": 78,
+      "name": "\u5BBF\u536B\u9A91",
+      "talents": [
+        "\u4F24\u5BB3\u589E\u5E45 \u002B30%",
+        "\u81EA\u52A8\u63D0\u5347 \u653B\u9632"
+      ]
+    },
+    {
+      "jobId": 79,
+      "name": "\u9B54\u738B",
+      "talents": [
+        "\u51CF\u8F7B\u7B56\u7565\u635F\u4F24 -40%",
+        "\u7279\u6548\u5C4F\u853D"
+      ]
+    }
+  ],
+  "detail": {
+    "job": {
+      "qualified": true,
+      "reasons": [],
+      "members": [
+        {
+          "name": "\u5F20\u5B9D",
+          "job": "\u9053\u58EB",
+          "score": 7
+        }
+      ],
+      "metrics": {
+        "average": 7,
+        "qualificationAverage": 7,
+        "qualificationTotal": 7,
+        "eligibleMembers": [
+          "\u5F20\u5B9D"
+        ],
+        "qualifiedMemberNames": [
+          "\u5F20\u5B9D"
+        ],
+        "qualificationMode": "average",
+        "threshold": 0,
+        "requiredCount": 2
+      }
+    },
+    "skill": {
+      "qualified": true,
+      "metrics": {
+        "skillScore": 0,
+        "qualificationAverage": 0,
+        "qualificationMode": "total",
+        "threshold": 0,
+        "requiredCount": 1,
+        "memberSkillScores": {
+          "\u5F20\u5B9D": 0
+        },
+        "qualifiedMemberNames": [
+          "\u5F20\u5B9D"
+        ]
+      },
+      "details": [
+        {
+          "member": "\u5F20\u5B9D",
+          "name": "\u7B56\u7565\u9650\u4F24 60",
+          "score": 0,
+          "counted": false
+        },
+        {
+          "member": "\u5F20\u5B9D",
+          "name": "\u6BCF\u56DE\u5408\u6062\u590DHP 20%",
+          "score": 0,
+          "counted": false
+        }
+      ]
+    }
+  },
+  "save": {
+    "path": "verified-result.E5S.gz",
+    "gamePath": null,
+    "sha256": "fb874167dada1e6622b07718a2772fe47952fa0084c58c7a0aee16384662e4b3",
+    "verified": true,
+    "verificationError": ""
+  }
+}

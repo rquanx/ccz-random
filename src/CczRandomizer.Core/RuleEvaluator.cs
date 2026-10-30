@@ -48,24 +48,29 @@ public static class RuleEvaluator
             scores.Add(score); total += score;
         }
         var scoreByMember = jobs.Zip(scores).ToDictionary(x => x.First.MemberName, x => x.Second);
-        var eligibleScores = members.Where(scoreByMember.ContainsKey).Select(name => scoreByMember[name]).ToArray();
         var threshold = Number(settings, "minJobAverage", 0);
         var qualificationMode = settings["jobQualificationMode"]?.GetValue<string>() ?? "average";
+        if (qualificationMode == "all") members = jobs.Select(x => x.MemberName).ToArray();
+        if (members.Distinct().Count() != members.Length || members.Any(name => !scoreByMember.ContainsKey(name)))
+            throw new InvalidDataException("参与评分的人物数据缺失或重复");
+        var eligibleScores = members.Select(name => scoreByMember[name]).ToArray();
         var qualified = members.Where(scoreByMember.ContainsKey).Where(name => scoreByMember[name] >= threshold).ToArray();
         var average = total / Math.Max(1, scores.Count);
         var qualificationAverage = eligibleScores.Length == 0 ? 0 : eligibleScores.Average();
         var qualificationTotal = eligibleScores.Sum();
         var required = (int)Number(settings, "minQualifiedCount", 1);
+        if (qualificationMode == "all") required = jobs.Count;
         var passed = qualificationMode switch
         {
-            "count" => qualified.Length >= required,
+            "count" or "all" => required > 0 && qualified.Length >= required,
             "total" => eligibleScores.Length > 0 && qualificationTotal >= threshold,
-            _ => eligibleScores.Length > 0 && qualificationAverage >= threshold,
+            "average" => eligibleScores.Length > 0 && qualificationAverage >= threshold,
+            _ => throw new InvalidDataException("未知兵种算分模式"),
         };
         return new RuleEvaluationResult(passed, passed ? [] : ["兵种综合评价未达到当前规则要求"], average, qualificationAverage, qualificationTotal, scores, qualified, qualificationMode, threshold);
     }
 
-    private static double Number(JsonObject obj, string key, double fallback) => obj[key] is JsonValue value && value.TryGetValue<double>(out var number) ? number : fallback;
+    private static double Number(JsonObject obj, string key, double fallback) => JsonNumbers.Read(obj[key], fallback);
     private static bool Bool(JsonObject obj, string key, bool fallback) => obj[key] is JsonValue value && value.TryGetValue<bool>(out var result) ? result : fallback;
 }
 

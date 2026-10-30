@@ -1,0 +1,9 @@
+{
+  "gameVersion": "2.2",
+  "capturedAt": "2026-10-30",
+  "source": "User-provided pre-randomization SV020.E5S, first 0x30000 bytes",
+  "memoryAddress": "0x00501000",
+  "length": 196608,
+  "sha256": "5dceb879e872b7d343c9ee5ffe8f44d7fdaff42f237194236e8dda5a38ff8430",
+  "verified": "C# isolated game menu load and complete memory comparison passed; transition active/state both zero."
+}

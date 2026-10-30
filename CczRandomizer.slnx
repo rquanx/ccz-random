@@ -1,5 +1,9 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/CczRandomizer.Core/CczRandomizer.Core.csproj" />
     <Project Path="src/CczRandomizer.Wpf/CczRandomizer.Wpf.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/CczRandomizer.Core.Tests/CczRandomizer.Core.Tests.csproj" />
   </Folder>
 </Solution>

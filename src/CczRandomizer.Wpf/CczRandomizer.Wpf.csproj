@@ -9,6 +9,7 @@
   </PropertyGroup>
 
 <ItemGroup>
+  <ProjectReference Include="../CczRandomizer.Core/CczRandomizer.Core.csproj" />
   <None Include="..\..\resources\data\recruitment\recruits_2.2.json" Link="resources\data\recruitment\recruits_2.2.json" CopyToOutputDirectory="PreserveNewest" />
 </ItemGroup>
 </Project>

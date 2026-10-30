@@ -1354,10 +1354,6 @@ class SessionManagementTests(unittest.TestCase):
         )[0]
 
         self.assertIn(
-            "runtime_settings_bar = tk.Frame(settings_panel)",
-            layout,
-        )
-        self.assertIn(
             "rule_settings_bar = tk.Frame(settings_panel)",
             layout,
         )
@@ -1728,7 +1724,7 @@ class SessionManagementTests(unittest.TestCase):
             / "ccz_randomizer"
             / "app.py"
         ).read_text(encoding="utf-8")
-        three_flow = source.split(
+        three_flow = source.split("    def r0_only_run(self)", 1)[1].split(
             "        if three_person_mode:", 1
         )[1].split("        else:", 1)[0]
 

@@ -57,7 +57,8 @@ class JobTalentsTests(unittest.TestCase):
             root = tk.Tk()
         except tk.TclError as exc:
             self.skipTest(str(exc))
-        root.withdraw()
+        root.geometry("900x700")
+        root.update()
         self.addCleanup(root.destroy)
         jobs = read_job_talents(0, reader_factory=RecordedReader)
         people = json.loads((FIXTURES / "randomized-personnel.json").read_text(encoding="utf-8"))
@@ -72,20 +73,46 @@ class JobTalentsTests(unittest.TestCase):
         buttons["兵种天赋"].invoke()
         root.update()
         job_window = next(w for w in descendants(root) if isinstance(w, tk.Toplevel) and w.title() == "2.2 兵种天赋")
-        labels = [w.cget("text") for w in descendants(job_window) if isinstance(w, (tk.Label, ttk.Label))]
+        canvas = next(w for w in descendants(job_window) if isinstance(w, tk.Canvas))
+        labels = [canvas.itemcget(i, "text") for i in canvas.find_all() if canvas.type(i) == "text"]
         self.assertIn("魔王", labels)
         self.assertIn("\n".join(jobs[0]["talents"]), labels)
         search = next(w for w in descendants(job_window) if isinstance(w, ttk.Entry))
         search.insert(0, "医师")
         root.update()
-        labels = [w.cget("text") for w in descendants(job_window) if isinstance(w, (tk.Label, ttk.Label))]
+        canvas = next(w for w in descendants(job_window) if isinstance(w, tk.Canvas))
+        labels = [canvas.itemcget(i, "text") for i in canvas.find_all() if canvas.type(i) == "text"]
         self.assertIn("医师", labels)
         self.assertNotIn("魔王", labels)
-        job_window.destroy()
-        buttons["招募人员信息"].invoke()
+        search.delete(0, "end")
         root.update()
-        recruit_window = next(w for w in descendants(root) if isinstance(w, tk.Toplevel) and w.title() == "2.2 招募人物")
+        labels = [canvas.itemcget(i, "text") for i in canvas.find_all() if canvas.type(i) == "text"]
+        for job in jobs:
+            self.assertIn(JOB_MAP[job["jobId"]][0], labels)
+        canvas.yview_moveto(1)
+        root.update()
+        self.assertGreater(canvas.yview()[0], 0)
+        search.insert(0, "医师")
+        root.update()
+        self.assertEqual(0, canvas.yview()[0])
+        job_window.geometry("680x480")
+        root.update()
+        for i in canvas.find_all():
+            if canvas.type(i) == "text":
+                self.assertLessEqual(canvas.bbox(i)[2], canvas.winfo_width())
+        search.delete(0, "end")
+        search.insert(0, "不存在的兵种")
+        root.update()
+        labels = [canvas.itemcget(i, "text") for i in canvas.find_all() if canvas.type(i) == "text"]
+        self.assertEqual(["没有符合条件的兵种。"], labels)
+        # Closing with a pending search must cancel the queued redraw.
+        search.delete(0, "end")
+        job_window.destroy()
+        root.update()
+        buttons["入队人员信息"].invoke()
+        root.update()
+        recruit_window = next(w for w in descendants(root) if isinstance(w, tk.Toplevel) and w.title() == "入队人员")
         canvas = next(w for w in descendants(recruit_window) if isinstance(w, tk.Canvas))
         texts = [canvas.itemcget(item, "text") for item in canvas.find_all() if canvas.type(item) == "text"]
-        self.assertIn("曹仁", texts)
-        self.assertIn("共通 · 颍川之战", texts)
+        self.assertTrue(any(text.startswith("曹仁 · ") for text in texts))
+        self.assertIn("颍川之战", texts)

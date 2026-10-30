@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from ccz_randomizer.ui.window_position import centered_toplevel
+from ccz_randomizer.rules.reporting import participating_members
+
 import json
 from typing import Any
 
@@ -43,6 +46,14 @@ def _comparison(
     )
 
 
+def _threshold_result(value, threshold) -> str:
+    try:
+        gap = float(threshold) - float(value)
+    except (TypeError, ValueError):
+        return "评分数据未采集"
+    return f"还差 {_score(gap)} 分" if gap > 0 else "已达标"
+
+
 def format_result_detail(detail: dict[str, Any]) -> dict[str, Any]:
     status = str(detail.get("label") or "未知")
     mode = "3人" if detail.get("mode") == "three" else "7人"
@@ -51,35 +62,35 @@ def format_result_detail(detail: dict[str, Any]) -> dict[str, Any]:
     job = detail.get("job")
     if isinstance(job, dict):
         metrics = job.get("metrics") or {}
-        members = job.get("members") or []
-        rows = [
-            (
-                f"{item.get('name', '未知')}："
-                f"{item.get('job', '未知兵种')}　"
-                f"评分 {_score(item.get('score'))}"
-            )
-            for item in members
-            if isinstance(item, dict)
-        ]
+        members = participating_members(job)
+        mode = f"兵种筛选 {len(members)} 人"
         qualification_mode = metrics.get("qualificationMode")
-        if qualification_mode == "count":
-            eligible = metrics.get("eligibleMembers") or []
-            qualified_names = metrics.get("qualifiedMemberNames") or []
-            explanation = (
-                f"参与人物：{'、'.join(eligible) or '无'}\n"
-                f"达到门槛 {_score(metrics.get('threshold'))} 的人物："
-                f"{'、'.join(qualified_names) or '无'}\n"
-                f"人数 {metrics.get('qualifiedCount', 0)} "
-                f"{'>=' if job.get('qualified') else '<'} "
-                f"要求 {metrics.get('requiredCount', 0)} 人"
-            )
+        threshold = metrics.get("threshold")
+        rows = []
+        for item in members:
+            if not isinstance(item, dict):
+                continue
+            row = f"{item.get('name', '未知')}：{item.get('job', '未知兵种')}　{_score(item.get('score'))} 分"
+            if qualification_mode in {"count", "all"} and len(members) > 1:
+                row += "　" + _threshold_result(item.get("score"), threshold)
+            rows.append(row)
+        if qualification_mode in {"count", "all"}:
+            if len(members) == 1:
+                explanation = f"门槛 {_score(threshold)} 分，" + _threshold_result(members[0].get("score"), threshold)
+            else:
+                actual = metrics.get("qualifiedCount", 0)
+                required = metrics.get("requiredCount", 0)
+                explanation = f"需至少 {required} 人达到 {_score(threshold)} 分；本次 {actual} 人达标"
+                if actual < required:
+                    explanation += f"，还差 {required - actual} 人"
+        elif qualification_mode == "total":
+            total = metrics.get("qualificationTotal")
+            explanation = (f"所选人物总分 {_score(total)} 分，门槛 {_score(threshold)} 分，"
+                           + _threshold_result(total, threshold))
         else:
-            explanation = _comparison(
-                metrics.get("average"),
-                metrics.get("threshold"),
-                qualified=bool(job.get("qualified")),
-                value_label="平均分",
-            )
+            average = metrics.get("qualificationAverage", metrics.get("average"))
+            explanation = (f"所选人物平均 {_score(average)} 分，门槛 {_score(threshold)} 分，"
+                           + _threshold_result(average, threshold))
         sections.append(
             {
                 "title": "兵种评分",
@@ -104,7 +115,22 @@ def format_result_detail(detail: dict[str, Any]) -> dict[str, Any]:
                 f"计分 {_score(item.get('score'))}"
             )
         auto_pass = str(metrics.get("autoPassReason") or "")
-        if auto_pass == "special_skill":
+        gate_mode = metrics.get("qualificationMode")
+        if gate_mode == "count":
+            threshold = metrics.get("threshold")
+            if len(members) == 1:
+                explanation = f"门槛 {_score(threshold)} 分，" + _threshold_result(members[0].get("score"), threshold)
+            else:
+                actual, required = metrics.get("qualifiedCount", 0), metrics.get("requiredCount", 0)
+                explanation = f"需至少 {required} 人达到 {_score(threshold)} 分；本次 {actual} 人达标"
+                if actual < required:
+                    explanation += f"，还差 {required - actual} 人"
+        elif gate_mode in {"average", "total"}:
+            value = metrics.get("qualificationAverage") if gate_mode == "average" else metrics.get("skillScore")
+            label = "所选人物平均" if gate_mode == "average" else "所选人物总分"
+            threshold = metrics.get("threshold")
+            explanation = f"{label} {_score(value)} 分，门槛 {_score(threshold)} 分，" + _threshold_result(value, threshold)
+        elif auto_pass == "special_skill":
             explanation = "存在特殊特技，按当前规则直接合格"
         elif auto_pass == "high_job_average":
             explanation = (
@@ -121,7 +147,7 @@ def format_result_detail(detail: dict[str, Any]) -> dict[str, Any]:
             )
         sections.append(
             {
-                "title": "特技评分",
+                "title": "特技评分" if metrics.get("qualificationMode") else ("特技评分（初始三人）" if detail.get("mode") == "three" else "特技评分"),
                 "qualified": bool(skill.get("qualified")),
                 "rows": rows,
                 "explanation": explanation,
@@ -150,7 +176,7 @@ def show_score_detail(root, detail: dict) -> None:
     from tkinter import scrolledtext
     from ccz_randomizer.ui.detail_actions import add_detail_actions
     view = format_result_detail(detail)
-    dialog = tk.Toplevel(root)
+    dialog = centered_toplevel(root)
     dialog.title("评分详情")
     dialog.geometry("720x590")
     dialog.minsize(620, 460)
@@ -177,6 +203,9 @@ def show_score_detail(root, detail: dict) -> None:
     ).pack(fill="x", pady=(5, 12))
 
     add_detail_actions(body, dialog, detail)
+
+    tk.Button(body, text="关闭", width=10, command=dialog.destroy).pack(
+        side="bottom", anchor="e", pady=(12, 0))
 
     detail_text = scrolledtext.ScrolledText(
         body,
@@ -220,12 +249,6 @@ def show_score_detail(root, detail: dict) -> None:
         detail_text.insert("end", "\n")
     detail_text.configure(state="disabled")
 
-    tk.Button(
-        body,
-        text="关闭",
-        width=10,
-        command=dialog.destroy,
-    ).pack(anchor="e", pady=(12, 0))
     dialog.update_idletasks()
     x = root.winfo_rootx() + max(
         0, (root.winfo_width() - dialog.winfo_width()) // 2

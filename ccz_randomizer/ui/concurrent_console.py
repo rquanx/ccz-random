@@ -264,7 +264,7 @@ class ConcurrentConsoleState:
             return True
         if text.startswith(
             (
-                "初始三人兵种合格，正在检查特技条件",
+                "所选人物兵种筛选通过，正在检查特技条件",
                 "R1 七人特技内存读取:",
             )
         ):

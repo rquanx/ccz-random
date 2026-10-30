@@ -18,6 +18,39 @@ from ccz_randomizer.ui.history import (
 
 
 class HistoryRepositoryTests(unittest.TestCase):
+    def test_empty_rounds_hidden_and_not_retained_after_finish(self):
+        with tempfile.TemporaryDirectory() as directory:
+            repository = HistoryRepository(Path(directory))
+            for status in ("completed", "stopped", "failed"):
+                repository.start_run(status, mode="three", loop_random=False,
+                                     rule_name="规则", rule={}, build={})
+                round_id = repository.start_round(status, 1)
+                self.assertEqual(0, repository.count_rounds())
+                self.assertEqual([], repository.list_rounds())
+                repository.finish_round(round_id, status)
+                repository.finish_run(status, status)
+            with closing(sqlite3.connect(repository.path)) as connection:
+                self.assertEqual(0, connection.execute("SELECT COUNT(*) FROM rounds").fetchone()[0])
+                self.assertEqual(0, connection.execute("SELECT COUNT(*) FROM runs").fetchone()[0])
+
+    def test_partial_results_survive_stop_and_empty_rounds_do_not_affect_pages(self):
+        with tempfile.TemporaryDirectory() as directory:
+            repository = HistoryRepository(Path(directory))
+            repository.start_run("partial", mode="three", loop_random=True,
+                                 rule_name="规则", rule={}, build={})
+            first = repository.start_round("partial", 1)
+            repository.save_result(first, dict(slot=1, acceptedAttempt=2))
+            repository.start_round("partial", 2)  # Legacy/interrupted empty round.
+            third = repository.start_round("partial", 3)
+            repository.save_result(third, dict(slot=1, acceptedAttempt=5))
+            self.assertEqual(2, repository.count_rounds())
+            self.assertEqual([third], [r["id"] for r in repository.list_rounds(page=1, page_size=1)])
+            self.assertEqual([first], [r["id"] for r in repository.list_rounds(page=2, page_size=1)])
+            repository.finish_round(third, "stopped")
+            repository.finish_run("partial", "stopped")
+            self.assertEqual(2, repository.count_rounds())
+            self.assertEqual(5, repository.get_round_results(third)[0]["acceptedAttempt"])
+
     def test_detail_equipment_layout_is_compact(self):
         self.assertEqual(4, DETAIL_EQUIPMENT_COLUMNS)
         self.assertEqual(220, DETAIL_SPECIAL_MIN_WIDTH)

@@ -19,6 +19,7 @@ class Recruit:
     cost: int = 1
     job_choices: tuple[str, ...] = ()
     fixed_configuration: bool = False
+    entry_kind: str = "recruit"
 
 
 def _talents(value: object) -> tuple[str, ...]:
@@ -53,7 +54,10 @@ def parse_recruits(payload: object) -> tuple[Recruit, ...]:
             raise ValueError("已确认招募记录缺少关卡")
         stages = _talents(row.get("stages", [stage] if verified else []))
         cost = row.get("recruitmentCost", 1)
-        if type(cost) is not int or not 1 <= cost <= 4:
+        entry_kind = row.get("entryKind", "recruit")
+        if entry_kind not in {"fixed", "recruit"}:
+            raise ValueError("入队类型无效")
+        if type(cost) is not int or not (cost == 0 if entry_kind == "fixed" else 1 <= cost <= 4):
             raise ValueError("招募消耗无效")
         choices = _talents(row.get("jobChoices", []))
         job_id = row.get("jobId")
@@ -66,7 +70,7 @@ def parse_recruits(payload: object) -> tuple[Recruit, ...]:
             index, name.strip(), stage.strip() if verified else "招募关系待验证",
             job or f"兵种 #{job_id}",
             _talents(row.get("jobTalents")), _talents(row.get("personalTalents")), verified,
-            stages, cost, choices, row.get("fixedConfiguration") is True,
+            stages, cost, choices, row.get("fixedConfiguration") is True, entry_kind,
         ))
     return tuple(result)
 

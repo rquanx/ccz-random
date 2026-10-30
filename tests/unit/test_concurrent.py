@@ -235,6 +235,23 @@ class ConcurrentSchedulingTests(unittest.TestCase):
             self.assertGreaterEqual(finished["success"]["elapsed_ms"], 0)
             self.assertIn("expected", finished["failure"]["error"])
 
+    def test_timing_recorder_bounds_long_running_logs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            recorder = _TimingRecorder(Path(directory), mode="three", worker_count=1)
+            recorder._file.max_bytes = 400
+            recorder._file.max_parts = 2
+            for index in range(100):
+                recorder.write("sample", index=index)
+            recorder.close()
+            recorder.close()
+            recorder.write("after_close")
+            files = list(recorder.path.parent.glob("*.jsonl"))
+            self.assertEqual(len(files), 2)
+            self.assertLessEqual(sum(path.stat().st_size for path in files), 800)
+            records = [json.loads(line) for path in files
+                       for line in path.read_text(encoding="utf-8").splitlines()]
+            self.assertEqual(max(record["index"] for record in records), 99)
+
     def _run_single_slot_scheduler(
         self,
         process_factory,

@@ -23,7 +23,7 @@ from ccz_randomizer.runtime.game_sandbox import (
     ensure_hidden_runtime_directory,
     remove_sandbox_tree,
 )
-from ccz_randomizer.runtime.result_retention import cleanup_result_directory
+from ccz_randomizer.runtime.log_retention import RotatingTextWriter, cleanup_log_directory
 CONCURRENT_EVENT_PREFIX = "@@CCZ_CONCURRENT_EVENT@@"
 CONCURRENT_HEARTBEAT_LINE = "@@CCZ_CONCURRENT_HEARTBEAT@@"
 CONCURRENT_SLOT_ASSIGNED_PREFIX = "@@CCZ_SLOT_ASSIGNED@@"
@@ -117,11 +117,12 @@ class _TimingRecorder:
     def __init__(self, base_dir: Path, *, mode: str, worker_count: int) -> None:
         log_dir = base_dir / "ccz_fast_logs"
         log_dir.mkdir(parents=True, exist_ok=True)
+        cleanup_log_directory(log_dir)
         stamp = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
         self.path = log_dir / (
             f"concurrent_{stamp}_{os.getpid()}_timing.jsonl"
         )
-        self._file = self.path.open("a", encoding="utf-8")
+        self._file = RotatingTextWriter(self.path)
         self._lock = threading.Lock()
         self._common = {
             "mode": mode,
@@ -284,7 +285,7 @@ def _should_forward_line(line: str) -> bool:
             "========== 结果 ",
             "R0 ",
             "R1 ",
-            "初始三人兵种合格，正在检查特技条件",
+            "所选人物兵种筛选通过，正在检查特技条件",
             "用户进度:",
             "规则原因:",
             "第 ",
@@ -809,7 +810,6 @@ def _run_continuous_loop(
             raise CompatibilitySandboxSetupError(str(exc)) from exc
         raise
     result_root = _unique_loop_result_root(base_dir)
-    cleanup_result_directory(base_dir / "randResult", protected=(result_root,))
     timing = _TimingRecorder(
         base_dir,
         mode=mode,
@@ -1132,7 +1132,6 @@ def _run_continuous_loop(
                 flush=True,
             )
             next_publish_round += 1
-            cleanup_result_directory(result_root, protected=(round_state.archived_path,))
 
     try:
         launch_next(create_lane(1))

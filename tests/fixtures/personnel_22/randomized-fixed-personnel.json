@@ -1,0 +1,314 @@
+[
+  {
+    "recordIndex": 0,
+    "memberId": 0,
+    "name": "曹操",
+    "jobId": 6,
+    "currentJobId": 6,
+    "jobTalents": [
+      "随机属性攻击"
+    ],
+    "personalTalents": [
+      "恢复周围状态",
+      "自动提升 攻爆"
+    ],
+    "availabilityVerified": true,
+    "entryKind": "fixed",
+    "stages": [
+      "共通 · 颍川之战"
+    ],
+    "stage": "共通 · 颍川之战",
+    "recruitmentCost": 0,
+    "job": "弓兵"
+  },
+  {
+    "recordIndex": 1,
+    "memberId": 1,
+    "name": "夏侯惇",
+    "jobId": 42,
+    "currentJobId": 42,
+    "jobTalents": [
+      "再次移动"
+    ],
+    "personalTalents": [
+      "强化反击 15%",
+      "远距攻击 大没羽"
+    ],
+    "availabilityVerified": true,
+    "entryKind": "fixed",
+    "stages": [
+      "共通 · 颍川之战"
+    ],
+    "stage": "共通 · 颍川之战",
+    "recruitmentCost": 0,
+    "job": "枪兵"
+  },
+  {
+    "recordIndex": 6,
+    "memberId": 7,
+    "name": "夏侯渊",
+    "jobId": 30,
+    "currentJobId": 30,
+    "jobTalents": [
+      "强化策略穿透"
+    ],
+    "personalTalents": [
+      "每回合恢复HP 20%",
+      "中毒攻击 100%"
+    ],
+    "availabilityVerified": true,
+    "entryKind": "fixed",
+    "stages": [
+      "共通 · 颍川之战"
+    ],
+    "stage": "共通 · 颍川之战",
+    "recruitmentCost": 0,
+    "job": "道士"
+  },
+  {
+    "recordIndex": 12,
+    "memberId": 4,
+    "name": "曹洪",
+    "jobId": 15,
+    "currentJobId": 63,
+    "jobTalents": [
+      "仇恨攻击 +12%"
+    ],
+    "personalTalents": [
+      "防御特殊攻击",
+      "恶路移动"
+    ],
+    "availabilityVerified": true,
+    "entryKind": "fixed",
+    "stages": [
+      "共通 · 汜水关之战"
+    ],
+    "stage": "共通 · 汜水关之战",
+    "recruitmentCost": 0,
+    "job": "轻炮车"
+  },
+  {
+    "recordIndex": 16,
+    "memberId": 16,
+    "name": "典韦",
+    "jobId": 33,
+    "currentJobId": 18,
+    "jobTalents": [
+      "策略绝对命中"
+    ],
+    "personalTalents": [
+      "破坏精神",
+      "固定减伤"
+    ],
+    "availabilityVerified": true,
+    "entryKind": "fixed",
+    "stages": [
+      "共通 · 青州讨伐战"
+    ],
+    "stage": "共通 · 青州讨伐战",
+    "recruitmentCost": 0,
+    "job": "骑策士"
+  },
+  {
+    "recordIndex": 20,
+    "memberId": 20,
+    "name": "荀彧",
+    "jobId": 69,
+    "currentJobId": 24,
+    "jobTalents": [
+      "主动连击",
+      "侧翼突袭 35%"
+    ],
+    "personalTalents": [
+      "一夫当关 10%",
+      "HP辅助能力 攻爆"
+    ],
+    "availabilityVerified": true,
+    "entryKind": "fixed",
+    "stages": [
+      "共通 · 青州讨伐战"
+    ],
+    "stage": "共通 · 青州讨伐战",
+    "recruitmentCost": 0,
+    "job": "神羿骑"
+  },
+  {
+    "recordIndex": 22,
+    "memberId": 22,
+    "name": "郭嘉",
+    "jobId": 27,
+    "currentJobId": 66,
+    "jobTalents": [
+      "策略破坏 精"
+    ],
+    "personalTalents": [
+      "深入敌后",
+      "强化策略穿透"
+    ],
+    "availabilityVerified": true,
+    "entryKind": "fixed",
+    "stages": [
+      "共通 · 徐州之战"
+    ],
+    "stage": "共通 · 徐州之战",
+    "recruitmentCost": 0,
+    "job": "医师"
+  },
+  {
+    "recordIndex": 15,
+    "memberId": 15,
+    "name": "许褚",
+    "jobId": 3,
+    "currentJobId": 21,
+    "jobTalents": [
+      "攻击绝对命中"
+    ],
+    "personalTalents": [
+      "疾风攻击 12"
+    ],
+    "availabilityVerified": true,
+    "entryKind": "fixed",
+    "stages": [
+      "共通 · 濮阳决战"
+    ],
+    "stage": "共通 · 濮阳决战",
+    "recruitmentCost": 0,
+    "job": "轻步兵"
+  },
+  {
+    "recordIndex": 2,
+    "memberId": 2,
+    "name": "张辽",
+    "jobId": 30,
+    "currentJobId": 54,
+    "jobTalents": [
+      "强化策略穿透"
+    ],
+    "personalTalents": [
+      "增加连击上限 +1",
+      "盾反 15%"
+    ],
+    "availabilityVerified": true,
+    "entryKind": "fixed",
+    "stages": [
+      "共通 · 徐州平定战"
+    ],
+    "stage": "共通 · 徐州平定战",
+    "recruitmentCost": 0,
+    "job": "道士"
+  },
+  {
+    "recordIndex": 19,
+    "memberId": 19,
+    "name": "司马懿",
+    "jobId": 62,
+    "currentJobId": 33,
+    "jobTalents": [
+      "迅捷之勇 12%",
+      "强化致命一击 +40%"
+    ],
+    "personalTalents": [
+      "二次行动",
+      "深入敌后"
+    ],
+    "availabilityVerified": true,
+    "entryKind": "fixed",
+    "stages": [
+      "红线 · 汉中讨伐战",
+      "蓝线 · 定军山之战·异"
+    ],
+    "stage": "红线 · 汉中讨伐战 / 蓝线 · 定军山之战·异",
+    "recruitmentCost": 0,
+    "job": "游牧骑"
+  },
+  {
+    "recordIndex": 9,
+    "memberId": 10,
+    "name": "庞德",
+    "jobId": 27,
+    "currentJobId": 75,
+    "jobTalents": [
+      "策略破坏 精"
+    ],
+    "personalTalents": [
+      "远距攻击 大没羽",
+      "辅助地形状态"
+    ],
+    "availabilityVerified": true,
+    "entryKind": "fixed",
+    "stages": [
+      "红线 · 逍遥津之战",
+      "蓝线 · 定军山之战·异"
+    ],
+    "stage": "红线 · 逍遥津之战 / 蓝线 · 定军山之战·异",
+    "recruitmentCost": 0,
+    "job": "医师"
+  },
+  {
+    "recordIndex": 29,
+    "memberId": 29,
+    "name": "郭淮",
+    "jobId": 51,
+    "currentJobId": 57,
+    "jobTalents": [
+      "突击移动"
+    ],
+    "personalTalents": [
+      "无反击攻击"
+    ],
+    "availabilityVerified": true,
+    "entryKind": "fixed",
+    "stages": [
+      "红线 · 定军山之战"
+    ],
+    "stage": "红线 · 定军山之战",
+    "recruitmentCost": 0,
+    "job": "轻战车"
+  },
+  {
+    "recordIndex": 4,
+    "memberId": 5,
+    "name": "曹彰",
+    "jobId": 9,
+    "currentJobId": 73,
+    "jobTalents": [
+      "破坏移动"
+    ],
+    "personalTalents": [
+      "回马攻击 20%",
+      "穿透攻击 三格"
+    ],
+    "availabilityVerified": true,
+    "entryKind": "fixed",
+    "stages": [
+      "红线 · 樊城救援战",
+      "蓝线 · 定军山之战·异"
+    ],
+    "stage": "红线 · 樊城救援战 / 蓝线 · 定军山之战·异",
+    "recruitmentCost": 0,
+    "job": "轻骑兵"
+  },
+  {
+    "recordIndex": 34,
+    "memberId": 34,
+    "name": "赵云",
+    "jobId": 70,
+    "currentJobId": 9,
+    "jobTalents": [
+      "中毒攻击 100%",
+      "增加连击上限 +1"
+    ],
+    "personalTalents": [
+      "铁索横江",
+      "策略限伤 60"
+    ],
+    "availabilityVerified": true,
+    "entryKind": "fixed",
+    "stages": [
+      "蓝线 · 麦城救援战"
+    ],
+    "stage": "蓝线 · 麦城救援战",
+    "recruitmentCost": 0,
+    "job": "机关"
+  }
+]

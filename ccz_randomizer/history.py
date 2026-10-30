@@ -150,6 +150,12 @@ class HistoryRepository:
                 """,
                 (status, _now(), run_id),
             )
+            connection.execute(
+                "DELETE FROM rounds WHERE run_id = ? AND NOT EXISTS "
+                "(SELECT 1 FROM results WHERE results.round_id = rounds.id)", (run_id,))
+            connection.execute(
+                "DELETE FROM runs WHERE id = ? AND NOT EXISTS "
+                "(SELECT 1 FROM rounds WHERE rounds.run_id = runs.id)", (run_id,))
 
     def start_round(self, run_id: str, round_number: int) -> int:
         with closing(self._connect()) as connection, connection:
@@ -181,6 +187,9 @@ class HistoryRepository:
                 """,
                 (status, _now(), round_id),
             )
+            connection.execute(
+                "DELETE FROM rounds WHERE id = ? AND NOT EXISTS "
+                "(SELECT 1 FROM results WHERE results.round_id = rounds.id)", (round_id,))
 
     def save_result(
         self,
@@ -265,7 +274,10 @@ class HistoryRepository:
     def count_rounds(self) -> int:
         with closing(self._connect()) as connection, connection:
             return int(
-                connection.execute("SELECT COUNT(*) FROM rounds").fetchone()[0]
+                connection.execute(
+                    "SELECT COUNT(*) FROM rounds WHERE EXISTS "
+                    "(SELECT 1 FROM results WHERE results.round_id = rounds.id)"
+                ).fetchone()[0]
             )
 
     def list_rounds(
@@ -292,7 +304,7 @@ class HistoryRepository:
                     COUNT(results.id) AS result_count
                 FROM rounds
                 JOIN runs ON runs.id = rounds.run_id
-                LEFT JOIN results ON results.round_id = rounds.id
+                JOIN results ON results.round_id = rounds.id
                 GROUP BY rounds.id
                 ORDER BY rounds.started_at DESC, rounds.id DESC
                 LIMIT ? OFFSET ?

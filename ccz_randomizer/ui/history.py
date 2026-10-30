@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from ccz_randomizer.ui.window_position import centered_toplevel
+
 import math
 from typing import Any, Callable
 
 from ccz_randomizer.history import DEFAULT_PAGE_SIZE, HistoryRepository
+from ccz_randomizer.history_members import history_members
 
 
 COLORS = {
@@ -37,19 +40,15 @@ DETAIL_SPECIAL_MIN_WIDTH = 220
 
 
 def _center_window(window, parent, width: int, height: int) -> None:
-    window.update_idletasks()
-    parent.update_idletasks()
-    parent_width = max(parent.winfo_width(), parent.winfo_reqwidth())
-    parent_height = max(parent.winfo_height(), parent.winfo_reqheight())
-    x = parent.winfo_rootx() + (parent_width - width) // 2
-    y = parent.winfo_rooty() + (parent_height - height) // 2
-    screen_x = window.winfo_vrootx()
-    screen_y = window.winfo_vrooty()
-    screen_width = window.winfo_vrootwidth()
-    screen_height = window.winfo_vrootheight()
-    x = max(screen_x, min(x, screen_x + max(0, screen_width - width)))
-    y = max(screen_y, min(y, screen_y + max(0, screen_height - height)))
-    window.geometry(f"{width}x{height}+{x}+{y}")
+    # Position only once, through centered_toplevel after the complete layout.
+    # Keep large history views inside the screen even at higher display scaling.
+    available_width = max(1, parent.winfo_screenwidth() - 48)
+    available_height = max(1, parent.winfo_screenheight() - 96)
+    width = min(width, available_width)
+    height = min(height, available_height)
+    minimum_width, minimum_height = window.minsize()
+    window.minsize(min(minimum_width, width), min(minimum_height, height))
+    window.geometry(f"{width}x{height}")
 
 
 def _score(value: Any) -> str:
@@ -246,7 +245,7 @@ def _render_member_card(parent, member: dict[str, Any], column: int, row: int):
 def _show_detail(parent, snapshot: dict[str, Any]) -> None:
     import tkinter as tk
 
-    detail_dialog = tk.Toplevel(parent)
+    detail_dialog = centered_toplevel(parent)
     detail_dialog.title(f"{snapshot.get('gameVersion', '2.2')} · 第 {snapshot.get('slot', '-')} 号存档详情")
     detail_dialog.minsize(960, 620)
     detail_dialog.transient(parent)
@@ -275,7 +274,7 @@ def _show_detail(parent, snapshot: dict[str, Any]) -> None:
     _stat_box(
         stats,
         "兵种平均分",
-        _score(job_metrics.get("average")),
+        _score(job_metrics.get("qualificationAverage", job_metrics.get("average"))),
         color=COLORS["blue"],
         background=COLORS["blue_soft"],
     ).grid(row=0, column=0, sticky="nsew", padx=(0, 5))
@@ -308,7 +307,7 @@ def _show_detail(parent, snapshot: dict[str, Any]) -> None:
     _section_heading(member_section, "武将与特技", color=COLORS["blue"])
     member_grid = tk.Frame(member_section, bg=COLORS["surface"])
     member_grid.pack(fill="x")
-    members = snapshot.get("members") or []
+    members = history_members(snapshot)
     member_columns = 3 if len(members) <= 3 else 4
     for column in range(member_columns):
         member_grid.columnconfigure(column, weight=1, uniform="member")
@@ -421,7 +420,7 @@ def _show_detail(parent, snapshot: dict[str, Any]) -> None:
 
 def _summary_member_text(snapshot: dict[str, Any]) -> str:
     lines = []
-    for member in snapshot.get("members") or []:
+    for member in history_members(snapshot):
         personal = _skill_names(member.get("personalSkills") or [])
         job = _skill_names(member.get("jobSkills") or [])
         lines.append(
@@ -552,7 +551,7 @@ def _render_full_result_card(parent, snapshot: dict[str, Any]):
 
     members_panel = tk.Frame(card, bg=COLORS["surface"], padx=8, pady=3)
     members_panel.pack(fill="x")
-    for member in snapshot.get("members") or []:
+    for member in history_members(snapshot):
         block = tk.Frame(
             members_panel,
             bg=COLORS["surface_alt"],
@@ -674,7 +673,7 @@ def _show_round_overview(
 ) -> None:
     import tkinter as tk
 
-    overview = tk.Toplevel(parent)
+    overview = centered_toplevel(parent)
     overview.title(f"第 {row['round_number']} 轮全部结果")
     overview.minsize(1100, 700)
     overview.transient(parent)
@@ -725,8 +724,8 @@ def show_history_window(parent, repository: HistoryRepository) -> None:
     import tkinter as tk
     from tkinter import messagebox, ttk
 
-    dialog = tk.Toplevel(parent)
-    dialog.title("历史结果")
+    dialog = centered_toplevel(parent)
+    dialog.title("历史记录")
     dialog.minsize(1120, 680)
     dialog.transient(parent)
     dialog.configure(bg=COLORS["page"])
@@ -739,7 +738,7 @@ def show_history_window(parent, repository: HistoryRepository) -> None:
 
     toolbar = tk.Frame(dialog, bg=COLORS["page"], padx=14, pady=10)
     toolbar.pack(fill="x")
-    title_var = tk.StringVar(value="历史结果")
+    title_var = tk.StringVar(value="历史记录")
     tk.Label(
         toolbar,
         textvariable=title_var,
@@ -915,14 +914,14 @@ def show_history_window(parent, repository: HistoryRepository) -> None:
         next_button.configure(
             state="normal" if page < total_pages else "disabled"
         )
-        title_var.set(f"历史结果  共 {total} 轮")
+        title_var.set(f"历史记录  共 {total} 轮")
         if rows:
             first = rounds.get_children()[0]
             rounds.selection_set(first)
             rounds.focus(first)
             render_results(rows[0])
         else:
-            round_header.set("暂无历史结果")
+            round_header.set("暂无历史记录")
             overview_button.configure(state="disabled")
             for child in grid.winfo_children():
                 child.destroy()

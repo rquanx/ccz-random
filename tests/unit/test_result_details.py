@@ -8,6 +8,25 @@ from ccz_randomizer.ui.result_details import (
 
 
 class ResultDetailTests(unittest.TestCase):
+    def test_single_selected_person_shows_score_and_gap_without_repeated_roster(self):
+        for score, passed, expected in ((7, False, '门槛 8 分，还差 1 分'), (8, True, '门槛 8 分，已达标')):
+            view = format_result_detail(dict(mode='three', job=dict(qualified=passed,
+                members=[dict(name='张宝', job='道士', score=score)],
+                metrics=dict(qualificationMode='count', threshold=8, requiredCount=1,
+                    qualifiedCount=int(passed), eligibleMembers=['张宝']))))
+            section = view['sections'][0]
+            self.assertEqual([f'张宝：道士　{score} 分'], section['rows'])
+            self.assertEqual(expected, section['explanation'])
+
+    def test_multiple_selected_people_explain_missing_count(self):
+        view = format_result_detail(dict(mode='three', job=dict(qualified=False,
+            members=[dict(name='张宝', job='道士', score=7), dict(name='曹操', job='虎豹骑', score=8.5)],
+            metrics=dict(qualificationMode='count', threshold=8, requiredCount=2,
+                qualifiedCount=1, eligibleMembers=['张宝', '曹操']))))
+        section = view['sections'][0]
+        self.assertEqual(['张宝：道士　7 分　还差 1 分', '曹操：虎豹骑　8.5 分　已达标'], section['rows'])
+        self.assertEqual('需至少 2 人达到 8 分；本次 1 人达标，还差 1 人', section['explanation'])
+
     def test_result_detail_round_trip_preserves_chinese_text(self):
         detail = {
             "resultSlot": 1,
@@ -40,7 +59,7 @@ class ResultDetailTests(unittest.TestCase):
         )
 
         self.assertEqual("兵种不合格", view["status"])
-        self.assertIn("平均分 8.5 < 门槛 9", view["sections"][0]["explanation"])
+        self.assertIn("所选人物平均 8.5 分，门槛 9 分，还差 0.5 分", view["sections"][0]["explanation"])
         self.assertIn("未继续检查特技", view["sections"][1]["explanation"])
 
     def test_skill_auto_pass_reason_is_human_readable(self):

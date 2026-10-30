@@ -20,6 +20,28 @@ def decode_personnel_record(record: bytes, index: int) -> tuple[str, int, int]:
     return name, struct.unpack_from("<I", record, 4)[0], record[0x2B]
 
 
+def read_rule_job_ids(pid, positions, *, reader_factory=ProcessMemoryReader):
+    """Fast screening uses the same effective jobs as the personnel preview."""
+    from ccz_randomizer.rule_members import FIXED_JOB_INDICES
+
+    positions = tuple(positions)
+    if not positions:
+        return ()
+    if any(type(i) is not int or not 0 <= i < 1024 for i in positions):
+        raise ValueError("人物记录编号无效")
+    with reader_factory(pid) as reader:
+        size = max(positions) + 1
+        jobs = struct.unpack(f"<{size}I", reader.read(0x00503F40, size * 4))
+        fixed = FIXED_JOB_INDICES.intersection(positions)
+        current = {}
+        if fixed:
+            base = struct.unpack("<I", reader.read(RECORD_ARRAY_BASE_POINTER_ADDRESS, 4))[0]
+            for index in fixed:
+                record = reader.read(base + index * RECORD_SIZE, RECORD_SIZE)
+                current[index] = decode_personnel_record(record, index)[2]
+        return tuple(current[i] if i in current else jobs[i] for i in positions)
+
+
 def read_personnel(pid: int, indices, *, planned=False, fixed_indices=(), reader_factory=ProcessMemoryReader) -> list[dict]:
     positions = tuple(indices)
     if not positions or any(type(i) is not int or not 0 <= i < 1024 for i in positions):

@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+from ccz_randomizer.ui.window_position import centered_toplevel
+from ccz_randomizer.fixed_members import expand_rule_members
+from ccz_randomizer.fixed_members import FIXED_MEMBER_INDICES
+from ccz_randomizer.entry_catalog import attach_fixed_entries
+from ccz_randomizer.equipment_snapshot import serialize_equipment
+
 import ctypes
 import datetime as dt
 import hashlib
@@ -20,6 +26,8 @@ from ctypes import wintypes
 from functools import lru_cache
 from pathlib import Path
 from types import SimpleNamespace
+
+from ccz_randomizer.rules.reporting import job_rule_report
 
 from ccz_randomizer.rules.config import (
     active_profile,
@@ -53,7 +61,6 @@ from ccz_randomizer.runtime.log_retention import (
     cleanup_log_directory,
     trim_text_widget,
 )
-from ccz_randomizer.runtime.result_retention import cleanup_result_directory
 from ccz_randomizer.runtime.audio_recovery import (
     ProcessAudioMuteMonitor,
     restore_process_audio_sessions,
@@ -70,7 +77,6 @@ from ccz_randomizer.runtime.skill_memory import (
 from ccz_randomizer.runtime.s00_guard import (
     S00ScriptGuard,
     repair_game_s00,
-    restore_bundled_original_s00,
 )
 from ccz_randomizer.runtime.scratch_save_guard import (
     ScratchSaveGuard,
@@ -513,10 +519,12 @@ def load_member_skills_from_memory(
     pid: int,
     record_indices: tuple[int, ...],
     members,
+    *, planned_job_ids=None,
 ):
     from models.CczModels import CCZ_MODELS
 
-    snapshot = read_skill_memory(pid, record_indices)
+    snapshot = (read_skill_memory(pid, record_indices) if planned_job_ids is None else
+                read_skill_memory(pid, record_indices, planned_job_ids=planned_job_ids))
     canonical_names = canonical_skill_names()
     models_by_name = {
         normalize_skill_name(name): (name, CCZ_MODELS.skills[index])
@@ -602,6 +610,21 @@ def load_member_skills_from_memory(
     return snapshot
 
 
+def load_selected_rule_members(task_module, pid, rules):
+    from ccz_randomizer.rule_members import RULE_MEMBER_INDICES
+    from ccz_randomizer.runtime.personnel_memory import read_rule_job_ids
+    names = active_profile(rules)["threePerson"]["qualifiedMembers"]
+    positions = tuple(RULE_MEMBER_INDICES[name] for name in names)
+    ids = read_rule_job_ids(pid, positions)
+    members = []
+    for name, job_id in zip(names, ids):
+        job_name, score, job_type = JOB_MAP[job_id]
+        members.append(SimpleNamespace(name=name, job=SimpleNamespace(name=job_name, score=score, type=job_type)))
+    load_member_skills_from_memory(task_module, pid, positions, members,
+                                  planned_job_ids=dict(zip(positions, ids)))
+    return tuple(members)
+
+
 def skill_name_groups(task_module) -> tuple[set[str], set[str], set[str]]:
     from models.CczModels import CCZ_MODELS
 
@@ -676,7 +699,9 @@ def _runtime_type_name(value) -> str:
 
 
 def effective_member_skill_names(rules: dict, members) -> list[str]:
+    from ccz_randomizer.rules.skill_scores import migrate_skill_scores, DEFAULT_TYPES
     profile = active_profile(rules)
+    migrate_skill_scores(profile)
     seven = profile["sevenPerson"]
     if not seven["skillTypeMatchingEnabled"]:
         return [
@@ -703,9 +728,9 @@ def effective_member_skill_names(rules: dict, members) -> list[str]:
                 skill.name,
                 normalized_skill_types.get(
                     normalize_skill_name(skill.name),
-                    _runtime_type_name(
+                    DEFAULT_TYPES.get(skill.name, _runtime_type_name(
                         getattr(skill, "type", "ALL_ROUNDER")
-                    ),
+                    )),
                 ),
             )
             if not skill_types_match(job_type, skill_type):
@@ -744,6 +769,8 @@ def evaluate_task_skill_rules(
         strong_names,
         special_names,
         effective_member_skill_names(rules, members),
+        qualification=active_profile(rules)["skillQualification"],
+        effective_skills_by_member={m.name: effective_member_skill_names(rules, (m,)) for m in members},
     )
 
 
@@ -795,7 +822,10 @@ def result_detail_for_runner(
         "slot": result_slot,
         "phase": "randomized",
         "personnel": getattr(runner, "_personnel_snapshot", None),
+        "fixedPersonnel": getattr(runner, "_fixed_personnel_snapshot", None),
         "jobTalents": getattr(runner, "_job_talents_snapshot", None),
+        "equipment": serialize_equipment(runner._equip_info, getattr(runner, "_equip_specials", ()))
+        if getattr(runner, "_equip_info", None) is not None else None,
     }
 
 
@@ -819,7 +849,7 @@ def build_history_result_snapshot(
         for item in ((detail or {}).get("job") or {}).get("members", [])
         if isinstance(item, dict)
     }
-    for member in getattr(runner, "_team_members", ()):
+    for member in (getattr(runner, "_scored_members", None) or getattr(runner, "_team_members", ())):
         skills = list(getattr(member, "skillList", ()))
 
         def skill_rows(category: str) -> list[dict]:
@@ -856,29 +886,10 @@ def build_history_result_snapshot(
             }
         )
 
-    categories = [
-        {
-            "name": type_name,
-            "items": [
-                {"name": equip_name, "effect": effect}
-                for equip_name, effect in items
-            ],
-        }
-        for items, type_name in (equip_info or ())
-    ]
-    specials = []
-    for title, items in getattr(runner, "_equip_specials", ()):
-        serialized_items = []
-        for item in items:
-            if (
-                isinstance(item, (list, tuple))
-                and len(item) == 2
-                and all(isinstance(value, str) for value in item)
-            ):
-                serialized_items.append(f"{item[0]}：{item[1]}")
-            else:
-                serialized_items.append(str(item))
-        specials.append({"title": title, "items": serialized_items})
+    equipment = serialize_equipment(
+        equip_info if equip_info is not None else getattr(runner, "_equip_info", None),
+        getattr(runner, "_equip_specials", ()),
+    )
     save_bytes = save_path.read_bytes() if save_path.is_file() else b""
     history_save_root = os.environ.get("CCZ_HISTORY_SAVE_ROOT", "").strip()
     history_save_path = (
@@ -886,11 +897,12 @@ def build_history_result_snapshot(
         if history_save_root
         else save_path
     )
-    return {
+    snapshot = {
         "schemaVersion": 1,
         "gameVersion": DEFAULT_GAME_VERSION,
         "phase": "randomized" if getattr(runner, "_personnel_snapshot", None) else "unknown",
         "personnel": getattr(runner, "_personnel_snapshot", None),
+        "fixedPersonnel": getattr(runner, "_fixed_personnel_snapshot", None),
         "jobTalents": getattr(runner, "_job_talents_snapshot", None),
         "createdAt": dt.datetime.now().astimezone().isoformat(
             timespec="seconds"
@@ -903,10 +915,7 @@ def build_history_result_snapshot(
         else "seven",
         "detail": detail,
         "members": members,
-        "equipment": {
-            "categories": categories,
-            "specials": specials,
-        },
+        "equipment": equipment,
         "save": {
             "path": str(history_save_path),
             "size": len(save_bytes),
@@ -917,6 +926,10 @@ def build_history_result_snapshot(
             "verificationError": "",
         },
     }
+    from ccz_randomizer.history_members import history_members
+    snapshot["members"] = history_members(snapshot)
+    return snapshot
+
 
 
 kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
@@ -1467,7 +1480,7 @@ def show_changelog_window(
     from tkinter import ttk
 
     rows = application_changelog() if entries is None else entries
-    dialog = tk.Toplevel(parent)
+    dialog = centered_toplevel(parent)
     dialog.withdraw()
     dialog.title("版本更新记录")
     dialog.geometry("720x560")
@@ -7677,6 +7690,13 @@ def patch_runtime(
             INITIAL_TEAM_MEMBERS if three_person_mode else TEAM_MEMBERS
         )
         ids = read_job_ids(pid, positions)
+        initial_ids = ids
+        if three_person_mode:
+            from ccz_randomizer.runtime.personnel_memory import read_rule_job_ids
+            selected = rules["profiles"][rules["activeProfile"]]["threePerson"]["qualifiedMembers"]
+            ids, members = expand_rule_members(
+                ids, members, selected, lambda positions: read_rule_job_ids(pid, positions),
+            )
         if any(job_id not in JOB_MAP for job_id in ids):
             print(f"内存快筛遇到未收录兵种编号 {ids}，本轮放弃")
             return False
@@ -7714,33 +7734,18 @@ def patch_runtime(
             jobs,
             member_rules,
         )
-        average = evaluation.metrics["average"]
+        average = evaluation.metrics["qualificationAverage"]
         success = (
             os.environ.get("CCZ_TEST_ACCEPT_FIRST") == "1"
             or evaluation.qualified
         )
-        self._r0_job_ids = ids
+        self._r0_job_ids = initial_ids
         self._r0_average = average
-        self._r0_summaries = summaries
         self._r0_rule_reasons = evaluation.reasons
-        member_scores = evaluation.metrics.get("memberScores", [])
-        self._job_evaluation_detail = {
-            "qualified": success,
-            "reasons": [] if success else list(evaluation.reasons),
-            "metrics": evaluation.metrics,
-            "members": [
-                {
-                    "name": member[0],
-                    "job": job["name"],
-                    "score": (
-                        member_scores[index]
-                        if index < len(member_scores)
-                        else job["score"]
-                    ),
-                }
-                for index, (member, job) in enumerate(zip(members, jobs))
-            ],
-        }
+        self._job_evaluation_detail, summaries = job_rule_report(
+            evaluation, jobs, members, qualified=success,
+        )
+        self._r0_summaries = summaries
         print(
             f"R0 {'三人' if three_person_mode else '七人'}兵种筛选: "
             + "; ".join(summaries)
@@ -8064,7 +8069,11 @@ def patch_runtime(
         self._result_save_verification_warning = ""
         self._job_evaluation_detail = None
         self._skill_evaluation_detail = None
+        self._scored_members = None
+        self._equip_info = None
+        self._equip_specials = ()
         self._personnel_snapshot = None
+        self._fixed_personnel_snapshot = None
         self._job_talents_snapshot = None
         diagnostic_log(
             "random_run_start",
@@ -8231,14 +8240,15 @@ def patch_runtime(
             )
             npc_click_started = time.perf_counter()
             try:
-                run_native_control(
+                native_silent_click(
                     pid,
-                    [
-                        "silent-click",
-                        str(game),
-                        str(XU_CLIENT_POSITION[0]),
-                        str(XU_CLIENT_POSITION[1]),
-                    ],
+                    game,
+                    XU_CLIENT_POSITION[0],
+                    XU_CLIENT_POSITION[1],
+                    # Keep the existing 500 ms menu settling wait below, but
+                    # avoid also waiting 1200 ms inside the native click.
+                    # A failed first interaction retries with the old delay.
+                    tail_delay_ms=0 if interaction_attempt == 1 else None,
                 )
             except NativeControlError as exc:
                 if reused_session:
@@ -8396,13 +8406,8 @@ def patch_runtime(
 
         if three_person_mode:
             check_stop_requested()
-            print("初始三人兵种合格，正在检查特技条件")
-            panels, members = capture_initial_member_panels(
-                task_module,
-                pid,
-                game,
-                self,
-            )
+            print("所选人物兵种筛选通过，正在检查特技条件")
+            members = load_selected_rule_members(task_module, pid, rules)
             check_stop_requested()
             evaluation = evaluate_task_skill_rules(
                 rules,
@@ -8410,18 +8415,13 @@ def patch_runtime(
                 members,
                 self._r0_average,
             )
-            self._job_names = tuple(
-                JOB_MAP[job_id][0] for job_id in self._r0_job_ids
-            )
-            self._member_panels = panels
-            self._team_members = members
-            self.teamJobAndSkillInfoMat = np.vstack(panels)
+            self._scored_members = members
             self._skill_evaluation_detail = skill_result_detail(
                 evaluation,
                 members,
             )
             diagnostic_log(
-                "initial_skill_rule_evaluation",
+                "selected_skill_rule_evaluation",
                 qualified=evaluation.qualified,
                 reasons=evaluation.reasons,
                 skills={
@@ -8438,6 +8438,11 @@ def patch_runtime(
                     print("规则原因: " + "；".join(evaluation.reasons))
                 print("用户进度: 本轮最终结果=特技不合格")
                 return False
+            panels, initial_members = capture_initial_member_panels(task_module, pid, game, self)
+            self._job_names = tuple(JOB_MAP[job_id][0] for job_id in self._r0_job_ids)
+            self._member_panels = panels
+            self._team_members = initial_members
+            self.teamJobAndSkillInfoMat = np.vstack(panels)
             print("R1 特技界面筛选: 通过")
         else:
             check_stop_requested()
@@ -8502,7 +8507,10 @@ def patch_runtime(
                     pid, [person["recordIndex"] for person in catalog], planned=True,
                     fixed_indices=[person["recordIndex"] for person in catalog if person["fixedConfiguration"]],
                 ), catalog)
-                for row in self._personnel_snapshot:
+                self._fixed_personnel_snapshot = attach_fixed_entries(read_personnel(
+                    pid, FIXED_MEMBER_INDICES.values(), planned=True,
+                ))
+                for row in self._personnel_snapshot + self._fixed_personnel_snapshot:
                     if row["jobId"] in JOB_MAP:
                         row["job"] = JOB_MAP[row["jobId"]][0]
         return True
@@ -8568,7 +8576,7 @@ def format_user_log(line: str) -> str:
         return ""
     if text.startswith("R1 七人特技内存读取:"):
         return "正在检查特技条件……"
-    if text.startswith("初始三人兵种合格，正在检查特技条件"):
+    if text.startswith("所选人物兵种筛选通过，正在检查特技条件"):
         return "正在检查特技条件……"
     if text.startswith("========== 结果 "):
         parts = text.strip("= ").split("，", 1)
@@ -8754,7 +8762,6 @@ def gui_main() -> int:
     concurrent_console_render_pending = False
     concurrent_console_last_render_at = 0.0
     concurrent_console_last_signature: tuple | None = None
-    mode_var = tk.StringVar(value="three")
     loop_var = tk.BooleanVar(value=load_loop_random(app_dir()))
     concurrency_var = tk.IntVar(value=load_concurrency(app_dir()))
     compatibility_mode_var = tk.BooleanVar(
@@ -8769,15 +8776,10 @@ def gui_main() -> int:
     outer = tk.Frame(root, padx=14, pady=12)
     outer.pack(fill="both", expand=True)
 
-    header = tk.Frame(outer)
+    info = tk.Frame(outer)
+    info.pack(fill="x", pady=(0, 10))
+    header = tk.Frame(info)
     header.pack(fill="x")
-    header_title = tk.Label(
-        header,
-        text=f"曹操传随机工具 · {DEFAULT_GAME_VERSION}",
-        font=("Microsoft YaHei UI", 16, "bold"),
-        anchor="w",
-    )
-    header_title.pack(side="left")
     version = str(application_build_info().get("version", "")).strip()
     version_label = tk.Label(
         header,
@@ -8786,20 +8788,18 @@ def gui_main() -> int:
         anchor="e",
         fg="#666666",
     )
-    version_label.pack(side="right", padx=(12, 2), pady=(6, 0))
+    version_label.pack(side="right", padx=(12, 2))
     bind_version_changelog(version_label, root)
     help_popup: tk.Toplevel | None = None
     help_image: tk.PhotoImage | None = None
 
-    info = tk.Frame(outer)
-    info.pack(fill="x", pady=(8, 10))
     tk.Label(
-        info,
+        header,
         text="请将本工具放置到游戏目录下，双击运行。",
         justify="left",
         anchor="w",
         fg="#444444",
-    ).pack(fill="x")
+    ).pack(side="left")
     first_line = tk.Frame(info)
     first_line.pack(fill="x", anchor="w")
     tk.Label(
@@ -8825,7 +8825,6 @@ def gui_main() -> int:
     tk.Label(
         info,
         text=(
-            "运行前会自动校验并保护 S_00.eex，停止后恢复原文件。"
             "合格结果会生成结果图并保存在 randResult 目录。"
         ),
         justify="left",
@@ -8871,15 +8870,6 @@ def gui_main() -> int:
 
     settings_panel = tk.Frame(outer)
     settings_panel.pack(fill="x", pady=(0, 6))
-    runtime_settings_bar = tk.Frame(settings_panel)
-    runtime_settings_bar.pack(fill="x")
-    tk.Label(runtime_settings_bar, text="运行模式").pack(side="left", padx=(0, 6))
-    mode_frame = tk.Frame(runtime_settings_bar)
-    mode_frame.pack(side="left", padx=(0, 18))
-    three_mode_button = tk.Radiobutton(
-        mode_frame, text="3人（2.2固定）", variable=mode_var, value="three", state="disabled"
-    )
-    three_mode_button.pack(side="left")
 
     def persist_runtime_settings(_event=None) -> None:
         try:
@@ -8892,13 +8882,8 @@ def gui_main() -> int:
         except (OSError, ValueError, TypeError, tk.TclError):
             show_toast(root, "运行参数保存失败，请检查输入和工具目录。")
 
-    recruit_button = tk.Button(
-        runtime_settings_bar, text="查看招募结果", command=lambda: open_history()
-    )
-    recruit_button.pack(side="right")
-
     rule_settings_bar = tk.Frame(settings_panel)
-    rule_settings_bar.pack(fill="x", pady=(6, 0))
+    rule_settings_bar.pack(fill="x")
     tk.Label(rule_settings_bar, text="规则").pack(
         side="left",
         padx=(0, 6),
@@ -8915,10 +8900,14 @@ def gui_main() -> int:
     rule_button.pack(side="left")
     repair_button = tk.Button(
         rule_settings_bar,
-        text="错误修正",
+        text="常见问题",
         width=10,
     )
     repair_button.pack(side="left", padx=(8, 0))
+    recruit_button = tk.Button(
+        rule_settings_bar, text="历史记录", command=lambda: open_history()
+    )
+    recruit_button.pack(side="left", padx=(8, 0))
     action_button = tk.Button(
         rule_settings_bar,
         text="开始随机",
@@ -8951,7 +8940,7 @@ def gui_main() -> int:
 
     def legacy_rule_editor() -> None:
         nonlocal current_rules
-        editor = tk.Toplevel(root)
+        editor = centered_toplevel(root)
         editor.title("规则设置")
         editor.geometry("900x700")
         editor.minsize(760, 600)
@@ -9157,11 +9146,6 @@ def gui_main() -> int:
             ("special_auto", "特殊特技直接合格", seven["specialSkillAutoPass"]),
             ("high_auto", "高兵种直接合格", seven["highJobAutoPass"]),
             ("affinity", "启用武将兵种适配加成", scoring["affinityEnabled"]),
-            (
-                "master_penalty",
-                "启用文官兵种过多扣分",
-                scoring["extraMasterPenaltyEnabled"],
-            ),
         )
         for row, (key, label, value) in enumerate(boolean_specs, start=5):
             variable = tk.BooleanVar(value=value)
@@ -9180,10 +9164,6 @@ def gui_main() -> int:
         add_entry(
             advanced_tab, 11, "secondary_bonus", "次要类型加成比例",
             scoring["secondaryBonusRate"], hint="例如 0.03 表示 3%",
-        )
-        add_entry(
-            advanced_tab, 12, "xiahou_penalty", "夏侯惇为文官时扣分",
-            scoring["xiahouDunMasterPenalty"],
         )
 
         def parse_groups() -> list[dict]:
@@ -9244,12 +9224,6 @@ def gui_main() -> int:
                     ),
                     "secondaryBonusRate": float(
                         values["secondary_bonus"].get()
-                    ),
-                    "xiahouDunMasterPenalty": float(
-                        values["xiahou_penalty"].get()
-                    ),
-                    "extraMasterPenaltyEnabled": bool(
-                        values["master_penalty"].get()
                     ),
                 }
             )
@@ -9388,9 +9362,6 @@ def gui_main() -> int:
             )
             return None
 
-    def repair_sishui_block(parent: tk.Misc = root) -> None:
-        notify_sishui_repair_unavailable(parent)
-
     def repair_game_sound(parent: tk.Misc = root) -> None:
         if not messagebox.askyesno(
             "游戏声音修复",
@@ -9418,48 +9389,16 @@ def gui_main() -> int:
             )
         show_repair_result(result)
 
-    def repair_first_battle_skip(parent: tk.Misc = root) -> None:
-        if not messagebox.askyesno(
-            "第一关跳过修复",
-            "用于修复随机过程中临时替换了 RS\\S_00.eex，"
-            "但异常退出后没有恢复，导致第一关被跳过的问题。\n\n"
-            "继续后会把 RS\\S_00.eex 恢复为工具内置的正常版本，"
-            "不会修改游戏根目录下的备份文件。是否继续？",
-            parent=parent,
-        ):
-            return
-        game_executable = locate_game_for_repair()
-        if game_executable is None:
-            return
-        try:
-            result = restore_bundled_original_s00(
-                game_executable.parent,
-                bundled_original_s00(),
-                bundled_random_s00(),
-            )
-            if result.restored:
-                message = "第一关脚本已恢复为正常版本。"
-                if result.backup_path is not None:
-                    message += (
-                        "原有未知脚本已备份为 "
-                        f"{result.backup_path.name}。"
-                    )
-                repair_result = ManualRepairResult("repaired", message)
-            else:
-                repair_result = ManualRepairResult(
-                    "not_needed",
-                    "当前 S_00.eex 已是正常版本，不需要修复。",
-                )
-        except Exception as exc:
-            repair_result = ManualRepairResult(
-                "unable",
-                f"第一关脚本恢复失败：{exc}",
-            )
-        show_repair_result(repair_result)
+    def open_storage_cleanup(parent: tk.Misc = root) -> None:
+        from ccz_randomizer.ui.storage_cleanup import show_storage_cleanup
+        show_storage_cleanup(
+            parent, app_dir(),
+            is_running=lambda: worker is not None and worker.poll() is None,
+        )
 
     def open_repair_dialog() -> None:
-        dialog = tk.Toplevel(root)
-        dialog.title("错误修正")
+        dialog = centered_toplevel(root)
+        dialog.title("常见问题")
         dialog.resizable(False, False)
         dialog.transient(root)
 
@@ -9473,9 +9412,8 @@ def gui_main() -> int:
         ).pack(fill="x", pady=(0, 12))
 
         for text, command in (
-            ("汜水关卡关", repair_sishui_block),
             ("游戏没声音", repair_game_sound),
-            ("第一关跳过", repair_first_battle_skip),
+            ("空间清理", open_storage_cleanup),
         ):
             tk.Button(
                 body,
@@ -9557,7 +9495,7 @@ def gui_main() -> int:
         if round_state is None or slot not in round_state.slots:
             return
         progress = round_state.slots[slot]
-        dialog = tk.Toplevel(root)
+        dialog = centered_toplevel(root)
         dialog.title(f"存档{slot}运行明细")
         dialog.geometry("760x600")
         dialog.minsize(620, 440)
@@ -9727,7 +9665,7 @@ def gui_main() -> int:
             concurrent_console_round_images,
             active_round=concurrent_console_active_round,
             footer=concurrent_console_footer,
-            mode=mode_var.get(),
+            mode="three",
             loop_enabled=loop_var.get(),
         )
         if not force and signature == concurrent_console_last_signature:
@@ -9754,8 +9692,7 @@ def gui_main() -> int:
         output.insert(
             "end",
             f"工具版本：V{version_text}\n"
-            f"运行模式："
-            f"{'3 人' if mode_var.get() == 'three' else '7 人'}\n"
+            f"兵种筛选范围：当前规则所选人物\n"
             f"目标存档：1-{concurrent_console_state.result_count}\n"
             f"同时运行数量：{concurrent_console_state.concurrency}\n"
             f"循环随机：{'开启' if loop_var.get() else '关闭'}\n\n",
@@ -10338,14 +10275,7 @@ def gui_main() -> int:
             concurrent_console_last_signature = None
             stamp = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             append(f"\n========== 开始随机：{stamp} ==========")
-            append(
-                "运行模式："
-                + (
-                    "3人"
-                    if mode_var.get() == "three"
-                    else "7人"
-                )
-            )
+            append("兵种筛选范围：当前规则所选人物")
             append("循环随机：" + ("开启" if loop_var.get() else "关闭"))
             append("环境检查：通过")
         stop_file = (
@@ -10555,7 +10485,6 @@ def main() -> int:
     )
     log_dir.mkdir(parents=True, exist_ok=True)
     cleanup_result = cleanup_log_directory(log_dir)
-    cleanup_result_directory(RESULT_BASE_DIR / "randResult")
     worker_suffix = (
         f"_worker{os.environ['CCZ_CONCURRENT_WORKER']}"
         if os.environ.get("CCZ_CONCURRENT_WORKER")

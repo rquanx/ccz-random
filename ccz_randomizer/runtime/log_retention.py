@@ -29,6 +29,10 @@ _MANAGED_SCREENSHOT_PATTERN = re.compile(
     r"(?:diagnostic_interaction_failure|inspection_failure)_.*\.png$",
     re.IGNORECASE,
 )
+_MANAGED_TIMING_PATTERN = re.compile(
+    r"^concurrent_\d{8}_\d{6}_\d+_timing(?:\.part\d+)?\.jsonl$",
+    re.IGNORECASE,
+)
 
 
 def rotated_log_path(base_path: Path, part: int) -> Path:
@@ -111,6 +115,10 @@ class RotatingTextWriter:
             self._size += encoded_size
         return len(text)
 
+    @property
+    def closed(self) -> bool:
+        return self._stream is None
+
     def flush(self) -> None:
         with self._lock:
             if self._stream is not None:
@@ -135,6 +143,7 @@ class CleanupResult:
 def is_managed_log_file(path: Path) -> bool:
     return bool(
         _MANAGED_LOG_PATTERN.fullmatch(path.name)
+        or _MANAGED_TIMING_PATTERN.fullmatch(path.name)
         or _MANAGED_SCREENSHOT_PATTERN.fullmatch(path.name)
     )
 

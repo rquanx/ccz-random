@@ -56,6 +56,22 @@ class RotatingTextWriterTests(unittest.TestCase):
 
 
 class CleanupLogDirectoryTests(unittest.TestCase):
+    def test_expired_scheduler_logs_preserve_other_files(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            names = ["concurrent_20260926_120000_123_timing.jsonl",
+                     "concurrent_20260926_120000_123_timing.part2.jsonl",
+                     "notes.jsonl", "random.png", "SV001.E5S"]
+            for name in names:
+                path = root / name
+                path.write_bytes(b"preserved content")
+                os.utime(path, (0, 0))
+            cleanup_log_directory(root)
+            for name in names[:2]:
+                self.assertFalse((root / name).exists())
+            for name in names[2:]:
+                self.assertEqual((root / name).read_bytes(), b"preserved content")
+
     def test_keeps_only_newest_diagnostic_screenshots_per_run(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

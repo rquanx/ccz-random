@@ -9,7 +9,9 @@
   </PropertyGroup>
 
 <ItemGroup>
+  <Resource Include="..\..\resources\app\source_slot_20_help.png" Link="resources\source_slot_20_help.png" />
   <ProjectReference Include="../CczRandomizer.Core/CczRandomizer.Core.csproj" />
+  <None Include="..\..\native\*.exe;..\..\native\*.dll" Link="native\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   <None Include="..\..\resources\data\recruitment\recruits_2.2.json" Link="resources\data\recruitment\recruits_2.2.json" CopyToOutputDirectory="PreserveNewest" />
 </ItemGroup>
 </Project>

@@ -10,121 +10,117 @@ namespace CczRandomizer.Wpf;
 
 public partial class MainWindow : Window
 {
-    private readonly RuleStore _rules = new();
     private readonly RuleDocumentStore _documentStore = new();
-    private readonly GameSandboxService _sandboxService = new();
-    private string? _sandboxPath;
+    private readonly RunPage _runPage;
+    private bool _closingAfterStop;
+    private string _gameDirectory = GameDirectorySettings.Discover(AppContext.BaseDirectory, Environment.GetEnvironmentVariable("CCZ_GAME_DIR"));
 
     public MainWindow()
     {
         InitializeComponent();
-        _rules.TryLoad();
-        if (_rules.FilePath is not null) _documentStore.Load(_rules.FilePath);
+        try { _documentStore.Load(Path.Combine(_gameDirectory, "random_rules_v2.json")); }
+        catch (Exception error)
+        {
+            Loaded += (_, _) => MessageBox.Show(this, $"无法读取规则，原文件未修改。请修复 random_rules_v2.json 后重新选择游戏目录。\n{error.Message}", "读取规则失败", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        _runPage = new RunPage(this, _documentStore, () => _gameDirectory, directory =>
+        {
+            _documentStore.Load(Path.Combine(directory, "random_rules_v2.json"));
+            _gameDirectory = directory;
+            try { GameDirectorySettings.Remember(directory); }
+            catch (Exception error) { MessageBox.Show(this, $"游戏目录已选择，但无法记住路径：{error.Message}", "路径保存失败"); }
+        });
+        _runPage.RunningChanged += running => RulesNavigation.IsEnabled = !running;
+        Closing += async (_, e) =>
+        {
+            if (_closingAfterStop || !_runPage.IsRunning) return;
+            e.Cancel = true;
+            _runPage.Stop();
+            if (_runPage.ActiveRun is { } run) await run;
+            _closingAfterStop = true; Close();
+        };
         ShowPage("run");
     }
 
     private void Navigate_Click(object sender, RoutedEventArgs e)
     {
+        if (sender is Button { Tag: "history" }) { new HistoryWindow(this, _gameDirectory).ShowDialog(); return; }
         if (sender is Button button && button.Tag is string page) ShowPage(page);
     }
 
     private void ShowPage(string page)
     {
+        if (page == "run") _runPage.RefreshRules();
+        PageSubtitle.Text = page == "run" ? "按所选人物评分，合格后保存并读回验证。" : "";
         PageContent.Content = page switch
         {
             "rules" => BuildRulesPage(),
-            "history" => BuildInfoPage("历史记录", "历史结果查看将在迁移历史数据库后接入。"),
             "help" => BuildHelpPage(),
-            _ => BuildRunPage(),
+            _ => _runPage,
         };
         PageTitle.Text = page switch { "rules" => "规则设置", "history" => "历史记录", "help" => "常见问题", _ => "随机运行" };
     }
 
-    private UIElement BuildRunPage()
-    {
-        var panel = new StackPanel();
-        panel.Children.Add(new TextBlock { Text = "2.2 随机运行", FontSize = 22, FontWeight = FontWeights.SemiBold });
-        panel.Children.Add(new TextBlock { Text = "WPF 迁移第一阶段已完成窗口与规则文件读取。运行控制、内存读取和评分流程将按模块迁移.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 12, 0, 22), Foreground = FindResource("MutedBrush") as Brush });
-        var status = new Border { Padding = new Thickness(18), Background = new SolidColorBrush(Color.FromRgb(241, 245, 249)), CornerRadius = new CornerRadius(12) };
-        status.Child = new TextBlock { Text = _rules.FilePath is null ? "未找到 random_rules_v2.json" : $"已读取规则：{_rules.ActiveProfileName}\n参与人物：{string.Join("、", _rules.QualifiedMembers)}\n兵种门槛：{_rules.JobThreshold:0.##}（{_rules.JobMode}）", LineHeight = 24 };
-        panel.Children.Add(status);
-        panel.Children.Add(new TextBlock { Text = "游戏目录", FontSize = 15, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 24, 0, 8) });
-        var gamePath = new TextBox { Text = Environment.GetEnvironmentVariable("CCZ_GAME_DIR") ?? string.Empty, Padding = new Thickness(8), MinWidth = 420 };
-        var pathRow = new StackPanel { Orientation = Orientation.Horizontal };
-        pathRow.Children.Add(gamePath);
-        var browse = new Button { Content = "选择目录", Margin = new Thickness(10, 0, 0, 0) };
-        browse.Click += (_, _) =>
-        {
-            var dialog = new OpenFileDialog { Title = "选择游戏目录中的 Ekd5.exe", Filter = "游戏程序|Ekd5.exe" };
-            if (dialog.ShowDialog() == true) gamePath.Text = Path.GetDirectoryName(dialog.FileName) ?? string.Empty;
-        };
-        pathRow.Children.Add(browse); panel.Children.Add(pathRow);
-        var launch = new Button { Content = "创建沙箱并启动游戏", Margin = new Thickness(0, 18, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
-        launch.Click += (_, _) =>
-        {
-            try
-            {
-                if (!Directory.Exists(gamePath.Text)) throw new DirectoryNotFoundException("游戏目录不存在。");
-                _sandboxPath = _sandboxService.Create(gamePath.Text);
-                GameSandboxService.StartGame(_sandboxPath);
-                MessageBox.Show($"沙箱已启动：\n{_sandboxPath}", "随机运行", MessageBoxButton.OK, MessageBoxImage.Information);
-            }
-            catch (Exception error) { MessageBox.Show(error.Message, "启动失败", MessageBoxButton.OK, MessageBoxImage.Error); }
-        };
-        panel.Children.Add(launch);
-        var recruits = new Button { Content = "查看入队人员", Margin = new Thickness(0, 14, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
-        recruits.Click += (_, _) => new RecruitmentWindow(this).ShowDialog();
-        panel.Children.Add(recruits);
-        return panel;
-    }
-
     private UIElement BuildRulesPage()
     {
+        if (_documentStore.Path is null) return BuildInfoPage("规则设置", "请先在随机运行页面选择包含 random_rules_v2.json 的游戏目录。");
         var panel = new StackPanel();
-        panel.Children.Add(new TextBlock { Text = "当前规则概览", FontSize = 22, FontWeight = FontWeights.SemiBold });
-        panel.Children.Add(new TextBlock { Text = "规则编辑器会先迁移为独立 ViewModel，保持 random_rules_v2.json 格式兼容。", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 12, 0, 20), Foreground = FindResource("MutedBrush") as Brush });
-        var thresholdRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 18) };
-        thresholdRow.Children.Add(new TextBlock { Text = "兵种门槛", Width = 110, VerticalAlignment = VerticalAlignment.Center });
-        var threshold = new TextBox { Text = _rules.JobThreshold.ToString("0.##"), Width = 100, Padding = new Thickness(8) };
-        thresholdRow.Children.Add(threshold);
-        var save = new Button { Content = "保存规则", Margin = new Thickness(12, 0, 0, 0) };
-        save.Click += (_, _) =>
-        {
-            if (!double.TryParse(threshold.Text, out var value) || value < 0 || value > 20)
-            {
-                MessageBox.Show("请输入 0 到 20 之间的数字。", "规则设置", MessageBoxButton.OK, MessageBoxImage.Warning); return;
-            }
-            try { _documentStore.SetJobThreshold(value); _documentStore.Save(); MessageBox.Show("规则已保存。", "规则设置", MessageBoxButton.OK, MessageBoxImage.Information); }
-            catch (Exception error) { MessageBox.Show(error.Message, "保存失败", MessageBoxButton.OK, MessageBoxImage.Error); }
-        };
-        thresholdRow.Children.Add(save); panel.Children.Add(thresholdRow);
-        var selected = _rules.QualifiedMembers.ToHashSet(StringComparer.Ordinal);
+        panel.Children.Add(new ProfileToolbar(this, _documentStore, () => ShowPage("rules")));
+        var draft = _documentStore.CreateDraft();
+        panel.Children.Add(new TextBlock { Text = "阶段门槛", FontSize = 22, FontWeight = FontWeights.SemiBold });
+        var gates = new StageGatesEditor(draft);
+        gates.IsEnabled = !draft.IsBuiltin;
+        if (draft.IsBuiltin) panel.Children.Add(new TextBlock { Text = "内置规则只读，请先复制再修改。", Margin = new Thickness(0, 8, 0, 8) });
+        panel.Children.Add(gates);
+        var selected = draft.ActiveProfile["threePerson"]!["qualifiedMembers"]!.AsArray().Select(x => x!.GetValue<string>()).ToHashSet(StringComparer.Ordinal);
         var members = LoadAllMemberNames();
-        var memberGrid = new UniformGrid { Columns = 6, Margin = new Thickness(0, 0, 0, 16) };
-        foreach (var member in members)
+        panel.Children.Add(new TextBlock { Text = "人物设置", FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 4, 0, 8) });
+        var settingsActions = new WrapPanel { Margin = new Thickness(0, 0, 0, 12) };
+        var selectionSummary = new TextBlock { Text = string.Join("、", selected), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 20) };
+        var choose = new Button { Content = "选择人物" };
+        choose.Click += (_, _) =>
         {
-            var check = new CheckBox { Content = member, IsChecked = selected.Contains(member), Margin = new Thickness(4, 5, 10, 5) };
-            memberGrid.Children.Add(check);
+            var dialog = new MemberSelectionWindow(this, members, selected);
+            if (dialog.ShowDialog() == true) { selected = dialog.SelectedMembers.ToHashSet(); selectionSummary.Text = string.Join("、", selected); }
+        };
+        settingsActions.Children.Add(choose);
+        foreach (var (label, tab) in new[] { ("设置人物倾向", 2), ("兵种基础设置", 0), ("特技基础设置", 1) })
+        {
+            var button = new Button { Content = label };
+            button.Click += (_, _) =>
+            {
+                var dialog = new RuleSettingsWindow(this, draft.ActiveProfile, members, tab);
+                if (dialog.ShowDialog() == true) draft.ReplaceActiveProfile(dialog.EditedProfile!);
+            };
+            settingsActions.Children.Add(button);
         }
-        panel.Children.Add(new TextBlock { Text = "关注人物", FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 4, 0, 8) });
-        panel.Children.Add(new ScrollViewer { Height = 300, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Content = memberGrid });
-        var saveMembers = new Button { Content = "保存人物设置", HorizontalAlignment = HorizontalAlignment.Left };
+        panel.Children.Add(settingsActions);
+        settingsActions.IsEnabled = !draft.IsBuiltin;
+        panel.Children.Add(selectionSummary);
+        var saveMembers = new Button { Content = "保存规则", HorizontalAlignment = HorizontalAlignment.Left, IsEnabled = !draft.IsBuiltin };
         saveMembers.Click += (_, _) =>
         {
-            var values = memberGrid.Children.OfType<CheckBox>().Where(x => x.IsChecked == true).Select(x => x.Content?.ToString() ?? "").Where(x => x.Length > 0).ToArray();
+            var values = selected.ToArray();
             if (values.Length == 0) { MessageBox.Show("至少选择一名人物。", "人物设置", MessageBoxButton.OK, MessageBoxImage.Warning); return; }
-            try { _documentStore.SetQualifiedMembers(values); _documentStore.Save(); MessageBox.Show("人物设置已保存。", "人物设置", MessageBoxButton.OK, MessageBoxImage.Information); }
-            catch (Exception error) { MessageBox.Show(error.Message, "保存失败", MessageBoxButton.OK, MessageBoxImage.Error); }
+            var previous = (System.Text.Json.Nodes.JsonObject)draft.Document.DeepClone();
+            try
+            {
+                draft.SetQualifiedMembers(values);
+                gates.Apply();
+                RuleImporter.ValidateProfile(draft.ActiveProfile);
+                draft.Save();
+                _documentStore.Load(draft.Path!);
+                MessageBox.Show(this, "规则已保存。", "规则设置", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception error) { draft.RestoreDraft(previous); MessageBox.Show(this, error.Message, "保存失败", MessageBoxButton.OK, MessageBoxImage.Error); }
         };
         panel.Children.Add(saveMembers);
-        return panel;
+        return new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
     }
 
     private static IReadOnlyList<string> LoadAllMemberNames()
     {
-        var path = Path.Combine(AppContext.BaseDirectory, "resources", "data", "recruitment", "recruits_2.2.json");
-        try { return RecruitmentCatalog.Load(path).People.Select(x => x.Name).Concat(FixedEntryCatalog.CreateRows().Select(x => x.Name)).Distinct().ToArray(); }
-        catch { return FixedEntryCatalog.CreateRows().Select(x => x.Name).ToArray(); }
+        return FixedEntryCatalog.CreateRows().Select(x => x.Name).Concat(RecruitmentCatalog.Bundled.People.Select(x => x.Name)).Distinct().ToArray();
     }
 
     private static UIElement BuildInfoPage(string title, string description)
@@ -137,10 +133,31 @@ public partial class MainWindow : Window
 
     private UIElement BuildHelpPage()
     {
-        var panel = (StackPanel)BuildInfoPage("常见问题", "这里保留空间清理、存档路径和运行故障说明。");
+        var panel = (StackPanel)BuildInfoPage("运行准备", "在许子将处完成随机前配置，存入第 20 栏。随机后无需选择招募版设置，工具会直接保存。源第 20 栏不会被工具覆盖。");
+        var sourceHelp = new Button { Content = "查看第 20 栏准备示意图", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 12, 0, 0) };
+        sourceHelp.Click += (_, _) => new Window
+        {
+            Owner = this, Title = "第 20 栏源存档准备", Width = 850, Height = 650, WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Content = new ScrollViewer { Content = new Image { Source = new System.Windows.Media.Imaging.BitmapImage(new Uri("pack://application:,,,/CczRandomizer.Wpf;component/resources/source_slot_20_help.png")), Stretch = Stretch.Uniform } }
+        }.ShowDialog();
+        panel.Children.Add(sourceHelp);
+        panel.Children.Add(new TextBlock { Text = "评分规则", FontSize = 20, Margin = new Thickness(0, 24, 0, 8) });
+        panel.Children.Add(new TextBlock { Text = "兵种与特技使用同一组所选人物。先检查兵种，再检查特技，两项均达标才保留。指定人数：每人达到合格分，达标人数达到要求；平均分：所选人物平均分达标；总分：所选人物分数相加达标。兵种高分不会跳过特技。人物倾向加成受兵种类型与基础分门槛影响。启用特技类型匹配时，文官兵种不计武官型特技，武官兵种不计文官型特技。", TextWrapping = TextWrapping.Wrap, LineHeight = 26 });
+        panel.Children.Add(new TextBlock { Text = "存档与故障处理", FontSize = 20, Margin = new Thickness(0, 24, 0, 8) });
+        panel.Children.Add(new TextBlock { Text = "每轮结果、图片和被替换的旧存档保存在 randResult；历史记录只展示合格结果。停止或异常不会删除已保存结果。运行失败时，可查看游戏目录下 ccz_fast_logs 的日志。空间清理只处理旧日志、故障截图和已结束的沙箱，不删除结果或历史。", TextWrapping = TextWrapping.Wrap, LineHeight = 26 });
         var cleanup = new Button { Content = "打开空间清理", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 22, 0, 0) };
-        cleanup.Click += (_, _) => new StorageCleanupWindow(this).ShowDialog();
+        cleanup.Click += (_, _) => new StorageCleanupWindow(this, _gameDirectory).ShowDialog();
         panel.Children.Add(cleanup);
-        return panel;
+        var sound = new Button { Content = "游戏没声音", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 12, 0, 0) };
+        sound.Click += async (_, _) =>
+        {
+            if (MessageBox.Show(this, "请先启动正常游戏并进入能播放声音的界面。此操作只恢复所选游戏目录中正常 Ekd5.exe 的静音状态，不调整音量或其他应用。", "游戏声音修复", MessageBoxButton.OKCancel, MessageBoxImage.Information) != MessageBoxResult.OK) return;
+            sound.IsEnabled = false;
+            try { var result = await Task.Run(() => AudioRepairService.Repair(_gameDirectory)); MessageBox.Show(this, result.Message, "游戏声音修复"); }
+            catch (Exception error) { MessageBox.Show(this, error.Message, "游戏声音修复失败"); }
+            finally { sound.IsEnabled = true; }
+        };
+        panel.Children.Add(sound);
+        return new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
     }
 }

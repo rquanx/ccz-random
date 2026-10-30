@@ -1,13 +1,35 @@
 <Window x:Class="CczRandomizer.Wpf.RecruitmentWindow"
-        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="入队人员" Width="980" Height="700" WindowStartupLocation="CenterOwner" Background="#F5F7FB">
-    <DockPanel Margin="24">
-        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,18">
-            <TextBlock Text="入队人员" FontSize="24" FontWeight="Bold" VerticalAlignment="Center" />
-            <TextBox x:Name="FilterBox" Width="240" Margin="28,0,0,0" Padding="8" VerticalContentAlignment="Center" TextChanged="FilterBox_TextChanged" />
-            <TextBlock Text="筛选姓名、兵种或关卡" Foreground="#64748B" VerticalAlignment="Center" Margin="10,0,0,0" />
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:local="clr-namespace:CczRandomizer.Wpf" Title="入队人员" Width="1180" Height="760" MinWidth="640" MinHeight="480" WindowStartupLocation="CenterOwner" Background="#F5F7FB">
+ <DockPanel Margin="20">
+  <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,16">
+   <TextBox x:Name="FilterBox" Width="250" Padding="8" ToolTip="搜索人物、兵种或天赋" TextChanged="FilterChanged"/>
+   <ComboBox x:Name="StageBox" Width="240" Margin="12,0,0,0" Padding="8" SelectionChanged="StageChanged"/>
+  </StackPanel>
+  <ListBox x:Name="Groups" BorderThickness="0" Background="Transparent" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+   VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
+   <ListBox.ItemContainerStyle><Style TargetType="ListBoxItem"><Setter Property="HorizontalContentAlignment" Value="Stretch"/><Setter Property="Padding" Value="0"/></Style></ListBox.ItemContainerStyle>
+   <ListBox.ItemTemplate><DataTemplate>
+    <StackPanel Margin="0,0,0,14">
+     <TextBlock Text="{Binding Stage}" FontSize="18" FontWeight="SemiBold" Margin="4,8,0,8"/>
+     <TextBlock Text="{Binding Kind}" Foreground="#64748B" Margin="4,0,0,10"/>
+     <ItemsControl ItemsSource="{Binding People}">
+      <ItemsControl.ItemsPanel><ItemsPanelTemplate><local:EqualHeightWrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+      <ItemsControl.ItemTemplate><DataTemplate>
+       <Border Background="White" BorderBrush="#D9E0EA" BorderThickness="1" CornerRadius="10" Margin="4,0,4,10" Padding="14">
+        <StackPanel>
+         <DockPanel><TextBlock Text="{Binding CostText}" DockPanel.Dock="Right" Margin="8,0,0,0" Foreground="#64748B"/>
+          <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap"/></DockPanel>
+         <TextBlock Text="兵种天赋" FontWeight="SemiBold" Margin="0,12,0,6"/>
+         <TextBlock Text="{Binding JobTalentText}" TextWrapping="Wrap" Margin="14,0,0,0"/>
+         <TextBlock Text="人物天赋" FontWeight="SemiBold" Margin="0,12,0,6"/>
+         <TextBlock Text="{Binding PersonalTalentText}" TextWrapping="Wrap" Margin="14,0,0,0"/>
         </StackPanel>
-        <ScrollViewer VerticalScrollBarVisibility="Auto"><WrapPanel x:Name="Cards" /></ScrollViewer>
-    </DockPanel>
+       </Border>
+      </DataTemplate></ItemsControl.ItemTemplate>
+     </ItemsControl>
+    </StackPanel>
+   </DataTemplate></ListBox.ItemTemplate>
+  </ListBox>
+ </DockPanel>
 </Window>

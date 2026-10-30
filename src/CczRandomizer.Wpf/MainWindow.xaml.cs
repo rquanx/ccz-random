@@ -34,7 +34,7 @@ public partial class MainWindow : Window
         {
             "rules" => BuildRulesPage(),
             "history" => BuildInfoPage("历史记录", "历史结果查看将在迁移历史数据库后接入。"),
-            "help" => BuildInfoPage("常见问题", "这里会保留空间清理、存档路径和运行故障说明。"),
+            "help" => BuildHelpPage(),
             _ => BuildRunPage(),
         };
         PageTitle.Text = page switch { "rules" => "规则设置", "history" => "历史记录", "help" => "常见问题", _ => "随机运行" };
@@ -132,6 +132,15 @@ public partial class MainWindow : Window
         var panel = new StackPanel();
         panel.Children.Add(new TextBlock { Text = title, FontSize = 22, FontWeight = FontWeights.SemiBold });
         panel.Children.Add(new TextBlock { Text = description, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 12, 0, 0), Foreground = Brushes.SlateGray });
+        return panel;
+    }
+
+    private UIElement BuildHelpPage()
+    {
+        var panel = (StackPanel)BuildInfoPage("常见问题", "这里保留空间清理、存档路径和运行故障说明。");
+        var cleanup = new Button { Content = "打开空间清理", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 22, 0, 0) };
+        cleanup.Click += (_, _) => new StorageCleanupWindow(this).ShowDialog();
+        panel.Children.Add(cleanup);
         return panel;
     }
 }

@@ -1,0 +1,10 @@
+<Window x:Class="CczRandomizer.Wpf.StorageCleanupWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="空间清理" Width="620" Height="430" WindowStartupLocation="CenterOwner" Background="#F5F7FB">
+    <StackPanel Margin="24">
+        <TextBlock Text="空间清理" FontSize="24" FontWeight="Bold" />
+        <TextBlock Text="只清理已识别的沙箱、日志和历史结果目录。" Foreground="#64748B" Margin="0,8,0,18" />
+        <StackPanel x:Name="Rows" />
+        <Button Content="全部清理" Click="ClearAll_Click" HorizontalAlignment="Right" Margin="0,18,0,0" />
+    </StackPanel>
+</Window>

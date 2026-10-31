@@ -67,9 +67,13 @@ def inspect_environment(
 
 
 def _bounded_copy(source: Path, target: Path) -> int:
-    data = source.read_bytes()
-    if len(data) > MAX_FILE_BYTES:
-        data = "[文件过大，仅保留末尾内容]\n".encode("utf-8") + data[-MAX_FILE_BYTES:]
+    size = source.stat().st_size
+    with source.open("rb") as handle:
+        if size > MAX_FILE_BYTES:
+            handle.seek(-MAX_FILE_BYTES, os.SEEK_END)
+            data = "[文件过大，仅保留末尾内容]\n".encode("utf-8") + handle.read(MAX_FILE_BYTES)
+        else:
+            data = handle.read(MAX_FILE_BYTES)
     target.write_bytes(data)
     return len(data)
 

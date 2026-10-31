@@ -104,6 +104,7 @@ def _default_profile() -> dict[str, Any]:
         "skillQualification": {
             "mode": "total", "threshold": 5.0, "requiredCount": 1,
         },
+        "resultImage": {"mode": "selected", "members": []},
         "sevenPerson": {
             "minJobAverage": 7.4,
             "jobQualificationMode": "average",
@@ -410,6 +411,12 @@ def validate_rule_config(config: dict[str, Any]) -> dict[str, Any]:
             )
 
         three = profile["threePerson"]
+        display = profile["resultImage"]
+        if not isinstance(display, dict):
+            raise ValueError(f"{name}.结果图人物设置必须为对象")
+        display["mode"] = _require_choice(display["mode"], f"{name}.结果图人物模式", ("selected", "custom"))
+        if display["mode"] == "custom" or display["members"] != []:
+            display["members"] = _require_member_selection(display["members"], f"{name}.结果图人物", RULE_MEMBER_NAMES)
         seven = profile["sevenPerson"]
         scoring = profile["jobScoring"]
         three["minJobAverage"] = _require_number(

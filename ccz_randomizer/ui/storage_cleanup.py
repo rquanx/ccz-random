@@ -8,6 +8,7 @@ from tkinter import ttk
 
 from ccz_randomizer.runtime.storage_cleanup import CATEGORIES, clean_storage, scan_storage
 from ccz_randomizer.ui.window_position import centered_toplevel
+from ccz_randomizer.ui.theme import setup_theme, style_dialog
 
 
 def format_size(size: int) -> str:
@@ -20,6 +21,8 @@ def format_size(size: int) -> str:
 
 def show_storage_cleanup(parent, base: Path, *, is_running=lambda: False) -> None:
     dialog = centered_toplevel(parent)
+    setup_theme(dialog)
+    style_dialog(dialog)
     dialog.title("空间清理")
     dialog.resizable(True, True)
     dialog.transient(parent)

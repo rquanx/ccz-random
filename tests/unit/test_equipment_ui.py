@@ -5,8 +5,10 @@ import tempfile
 import tkinter as tk
 from tkinter import ttk
 import unittest
+import io
+from contextlib import redirect_stdout
 
-from ccz_randomizer.app import result_detail_for_runner, build_history_result_snapshot
+from ccz_randomizer.app import result_detail_for_runner, build_history_result_snapshot, collect_accepted_equipment_and_publish
 from ccz_randomizer.ui.result_details import show_score_detail, encode_result_detail, decode_result_detail
 from ccz_randomizer.ui.equipment import show_equipment_window
 
@@ -41,6 +43,28 @@ class EquipmentTests(unittest.TestCase):
         self.assertIsNone(result_detail_for_runner(runner, 1, 2)['equipment'])
         self.assertEqual(self.equipment, detail['equipment'])
 
+    def test_accepted_detail_is_published_after_equipment_collection(self):
+        runner = SimpleNamespace(_result_outcome='accepted', _three_person_mode=True,
+                                 _equip_info=None, _equip_specials=())
+        def collect():
+            runner._equip_info = [([(item['name'], item['effect']) for item in category['items']], category['name'])
+                                  for category in self.equipment['categories']]
+            runner._equip_specials = [(s['title'], s['items']) for s in self.equipment['specials']]
+            return runner._equip_info
+        runner.collect_equipment = collect
+        output = io.StringIO()
+        with redirect_stdout(output):
+            equipment = collect_accepted_equipment_and_publish(runner, 3, 2)
+        lines = output.getvalue().splitlines()
+        self.assertEqual(1, len(lines))
+        detail = decode_result_detail(lines[0])
+        self.assertEqual(self.equipment, detail['equipment'])
+        self.assertEqual(70, sum(len(c['items']) for c in detail['equipment']['categories']))
+        with tempfile.TemporaryDirectory() as folder:
+            history = build_history_result_snapshot(runner, result_slot=3, accepted_attempt=2,
+                round_number=1, equip_info=equipment, save_path=Path(folder) / 'SV003.E5S')
+        self.assertEqual(history['equipment'], detail['equipment'])
+
     def make_root(self):
         root = tk.Tk()
         root.withdraw()
@@ -55,7 +79,7 @@ class EquipmentTests(unittest.TestCase):
         root.update()
 
     def texts(self, canvas):
-        return [canvas.itemcget(i, 'text') for i in canvas.find_all() if canvas.type(i) == 'text']
+        return [w.cget('text') for w in descendants(canvas) if isinstance(w, tk.Label)]
 
     def test_score_button_displays_equipment_and_filters(self):
         root = self.make_root()
@@ -66,19 +90,23 @@ class EquipmentTests(unittest.TestCase):
         dialog = next(w for w in descendants(root) if isinstance(w, tk.Toplevel) and w.title() == '宝物信息')
         canvas = next(w for w in descendants(dialog) if isinstance(w, tk.Canvas))
         texts = self.texts(canvas)
+        headings = {w.cget('text'): w for w in descendants(canvas) if isinstance(w, tk.Label)
+                    and w.cget('text') in ('宝物特殊组合', '宝物列表')}
+        self.assertLess(headings['宝物特殊组合'].winfo_rootx(), headings['宝物列表'].winfo_rootx())
+        self.assertEqual(headings['宝物特殊组合'].winfo_rooty(), headings['宝物列表'].winfo_rooty())
         for category in self.equipment['categories']:
             for item in category['items']:
-                self.assertIn(item['name'], texts)
+                self.assertIn(f"{item['name']}  {item['effect']}", texts)
                 if item['effect']:
-                    self.assertIn(item['effect'], texts)
+                    self.assertTrue(any(item['effect'] in text for text in texts))
         for special in self.equipment['specials']:
             self.assertIn(special['title'], texts)
         search = next(w for w in descendants(dialog) if isinstance(w, ttk.Entry))
         name = self.equipment['categories'][0]['items'][0]['name']
         search.insert(0, name)
         self.settle(root)
-        self.assertIn(name, self.texts(canvas))
-        self.assertNotIn(self.equipment['categories'][0]['items'][1]['name'], self.texts(canvas))
+        self.assertTrue(any(name in text for text in self.texts(canvas)))
+        self.assertFalse(any(self.equipment['categories'][0]['items'][1]['name'] in text for text in self.texts(canvas)))
         search.delete(0, 'end')
         search.insert(0, '不存在的宝物')
         self.settle(root)

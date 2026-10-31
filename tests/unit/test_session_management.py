@@ -1509,6 +1509,18 @@ class SessionManagementTests(unittest.TestCase):
         self.assertIn("capture_window_with_fallbacks(", robust_get_mat)
         self.assertIn("native_wake_game(", robust_get_mat)
         self.assertIn("WindowCaptureUnavailable", robust_get_mat)
+
+    def test_progress_console_wraps_long_expanded_lines(self):
+        source = (
+            Path(__file__).resolve().parents[2]
+            / "ccz_randomizer"
+            / "app.py"
+        ).read_text(encoding="utf-8")
+        output_block = source.split(
+            "    output = scrolledtext.ScrolledText(", 1
+        )[1].split("    output.pack", 1)[0]
+        self.assertIn('wrap="char"', output_block)
+        self.assertNotIn('wrap="none"', output_block)
         self.assertTrue(
             issubclass(
                 app_module.WindowCaptureUnavailable,

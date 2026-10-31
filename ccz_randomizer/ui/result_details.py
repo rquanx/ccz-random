@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from ccz_randomizer.ui.window_position import centered_toplevel
+from ccz_randomizer.ui.theme import COLORS, FONT, style_dialog
 from ccz_randomizer.rules.reporting import participating_members
 
 import json
@@ -177,6 +178,7 @@ def show_score_detail(root, detail: dict) -> None:
     from ccz_randomizer.ui.detail_actions import add_detail_actions
     view = format_result_detail(detail)
     dialog = centered_toplevel(root)
+    style_dialog(dialog)
     dialog.title("评分详情")
     dialog.geometry("720x590")
     dialog.minsize(620, 460)
@@ -248,13 +250,4 @@ def show_score_detail(root, detail: dict) -> None:
             )
         detail_text.insert("end", "\n")
     detail_text.configure(state="disabled")
-
-    dialog.update_idletasks()
-    x = root.winfo_rootx() + max(
-        0, (root.winfo_width() - dialog.winfo_width()) // 2
-    )
-    y = root.winfo_rooty() + max(
-        0, (root.winfo_height() - dialog.winfo_height()) // 2
-    )
-    dialog.geometry(f"+{x}+{y}")
 

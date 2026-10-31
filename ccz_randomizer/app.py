@@ -829,6 +829,18 @@ def result_detail_for_runner(
     }
 
 
+def collect_accepted_equipment_and_publish(runner, result_slot: int, round_index: int):
+    # The live detail must be emitted after collection, just like history.
+    # Still publish the saved result if collection fails; postprocess handles
+    # that failure without discarding the game's successfully saved slot.
+    try:
+        return runner.collect_equipment()
+    finally:
+        detail = result_detail_for_runner(runner, result_slot, round_index)
+        if detail is not None:
+            print(encode_result_detail(detail))
+
+
 def build_history_result_snapshot(
     runner,
     *,
@@ -4052,341 +4064,14 @@ def render_member_text_panel(
 
 
 def save_result_image(runner, equip_info, save_slot: int = 1) -> Path:
+    from ccz_randomizer.ui.result_image import render_result_image
     load_media_modules()
-    width, height = 740, 1028
-    # These coordinates match the original result image: the two blue
-    # separators are at x=132/133 and x=334/335, with the equipment split
-    # at x=536/537.
-    left_width, special_width = 132, 202
-    equipment_width = width - left_width - special_width
-    body_font = result_font(12)
-    heading_font = result_font(13)
-    # Keep all body text on the same font object and size. Smaller separately
-    # rasterized fonts made the left roster and skill list visibly thinner and
-    # harder to read than the equipment columns.
-    small_font = body_font
-    member_font = body_font
-    roster_font = body_font
-    roster_job_font = body_font
-    line_height = 20
-
-    probe = Image.new("RGB", (1, 1))
-    probe_draw = ImageDraw.Draw(probe)
-
-    def wrap_text(text: str, font, max_width: int) -> list[str]:
-        text = str(text)
-        if not text:
-            return [""]
-        lines = []
-        current = ""
-        for character in text:
-            candidate = current + character
-            if (
-                current
-                and probe_draw.textlength(candidate, font=font) > max_width
-            ):
-                lines.append(current)
-                current = character
-            else:
-                current = candidate
-        if current:
-            lines.append(current)
-        return lines
-
-    def special_item_texts(item) -> list[str]:
-        if isinstance(item, str):
-            return [item]
-        if isinstance(item, (list, tuple)):
-            if (
-                len(item) == 2
-                and isinstance(item[0], str)
-                and isinstance(item[1], str)
-            ):
-                return [f"{item[0]}: {item[1]}"]
-            if (
-                len(item) == 2
-                and isinstance(item[0], str)
-                and isinstance(item[1], (list, tuple, set))
-            ):
-                result = [f"{item[0]}:"]
-                for child in item[1]:
-                    result.extend(special_item_texts(child))
-                return result
-            result = []
-            for child in item:
-                result.extend(special_item_texts(child))
-            return result
-        return [str(item)]
-
-    special_palette = (
-        (0, 0, 255),
-        (255, 0, 0),
-        (128, 0, 128),
-        (0, 128, 0),
-        (255, 0, 255),
-        (0, 128, 128),
-        (0, 128, 255),
-        (149, 80, 30),
-        (255, 0, 0),
-    )
-    special_blocks = []
-    special_line_count = 0
-    for index, (title, items) in enumerate(
-        getattr(runner, "_equip_specials", ())
-    ):
-        block = [
-            (
-                line,
-                heading_font,
-                special_palette[index % len(special_palette)],
-            )
-            for line in wrap_text(
-                f"{title}:", heading_font, special_width - 8
-            )
-        ]
-        for item in items:
-            for item_text in special_item_texts(item):
-                for line in wrap_text(
-                    item_text,
-                    body_font,
-                    special_width - 8,
-                ):
-                    block.append(
-                        (
-                            line,
-                            body_font,
-                            special_palette[index % len(special_palette)],
-                        )
-                    )
-        block.append(("", body_font, (0, 0, 0)))
-        special_blocks.append(block)
-        special_line_count += len(block)
-
-    category_blocks = []
-    for items, type_name in equip_info or ():
-        block = [
-            (line, heading_font)
-            for line in wrap_text(
-                f"{type_name}:", heading_font, equipment_width // 2 - 6
-            )
-        ]
-        for equip_name, skill_name in items:
-            block.extend(
-                (line, body_font)
-                for line in wrap_text(
-                    f"{equip_name}: {skill_name}",
-                    body_font,
-                    equipment_width // 2 - 6,
-                )
-            )
-        block.append(("", body_font))
-        category_blocks.append(block)
-
-    equipment_columns = [[], []]
-    equipment_lengths = [0, 0]
-    for block in sorted(category_blocks, key=len, reverse=True):
-        column = 0 if equipment_lengths[0] <= equipment_lengths[1] else 1
-        equipment_columns[column].append(block)
-        equipment_lengths[column] += len(block)
-
-    image = Image.new("RGB", (width, height), (232, 228, 222))
-    draw = ImageDraw.Draw(image)
-
-    def draw_crisp(position, text, font, fill) -> None:
-        # Render the glyph mask without subpixel anti-aliasing. This keeps the
-        # small Chinese text readable after the 5x3 result image is viewed
-        # scaled down.
-        x, y = position
-        bbox = tuple(int(value) for value in draw.textbbox((0, 0), text, font=font))
-        width = bbox[2] - bbox[0]
-        height = bbox[3] - bbox[1]
-        if width <= 0 or height <= 0:
-            return
-        mask = Image.new("1", (width, height), 0)
-        ImageDraw.Draw(mask).text(
-            (-bbox[0], -bbox[1]), text, font=font, fill=1
-        )
-        ink = Image.new("RGB", mask.size, fill)
-        image.paste(
-            ink,
-            (round(x + bbox[0]), round(y + bbox[1])),
-            mask,
-        )
-
-    # The old tool used the exact primary colors below.  Keeping them exact
-    # matters because the result grid is also used as a visual report.
-    red = (255, 0, 0)
-    blue = (0, 0, 255)
-    # A flat neutral background keeps the small bitmap-style text crisp.
-    draw.rectangle((2, 2, left_width - 1, height - 2), fill=(211, 211, 211))
-    draw.rectangle((1, 1, width - 2, height - 2), outline=red, width=3)
-    draw.line((left_width, 0, left_width, height), fill=blue, width=2)
-    draw.line(
-        (left_width + special_width, 0, left_width + special_width, height),
-        fill=blue,
-        width=2,
-    )
-    equipment_mid = left_width + special_width + (equipment_width - 1) // 2
-    draw.line(
-        (equipment_mid, 0, equipment_mid, height),
-        fill=blue,
-        width=2,
-    )
-
-    # The original report puts the seven-person roster at the top, then uses
-    # seven 130px detail sections beginning at y=98.
-    detail_top = 98
-    member_height = 130
-    rendered_members = getattr(runner, "_team_members", ())
-    member_panels = getattr(runner, "_member_panels", ())
-    recognized_job_names = getattr(runner, "_job_names", ())
-    three_person_mode = bool(
-        getattr(runner, "_three_person_mode", False)
-    )
-    report_members = (
-        INITIAL_TEAM_MEMBERS if three_person_mode else TEAM_MEMBERS
-    )
-    for index, (job_id, member) in enumerate(
-        zip(runner._r0_job_ids, report_members)
-    ):
-        job_name = (
-            recognized_job_names[index]
-            if index < len(recognized_job_names)
-            else JOB_MAP[job_id][0]
-        )
-        # Roster list in the upper two-column strip.
-        roster_x = 4 if index < 7 else 68
-        roster_y = 1 + (index % 7) * 14
-        draw_crisp(
-            (roster_x, roster_y),
-            member[0],
-            font=roster_font,
-            fill=(0, 0, 0),
-        )
-        roster_job_width = draw.textlength(job_name, font=roster_job_font)
-        draw_crisp(
-            (left_width - 3 - roster_job_width, roster_y),
-            job_name,
-            font=roster_job_font,
-            fill=(0, 0, 0),
-        )
-        top = detail_top + index * member_height
-        draw.line(
-            (2, top, left_width - 1, top),
-            fill=(255, 255, 255),
-            width=2,
-        )
-        if index < len(member_panels):
-            panel = member_panels[index]
-            if isinstance(panel, np.ndarray):
-                panel = Image.fromarray(cv2.cvtColor(panel, cv2.COLOR_BGR2RGB))
-            elif isinstance(panel, (str, Path)):
-                with Image.open(panel) as source:
-                    panel = source.convert("RGB")
-            else:
-                panel = panel.convert("RGB")
-            if panel.size != (130, 130):
-                panel = panel.resize((130, 130), Image.Resampling.NEAREST)
-            image.paste(panel, (2, top))
-            member_job_text = f"{member[0]}-{job_name}"
-            member_job_width = draw.textlength(member_job_text, font=small_font)
-            draw.rectangle(
-                (2, top + 112, left_width - 1, top + 129),
-                fill=(211, 211, 211),
-            )
-            draw_crisp(
-                (left_width - 3 - member_job_width, top + 112),
-                member_job_text,
-                font=small_font,
-                fill=(128, 0, 0),
-            )
-            continue
-        live_member = (
-            rendered_members[index]
-            if index < len(rendered_members)
-            else None
-        )
-        live_skills = list(getattr(live_member, "skillList", ()))
-        detail_lines = [("个人天赋:", 0)]
-        detail_lines.extend(
-            (str(getattr(skill, "name", skill)), 12)
-            for skill in live_skills[:3]
-        )
-        detail_lines.append(("兵种技能:", 0))
-        detail_lines.extend(
-            (str(getattr(skill, "name", skill)), 12)
-            for skill in live_skills[3:6]
-        )
-        detail_y = top + 3
-        title_y = top + 112
-        for detail, indent in detail_lines:
-            for line in wrap_text(
-                detail,
-                small_font,
-                left_width - 10 - indent,
-            ):
-                if detail_y + 14 > title_y:
-                    break
-                draw_crisp(
-                    (5 + indent, detail_y),
-                    line,
-                    font=small_font,
-                    fill=(0, 0, 0),
-                )
-                detail_y += 14
-            if detail_y + 14 > title_y:
-                break
-        member_job_text = f"{member[0]}-{job_name}"
-        member_job_width = draw.textlength(member_job_text, font=small_font)
-        draw_crisp(
-            (left_width - 3 - member_job_width, title_y),
-            member_job_text,
-            font=small_font,
-            fill=(128, 0, 0),
-        )
-
-    special_y = 2
-    if three_person_mode:
-        draw_crisp(
-            (left_width + 4, special_y),
-            "初始3人模式",
-            font=heading_font,
-            fill=(0, 0, 255),
-        )
-        special_y += line_height
-    for block in special_blocks:
-        for text, font, color in block:
-            draw_crisp(
-                (left_width + 2, special_y),
-                text,
-                font=font,
-                fill=color,
-            )
-            special_y += line_height
-
-    equipment_column_width = equipment_width // 2
-    for column_index, blocks in enumerate(equipment_columns):
-        x = left_width + special_width + column_index * equipment_column_width
-        y = 2
-        for block in blocks:
-            for text, font in block:
-                draw_crisp(
-                    (x + 2, y),
-                    text,
-                    font=font,
-                    fill=(0, 0, 0),
-                )
-                y += line_height
-
-    draw_crisp(
-        (4, height - 19),
-        f"save{save_slot}",
-        font=heading_font,
-        fill=red,
-    )
-
+    image = render_result_image(runner, equip_info, save_slot, result_font=result_font)
     output = result_panel_dir() / f"save{save_slot}.png"
-    image.save(output, "PNG")
+    try:
+        image.save(output, "PNG")
+    finally:
+        image.close()
     return output
 
 
@@ -4428,29 +4113,9 @@ def save_result_failure_image(save_slot: int, detail: str) -> Path:
 
 
 def compose_result_grid(panel_paths: dict[int, Path]) -> Path:
-    load_media_modules()
-    panel_width, panel_height = 740, 1028
-    grid = Image.new(
-        "RGB", (panel_width * 5, panel_height * 3), (235, 233, 228)
-    )
-    for slot, panel_path in sorted(panel_paths.items()):
-        if not panel_path.is_file():
-            continue
-        with Image.open(panel_path) as source:
-            panel = source.convert("RGB")
-        if panel.size != (panel_width, panel_height):
-            panel = panel.resize(
-                (panel_width, panel_height), Image.Resampling.LANCZOS
-            )
-        index = slot - 1
-        grid.paste(
-            panel,
-            ((index % 5) * panel_width, (index // 5) * panel_height),
-        )
+    from ccz_randomizer.ui.result_grid import compose_result_panels
     output = result_grid_path()
-    temporary = output.with_suffix(".tmp.png")
-    grid.save(temporary, "PNG")
-    os.replace(temporary, output)
+    compose_result_panels(panel_paths, output)
     return output
 
 
@@ -8070,6 +7735,7 @@ def patch_runtime(
         self._job_evaluation_detail = None
         self._skill_evaluation_detail = None
         self._scored_members = None
+        self._result_image_settings = active_profile(rules).get("resultImage", {"mode": "selected", "members": []})
         self._equip_info = None
         self._equip_specials = ()
         self._personnel_snapshot = None
@@ -8735,8 +8401,10 @@ def current_run_rule_save_notice(
 def gui_main() -> int:
     import tkinter as tk
     from tkinter import messagebox, scrolledtext, ttk
+    from ccz_randomizer.ui.theme import FONT, setup_theme
 
     root = tk.Tk()
+    setup_theme(root)
     os.environ["CCZ_GAME_VERSION"] = DEFAULT_GAME_VERSION
     root.title(f"曹操传随机工具 · {DEFAULT_GAME_VERSION}")
     root.geometry("980x680")
@@ -8917,8 +8585,11 @@ def gui_main() -> int:
 
     output = scrolledtext.ScrolledText(
         outer,
-        wrap="none",
-        font=("Consolas", 10),
+        # Chinese personnel lists have no whitespace boundary. Character
+        # wrapping keeps expanded progress lines visible instead of clipping
+        # the tail beyond the right edge of the window.
+        wrap="char",
+        font=(FONT, 10),
         state="disabled",
         bg="#fafafa",
         relief="solid",
@@ -8937,385 +8608,6 @@ def gui_main() -> int:
 
     def join_names(values) -> str:
         return "，".join(values)
-
-    def legacy_rule_editor() -> None:
-        nonlocal current_rules
-        editor = centered_toplevel(root)
-        editor.title("规则设置")
-        editor.geometry("900x700")
-        editor.minsize(760, 600)
-        editor.transient(root)
-        editor.grab_set()
-
-        working = json.loads(json.dumps(current_rules, ensure_ascii=False))
-        profile_name = working["activeProfile"]
-        profile = active_profile(working)
-        values: dict[str, tk.Variable] = {}
-        entries: dict[str, tk.Entry] = {}
-
-        header = tk.Frame(editor, padx=14, pady=12)
-        header.pack(fill="x")
-        tk.Label(header, text="规则名称").pack(side="left")
-        profile_var = tk.StringVar(value=profile_name)
-        tk.Entry(header, textvariable=profile_var, width=24).pack(
-            side="left", padx=(8, 0)
-        )
-        tk.Label(
-            header,
-            text="保存后，下一次随机会使用这套规则。",
-            fg="#555555",
-        ).pack(side="left", padx=(14, 0))
-
-        notebook = ttk.Notebook(editor)
-        notebook.pack(fill="both", expand=True, padx=14)
-        job_tab = tk.Frame(notebook, padx=14, pady=14)
-        skill_tab = tk.Frame(notebook, padx=14, pady=14)
-        advanced_tab = tk.Frame(notebook, padx=14, pady=14)
-        notebook.add(job_tab, text="兵种规则")
-        notebook.add(skill_tab, text="特技规则")
-        notebook.add(advanced_tab, text="高级设置")
-
-        def add_entry(
-            parent,
-            row: int,
-            key: str,
-            label: str,
-            value,
-            width: int = 18,
-            hint: str = "",
-        ) -> tk.Entry:
-            tk.Label(parent, text=label, anchor="w").grid(
-                row=row, column=0, sticky="w", pady=4
-            )
-            variable = tk.StringVar(value="" if value is None else str(value))
-            values[key] = variable
-            entry = tk.Entry(parent, textvariable=variable, width=width)
-            entry.grid(row=row, column=1, sticky="w", padx=(12, 8), pady=4)
-            entries[key] = entry
-            if hint:
-                tk.Label(parent, text=hint, fg="#666666", anchor="w").grid(
-                    row=row, column=2, sticky="w", pady=4
-                )
-            return entry
-
-        three = profile["threePerson"]
-        seven = profile["sevenPerson"]
-        conditions = profile["jobConditions"]
-        add_entry(
-            job_tab, 0, "three_min", "初始3人兵种门槛",
-            three["minJobAverage"], hint="只随机初始3人时使用",
-        )
-        add_entry(
-            job_tab, 1, "seven_min", "完整7人兵种门槛",
-            seven["minJobAverage"], hint="低于此条件直接重新随机",
-        )
-        max_master = add_entry(
-            job_tab, 2, "max_master", "文官兵种人数上限",
-            conditions["maxMasterCount"], hint="留空表示不限制",
-        )
-        max_master.configure(width=18)
-
-        tk.Label(job_tab, text="指定兵种组合", anchor="nw").grid(
-            row=3, column=0, sticky="nw", pady=(10, 4)
-        )
-        groups_text = scrolledtext.ScrolledText(
-            job_tab, width=56, height=5, wrap="word"
-        )
-        groups_text.grid(
-            row=3, column=1, columnspan=2, sticky="nsew",
-            padx=(12, 0), pady=(10, 4),
-        )
-        groups_text.insert(
-            "1.0",
-            "\n".join(
-                f"{join_names(group['jobs'])} | {group['minCount']}"
-                for group in conditions["requiredJobGroups"]
-            ),
-        )
-        tk.Label(
-            job_tab,
-            text="每行格式：虎豹骑，宿卫骑 | 1，表示这些兵种至少出现1人。",
-            fg="#666666",
-            anchor="w",
-        ).grid(row=4, column=1, columnspan=2, sticky="w", padx=(12, 0))
-
-        allowed_entries = {}
-        blocked_entries = {}
-        tk.Label(job_tab, text="武将").grid(row=5, column=0, pady=(14, 4))
-        tk.Label(job_tab, text="只允许这些兵种").grid(
-            row=5, column=1, pady=(14, 4)
-        )
-        tk.Label(job_tab, text="排除这些兵种").grid(
-            row=5, column=2, pady=(14, 4)
-        )
-        for offset, member in enumerate(
-            [item[0] for item in TEAM_MEMBERS], start=6
-        ):
-            tk.Label(job_tab, text=member).grid(
-                row=offset, column=0, sticky="w", pady=2
-            )
-            allowed = tk.Entry(job_tab, width=34)
-            allowed.insert(
-                0, join_names(conditions["memberAllowedJobs"].get(member, []))
-            )
-            allowed.grid(row=offset, column=1, padx=(12, 8), pady=2)
-            allowed_entries[member] = allowed
-            blocked = tk.Entry(job_tab, width=34)
-            blocked.insert(
-                0, join_names(conditions["memberBlockedJobs"].get(member, []))
-            )
-            blocked.grid(row=offset, column=2, pady=2)
-            blocked_entries[member] = blocked
-        job_tab.columnconfigure(1, weight=1)
-        job_tab.columnconfigure(2, weight=1)
-
-        skills = profile["skillConditions"]
-        add_entry(
-            skill_tab, 0, "required_any", "至少出现其中一个特技",
-            join_names(skills["requiredAny"]), width=58,
-            hint="留空表示不限制",
-        )
-        add_entry(
-            skill_tab, 1, "required_all", "必须全部出现的特技",
-            join_names(skills["requiredAll"]), width=58,
-            hint="留空表示不限制",
-        )
-        add_entry(
-            skill_tab, 2, "blocked_skills", "排除特技",
-            join_names(skills["blocked"]), width=58,
-            hint="出现任意一个即不合格",
-        )
-        add_entry(
-            skill_tab, 3, "min_quality_members", "至少几名武将有好特技",
-            skills["minMembersWithQualitySkill"], hint="0 表示不限制",
-        )
-        member_required_entries = {}
-        member_blocked_entries = {}
-        tk.Label(skill_tab, text="武将").grid(
-            row=4, column=0, pady=(14, 4)
-        )
-        tk.Label(skill_tab, text="至少出现其中一个特技").grid(
-            row=4, column=1, pady=(14, 4)
-        )
-        tk.Label(skill_tab, text="排除特技").grid(
-            row=4, column=2, pady=(14, 4)
-        )
-        for offset, member in enumerate(
-            [item[0] for item in TEAM_MEMBERS], start=5
-        ):
-            tk.Label(skill_tab, text=member).grid(
-                row=offset, column=0, sticky="w", pady=2
-            )
-            required = tk.Entry(skill_tab, width=34)
-            required.insert(
-                0, join_names(skills["memberRequired"].get(member, []))
-            )
-            required.grid(row=offset, column=1, padx=(12, 8), pady=2)
-            member_required_entries[member] = required
-            blocked = tk.Entry(skill_tab, width=34)
-            blocked.insert(
-                0, join_names(skills["memberBlocked"].get(member, []))
-            )
-            blocked.grid(row=offset, column=2, pady=2)
-            member_blocked_entries[member] = blocked
-        skill_tab.columnconfigure(1, weight=1)
-        skill_tab.columnconfigure(2, weight=1)
-
-        scoring = profile["jobScoring"]
-        add_entry(
-            advanced_tab, 0, "normal_average", "普通兵种分界",
-            seven["normalJobAverage"],
-        )
-        add_entry(
-            advanced_tab, 1, "high_average", "高兵种分界",
-            seven["highJobAverage"],
-        )
-        add_entry(
-            advanced_tab, 2, "medium_skills", "普通兵种所需有效特技",
-            seven["mediumMinEffectiveSkills"],
-        )
-        add_entry(
-            advanced_tab, 3, "low_skills", "较低兵种所需有效特技",
-            seven["lowMinEffectiveSkills"],
-        )
-        add_entry(
-            advanced_tab, 4, "strong_weight", "强力特技计数权重",
-            seven["strongSkillWeight"],
-        )
-        boolean_specs = (
-            ("special_auto", "特殊特技直接合格", seven["specialSkillAutoPass"]),
-            ("high_auto", "高兵种直接合格", seven["highJobAutoPass"]),
-            ("affinity", "启用武将兵种适配加成", scoring["affinityEnabled"]),
-        )
-        for row, (key, label, value) in enumerate(boolean_specs, start=5):
-            variable = tk.BooleanVar(value=value)
-            values[key] = variable
-            tk.Checkbutton(
-                advanced_tab, text=label, variable=variable, anchor="w"
-            ).grid(row=row, column=0, columnspan=2, sticky="w", pady=3)
-        add_entry(
-            advanced_tab, 9, "affinity_min", "适配加成最低基础分",
-            scoring["affinityMinBaseScore"],
-        )
-        add_entry(
-            advanced_tab, 10, "primary_bonus", "主要类型加成比例",
-            scoring["primaryBonusRate"], hint="例如 0.06 表示 6%",
-        )
-        add_entry(
-            advanced_tab, 11, "secondary_bonus", "次要类型加成比例",
-            scoring["secondaryBonusRate"], hint="例如 0.03 表示 3%",
-        )
-
-        def parse_groups() -> list[dict]:
-            result = []
-            for line_number, line in enumerate(
-                groups_text.get("1.0", "end").splitlines(), start=1
-            ):
-                if not line.strip():
-                    continue
-                parts = line.replace("｜", "|").split("|")
-                if len(parts) != 2:
-                    raise ValueError(
-                        f"指定兵种组合第 {line_number} 行格式不正确"
-                    )
-                result.append(
-                    {
-                        "jobs": split_names(parts[0]),
-                        "minCount": int(parts[1].strip()),
-                    }
-                )
-            return result
-
-        def build_config() -> dict:
-            name = profile_var.get().strip()
-            if not name:
-                raise ValueError("规则名称不能为空")
-            result = default_rule_config()
-            result["activeProfile"] = name
-            result["profiles"] = {name: json.loads(json.dumps(profile))}
-            target = result["profiles"][name]
-            target["threePerson"]["minJobAverage"] = float(
-                values["three_min"].get()
-            )
-            target["sevenPerson"].update(
-                {
-                    "minJobAverage": float(values["seven_min"].get()),
-                    "normalJobAverage": float(values["normal_average"].get()),
-                    "highJobAverage": float(values["high_average"].get()),
-                    "mediumMinEffectiveSkills": int(
-                        values["medium_skills"].get()
-                    ),
-                    "lowMinEffectiveSkills": int(values["low_skills"].get()),
-                    "strongSkillWeight": int(values["strong_weight"].get()),
-                    "specialSkillAutoPass": bool(
-                        values["special_auto"].get()
-                    ),
-                    "highJobAutoPass": bool(values["high_auto"].get()),
-                }
-            )
-            target["jobScoring"].update(
-                {
-                    "affinityEnabled": bool(values["affinity"].get()),
-                    "affinityMinBaseScore": float(
-                        values["affinity_min"].get()
-                    ),
-                    "primaryBonusRate": float(
-                        values["primary_bonus"].get()
-                    ),
-                    "secondaryBonusRate": float(
-                        values["secondary_bonus"].get()
-                    ),
-                }
-            )
-            max_master_value = values["max_master"].get().strip()
-            target["jobConditions"].update(
-                {
-                    "maxMasterCount": (
-                        None
-                        if not max_master_value
-                        else int(max_master_value)
-                    ),
-                    "requiredJobGroups": parse_groups(),
-                    "memberAllowedJobs": {
-                        member: split_names(entry.get())
-                        for member, entry in allowed_entries.items()
-                        if split_names(entry.get())
-                    },
-                    "memberBlockedJobs": {
-                        member: split_names(entry.get())
-                        for member, entry in blocked_entries.items()
-                        if split_names(entry.get())
-                    },
-                }
-            )
-            target["skillConditions"].update(
-                {
-                    "requiredAny": split_names(values["required_any"].get()),
-                    "requiredAll": split_names(values["required_all"].get()),
-                    "blocked": split_names(values["blocked_skills"].get()),
-                    "minMembersWithQualitySkill": int(
-                        values["min_quality_members"].get()
-                    ),
-                    "memberRequired": {
-                        member: split_names(entry.get())
-                        for member, entry in member_required_entries.items()
-                        if split_names(entry.get())
-                    },
-                    "memberBlocked": {
-                        member: split_names(entry.get())
-                        for member, entry in member_blocked_entries.items()
-                        if split_names(entry.get())
-                    },
-                }
-            )
-            return validate_rule_config(result)
-
-        footer = tk.Frame(editor, padx=14, pady=12)
-        footer.pack(fill="x")
-
-        def save_rules() -> None:
-            nonlocal current_rules
-            try:
-                config = build_config()
-                path = save_rule_config(app_dir(), config)
-            except Exception as exc:
-                messagebox.showerror(
-                    "规则无法保存",
-                    f"请检查填写内容。\n\n{exc}",
-                    parent=editor,
-                )
-                return
-            current_rules = config
-            rule_name_var.set(f"当前规则：{config['activeProfile']}")
-            messagebox.showinfo(
-                "规则已保存",
-                f"规则已保存到工具目录：\n{path.name}",
-                parent=editor,
-            )
-            editor.destroy()
-
-        def restore_defaults() -> None:
-            if not messagebox.askyesno(
-                "恢复内置默认",
-                "将关闭当前窗口并恢复内置默认规则，确定继续吗？",
-                parent=editor,
-            ):
-                return
-            nonlocal current_rules
-            current_rules = default_rule_config()
-            save_rule_config(app_dir(), current_rules)
-            rule_name_var.set("当前规则：默认规则")
-            editor.destroy()
-
-        tk.Button(
-            footer, text="恢复内置默认", command=restore_defaults, width=14
-        ).pack(side="left")
-        tk.Button(
-            footer, text="取消", command=editor.destroy, width=10
-        ).pack(side="right", padx=(8, 0))
-        tk.Button(
-            footer, text="保存规则", command=save_rules, width=12
-        ).pack(side="right")
 
     def open_rule_editor() -> None:
         def rules_saved(config: dict) -> None:
@@ -9931,6 +9223,14 @@ def gui_main() -> int:
         pipe.close()
 
     def poll_worker() -> None:
+        from ccz_randomizer.ui.polling import poll_and_reschedule, report_poll_error
+        poll_and_reschedule(
+            poll_worker_once,
+            lambda delay: root.after(delay, poll_worker),
+            lambda error: report_poll_error(app_dir(), error),
+        )
+
+    def poll_worker_once() -> int:
         nonlocal worker, result_image_path, stop_file
         nonlocal stop_requested_by_user, last_formatted_line
         nonlocal running_rule_name, running_rule_snapshot
@@ -10089,8 +9389,7 @@ def gui_main() -> int:
         ):
             render_concurrent_console()
         if queue_batch_exhausted:
-            root.after(1, poll_worker)
-            return
+            return 1
         if worker is not None and worker.poll() is not None:
             code = worker.returncode
             worker = None
@@ -10109,9 +9408,6 @@ def gui_main() -> int:
                 command=start,
                 state="normal",
             )
-            loop_check.configure(state="normal")
-            concurrency_spin.configure(state="normal")
-            compatibility_check.configure(state="normal")
             rule_profile_combo.configure(state="readonly")
             rule_button.configure(state="normal")
             repair_button.configure(state="normal")
@@ -10155,7 +9451,7 @@ def gui_main() -> int:
             and concurrent_console_state is not None
         ):
             render_concurrent_console(force=force_console_render)
-        root.after(100, poll_worker)
+        return 100
 
     def start() -> None:
         nonlocal current_rules
@@ -10325,9 +9621,6 @@ def gui_main() -> int:
             command=stop,
             state="normal",
         )
-        loop_check.configure(state="disabled")
-        concurrency_spin.configure(state="disabled")
-        compatibility_check.configure(state="disabled")
         rule_profile_combo.configure(state="disabled")
         rule_button.configure(state="normal")
         repair_button.configure(state="disabled")
@@ -10532,10 +9825,6 @@ def main() -> int:
         phase="startup",
         random_mode="three" if three_person_mode else "seven",
         loop_random=loop_random,
-    )
-    print(
-        "运行模式："
-        + ("只随机初始3人" if three_person_mode else "完整7人")
     )
     print("循环随机：" + ("开启" if loop_random else "关闭"))
     print(f"日志: {log_path}")
@@ -11043,7 +10332,8 @@ def main() -> int:
                             result_slot=result_slot,
                             attempt=result.round_index,
                         ):
-                            equip_info = runner.collect_equipment()
+                            equip_info = collect_accepted_equipment_and_publish(
+                                runner, result_slot, result.round_index)
                         check_stop_requested()
                         with diagnostic_timing(
                             "accepted_render_panel",
@@ -11209,7 +10499,7 @@ def main() -> int:
                             result_slot,
                             round_index,
                         )
-                        if detail is not None:
+                        if detail is not None and not attempt.accepted:
                             print(encode_result_detail(detail))
 
                     run_random_workflow(

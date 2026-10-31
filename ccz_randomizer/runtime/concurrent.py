@@ -522,38 +522,9 @@ def _update_result_grid(
     return True
 
 
-def _compose_result_grid(
-    panels: dict[int, Path],
-    grid_path: Path,
-) -> None:
-    from PIL import Image
-
-    panel_width, panel_height = 740, 1028
-    grid = Image.new(
-        "RGB",
-        (panel_width * 5, panel_height * 3),
-        (235, 233, 228),
-    )
-    for slot, panel_path in sorted(panels.items()):
-        with Image.open(panel_path) as source:
-            panel = source.convert("RGB")
-        if panel.size != (panel_width, panel_height):
-            panel = panel.resize(
-                (panel_width, panel_height),
-                Image.Resampling.LANCZOS,
-            )
-        position = slot - 1
-        grid.paste(
-            panel,
-            (
-                (position % 5) * panel_width,
-                (position // 5) * panel_height,
-            ),
-        )
-    temporary = grid_path.with_suffix(".tmp.png")
-    grid_path.parent.mkdir(parents=True, exist_ok=True)
-    grid.save(temporary, "PNG")
-    os.replace(temporary, grid_path)
+def _compose_result_grid(panels: dict[int, Path], grid_path: Path) -> None:
+    from ccz_randomizer.ui.result_grid import compose_result_panels
+    compose_result_panels(panels, grid_path)
 
 
 def run_concurrent_workers(

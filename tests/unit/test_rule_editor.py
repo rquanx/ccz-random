@@ -326,6 +326,53 @@ class RuleEditorTests(unittest.TestCase):
         finally:
             root.destroy()
 
+    def test_existing_profile_close_only_prompts_for_actual_edits(self):
+        # A saved editable profile may omit default score overrides. Rendering
+        # those defaults must not turn opening/browsing into an unsaved edit.
+        for mode in ("simple", "advanced"):
+            for edit in (False, True):
+                with self.subTest(mode=mode, edit=edit):
+                    root = tk.Tk()
+                    root.withdraw()
+                    try:
+                        config = default_rule_config()
+                        profile = json.loads(json.dumps(config["profiles"]["默认规则"]))
+                        profile.update(builtin=False, editorMode=mode)
+                        profile["threePerson"].update(qualifiedMembers=["张宝"], minQualifiedCount=1)
+                        config["profiles"]["张宝规则"] = profile
+                        config["activeProfile"] = "张宝规则"
+                        before = json.dumps(config, sort_keys=True)
+                        with tempfile.TemporaryDirectory() as directory, patch(
+                            "rule_editor.messagebox.askyesno", return_value=False
+                        ) as confirm:
+                            path = Path(directory) / "random_rules_v2.json"
+                            path.write_text(json.dumps(config), encoding="utf-8")
+                            original_bytes = path.read_bytes()
+                            show_rule_editor(root, Path(directory), config, JOB_MAP,
+                                             TEAM_MEMBERS, SKILL_CATALOG, lambda _: None)
+                            root.update()
+                            editor = next(w for w in root.winfo_children() if isinstance(w, tk.Toplevel))
+                            selector = next(w for w in descendants(editor)
+                                            if isinstance(w, ttk.Combobox) and "张宝规则" in w.cget("values"))
+                            # Browsing another profile and returning is not editing.
+                            for name in ("默认规则", "张宝规则"):
+                                selector.set(name)
+                                selector.event_generate("<<ComboboxSelected>>")
+                                root.update()
+                            if edit:
+                                entry = next(w for w in descendants(editor)
+                                             if isinstance(w, tk.Entry) and w.cget("state") == "normal")
+                                entry.delete(0, "end")
+                                entry.insert(0, "9")
+                            editor.tk.call(editor.protocol("WM_DELETE_WINDOW"))
+                            root.update()
+                            self.assertEqual(edit, confirm.called)
+                            self.assertEqual(edit, bool(editor.winfo_exists()))
+                            self.assertEqual(original_bytes, path.read_bytes())
+                            self.assertEqual(before, json.dumps(config, sort_keys=True))
+                    finally:
+                        root.destroy()
+
     def test_unsaved_new_profile_requires_close_confirmation(self):
         root = tk.Tk()
         root.withdraw()

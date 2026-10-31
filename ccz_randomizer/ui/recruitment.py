@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from ccz_randomizer.ui.window_position import centered_toplevel
+from ccz_randomizer.ui.theme import setup_theme, style_dialog
 
 import json
 from collections import OrderedDict
@@ -27,6 +28,8 @@ def show_recruit_window(parent, catalog_path: Path | None = None, *, snapshot: d
     except (OSError, ValueError) as exc:
         messagebox.showerror("无法读取人员快照", str(exc), parent=parent); return
     dialog = centered_toplevel(parent); dialog.title("入队人员"); dialog.geometry("1180x760"); dialog.minsize(820, 560); dialog.transient(parent)
+    setup_theme(dialog)
+    style_dialog(dialog)
     colors = {"ink":"#182230", "muted":"#667085", "surface":"#FFFFFF", "alt":"#F4F6FA", "line":"#D9E0EA", "accent":"#2563EB"}
     outer = ttk.Frame(dialog, padding=20); outer.pack(fill="both", expand=True)
     filters = ttk.Frame(outer); filters.pack(fill="x", pady=12)

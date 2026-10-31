@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from ccz_randomizer.ui.window_position import centered_toplevel
+from ccz_randomizer.ui.theme import setup_theme, style_dialog
 
 from ccz_randomizer.jobs import JOB_MAP
 
@@ -32,6 +33,8 @@ def show_job_talents_window(parent, *, snapshot: dict) -> None:
         messagebox.showerror("无法读取兵种天赋", str(exc), parent=parent)
         return
     dialog = centered_toplevel(parent)
+    setup_theme(dialog)
+    style_dialog(dialog)
     dialog.title("2.2 兵种天赋")
     dialog.geometry("900x680")
     dialog.minsize(680, 480)

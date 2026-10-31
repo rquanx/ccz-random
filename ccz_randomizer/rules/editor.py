@@ -5,6 +5,7 @@ from ccz_randomizer.rule_members import RULE_MEMBER_NAMES
 from ccz_randomizer.rules.help_content import ADVANCED_HELP_SECTIONS
 from ccz_randomizer.rules.legacy_import import LegacyModeRequired, read_legacy_mode
 from ccz_randomizer.ui.member_pages import MemberPages
+from ccz_randomizer.ui.theme import COLORS, FONT, setup_theme, style_dialog
 
 import copy
 import json
@@ -236,12 +237,16 @@ class ScoreGrid(tk.Frame):
         self.result_text.set(f"{len(visible_items)} 项")
         viewport_width = max(760, self.canvas.winfo_width())
         content_width = viewport_width - self.GAP
+        # Use the available width instead of fixing the settings cards at
+        # four columns.  This keeps names readable while allowing 6–7 cards
+        # on a normal wide editor window.
+        column_count = max(4, min(7, content_width // 170))
         card_width = (
-            content_width - self.GAP * (self.COLUMN_COUNT - 1)
-        ) // self.COLUMN_COUNT
+            content_width - self.GAP * (column_count - 1)
+        ) // column_count
         rows = (
-            len(visible_items) + self.COLUMN_COUNT - 1
-        ) // self.COLUMN_COUNT
+            len(visible_items) + column_count - 1
+        ) // column_count
         for visible_index, (
             item_index,
             (name, variable, category),
@@ -251,7 +256,7 @@ class ScoreGrid(tk.Frame):
                 if self.category_resolver is not None
                 else category
             )
-            row, column = divmod(visible_index, self.COLUMN_COUNT)
+            row, column = divmod(visible_index, column_count)
             x1 = self.GAP + column * (card_width + self.GAP)
             y1 = self.GAP + row * (self.card_height + self.GAP)
             x2 = x1 + card_width
@@ -606,6 +611,8 @@ class ScoreGrid(tk.Frame):
 
 def show_advanced_help(parent, selected_index: int) -> None:
     dialog = centered_toplevel(parent)
+    setup_theme(dialog)
+    style_dialog(dialog)
     dialog.withdraw()
     dialog.title("规则说明")
     dialog.geometry("760x560")
@@ -672,11 +679,7 @@ def show_advanced_help(parent, selected_index: int) -> None:
     dialog.update_idletasks()
     width = max(760, dialog.winfo_reqwidth())
     height = max(560, dialog.winfo_reqheight())
-    x = parent.winfo_rootx() + (parent.winfo_width() - width) // 2
-    y = parent.winfo_rooty() + (parent.winfo_height() - height) // 2
-    x = max(0, min(x, dialog.winfo_screenwidth() - width))
-    y = max(0, min(y, dialog.winfo_screenheight() - height))
-    dialog.geometry(f"{width}x{height}+{x}+{y}")
+    dialog.geometry(f"{width}x{height}")
     dialog.deiconify()
     dialog.lift()
     dialog.grab_set()
@@ -690,6 +693,8 @@ def show_member_affinity_editor(
     on_apply: Callable[[dict[str, tuple[str, str]]], None],
 ) -> None:
     dialog = centered_toplevel(parent)
+    setup_theme(dialog)
+    style_dialog(dialog)
     dialog.title("人物倾向设置")
     dialog.geometry("660x640")
     dialog.minsize(600, 540)
@@ -811,6 +816,7 @@ def show_rule_editor(
     on_saved: Callable[[dict], None],
     save_notice: Callable[[dict], str | None] | None = None,
 ) -> None:
+    setup_theme(parent)
     working = copy.deepcopy(validate_rule_config(config))
     saved_snapshot = json.dumps(
         working,
@@ -1130,11 +1136,8 @@ def show_rule_editor(
             width = max(840, dialog.winfo_reqwidth())
             height = max(430, dialog.winfo_reqheight())
             dialog.minsize(width, height)
-            x = editor.winfo_rootx() + (editor.winfo_width() - width) // 2
-            y = editor.winfo_rooty() + (editor.winfo_height() - height) // 2
-            dialog.geometry(
-                f"{width}x{height}+{max(0, x)}+{max(0, y)}"
-            )
+            # centered_toplevel owns initial placement; only set the size here.
+            dialog.geometry(f"{width}x{height}")
             dialog.deiconify()
             dialog.lift()
             dialog.grab_set()
@@ -1252,6 +1255,24 @@ def show_rule_editor(
         command=open_affinity_editor,
         width=16,
     ).grid(row=0, column=2, columnspan=2, sticky="w", pady=5)
+    result_image_settings = {"mode": "selected", "members": []}
+
+    def refresh_result_image_button():
+        suffix = "跟随评分" if result_image_settings["mode"] == "selected" else f"{len(result_image_settings['members'])}人"
+        result_image_button.configure(text=f"结果图人物（{suffix}）")
+
+    def open_result_image_members():
+        from ccz_randomizer.rules.result_image_editor import show_result_image_members
+        def apply_settings(value):
+            nonlocal result_image_settings
+            result_image_settings = value
+            refresh_result_image_button()
+        show_result_image_members(editor, result_image_settings,
+                                  qualification_member_values["three"], apply_settings)
+
+    result_image_button = tk.Button(threshold_tab, command=open_result_image_members)
+    result_image_button.grid(row=0, column=4, columnspan=2, sticky="w", pady=5)
+    editable_widgets.append(result_image_button)
     job_default_types = {
         job_name: job_type
         for job_name, _score, job_type in job_map.values()
@@ -1359,12 +1380,34 @@ def show_rule_editor(
         rename_button.configure(state="normal" if enabled else "disabled")
         delete_button.configure(state="normal" if enabled else "disabled")
 
-    def store_profile(name: str) -> None:
+    loaded_form = None
+
+    def form_values():
+        # Compare editable values, not rendered defaults expanded into the file.
+        mappings = (simple_vars, number_vars, qualification_mode_vars,
+                    qualification_count_vars, job_score_vars, job_type_vars,
+                    skill_score_vars, skill_type_vars)
+        return (
+            json.dumps(result_image_settings, sort_keys=True),
+            notebook.index(notebook.select()),
+            tuple(tuple((key, value.get()) for key, value in mapping.items())
+                  for mapping in mappings),
+            tuple((key, tuple(value)) for key, value in qualification_member_values.items()),
+            tuple((key, primary.get(), secondary.get())
+                  for key, (primary, secondary) in affinity_vars.items()),
+            tuple(value.get() for value in (skill_mode_var, skill_count_var,
+                  special_auto, high_auto, skill_type_matching, affinity_enabled)),
+        )
+
+    def store_profile(name: str, *, force: bool = False) -> None:
         if loading or is_builtin(name):
             return
         for score_grid in score_grids:
             score_grid.commit_pending()
+        if not force and form_values() == loaded_form:
+            return
         profile = working["profiles"][name]
+        profile["resultImage"] = copy.deepcopy(result_image_settings)
         profile["editorMode"] = (
             "simple" if notebook.index(notebook.select()) == 0 else "advanced"
         )
@@ -1455,11 +1498,13 @@ def show_rule_editor(
             apply_simple_settings(profile)
 
     def load_profile(name: str) -> None:
-        nonlocal loading, selected_name
+        nonlocal loading, selected_name, loaded_form, result_image_settings
         loading = True
         try:
             selected_name = name
             profile = working["profiles"][name]
+            result_image_settings = copy.deepcopy(profile["resultImage"])
+            refresh_result_image_button()
             for key, variable in simple_vars.items():
                 variable.set(profile["simpleSettings"][key])
             three = dict(profile["threePerson"])
@@ -1564,6 +1609,7 @@ def show_rule_editor(
                 else advanced_tab
             )
             set_editable(not is_builtin(name))
+            loaded_form = form_values()
         finally:
             loading = False
 
@@ -1702,9 +1748,7 @@ def show_rule_editor(
         dialog.update_idletasks()
         width = dialog.winfo_reqwidth()
         height = dialog.winfo_reqheight()
-        x = editor.winfo_rootx() + (editor.winfo_width() - width) // 2
-        y = editor.winfo_rooty() + (editor.winfo_height() - height) // 2
-        dialog.geometry(f"{width}x{height}+{max(0, x)}+{max(0, y)}")
+        dialog.geometry(f"{width}x{height}")
         dialog.deiconify()
         dialog.lift()
         dialog.grab_set()
@@ -1846,7 +1890,7 @@ def show_rule_editor(
 
     def save_all() -> None:
         try:
-            store_profile(selected_name)
+            store_profile(selected_name, force=True)
             normalized = validate_rule_config(working)
             save_rule_config(base_dir, normalized)
         except Exception as exc:
@@ -1931,15 +1975,7 @@ def show_rule_editor(
     editor.update_idletasks()
     width = max(980, editor.winfo_reqwidth())
     height = max(760, editor.winfo_reqheight())
-    if parent.winfo_viewable():
-        x = parent.winfo_rootx() + (parent.winfo_width() - width) // 2
-        y = parent.winfo_rooty() + (parent.winfo_height() - height) // 2
-    else:
-        x = (editor.winfo_screenwidth() - width) // 2
-        y = (editor.winfo_screenheight() - height) // 2
-    x = max(0, min(x, editor.winfo_screenwidth() - width))
-    y = max(0, min(y, editor.winfo_screenheight() - height))
-    editor.geometry(f"{width}x{height}+{x}+{y}")
+    editor.geometry(f"{width}x{height}")
     editor.deiconify()
     editor.lift()
     editor.grab_set()

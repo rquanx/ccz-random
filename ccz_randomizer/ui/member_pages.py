@@ -2,10 +2,13 @@
 import tkinter as tk
 from tkinter import ttk
 
+from ccz_randomizer.ui.theme import setup_theme
+
 
 class MemberPages(tk.Frame):
     def __init__(self, parent, names, render, *, page_size=24, reuse_widgets=False):
         super().__init__(parent)
+        setup_theme(self)
         self.names = tuple(names)
         self.render = render
         self.page_size = page_size
@@ -14,19 +17,19 @@ class MemberPages(tk.Frame):
         self.page = 0
         self.pending = None
         self.query = tk.StringVar(self)
-        toolbar = tk.Frame(self)
+        toolbar = ttk.Frame(self)
         toolbar.pack(fill="x", pady=(0, 10))
-        tk.Label(toolbar, text="搜索人物").pack(side="left")
+        ttk.Label(toolbar, text="搜索人物").pack(side="left")
         ttk.Entry(toolbar, textvariable=self.query).pack(side="left", fill="x", expand=True, padx=8)
-        self.body = tk.Frame(self)
+        self.body = ttk.Frame(self)
         self.body.pack(fill="both", expand=True)
-        footer = tk.Frame(self)
+        footer = ttk.Frame(self)
         footer.pack(fill="x", pady=(10, 0))
-        self.previous = tk.Button(footer, text="上一页", command=lambda: self.move(-1))
+        self.previous = ttk.Button(footer, text="上一页", command=lambda: self.move(-1))
         self.previous.pack(side="left")
-        self.status = tk.Label(footer)
+        self.status = ttk.Label(footer)
         self.status.pack(side="left", expand=True)
-        self.next = tk.Button(footer, text="下一页", command=lambda: self.move(1))
+        self.next = ttk.Button(footer, text="下一页", command=lambda: self.move(1))
         self.next.pack(side="right")
         self.query.trace_add("write", self.search)
         self.bind("<Destroy>", self.destroyed, add="+")
@@ -57,7 +60,7 @@ class MemberPages(tk.Frame):
                 child.destroy()
         self.render(self.body, visible[self.page * self.page_size:(self.page + 1) * self.page_size])
         if not visible:
-            self.empty_label = tk.Label(self.body, text="没有符合条件的人物。")
+            self.empty_label = ttk.Label(self.body, text="没有符合条件的人物。")
             self.empty_label.grid(row=999, column=0, columnspan=7, sticky="w")
         self.status.configure(text=f"{len(visible)} 人 · 第 {self.page + 1} / {pages} 页")
         self.previous.configure(state="normal" if self.page else "disabled")

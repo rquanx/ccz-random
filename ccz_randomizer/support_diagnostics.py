@@ -4,7 +4,9 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import subprocess
 import tempfile
+import time
 import urllib.request
 import uuid
 import zipfile
@@ -136,8 +138,34 @@ def upload_log_archive(archive: Path, *, timeout: float = 30.0, cancel_event=Non
             "User-Agent": "CCZRandomizer-Support",
         },
     )
-    with urllib.request.urlopen(request, timeout=timeout) as response:
-        result = response.read().decode("utf-8", errors="replace").strip()
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            result = response.read().decode("utf-8", errors="replace").strip()
+    except Exception as urllib_error:
+        # Some frozen Windows environments reset Python's TLS connection.
+        # Windows ships curl.exe, which uses the system TLS stack instead.
+        process = subprocess.Popen(
+            ["curl.exe", "-sS", "--max-time", str(int(timeout)), "-F", f"file=@{archive.resolve().as_posix()};filename=support.zip", UPLOAD_URL],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+        started = time.monotonic()
+        while process.poll() is None:
+            if cancel_event is not None and cancel_event.is_set():
+                process.kill()
+                process.wait()
+                raise UploadCancelled("用户取消了日志上传")
+            if time.monotonic() - started > timeout + 2:
+                process.kill()
+                process.wait()
+                raise RuntimeError("日志上传超时") from urllib_error
+            time.sleep(0.05)
+        stdout, stderr = process.communicate()
+        if process.returncode != 0:
+            detail = stderr.decode("utf-8", errors="replace").strip()
+            raise RuntimeError(f"日志上传失败：{detail or urllib_error}") from urllib_error
+        result = stdout.decode("utf-8", errors="replace").strip()
     if progress_callback is not None:
         progress_callback(len(body), len(body))
     try:

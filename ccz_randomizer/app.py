@@ -131,7 +131,9 @@ ImageDraw = None
 ImageFont = None
 _SKILL_SCORE_CATALOG = None
 _SKILL_SCORE_CATALOG_LOCK = threading.Lock()
-CONCURRENT_CONSOLE_RENDER_INTERVAL_SECONDS = 0.2
+# Progress is deliberately coalesced. Rebuilding a Tk Text widget is much
+# more expensive than receiving the worker line, especially with 15 slots.
+CONCURRENT_CONSOLE_RENDER_INTERVAL_SECONDS = 0.35
 CONCURRENT_CONSOLE_QUEUE_BATCH_SIZE = 250
 
 
@@ -8882,9 +8884,10 @@ def gui_main() -> int:
         dialog.geometry(f"+{x}+{y}")
 
         displayed_history: tuple[object, ...] | None = None
+        refresh_delay = 0.25
 
         def refresh_detail() -> None:
-            nonlocal displayed_history
+            nonlocal displayed_history, refresh_delay
             try:
                 if not dialog.winfo_exists():
                     return
@@ -8918,6 +8921,7 @@ def gui_main() -> int:
                 current.stage,
             )
             if display_signature != displayed_history:
+                refresh_delay = 0.25
                 displayed_history = display_signature
                 history_text.configure(state="normal")
                 history_text.delete("1.0", "end")
@@ -8982,7 +8986,11 @@ def gui_main() -> int:
                         history_text.insert("end", "等待结果\n\n")
                 history_text.see("end")
                 history_text.configure(state="disabled")
-            dialog.after(250, refresh_detail)
+            else:
+                # Keep the dialog responsive while active, but avoid waking
+                # the Tk loop four times a second when nothing changed.
+                refresh_delay = min(1.0, refresh_delay * 1.5)
+            dialog.after(int(refresh_delay * 1000), refresh_detail)
 
         refresh_detail()
 

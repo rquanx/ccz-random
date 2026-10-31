@@ -39,6 +39,7 @@ CONCURRENT_STOP_GRACE_SECONDS = 2.0
 CONCURRENT_CRITICAL_STOP_GRACE_SECONDS = 15.0
 CONCURRENT_STOP_HARD_TIMEOUT_SECONDS = 20.0
 CONCURRENT_STARTUP_STAGGER_SECONDS = 0.2
+CONCURRENT_OUTPUT_DRAIN_LIMIT = 1000
 _STARTUP_CONFIRMED_PREFIXES = (
     "游戏原生随机已触发",
     "R0 ",
@@ -124,6 +125,7 @@ class _TimingRecorder:
         )
         self._file = RotatingTextWriter(self.path)
         self._lock = threading.Lock()
+        self._last_flush_at = time.monotonic()
         self._common = {
             "mode": mode,
             "worker_count": worker_count,
@@ -152,7 +154,13 @@ class _TimingRecorder:
             with self._lock:
                 if not self._file.closed:
                     self._file.write(line + "\n")
-                    self._file.flush()
+                    # Timing data is diagnostic telemetry. Batch flushes to
+                    # avoid one synchronous disk flush for every phase while
+                    # retaining a short loss window and a durable close().
+                    now = time.monotonic()
+                    if now - self._last_flush_at >= 0.5:
+                        self._file.flush()
+                        self._last_flush_at = now
         except (OSError, ValueError):
             pass
 
@@ -832,16 +840,20 @@ def _run_continuous_loop(
             )
         )
 
-    def drain_output() -> None:
+    def drain_output(max_items: int | None = CONCURRENT_OUTPUT_DRAIN_LIMIT) -> None:
         nonlocal consecutive_startup_failures
         nonlocal compatibility_probe_passed
+        processed = 0
         while True:
+            if max_items is not None and processed >= max_items:
+                return
             try:
                 index, round_number, generation, line, received_at = (
                     output_queue.get_nowait()
                 )
             except queue.Empty:
                 break
+            processed += 1
             lane = lanes[index - 1]
             if generation != lane.generation:
                 continue
@@ -1170,7 +1182,9 @@ def _run_continuous_loop(
                 made_progress = True
                 if lane.output_thread is not None:
                     lane.output_thread.join(timeout=1)
-                drain_output()
+                # The process has exited; drain its complete tail before
+                # deciding whether the save/result was successful.
+                drain_output(max_items=None)
                 task = active.pop(lane.index)
                 timing.write(
                     "timing_finished",
@@ -1381,7 +1395,7 @@ def _run_continuous_loop(
                 break
             if active_lanes and not made_progress:
                 time.sleep(0.1)
-        drain_output()
+        drain_output(max_items=None)
         if (
             (
                 compatibility_probe_failed
@@ -1474,16 +1488,20 @@ def _run_concurrent_batch(
             (worker_index, generation, None, time.monotonic())
         )
 
-    def drain_output() -> None:
+    def drain_output(max_items: int | None = CONCURRENT_OUTPUT_DRAIN_LIMIT) -> None:
         nonlocal consecutive_startup_failures
         nonlocal compatibility_probe_passed
+        processed = 0
         while True:
+            if max_items is not None and processed >= max_items:
+                return
             try:
                 index, generation, line, received_at = (
                     output_queue.get_nowait()
                 )
             except queue.Empty:
                 break
+            processed += 1
             lane = lanes[index - 1]
             if generation != lane.generation:
                 continue
@@ -1718,7 +1736,9 @@ def _run_concurrent_batch(
                 made_progress = True
                 if lane.output_thread is not None:
                     lane.output_thread.join(timeout=1)
-                drain_output()
+                # The process has exited; drain its complete tail before
+                # deciding whether the save/result was successful.
+                drain_output(max_items=None)
                 assert lane.slot is not None
                 slot = lane.slot
                 timing.write(
@@ -1944,7 +1964,7 @@ def _run_concurrent_batch(
                 break
             if tracked_lanes and not made_progress:
                 time.sleep(0.1)
-        drain_output()
+        drain_output(max_items=None)
         if result_grid_path.is_file():
             print(
                 f"{CONCURRENT_RESULT_IMAGE_PREFIX}{result_grid_path}",

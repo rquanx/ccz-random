@@ -8736,6 +8736,33 @@ def gui_main() -> int:
             is_running=lambda: worker is not None and worker.poll() is None,
         )
 
+    def upload_latest_logs(parent: tk.Misc = root) -> None:
+        if not messagebox.askyesno(
+            "上传最新日志",
+            "将跳过环境检测，仅上传近期日志（最多约 8 MB）到匿名临时文件服务。"
+            "日志可能包含路径、系统信息和运行错误，但不包含游戏存档内容。是否继续？",
+            parent=parent,
+        ):
+            return
+        try:
+            archive = create_log_archive(
+                app_dir() / "ccz_fast_logs",
+                extra={"toolVersion": build_version_text(application_build_info())},
+            )
+            url = upload_log_archive(archive)
+        except Exception as exc:
+            messagebox.showerror(
+                "日志上传失败",
+                f"无法上传日志：{exc}\n\n已在日志目录生成本地压缩包，可手动发送给开发者。",
+                parent=parent,
+            )
+            return
+        messagebox.showinfo(
+            "日志上传成功",
+            "请将下面地址提供给开发者：\n\n" + url,
+            parent=parent,
+        )
+
     def open_unusable_diagnostics(parent: tk.Misc = root) -> None:
         """Run safe checks and offer an explicit one-shot compatibility probe."""
         dialog = centered_toplevel(parent)
@@ -8842,6 +8869,7 @@ def gui_main() -> int:
             ("游戏没声音", repair_game_sound),
             ("空间清理", open_storage_cleanup),
             ("随机用不了？", open_unusable_diagnostics),
+            ("上传最新日志", upload_latest_logs),
         ):
             tk.Button(
                 body,

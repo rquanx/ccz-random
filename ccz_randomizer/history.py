@@ -124,10 +124,17 @@ class HistoryRepository:
         with closing(self._connect()) as connection, connection:
             connection.execute(
                 """
-                INSERT OR REPLACE INTO runs (
+                INSERT INTO runs (
                     id, started_at, finished_at, status, mode,
                     loop_random, rule_name, rule_json, build_json
                 ) VALUES (?, ?, NULL, 'running', ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    status = 'running', finished_at = NULL,
+                    mode = excluded.mode,
+                    loop_random = excluded.loop_random,
+                    rule_name = excluded.rule_name,
+                    rule_json = excluded.rule_json,
+                    build_json = excluded.build_json
                 """,
                 (
                     run_id,
@@ -161,9 +168,11 @@ class HistoryRepository:
         with closing(self._connect()) as connection, connection:
             connection.execute(
                 """
-                INSERT OR REPLACE INTO rounds (
+                INSERT INTO rounds (
                     run_id, round_number, started_at, finished_at, status
                 ) VALUES (?, ?, ?, NULL, 'running')
+                ON CONFLICT(run_id, round_number) DO UPDATE SET
+                    finished_at = NULL, status = 'running'
                 """,
                 (run_id, round_number, _now()),
             )

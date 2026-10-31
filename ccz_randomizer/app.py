@@ -9662,6 +9662,7 @@ def gui_main() -> int:
         env["CCZ_RUN_STAMP"] = dt.datetime.now().strftime(
             "%Y-%m-%d %H.%M.%S"
         )
+        env["CCZ_HISTORY_RUN_ID"] = f"gui-{os.getpid()}-{time.time_ns()}"
         run_started_at = time.time()
         env["PYTHONIOENCODING"] = "utf-8"
         if getattr(sys, "frozen", False):
@@ -9916,8 +9917,9 @@ def main() -> int:
     history_repository = HistoryRepository(
         Path(state_base) if state_base else app
     )
+    history_run_id = os.environ.get("CCZ_HISTORY_RUN_ID", run_id)
     history_repository.start_run(
-        run_id,
+        history_run_id,
         mode="three" if three_person_mode else "seven",
         loop_random=loop_random,
         rule_name=rules["activeProfile"],
@@ -10123,7 +10125,10 @@ def main() -> int:
 
         game = start_game_session()
         try:
+            round_number = int(os.environ.get("CCZ_HISTORY_ROUND_NUMBER", "1"))
+        except ValueError:
             round_number = 1
+        try:
             while True:
                 update_diagnostic_context(
                     phase="round_setup",
@@ -10139,7 +10144,7 @@ def main() -> int:
                 attempt_started_at: dict[tuple[int, int], float] = {}
                 round_started_at = dt.datetime.now()
                 history_round_id = history_repository.start_round(
-                    run_id,
+                    history_run_id,
                     round_number,
                 )
                 if loop_random:
@@ -10677,7 +10682,7 @@ def main() -> int:
                 )
             else:
                 print(f"{result_count} 个结果存档已全部保存。")
-        history_repository.finish_run(run_id, "completed")
+        history_repository.finish_run(history_run_id, "completed")
         update_diagnostic_summary(
             status="completed",
             completed_results=len(expected_results),
@@ -10685,14 +10690,14 @@ def main() -> int:
         )
         return 0
     except KeyboardInterrupt:
-        history_repository.finish_run(run_id, "stopped")
+        history_repository.finish_run(history_run_id, "stopped")
         update_diagnostic_context(phase="stopped")
         diagnostic_log("worker_stopped", reason="keyboard_interrupt")
         update_diagnostic_summary(status="stopped")
         print("测试已中断。")
         return 130
     except Exception as exc:
-        history_repository.finish_run(run_id, "failed")
+        history_repository.finish_run(history_run_id, "failed")
         update_diagnostic_context(phase="worker_failed")
         blocked_details = security_software_block_details(exc)
         diagnostic_error(

@@ -105,6 +105,37 @@ class HistoryRepositoryTests(unittest.TestCase):
             repository.clear()
             self.assertEqual(0, repository.count_rounds())
 
+    def test_shared_concurrent_run_keeps_one_round_for_all_slots(self):
+        with tempfile.TemporaryDirectory() as directory:
+            repository = HistoryRepository(Path(directory))
+            for slot in (1, 2):
+                repository.start_run(
+                    "shared-concurrent-run",
+                    mode="three",
+                    loop_random=False,
+                    rule_name="规则",
+                    rule={},
+                    build={},
+                )
+                round_id = repository.start_round("shared-concurrent-run", 1)
+                repository.save_result(
+                    round_id,
+                    {
+                        "slot": slot,
+                        "acceptedAttempt": 1,
+                        "mode": "three",
+                        "detail": {},
+                        "save": {},
+                    },
+                )
+            rounds = repository.list_rounds()
+            self.assertEqual(1, len(rounds))
+            self.assertEqual(2, rounds[0]["result_count"])
+            self.assertEqual([1, 2], [
+                result["slot"]
+                for result in repository.get_round_results(round_id)
+            ])
+
     def test_deleting_last_round_removes_run(self):
         with tempfile.TemporaryDirectory() as directory:
             repository = HistoryRepository(Path(directory))

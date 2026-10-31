@@ -8806,7 +8806,15 @@ def gui_main() -> int:
                 path_label.pack(fill="x")
                 path_label.bind("<Button-1>", lambda _event: open_folder())
                 tk.Button(frame, text="打开所在文件夹", command=open_folder, width=16).pack(anchor="w", pady=(8, 0))
-            tk.Button(frame, text="关闭", command=failure.destroy, width=10).pack(anchor="e", pady=(14, 0))
+            failure_actions = tk.Frame(frame)
+            failure_actions.pack(fill="x", pady=(14, 0))
+            tk.Button(
+                failure_actions,
+                text="再次上传",
+                command=lambda: (failure.destroy(), open_log_upload_progress(parent)),
+                width=12,
+            ).pack(side="left")
+            tk.Button(failure_actions, text="关闭", command=failure.destroy, width=10).pack(side="right")
             failure.update_idletasks()
             failure.geometry(f"{max(560, failure.winfo_reqwidth())}x{max(220, failure.winfo_reqheight())}")
             failure.grab_set()

@@ -107,6 +107,7 @@ def _default_profile() -> dict[str, Any]:
         "dataCollection": {
             "recruitment": False,
             "jobTalents": False,
+            "allRandomPersonnel": False,
         },
         "resultImage": {"mode": "selected", "members": []},
         "sevenPerson": {
@@ -423,6 +424,9 @@ def validate_rule_config(config: dict[str, Any]) -> dict[str, Any]:
         )
         collection["jobTalents"] = _require_bool(
             collection["jobTalents"], f"{name}.兵种天赋采集"
+        )
+        collection["allRandomPersonnel"] = _require_bool(
+            collection.get("allRandomPersonnel", False), f"{name}.所有人物随机能力"
         )
         display = profile["resultImage"]
         if not isinstance(display, dict):

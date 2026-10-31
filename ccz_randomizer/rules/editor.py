@@ -925,7 +925,7 @@ def show_rule_editor(
     advanced_book.add(threshold_tab, text="阶段门槛")
     advanced_book.add(base_score_tab, text="兵种基础设置")
     advanced_book.add(skill_score_tab, text="特技基础设置")
-    advanced_book.add(collection_tab, text="信息采集")
+    advanced_book.add(collection_tab, text="人物能力")
     job_tab = tk.LabelFrame(threshold_tab, text="兵种评分", padx=12, pady=8)
     job_tab.grid(row=4, column=0, columnspan=7, sticky="ew", pady=(16, 0))
     skill_tab = tk.LabelFrame(threshold_tab, text="特技评分", padx=12, pady=8)
@@ -936,6 +936,7 @@ def show_rule_editor(
     collection_vars = {
         "recruitment": tk.BooleanVar(value=False),
         "jobTalents": tk.BooleanVar(value=False),
+        "allRandomPersonnel": tk.BooleanVar(value=False),
     }
     tk.Label(
         collection_tab,
@@ -945,6 +946,7 @@ def show_rule_editor(
         justify="left",
     ).pack(anchor="w", pady=(0, 14))
     for key, label, description in (
+        ("allRandomPersonnel", "启用所有人物随机能力", "开启后，选择人物、人物倾向和结果图人物可使用全部入队人员；关闭时仅显示初始三人。"),
         ("recruitment", "采集入队人员信息", "采集可招募人员和固定入队人员的兵种、兵种天赋及人物天赋。"),
         ("jobTalents", "采集兵种天赋", "采集本次随机后的全部兵种天赋，用于“兵种天赋”弹窗查看。"),
     ):
@@ -970,6 +972,9 @@ def show_rule_editor(
         str,
         tuple[ttk.Combobox, ttk.Combobox, tk.Label, tk.Button],
     ] = {}
+
+    def available_member_names() -> tuple[str, ...]:
+        return tuple(RULE_MEMBER_NAMES if collection_vars["allRandomPersonnel"].get() else THREE_MEMBER_NAMES)
 
     def add_number(
         tab,
@@ -1068,13 +1073,13 @@ def show_rule_editor(
 
         def refresh_member_button() -> None:
             selected_count = len(qualification_member_values[key])
+            available = available_member_names()
             member_button.configure(
-                text=(
-                    f"选择人物（{selected_count}/{len(member_names)}）"
-                )
+                text=f"选择人物（{selected_count}/{len(available)}）"
             )
 
         def choose_members() -> None:
+            member_names = available_member_names()
             selected = set(qualification_member_values[key])
             dialog = centered_toplevel(editor)
             dialog.withdraw()
@@ -1190,7 +1195,7 @@ def show_rule_editor(
         )
 
     tk.Label(threshold_tab, text="人物设置", anchor="w").grid(row=0, column=0, sticky="w", pady=5)
-    add_qualification_control(1, "three", RULE_MEMBER_NAMES)
+    add_qualification_control(1, "three", THREE_MEMBER_NAMES)
     add_number(threshold_tab, 2, "skill_threshold", "特技合格分")
     for row in (1, 2):
         tk.Label(threshold_tab, text="算分模式").grid(row=row, column=2, padx=(12, 0))
@@ -1201,7 +1206,7 @@ def show_rule_editor(
         values=tuple(skill_mode_labels), state="readonly", width=18)
     skill_mode_combo.grid(row=2, column=3, padx=(20, 8), sticky="w")
     skill_count_combo = ttk.Combobox(threshold_tab, textvariable=skill_count_var,
-        values=tuple(str(i) for i in range(1, len(RULE_MEMBER_NAMES) + 1)), width=4, state="readonly")
+        values=tuple(str(i) for i in range(1, len(THREE_MEMBER_NAMES) + 1)), width=4, state="readonly")
     skill_count_combo.grid(row=2, column=4, sticky="w")
     skill_count_label = tk.Label(threshold_tab, text="人达到门槛")
     skill_count_label.grid(row=2, column=5, padx=(5, 0), sticky="w")
@@ -1266,7 +1271,7 @@ def show_rule_editor(
     def open_affinity_editor() -> None:
         show_member_affinity_editor(
             editor,
-            affinity_member_names,
+            available_member_names(),
             {
                 member_name: (
                     TYPE_VALUES[primary.get()],
@@ -1298,11 +1303,28 @@ def show_rule_editor(
             result_image_settings = value
             refresh_result_image_button()
         show_result_image_members(editor, result_image_settings,
-                                  qualification_member_values["three"], apply_settings)
+                                  available_member_names(), apply_settings)
 
     result_image_button = tk.Button(threshold_tab, command=open_result_image_members)
     result_image_button.grid(row=0, column=4, columnspan=2, sticky="w", pady=5)
     editable_widgets.append(result_image_button)
+
+    def refresh_personnel_scope(*_args) -> None:
+        allowed = set(available_member_names())
+        current = qualification_member_values["three"]
+        qualification_member_values["three"] = [m for m in current if m in allowed] or list(THREE_MEMBER_NAMES)
+        _mode_combo, count_combo, _label, member_button = qualification_controls["three"]
+        count_combo.configure(values=tuple(str(i) for i in range(1, len(qualification_member_values["three"]) + 1)))
+        if int(qualification_count_vars["three"].get() or "1") > len(qualification_member_values["three"]):
+            qualification_count_vars["three"].set(str(len(qualification_member_values["three"])))
+        member_button.configure(text=f"选择人物（{len(qualification_member_values['three'])}/{len(allowed)}）")
+        if result_image_settings.get("mode") == "custom":
+            result_image_settings["members"] = [m for m in result_image_settings.get("members", []) if m in allowed]
+            if not result_image_settings["members"]:
+                result_image_settings["mode"] = "selected"
+        refresh_result_image_button()
+
+    collection_vars["allRandomPersonnel"].trace_add("write", refresh_personnel_scope)
     job_default_types = {
         job_name: job_type
         for job_name, _score, job_type in job_map.values()
@@ -1567,10 +1589,13 @@ def show_rule_editor(
             for key, value in values.items():
                 number_vars[key].set(f"{value:g}")
             for key, settings in (("three", three),):
-                allowed_members = RULE_MEMBER_NAMES
+                allowed_members = available_member_names()
                 qualification_member_values[key] = list(
-                    settings["qualifiedMembers"]
+                    member for member in settings["qualifiedMembers"]
+                    if member in allowed_members
                 )
+                if not qualification_member_values[key]:
+                    qualification_member_values[key] = list(allowed_members)
                 qualification_mode_vars[key].set(
                     qualification_mode_values[
                         settings["jobQualificationMode"]

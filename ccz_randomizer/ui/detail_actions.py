@@ -18,12 +18,13 @@ def add_detail_actions(parent, dialog, snapshot, *, include_equipment=True):
             return
         show_recruit_window(dialog, snapshot=snapshot)
 
-    actions = [
-        ("兵种天赋", lambda: show_job_talents_window(dialog, snapshot=snapshot)),
-        ("入队人员信息", recruitment),
-    ]
+    actions = []
     if include_equipment:
         actions.append(("宝物信息", lambda: show_equipment_window(dialog, snapshot=snapshot)))
+    actions.extend([
+        ("入队人员信息", recruitment),
+        ("兵种天赋", lambda: show_job_talents_window(dialog, snapshot=snapshot)),
+    ])
     action_count = len(actions)
     for column, (label, command) in enumerate(actions):
         bar.columnconfigure(column, weight=1, uniform="detail-action")

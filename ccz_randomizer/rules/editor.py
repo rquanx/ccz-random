@@ -925,7 +925,7 @@ def show_rule_editor(
     advanced_book.add(threshold_tab, text="阶段门槛")
     advanced_book.add(base_score_tab, text="兵种基础设置")
     advanced_book.add(skill_score_tab, text="特技基础设置")
-    advanced_book.add(collection_tab, text="人物能力")
+    advanced_book.add(collection_tab, text="人物数据")
     job_tab = tk.LabelFrame(threshold_tab, text="兵种评分", padx=12, pady=8)
     job_tab.grid(row=4, column=0, columnspan=7, sticky="ew", pady=(16, 0))
     skill_tab = tk.LabelFrame(threshold_tab, text="特技评分", padx=12, pady=8)

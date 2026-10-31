@@ -8791,8 +8791,11 @@ def gui_main() -> int:
             try:
                 archive = create_log_archive(app_dir() / "ccz_fast_logs", extra={"toolVersion": build_version_text(application_build_info())})
                 archive_holder["path"] = archive
-                root.after(0, lambda: (progress.stop(), progress.configure(mode="determinate", maximum=1, value=0), status.configure(text="正在上传日志……")))
-                url = upload_log_archive(archive, cancel_event=cancel, progress_callback=lambda sent, total: root.after(0, lambda: progress.configure(maximum=total, value=sent)))
+                root.after(0, lambda: (progress.stop(), progress.configure(mode="indeterminate"), progress.start(12), status.configure(text="正在上传日志……")))
+                def update_upload_progress(sent, total):
+                    if sent >= total:
+                        root.after(0, lambda: (progress.stop(), progress.configure(mode="determinate", maximum=1, value=1)))
+                url = upload_log_archive(archive, cancel_event=cancel, progress_callback=update_upload_progress)
                 root.after(0, lambda: (dialog.destroy(), messagebox.showinfo("日志上传成功", "请将下面地址提供给开发者：\n\n" + url, parent=parent)))
             except UploadCancelled:
                 root.after(0, dialog.destroy)

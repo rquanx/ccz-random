@@ -7,8 +7,6 @@ import shutil
 import tempfile
 import urllib.request
 import uuid
-import http.client
-from urllib.parse import urlparse
 import zipfile
 from datetime import datetime
 from pathlib import Path
@@ -17,7 +15,7 @@ from typing import Any
 
 MAX_ARCHIVE_BYTES = 8 * 1024 * 1024
 MAX_FILE_BYTES = 1 * 1024 * 1024
-UPLOAD_URL = "https://0x0.st"
+UPLOAD_URL = "https://tmpfiles.org/api/v1/upload"
 
 
 class UploadCancelled(RuntimeError):
@@ -125,30 +123,28 @@ def upload_log_archive(archive: Path, *, timeout: float = 30.0, cancel_event=Non
     body += b'Content-Disposition: form-data; name="file"; filename="support.zip"\r\n'
     body += b"Content-Type: application/zip\r\n\r\n" + payload
     body += b"\r\n--" + boundary + b"--\r\n"
-    parsed = urlparse(UPLOAD_URL)
-    connection = http.client.HTTPSConnection(parsed.netloc, timeout=timeout)
-    try:
-        connection.putrequest("POST", parsed.path or "/")
-        connection.putheader("Content-Type", f"multipart/form-data; boundary={boundary.decode()}")
-        connection.putheader("Content-Length", str(len(body)))
-        connection.putheader("User-Agent", "CCZRandomizer-Support")
-        connection.endheaders()
-        sent = 0
-        for offset in range(0, len(body), 64 * 1024):
-            if cancel_event is not None and cancel_event.is_set():
-                connection.close()
-                raise UploadCancelled("用户取消了日志上传")
-            chunk = body[offset:offset + 64 * 1024]
-            connection.send(chunk)
-            sent += len(chunk)
-            if progress_callback is not None:
-                progress_callback(sent, len(body))
-        response = connection.getresponse()
+    if cancel_event is not None and cancel_event.is_set():
+        raise UploadCancelled("用户取消了日志上传")
+    if progress_callback is not None:
+        progress_callback(0, len(body))
+    request = urllib.request.Request(
+        UPLOAD_URL,
+        data=body,
+        method="POST",
+        headers={
+            "Content-Type": f"multipart/form-data; boundary={boundary.decode()}",
+            "User-Agent": "CCZRandomizer-Support",
+        },
+    )
+    with urllib.request.urlopen(request, timeout=timeout) as response:
         result = response.read().decode("utf-8", errors="replace").strip()
-        if response.status >= 400:
-            raise RuntimeError(f"日志服务返回 HTTP {response.status}：{result[:160]}")
-    finally:
-        connection.close()
-    if not result.startswith(("http://", "https://")):
-        raise RuntimeError(f"日志服务返回了无效地址：{result[:160]}")
-    return result
+    if progress_callback is not None:
+        progress_callback(len(body), len(body))
+    try:
+        payload = json.loads(result)
+        result_url = str(payload["data"]["url"])
+    except (ValueError, KeyError, TypeError) as exc:
+        raise RuntimeError(f"日志服务返回了无效结果：{result[:160]}") from exc
+    if not result_url.startswith(("http://", "https://")):
+        raise RuntimeError(f"日志服务返回了无效地址：{result_url[:160]}")
+    return result_url

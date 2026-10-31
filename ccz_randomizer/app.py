@@ -8421,6 +8421,7 @@ def gui_main() -> int:
     output_queue: queue.Queue[str] = queue.Queue()
     log_path: Path | None = None
     result_image_path: Path | None = None
+    run_started_at = 0.0
     stop_file: Path | None = None
     active_game_executable: Path | None = None
     stop_requested_by_user = False
@@ -9433,6 +9434,29 @@ def gui_main() -> int:
         if worker is not None and worker.poll() is not None:
             code = worker.returncode
             worker = None
+            if concurrent_console_state is not None:
+                # The concurrent worker can emit its final image marker just
+                # before the GUI drains the pipe. Recover the published batch
+                # image at shutdown so the result link is never lost.
+                image_candidates = [
+                    path
+                    for path in (
+                        (active_game_executable or locate_game_executable()).parent
+                        / "randResult"
+                    ).glob("*-random.png")
+                    if path.is_file()
+                    and path.stat().st_mtime >= run_started_at - 5
+                ]
+                if image_candidates:
+                    final_image = max(
+                        image_candidates,
+                        key=lambda path: path.stat().st_mtime,
+                    )
+                    concurrent_console_round_images.setdefault(
+                        concurrent_console_active_round,
+                        final_image,
+                    )
+                    result_image_path = final_image
             try:
                 cleanup_random_runtime(
                     active_game_executable or locate_game_executable(),
@@ -9498,7 +9522,7 @@ def gui_main() -> int:
 
     def start() -> None:
         nonlocal current_rules
-        nonlocal worker, log_path, result_image_path, stop_file
+        nonlocal worker, log_path, result_image_path, stop_file, run_started_at
         nonlocal stop_requested_by_user, last_formatted_line
         nonlocal running_rule_name, running_rule_snapshot
         nonlocal active_game_executable, security_blocked_details
@@ -9638,6 +9662,7 @@ def gui_main() -> int:
         env["CCZ_RUN_STAMP"] = dt.datetime.now().strftime(
             "%Y-%m-%d %H.%M.%S"
         )
+        run_started_at = time.time()
         env["PYTHONIOENCODING"] = "utf-8"
         if getattr(sys, "frozen", False):
             command = [sys.executable, "--worker"]

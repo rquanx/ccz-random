@@ -38,6 +38,7 @@ SPECIAL_COLORS = (
 FONT = "Microsoft YaHei UI"
 DETAIL_EQUIPMENT_COLUMNS = 4
 DETAIL_SPECIAL_MIN_WIDTH = 220
+SUMMARY_MEMBER_LIMIT = 3
 
 
 def _center_window(window, parent, width: int, height: int) -> None:
@@ -325,15 +326,24 @@ def _show_detail(parent, snapshot: dict[str, Any]) -> None:
     render_equipment_sections(content, snapshot.get("equipment") or {})
 
 
-def _summary_member_text(snapshot: dict[str, Any]) -> str:
+def _summary_member_text(
+    snapshot: dict[str, Any],
+    *,
+    limit: int = SUMMARY_MEMBER_LIMIT,
+) -> str:
     lines = []
-    for member in history_members(snapshot):
+    members = history_members(snapshot)
+    visible_members = members[:max(0, limit)]
+    for member in visible_members:
         personal = _skill_names(member.get("personalSkills") or [])
         job = _skill_names(member.get("jobSkills") or [])
         lines.append(
             f"{member.get('name', '')} · {member.get('job', '')}\n"
             f"个人 {personal}\n兵种 {job}"
         )
+    remaining = len(members) - len(visible_members)
+    if remaining > 0:
+        lines.append(f"……其余 {remaining} 人请查看完整详情")
     return "\n\n".join(lines)
 
 
@@ -458,7 +468,8 @@ def _render_full_result_card(parent, snapshot: dict[str, Any]):
 
     members_panel = tk.Frame(card, bg=COLORS["surface"], padx=8, pady=3)
     members_panel.pack(fill="x")
-    for member in history_members(snapshot):
+    members = history_members(snapshot)
+    for member in members[:SUMMARY_MEMBER_LIMIT]:
         block = tk.Frame(
             members_panel,
             bg=COLORS["surface_alt"],
@@ -500,6 +511,15 @@ def _render_full_result_card(parent, snapshot: dict[str, Any]):
             anchor="w",
             wraplength=324,
         ).pack(fill="x", pady=(2, 0))
+    if len(members) > SUMMARY_MEMBER_LIMIT:
+        tk.Label(
+            members_panel,
+            text=f"……其余 {len(members) - SUMMARY_MEMBER_LIMIT} 人请查看完整详情",
+            font=(FONT, 8),
+            fg=COLORS["muted"],
+            bg=COLORS["surface"],
+            anchor="w",
+        ).pack(fill="x", pady=(3, 0))
 
     equipment = snapshot.get("equipment") or {}
     specials = equipment.get("specials") or []
@@ -747,6 +767,8 @@ def show_history_window(parent, repository: HistoryRepository) -> None:
     def render_results(row: dict[str, Any]) -> None:
         nonlocal selected_round_id, selected_snapshots
         selected_round_id = int(row["id"])
+        canvas.xview_moveto(0)
+        canvas.yview_moveto(0)
         for child in grid.winfo_children():
             child.destroy()
         round_header.set(
@@ -787,6 +809,7 @@ def show_history_window(parent, repository: HistoryRepository) -> None:
                 padx=5,
                 pady=5,
             )
+        dialog.after_idle(lambda: (canvas.xview_moveto(0), canvas.yview_moveto(0)))
 
     def selected_row() -> dict[str, Any] | None:
         selection = rounds.selection()

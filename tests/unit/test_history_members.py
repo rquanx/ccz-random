@@ -51,3 +51,13 @@ class HistoryMembersTests(unittest.TestCase):
         snapshot = self.snapshot()
         snapshot.pop("detail")
         self.assertEqual(snapshot["members"], history_members(snapshot))
+
+    def test_summary_member_text_limits_long_people_lists(self):
+        snapshot = self.snapshot()
+        snapshot.pop("detail")
+        snapshot["members"] = [{"name": name} for name in ("甲", "乙", "丙", "丁", "戊")]
+        text = _summary_member_text(snapshot)
+        self.assertIn("甲", text)
+        self.assertIn("丙", text)
+        self.assertNotIn("丁 ·", text)
+        self.assertIn("其余 2 人请查看完整详情", text)

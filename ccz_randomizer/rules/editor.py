@@ -921,9 +921,11 @@ def show_rule_editor(
     threshold_tab = tk.Frame(advanced_book, padx=16, pady=14)
     base_score_tab = tk.Frame(advanced_book, padx=8, pady=8)
     skill_score_tab = tk.Frame(advanced_book, padx=8, pady=8)
+    collection_tab = tk.Frame(advanced_book, padx=18, pady=16)
     advanced_book.add(threshold_tab, text="阶段门槛")
     advanced_book.add(base_score_tab, text="兵种基础设置")
     advanced_book.add(skill_score_tab, text="特技基础设置")
+    advanced_book.add(collection_tab, text="信息采集")
     job_tab = tk.LabelFrame(threshold_tab, text="兵种评分", padx=12, pady=8)
     job_tab.grid(row=4, column=0, columnspan=7, sticky="ew", pady=(16, 0))
     skill_tab = tk.LabelFrame(threshold_tab, text="特技评分", padx=12, pady=8)
@@ -931,6 +933,34 @@ def show_rule_editor(
 
     number_vars: dict[str, tk.StringVar] = {}
     bool_vars: dict[str, tk.BooleanVar] = {}
+    collection_vars = {
+        "recruitment": tk.BooleanVar(value=False),
+        "jobTalents": tk.BooleanVar(value=False),
+    }
+    tk.Label(
+        collection_tab,
+        text="默认关闭。开启后只在合格结果保存时采集对应附加信息，可能增加少量运行时间。",
+        anchor="w",
+        fg="#666666",
+        justify="left",
+    ).pack(anchor="w", pady=(0, 14))
+    for key, label, description in (
+        ("recruitment", "采集入队人员信息", "采集可招募人员和固定入队人员的兵种、兵种天赋及人物天赋。"),
+        ("jobTalents", "采集兵种天赋", "采集本次随机后的全部兵种天赋，用于“兵种天赋”弹窗查看。"),
+    ):
+        tk.Checkbutton(
+            collection_tab,
+            text=label,
+            variable=collection_vars[key],
+            anchor="w",
+        ).pack(anchor="w")
+        tk.Label(
+            collection_tab,
+            text=description,
+            fg="#666666",
+            anchor="w",
+        ).pack(anchor="w", padx=(24, 0), pady=(1, 12))
+    collection_tab.columnconfigure(0, weight=1)
     qualification_mode_vars: dict[str, tk.StringVar] = {}
     qualification_count_vars: dict[str, tk.StringVar] = {}
     qualification_member_values: dict[str, list[str]] = {
@@ -1395,6 +1425,7 @@ def show_rule_editor(
             tuple((key, tuple(value)) for key, value in qualification_member_values.items()),
             tuple((key, primary.get(), secondary.get())
                   for key, (primary, secondary) in affinity_vars.items()),
+            tuple((key, variable.get()) for key, variable in collection_vars.items()),
             tuple(value.get() for value in (skill_mode_var, skill_count_var,
                   special_auto, high_auto, skill_type_matching, affinity_enabled)),
         )
@@ -1408,6 +1439,10 @@ def show_rule_editor(
             return
         profile = working["profiles"][name]
         profile["resultImage"] = copy.deepcopy(result_image_settings)
+        profile["dataCollection"] = {
+            key: bool(variable.get())
+            for key, variable in collection_vars.items()
+        }
         profile["editorMode"] = (
             "simple" if notebook.index(notebook.select()) == 0 else "advanced"
         )
@@ -1505,6 +1540,8 @@ def show_rule_editor(
             profile = working["profiles"][name]
             result_image_settings = copy.deepcopy(profile["resultImage"])
             refresh_result_image_button()
+            for key, variable in collection_vars.items():
+                variable.set(profile["dataCollection"][key])
             for key, variable in simple_vars.items():
                 variable.set(profile["simpleSettings"][key])
             three = dict(profile["threePerson"])

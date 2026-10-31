@@ -14,16 +14,34 @@ def add_detail_actions(parent, dialog, snapshot, *, include_equipment=True):
 
     def recruitment():
         if not snapshot.get("personnel") and not snapshot.get("fixedPersonnel"):
-            messagebox.showinfo("入队人员信息", "本次尝试没有采集入队人员信息，请查看新生成的合格结果。", parent=dialog)
+            messagebox.showinfo(
+                "入队人员信息",
+                "本次结果未采集入队人员信息。\n\n"
+                "请在规则设置 → 高级模式 → 信息采集中，开启“采集入队人员信息”，"
+                "然后重新运行并查看新的合格结果。",
+                parent=dialog,
+            )
             return
         show_recruit_window(dialog, snapshot=snapshot)
+
+    def job_talents():
+        if snapshot.get("jobTalents") is None:
+            messagebox.showinfo(
+                "兵种天赋",
+                "本次结果未采集兵种天赋。\n\n"
+                "请在规则设置 → 高级模式 → 信息采集中，开启“采集兵种天赋”，"
+                "然后重新运行并查看新的合格结果。",
+                parent=dialog,
+            )
+            return
+        show_job_talents_window(dialog, snapshot=snapshot)
 
     actions = []
     if include_equipment:
         actions.append(("宝物信息", lambda: show_equipment_window(dialog, snapshot=snapshot)))
     actions.extend([
         ("入队人员信息", recruitment),
-        ("兵种天赋", lambda: show_job_talents_window(dialog, snapshot=snapshot)),
+        ("兵种天赋", job_talents),
     ])
     action_count = len(actions)
     for column, (label, command) in enumerate(actions):

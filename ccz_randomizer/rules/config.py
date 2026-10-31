@@ -104,6 +104,10 @@ def _default_profile() -> dict[str, Any]:
         "skillQualification": {
             "mode": "total", "threshold": 5.0, "requiredCount": 1,
         },
+        "dataCollection": {
+            "recruitment": False,
+            "jobTalents": False,
+        },
         "resultImage": {"mode": "selected", "members": []},
         "sevenPerson": {
             "minJobAverage": 7.4,
@@ -411,6 +415,15 @@ def validate_rule_config(config: dict[str, Any]) -> dict[str, Any]:
             )
 
         three = profile["threePerson"]
+        collection = profile["dataCollection"]
+        if not isinstance(collection, dict):
+            raise ValueError(f"{name}.信息采集设置必须为对象")
+        collection["recruitment"] = _require_bool(
+            collection["recruitment"], f"{name}.入队人员信息采集"
+        )
+        collection["jobTalents"] = _require_bool(
+            collection["jobTalents"], f"{name}.兵种天赋采集"
+        )
         display = profile["resultImage"]
         if not isinstance(display, dict):
             raise ValueError(f"{name}.结果图人物设置必须为对象")

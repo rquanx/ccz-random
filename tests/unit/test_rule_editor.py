@@ -606,6 +606,7 @@ class RuleEditorTests(unittest.TestCase):
                             "阶段门槛",
                             "兵种基础设置",
                             "特技基础设置",
+                            "信息采集",
                         )
                     )
                     self.assertNotIn(

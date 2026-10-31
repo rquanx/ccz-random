@@ -824,6 +824,7 @@ def result_detail_for_runner(
         "personnel": getattr(runner, "_personnel_snapshot", None),
         "fixedPersonnel": getattr(runner, "_fixed_personnel_snapshot", None),
         "jobTalents": getattr(runner, "_job_talents_snapshot", None),
+        "dataCollection": getattr(runner, "_data_collection", {}),
         "equipment": serialize_equipment(runner._equip_info, getattr(runner, "_equip_specials", ()))
         if getattr(runner, "_equip_info", None) is not None else None,
     }
@@ -916,6 +917,7 @@ def build_history_result_snapshot(
         "personnel": getattr(runner, "_personnel_snapshot", None),
         "fixedPersonnel": getattr(runner, "_fixed_personnel_snapshot", None),
         "jobTalents": getattr(runner, "_job_talents_snapshot", None),
+        "dataCollection": getattr(runner, "_data_collection", {}),
         "createdAt": dt.datetime.now().astimezone().isoformat(
             timespec="seconds"
         ),
@@ -7729,6 +7731,7 @@ def patch_runtime(
         self._three_person_mode = three_person_mode
         self._normal_load_succeeded = False
         self._result_outcome = ""
+        self._data_collection = dict(active_profile(rules).get("dataCollection", {}))
         self._result_save_committed = False
         self._result_save_path = None
         self._result_save_verification_warning = ""
@@ -8054,7 +8057,8 @@ def patch_runtime(
         print(f"游戏原生随机已触发: {before}->{current}")
         check_stop_requested()
         self._r0_initial_three = read_job_ids(pid, JOB_POSITIONS_R0)
-        if os.environ.get("CCZ_GAME_VERSION") == "2.2":
+        if (os.environ.get("CCZ_GAME_VERSION") == "2.2"
+                and self._data_collection.get("jobTalents", False)):
             # Capture the complete job catalog immediately after the roll so
             # failed score attempts can open the same detail entry.
             self._job_talents_snapshot = read_job_talents(pid)
@@ -8167,7 +8171,8 @@ def patch_runtime(
             self._result_outcome = "accepted"
             print("用户进度: 本轮最终结果=合格，开始保存")
             save_qualified_result()
-            if os.environ.get("CCZ_GAME_VERSION") == "2.2":
+            if (os.environ.get("CCZ_GAME_VERSION") == "2.2"
+                    and self._data_collection.get("recruitment", False)):
                 catalog = load_catalog()
                 self._personnel_snapshot = attach_recruitment(read_personnel(
                     pid, [person["recordIndex"] for person in catalog], planned=True,

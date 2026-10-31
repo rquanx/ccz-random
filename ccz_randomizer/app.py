@@ -47,6 +47,11 @@ from ccz_randomizer.ui.result_details import (
     encode_result_detail,
     format_result_detail,
 )
+from ccz_randomizer.support_diagnostics import (
+    create_log_archive,
+    inspect_environment,
+    upload_log_archive,
+)
 from ccz_randomizer.diagnostics.runtime import (
     build_diagnostic_record,
     clear_diagnostic_context,
@@ -8731,6 +8736,93 @@ def gui_main() -> int:
             is_running=lambda: worker is not None and worker.poll() is None,
         )
 
+    def open_unusable_diagnostics(parent: tk.Misc = root) -> None:
+        """Run safe checks and offer an explicit one-shot compatibility probe."""
+        dialog = centered_toplevel(parent)
+        dialog.title("随机无法使用诊断")
+        dialog.geometry("720x560")
+        dialog.minsize(620, 460)
+        dialog.transient(parent)
+        body = tk.Frame(dialog, padx=18, pady=16)
+        body.pack(fill="both", expand=True)
+        tk.Label(body, text="先检查环境，再测试兼容模式", font=("Microsoft YaHei UI", 12, "bold"), anchor="w").pack(fill="x")
+        tk.Label(body, text="诊断只读取环境和日志；兼容模式测试会执行一次随机并自动保护现场存档。", fg="#666666", anchor="w", justify="left").pack(fill="x", pady=(6, 12))
+        report = scrolledtext.ScrolledText(body, height=16, wrap="word", state="disabled")
+        report.pack(fill="both", expand=True)
+        actions = tk.Frame(body)
+        actions.pack(fill="x", pady=(12, 0))
+        probe_button = tk.Button(actions, text="兼容模式测试", width=16)
+        probe_button.pack(side="left")
+        upload_button = tk.Button(actions, text="上报日志给开发者", width=18)
+        upload_button.pack(side="left", padx=(8, 0))
+        tk.Button(actions, text="关闭", width=10, command=dialog.destroy).pack(side="right")
+
+        try:
+            game_executable = locate_game_executable()
+            log_root = app_dir() / "ccz_fast_logs"
+            checks = inspect_environment(
+                game_executable,
+                app_root=app_dir(),
+                native_root=native_dir(),
+                bundle_root=bundle_root(),
+                log_root=log_root,
+            )
+            source = game_executable.parent / "SV" / "SV020.E5S"
+            checks.append({"label": "第20栏源存档", "ok": source.is_file(), "message": "第20栏源存档存在。" if source.is_file() else "未找到第20栏源存档。"})
+        except Exception as exc:
+            game_executable = None
+            log_root = app_dir() / "ccz_fast_logs"
+            checks = [{"label": "游戏定位", "ok": False, "message": f"无法定位游戏：{exc}"}]
+
+        def write_report(lines: list[str]) -> None:
+            report.configure(state="normal")
+            report.delete("1.0", "end")
+            report.insert("end", "\n".join(lines))
+            report.configure(state="disabled")
+
+        write_report([("通过  " if item["ok"] else "异常  ") + item["label"] + "：" + item["message"] for item in checks])
+
+        def probe() -> None:
+            if game_executable is None:
+                root.after(0, lambda: write_report(["无法执行兼容模式测试：游戏定位失败。"] + [item["message"] for item in checks]))
+                return
+            env = os.environ.copy()
+            env.update({"CCZ_AUTOSTART": "1", "CCZ_NO_PAUSE": "1", "CCZ_SUPPORT_PROBE": "1", "CCZ_COMPATIBILITY_MODE": "1", "CCZ_RESULT_COUNT": "1", "CCZ_TOTAL_RESULT_COUNT": "1", "CCZ_RESULT_SLOT_START": "1", "CCZ_GAME_VERSION": DEFAULT_GAME_VERSION, "CCZ_RANDOM_MODE": "three"})
+            command = [sys.executable, "--worker"] if getattr(sys, "frozen", False) else [sys.executable, str(source_entry_path()), "--worker"]
+            try:
+                completed = subprocess.run(command, cwd=str(app_dir()), env=env, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+                output = (completed.stdout or "")[-12000:]
+                success = completed.returncode == 0
+                message = ("兼容模式测试成功。建议在主界面勾选“兼容模式”后重试。" if success else "兼容模式测试也未成功，暂时无法明确定位原因，请上报日志给开发者。")
+                root.after(0, lambda: write_report([message, "", output]))
+            except Exception as exc:
+                error_text = str(exc)
+                root.after(0, lambda: write_report([f"兼容模式测试失败：{error_text}", "请上报日志给开发者。"]))
+            finally:
+                root.after(0, lambda: probe_button.configure(state="normal"))
+
+        def start_probe() -> None:
+            probe_button.configure(state="disabled")
+            write_report(["正在执行一次兼容模式测试，请等待最多两分钟……"])
+            threading.Thread(target=probe, daemon=True).start()
+
+        def upload() -> None:
+            if not messagebox.askyesno("上报日志", "将仅上传近期日志（最多约 8 MB）到匿名临时文件服务。日志可能包含路径、系统信息和运行错误，但不包含游戏存档内容。是否继续？", parent=dialog):
+                return
+            try:
+                archive = create_log_archive(log_root, extra={"toolVersion": build_version_text(application_build_info())})
+                url = upload_log_archive(archive)
+                write_report(["日志已上传，请将下面地址提供给开发者：", "", url])
+            except Exception as exc:
+                write_report([f"日志上传失败：{exc}", "可以将本地生成的 support_*.zip 文件手动发送给开发者。"])
+
+        probe_button.configure(command=start_probe)
+        upload_button.configure(command=upload)
+        dialog.update_idletasks()
+        dialog.geometry(f"{max(720, dialog.winfo_reqwidth())}x{max(560, dialog.winfo_reqheight())}")
+        dialog.deiconify()
+        dialog.grab_set()
+
     def open_repair_dialog() -> None:
         dialog = centered_toplevel(root)
         dialog.title("常见问题")
@@ -8749,6 +8841,7 @@ def gui_main() -> int:
         for text, command in (
             ("游戏没声音", repair_game_sound),
             ("空间清理", open_storage_cleanup),
+            ("随机用不了？", open_unusable_diagnostics),
         ):
             tk.Button(
                 body,
@@ -10103,12 +10196,13 @@ def main() -> int:
         import task.CczReRandTask as task_module
 
         task_module.SAVE_NUM = 1
+        support_probe = os.environ.get("CCZ_SUPPORT_PROBE") == "1"
         result_count = (
             15
             if loop_random
-            else int(os.environ.get("CCZ_RESULT_COUNT", "15"))
+            else (1 if support_probe else int(os.environ.get("CCZ_RESULT_COUNT", "15")))
         )
-        result_slot_start = int(
+        result_slot_start = 1 if support_probe else int(
             os.environ.get("CCZ_RESULT_SLOT_START", "1")
         )
         result_slot_list = os.environ.get(
@@ -10132,7 +10226,7 @@ def main() -> int:
         ):
             raise ValueError("并发结果槽位必须位于第 1-15 号范围内")
         game: HiddenGameSession | None = None
-        compatibility_restart_mode = False
+        compatibility_restart_mode = support_probe
         consecutive_normal_reload_failures = 0
         session_generation = 0
         refresh_consumed_session = False

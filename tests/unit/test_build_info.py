@@ -67,18 +67,18 @@ class BuildInfoTests(unittest.TestCase):
             format_user_log("工具版本：" + text),
         )
 
-    def test_release_version_is_3_2_2(self) -> None:
+    def test_release_version_is_4_0_0(self) -> None:
         version = (
             Path(__file__).resolve().parents[2] / "VERSION"
         ).read_text(encoding="utf-8").strip()
 
-        self.assertEqual("3.2.2", version)
+        self.assertEqual("4.0.0", version)
 
     def test_changelog_contains_only_verified_release_notes(self) -> None:
         entries = application_changelog()
 
-        self.assertEqual(6, len(entries))
-        self.assertEqual("3.2.2", entries[0]["version"])
+        self.assertEqual(7, len(entries))
+        self.assertEqual("4.0.0", entries[0]["version"])
         self.assertTrue(entries[0]["changes"])
 
     def test_frozen_changelog_is_loaded_from_bundle(self) -> None:

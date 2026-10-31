@@ -1317,6 +1317,9 @@ def show_rule_editor(
         count_combo.configure(values=tuple(str(i) for i in range(1, len(qualification_member_values["three"]) + 1)))
         if int(qualification_count_vars["three"].get() or "1") > len(qualification_member_values["three"]):
             qualification_count_vars["three"].set(str(len(qualification_member_values["three"])))
+        skill_count_combo.configure(values=tuple(str(i) for i in range(1, len(qualification_member_values["three"]) + 1)))
+        if int(skill_count_var.get() or "1") > len(qualification_member_values["three"]):
+            skill_count_var.set(str(len(qualification_member_values["three"])))
         member_button.configure(text=f"选择人物（{len(qualification_member_values['three'])}/{len(allowed)}）")
         if result_image_settings.get("mode") == "custom":
             result_image_settings["members"] = [m for m in result_image_settings.get("members", []) if m in allowed]

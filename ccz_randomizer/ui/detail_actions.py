@@ -1,7 +1,7 @@
 """Shared entry points for live scoring and saved result details."""
 
 
-def add_detail_actions(parent, dialog, snapshot):
+def add_detail_actions(parent, dialog, snapshot, *, include_equipment=True):
     import tkinter as tk
     from tkinter import messagebox
     from ccz_randomizer.ui.job_talents import show_job_talents_window
@@ -18,16 +18,18 @@ def add_detail_actions(parent, dialog, snapshot):
             return
         show_recruit_window(dialog, snapshot=snapshot)
 
-    actions = (
+    actions = [
         ("兵种天赋", lambda: show_job_talents_window(dialog, snapshot=snapshot)),
         ("入队人员信息", recruitment),
-        ("宝物信息", lambda: show_equipment_window(dialog, snapshot=snapshot)),
-    )
+    ]
+    if include_equipment:
+        actions.append(("宝物信息", lambda: show_equipment_window(dialog, snapshot=snapshot)))
+    action_count = len(actions)
     for column, (label, command) in enumerate(actions):
         bar.columnconfigure(column, weight=1, uniform="detail-action")
         outline = tk.Frame(bar, bg="#DCE3EC", padx=1, pady=1)
         outline.grid(row=0, column=column, sticky="ew",
-                     padx=(0 if column == 0 else 5, 0 if column == 2 else 5))
+                     padx=(0 if column == 0 else 5, 0 if column == action_count - 1 else 5))
         button = tk.Button(
             outline, text=label, command=command,
             font=("Microsoft YaHei UI", 10),

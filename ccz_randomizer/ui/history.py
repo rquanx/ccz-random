@@ -304,7 +304,8 @@ def _show_detail(parent, snapshot: dict[str, Any]) -> None:
     )
     member_section.pack(fill="x", pady=(0, 7))
     from ccz_randomizer.ui.detail_actions import add_detail_actions
-    add_detail_actions(member_section, detail_dialog, snapshot)
+    # 宝物内容已直接展示在存档详情底部，避免再提供重复的独立入口。
+    add_detail_actions(member_section, detail_dialog, snapshot, include_equipment=False)
     _section_heading(member_section, "武将与特技", color=COLORS["blue"])
     member_grid = tk.Frame(member_section, bg=COLORS["surface"])
     member_grid.pack(fill="x")

@@ -50,6 +50,7 @@ from ccz_randomizer.ui.result_details import (
 from ccz_randomizer.support_diagnostics import (
     create_log_archive,
     inspect_environment,
+    UploadCancelled,
     upload_log_archive,
 )
 from ccz_randomizer.diagnostics.runtime import (
@@ -8736,7 +8737,7 @@ def gui_main() -> int:
             is_running=lambda: worker is not None and worker.poll() is None,
         )
 
-    def upload_latest_logs(parent: tk.Misc = root) -> None:
+    def open_log_upload_progress(parent: tk.Misc = root) -> None:
         if not messagebox.askyesno(
             "上传最新日志",
             "将跳过环境检测，仅上传近期日志（最多约 8 MB）到匿名临时文件服务。"
@@ -8744,24 +8745,73 @@ def gui_main() -> int:
             parent=parent,
         ):
             return
-        try:
-            archive = create_log_archive(
-                app_dir() / "ccz_fast_logs",
-                extra={"toolVersion": build_version_text(application_build_info())},
-            )
-            url = upload_log_archive(archive)
-        except Exception as exc:
-            messagebox.showerror(
-                "日志上传失败",
-                f"无法上传日志：{exc}\n\n已在日志目录生成本地压缩包，可手动发送给开发者。",
-                parent=parent,
-            )
-            return
-        messagebox.showinfo(
-            "日志上传成功",
-            "请将下面地址提供给开发者：\n\n" + url,
-            parent=parent,
-        )
+        dialog = centered_toplevel(parent)
+        dialog.title("上传日志")
+        dialog.resizable(False, False)
+        dialog.transient(parent)
+        body = tk.Frame(dialog, padx=20, pady=18)
+        body.pack(fill="both", expand=True)
+        status = tk.Label(body, text="正在准备日志压缩包……", anchor="w", width=54)
+        status.pack(fill="x")
+        progress = ttk.Progressbar(body, mode="indeterminate", length=440)
+        progress.pack(fill="x", pady=(12, 14))
+        progress.start(12)
+        cancel = threading.Event()
+        cancel_button = tk.Button(body, text="取消", width=10)
+        cancel_button.pack(anchor="e")
+        archive_holder: dict[str, Path] = {}
+
+        def open_folder() -> None:
+            archive = archive_holder.get("path")
+            if archive is not None:
+                os.startfile(str(archive.parent))
+
+        def finish_failure(error: BaseException) -> None:
+            progress.stop()
+            dialog.destroy()
+            archive = archive_holder.get("path")
+            failure = centered_toplevel(parent)
+            failure.title("日志上传失败")
+            failure.transient(parent)
+            frame = tk.Frame(failure, padx=20, pady=18)
+            frame.pack(fill="both", expand=True)
+            tk.Label(frame, text=f"无法上传日志：{error}", justify="left", anchor="w", wraplength=560).pack(fill="x")
+            if archive is not None:
+                tk.Label(frame, text="压缩包已保存在：", anchor="w").pack(fill="x", pady=(14, 2))
+                path_label = tk.Label(frame, text=str(archive), fg="#1565c0", cursor="hand2", anchor="w", wraplength=560, justify="left")
+                path_label.pack(fill="x")
+                path_label.bind("<Button-1>", lambda _event: open_folder())
+                tk.Button(frame, text="打开所在文件夹", command=open_folder, width=16).pack(anchor="w", pady=(8, 0))
+            tk.Button(frame, text="关闭", command=failure.destroy, width=10).pack(anchor="e", pady=(14, 0))
+            failure.update_idletasks()
+            failure.geometry(f"{max(560, failure.winfo_reqwidth())}x{max(220, failure.winfo_reqheight())}")
+            failure.grab_set()
+
+        def work() -> None:
+            try:
+                archive = create_log_archive(app_dir() / "ccz_fast_logs", extra={"toolVersion": build_version_text(application_build_info())})
+                archive_holder["path"] = archive
+                root.after(0, lambda: (progress.stop(), progress.configure(mode="determinate", maximum=1, value=0), status.configure(text="正在上传日志……")))
+                url = upload_log_archive(archive, cancel_event=cancel, progress_callback=lambda sent, total: root.after(0, lambda: progress.configure(maximum=total, value=sent)))
+                root.after(0, lambda: (dialog.destroy(), messagebox.showinfo("日志上传成功", "请将下面地址提供给开发者：\n\n" + url, parent=parent)))
+            except UploadCancelled:
+                root.after(0, dialog.destroy)
+            except Exception as exc:
+                root.after(0, lambda error=exc: finish_failure(error))
+
+        def cancel_upload() -> None:
+            cancel.set()
+            cancel_button.configure(state="disabled")
+            status.configure(text="正在取消上传……")
+
+        cancel_button.configure(command=cancel_upload)
+        dialog.update_idletasks()
+        dialog.geometry(f"{max(520, dialog.winfo_reqwidth())}x{max(170, dialog.winfo_reqheight())}")
+        dialog.grab_set()
+        threading.Thread(target=work, daemon=True).start()
+
+    def upload_latest_logs(parent: tk.Misc = root) -> None:
+        open_log_upload_progress(parent)
 
     def open_unusable_diagnostics(parent: tk.Misc = root) -> None:
         """Run safe checks and offer an explicit one-shot compatibility probe."""
@@ -8834,14 +8884,7 @@ def gui_main() -> int:
             threading.Thread(target=probe, daemon=True).start()
 
         def upload() -> None:
-            if not messagebox.askyesno("上报日志", "将仅上传近期日志（最多约 8 MB）到匿名临时文件服务。日志可能包含路径、系统信息和运行错误，但不包含游戏存档内容。是否继续？", parent=dialog):
-                return
-            try:
-                archive = create_log_archive(log_root, extra={"toolVersion": build_version_text(application_build_info())})
-                url = upload_log_archive(archive)
-                write_report(["日志已上传，请将下面地址提供给开发者：", "", url])
-            except Exception as exc:
-                write_report([f"日志上传失败：{exc}", "可以将本地生成的 support_*.zip 文件手动发送给开发者。"])
+            open_log_upload_progress(dialog)
 
         probe_button.configure(command=start_probe)
         upload_button.configure(command=upload)

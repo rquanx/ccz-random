@@ -81,7 +81,10 @@ def _bounded_copy(source: Path, target: Path) -> int:
 def create_log_archive(log_root: Path, *, extra: dict[str, Any] | None = None) -> Path:
     """Create a bounded archive containing recent logs and a diagnostic manifest."""
     candidates = sorted(
-        (path for path in log_root.glob("*") if path.is_file()),
+        (
+            path for path in log_root.glob("*")
+            if path.is_file() and not path.name.startswith("support_")
+        ),
         key=lambda path: path.stat().st_mtime,
         reverse=True,
     )

@@ -8555,6 +8555,41 @@ def gui_main() -> int:
         except (OSError, ValueError, TypeError, tk.TclError):
             show_toast(root, "运行参数保存失败，请检查输入和工具目录。")
 
+    runtime_settings_bar = tk.Frame(settings_panel)
+    runtime_settings_bar.pack(fill="x")
+    tk.Label(runtime_settings_bar, text="运行参数").pack(
+        side="left", padx=(0, 8)
+    )
+    loop_check = tk.Checkbutton(
+        runtime_settings_bar,
+        text="循环随机（每轮15个）",
+        variable=loop_var,
+        command=persist_runtime_settings,
+    )
+    loop_check.pack(side="left", padx=(0, 18))
+    tk.Label(runtime_settings_bar, text="实例并发").pack(
+        side="left", padx=(0, 4)
+    )
+    concurrency_spin = tk.Spinbox(
+        runtime_settings_bar,
+        from_=1,
+        to=2_147_483_647,
+        width=7,
+        textvariable=concurrency_var,
+        justify="center",
+        command=persist_runtime_settings,
+    )
+    concurrency_spin.pack(side="left", padx=(0, 18))
+    concurrency_spin.bind("<FocusOut>", persist_runtime_settings)
+    concurrency_spin.bind("<Return>", persist_runtime_settings)
+    compatibility_check = tk.Checkbutton(
+        runtime_settings_bar,
+        text="兼容模式",
+        variable=compatibility_mode_var,
+        command=persist_runtime_settings,
+    )
+    compatibility_check.pack(side="left")
+
     rule_settings_bar = tk.Frame(settings_panel)
     rule_settings_bar.pack(fill="x")
     tk.Label(rule_settings_bar, text="规则").pack(
@@ -9416,6 +9451,9 @@ def gui_main() -> int:
             rule_profile_combo.configure(state="readonly")
             rule_button.configure(state="normal")
             repair_button.configure(state="normal")
+            loop_check.configure(state="normal")
+            concurrency_spin.configure(state="normal")
+            compatibility_check.configure(state="normal")
             stopped = stop_requested_by_user or code == 130
             if concurrent_console_state is not None:
                 if stopped:
@@ -9629,6 +9667,9 @@ def gui_main() -> int:
         rule_profile_combo.configure(state="disabled")
         rule_button.configure(state="normal")
         repair_button.configure(state="disabled")
+        loop_check.configure(state="disabled")
+        concurrency_spin.configure(state="disabled")
+        compatibility_check.configure(state="disabled")
 
     def stop() -> None:
         nonlocal stop_requested_by_user

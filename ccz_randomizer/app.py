@@ -8761,6 +8761,30 @@ def gui_main() -> int:
         cancel_button.pack(anchor="e")
         archive_holder: dict[str, Path] = {}
 
+        def show_upload_success(url: str) -> None:
+            success = centered_toplevel(parent)
+            success.title("日志上传成功")
+            success.transient(parent)
+            frame = tk.Frame(success, padx=20, pady=18)
+            frame.pack(fill="both", expand=True)
+            tk.Label(frame, text="日志已上传，请将下面地址提供给开发者：", anchor="w").pack(fill="x")
+            url_var = tk.StringVar(value=url)
+            url_entry = tk.Entry(frame, textvariable=url_var, width=72)
+            url_entry.pack(fill="x", pady=(12, 8))
+            url_entry.selection_range(0, "end")
+            actions = tk.Frame(frame)
+            actions.pack(fill="x")
+            def copy_url() -> None:
+                success.clipboard_clear()
+                success.clipboard_append(url)
+                show_toast(success, "地址已复制")
+            tk.Button(actions, text="复制地址", width=12, command=copy_url).pack(side="left")
+            tk.Button(actions, text="打开地址", width=12, command=lambda: os.startfile(url)).pack(side="left", padx=(8, 0))
+            tk.Button(actions, text="关闭", width=10, command=success.destroy).pack(side="right")
+            success.update_idletasks()
+            success.geometry(f"{max(620, success.winfo_reqwidth())}x{max(150, success.winfo_reqheight())}")
+            success.grab_set()
+
         def open_folder() -> None:
             archive = archive_holder.get("path")
             if archive is not None:
@@ -8796,7 +8820,7 @@ def gui_main() -> int:
                     if sent >= total:
                         root.after(0, lambda: (progress.stop(), progress.configure(mode="determinate", maximum=1, value=1)))
                 url = upload_log_archive(archive, cancel_event=cancel, progress_callback=update_upload_progress)
-                root.after(0, lambda: (dialog.destroy(), messagebox.showinfo("日志上传成功", "请将下面地址提供给开发者：\n\n" + url, parent=parent)))
+                root.after(0, lambda: (dialog.destroy(), show_upload_success(url)))
             except UploadCancelled:
                 root.after(0, dialog.destroy)
             except Exception as exc:

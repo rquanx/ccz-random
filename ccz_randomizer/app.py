@@ -8986,6 +8986,53 @@ def gui_main() -> int:
 
         refresh_detail()
 
+    def recover_concurrent_result_image() -> Path | None:
+        """Recover the latest image published by the current run.
+
+        The worker can exit immediately after writing the image marker.  In
+        that case the reader thread may not have delivered the marker before
+        the GUI handles process exit, so use the result directory as the
+        durable source of truth as well.
+        """
+        nonlocal result_image_path
+        if result_image_path is not None and result_image_path.is_file():
+            return result_image_path
+        # During an active run only an explicit worker marker is authoritative;
+        # directory recovery is reserved for the process-exit race.
+        if worker is not None and not concurrent_console_finished:
+            return None
+        if run_started_at <= 0:
+            return None
+        try:
+            executable = active_game_executable or locate_game_executable()
+        except (FileNotFoundError, OSError, RuntimeError):
+            return None
+        result_root = executable.parent / "randResult"
+        try:
+            candidates = [
+                path
+                for path in result_root.glob("*-random.png")
+                if path.is_file()
+                and path.stat().st_mtime >= run_started_at - 5
+            ]
+        except (OSError, ValueError):
+            return None
+        if not candidates:
+            return None
+        try:
+            result_image_path = max(
+                candidates,
+                key=lambda path: path.stat().st_mtime,
+            )
+        except OSError:
+            return None
+        if concurrent_console_state is not None:
+            concurrent_console_round_images.setdefault(
+                concurrent_console_active_round,
+                result_image_path,
+            )
+        return result_image_path
+
     def render_concurrent_console(*, force: bool = False) -> bool:
         nonlocal concurrent_console_render_pending
         nonlocal concurrent_console_last_render_at
@@ -8993,6 +9040,9 @@ def gui_main() -> int:
         if concurrent_console_state is None:
             concurrent_console_render_pending = False
             return False
+        # Recover before computing the signature so the image link is rendered
+        # even when the marker arrived after the worker exited.
+        recover_concurrent_result_image()
         signature = build_console_render_signature(
             concurrent_console_rounds,
             concurrent_console_round_images,
@@ -9146,6 +9196,7 @@ def gui_main() -> int:
                     not loop_var.get()
                     or concurrent_console_active_round
                     not in concurrent_console_rounds
+                    or concurrent_console_finished
                 )
             ):
                 tag = "concurrent-final-result-image"
@@ -9715,8 +9766,11 @@ def gui_main() -> int:
                 render_concurrent_console(force=True)
             if stop_file is not None:
                 stop_file.write_text("stop", encoding="ascii")
+            # The runtime has a 20 second hard stop timeout.  Keep the GUI
+            # fallback close to that bound so a stalled child cannot leave
+            # the console in "正在停止" indefinitely.
             root.after(
-                50000,
+                22000,
                 lambda: force_stop_worker(target_worker),
             )
 
@@ -9724,11 +9778,19 @@ def gui_main() -> int:
         if worker is not target_worker or target_worker.poll() is not None:
             return
         target_worker.terminate()
+        # Do not block Tk's event loop while waiting for a child process.  A
+        # short follow-up gives terminate a chance to finish and then kills
+        # only if it is still alive; normal polling will render the final
+        # stopped state as soon as the process exits.
+        root.after(1000, lambda: force_kill_worker(target_worker))
+
+    def force_kill_worker(target_worker: subprocess.Popen[str]) -> None:
+        if worker is not target_worker or target_worker.poll() is not None:
+            return
         try:
-            target_worker.wait(timeout=5)
-        except subprocess.TimeoutExpired:
             target_worker.kill()
-            target_worker.wait(timeout=5)
+        except OSError:
+            return
         try:
             cleanup_random_runtime(
                 active_game_executable or locate_game_executable(),

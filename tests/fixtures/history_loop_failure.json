@@ -1,0 +1,638 @@
+{
+  "source": "2026-11-10 loop incident, round 2 slot 1; diagnostic reduced to required fields; R0 replaced by temporary test bytes",
+  "failure": {
+    "time": "2026-11-10T17:49:38.695",
+    "event": "history_result_write_failed",
+    "context": {
+      "phase": "accepted_postprocess",
+      "random_mode": "three",
+      "loop_random": false,
+      "pid": 19624,
+      "game_hwnd": 28121914,
+      "session_generation": 1,
+      "loop_round": 2,
+      "result_slot": 1,
+      "attempt": 1,
+      "source_loaded": true,
+      "compatibility_mode": false,
+      "attempt_result": "accepted"
+    },
+    "result_slot": 1,
+    "failure": {
+      "game_state": {
+        "memory": {
+          "sha256": "43239488ed9a9839ba1eb325bd4270cefd211d3f1ab97cef445fa9c3bef4f096"
+        }
+      }
+    }
+  },
+  "detail": {
+    "resultSlot": 1,
+    "attempt": 1,
+    "status": "accepted",
+    "label": "合格",
+    "mode": "three",
+    "job": {
+      "qualified": true,
+      "reasons": [],
+      "metrics": {
+        "average": 5.333333333333333,
+        "qualificationAverage": 5.333333333333333,
+        "qualificationTotal": 16.0,
+        "masterCount": 0,
+        "jobNames": [
+          "先锋兵",
+          "轻骑兵",
+          "校尉"
+        ],
+        "threshold": 7.4,
+        "qualificationMode": "none",
+        "qualifiedCount": 0,
+        "requiredCount": 2,
+        "eligibleMembers": [
+          "曹操",
+          "夏侯惇",
+          "夏侯渊"
+        ],
+        "qualifiedMemberNames": [],
+        "memberScores": [
+          5.0,
+          5.0,
+          6.0
+        ]
+      },
+      "members": [
+        {
+          "name": "曹操",
+          "job": "先锋兵",
+          "score": 5.0
+        },
+        {
+          "name": "夏侯惇",
+          "job": "轻骑兵",
+          "score": 5.0
+        },
+        {
+          "name": "夏侯渊",
+          "job": "校尉",
+          "score": 6.0
+        }
+      ]
+    },
+    "skill": {
+      "qualified": true,
+      "reasons": [],
+      "metrics": {
+        "carryCount": 0,
+        "strongCount": 0,
+        "specialCount": 0,
+        "skillScore": 2.0,
+        "effectiveCount": 2.0,
+        "requiredSkillScore": 5.0,
+        "jobAverage": 5.333333333333333,
+        "highJobAverage": 7.8,
+        "autoPassReason": "",
+        "memberSkillScores": {
+          "曹操": 0.0,
+          "夏侯惇": 0.0,
+          "夏侯渊": 2.0
+        },
+        "skillDetails": [
+          {
+            "member": "曹操",
+            "name": "提升攻击范围",
+            "score": 0.0,
+            "category": "individual",
+            "counted": false
+          },
+          {
+            "member": "曹操",
+            "name": "夺锐攻击",
+            "score": 0.0,
+            "category": "individual",
+            "counted": false
+          },
+          {
+            "member": "曹操",
+            "name": "仇恨攻击 +12%",
+            "score": 0.0,
+            "category": "individual",
+            "counted": false
+          },
+          {
+            "member": "夏侯惇",
+            "name": "增加连击上限 +1",
+            "score": 0.0,
+            "category": "individual",
+            "counted": false
+          },
+          {
+            "member": "夏侯惇",
+            "name": "MP转伤攻击 25%",
+            "score": 0.0,
+            "category": "individual",
+            "counted": false
+          },
+          {
+            "member": "夏侯惇",
+            "name": "破坏士气",
+            "score": 0.0,
+            "category": "individual",
+            "counted": false
+          },
+          {
+            "member": "夏侯渊",
+            "name": "麻痹攻击 60%",
+            "score": 1.0,
+            "category": "individual",
+            "counted": true
+          },
+          {
+            "member": "夏侯渊",
+            "name": "附加伤害 防御 10%",
+            "score": 0.0,
+            "category": "individual",
+            "counted": false
+          },
+          {
+            "member": "夏侯渊",
+            "name": "节约MP -40%",
+            "score": 1.0,
+            "category": "individual",
+            "counted": true
+          }
+        ],
+        "qualificationMode": "none",
+        "eligibleMembers": [
+          "曹操",
+          "夏侯惇",
+          "夏侯渊"
+        ],
+        "threshold": 5.0,
+        "requiredCount": 1,
+        "qualifiedCount": 0,
+        "qualifiedMemberNames": [],
+        "qualificationAverage": 0.6666666666666666
+      },
+      "members": [
+        {
+          "name": "曹操",
+          "skills": [
+            "提升攻击范围",
+            "夺锐攻击",
+            "仇恨攻击 +12%"
+          ],
+          "score": 0.0
+        },
+        {
+          "name": "夏侯惇",
+          "skills": [
+            "增加连击上限 +1",
+            "MP转伤攻击 25%",
+            "破坏士气"
+          ],
+          "score": 0.0
+        },
+        {
+          "name": "夏侯渊",
+          "skills": [
+            "麻痹攻击 60%",
+            "附加伤害 防御 10%",
+            "节约MP -40%"
+          ],
+          "score": 2.0
+        }
+      ]
+    },
+    "schemaVersion": 1,
+    "gameVersion": "2.20-1104-night",
+    "slot": 1,
+    "phase": "randomized",
+    "personnel": null,
+    "fixedPersonnel": null,
+    "jobTalents": null,
+    "dataCollection": {
+      "recruitment": false,
+      "jobTalents": false,
+      "allRandomPersonnel": false
+    },
+    "equipment": {
+      "categories": [
+        {
+          "name": "剑",
+          "items": [
+            {
+              "name": "雌雄双剑",
+              "effect": "麻痹破爆"
+            },
+            {
+              "name": "倚天剑",
+              "effect": "万夫莫敌2%"
+            },
+            {
+              "name": "青冥剑",
+              "effect": "拓展范围"
+            }
+          ]
+        },
+        {
+          "name": "佩剑",
+          "items": [
+            {
+              "name": "青釭剑",
+              "effect": "致命一击ALL"
+            },
+            {
+              "name": "龙渊剑",
+              "effect": "疾风迅雷8"
+            }
+          ]
+        },
+        {
+          "name": "刀",
+          "items": [
+            {
+              "name": "古锭刀",
+              "effect": "属性增伤3%"
+            },
+            {
+              "name": "青龙偃月刀",
+              "effect": "破坏状态攻击"
+            },
+            {
+              "name": "流星锤",
+              "effect": "忽视能力-防士"
+            },
+            {
+              "name": "双鞭",
+              "effect": "鬼神之勇11%"
+            },
+            {
+              "name": "双戟",
+              "effect": "异常攻击"
+            }
+          ]
+        },
+        {
+          "name": "枪",
+          "items": [
+            {
+              "name": "丈八蛇矛",
+              "effect": "削铁如泥ALL"
+            },
+            {
+              "name": "方天画戟",
+              "effect": "昭威奋烈1"
+            },
+            {
+              "name": "龙胆枪",
+              "effect": "主动连击"
+            },
+            {
+              "name": "霸王枪",
+              "effect": "穿透攻击-两格"
+            },
+            {
+              "name": "开山斧",
+              "effect": "混乱攻击49%"
+            },
+            {
+              "name": "龙骑枪",
+              "effect": "异常攻击"
+            }
+          ]
+        },
+        {
+          "name": "弓",
+          "items": [
+            {
+              "name": "李广之弓",
+              "effect": "攻击追加-策略编号68"
+            },
+            {
+              "name": "吕布之弓",
+              "effect": "万夫莫敌2%"
+            }
+          ]
+        },
+        {
+          "name": "炮车",
+          "items": [
+            {
+              "name": "金火罐车",
+              "effect": "冲锋再动5%"
+            }
+          ]
+        },
+        {
+          "name": "扇",
+          "items": [
+            {
+              "name": "白羽扇",
+              "effect": "策略先手-策略编号68"
+            },
+            {
+              "name": "五火神焰扇",
+              "effect": "自动提升全能力"
+            },
+            {
+              "name": "芭蕉扇",
+              "effect": "唯我独尊"
+            }
+          ]
+        },
+        {
+          "name": "法剑",
+          "items": [
+            {
+              "name": "圣者宝剑",
+              "effect": "策略连击"
+            },
+            {
+              "name": "七星剑",
+              "effect": "强化元素策略18%"
+            }
+          ]
+        },
+        {
+          "name": "铠甲",
+          "items": [
+            {
+              "name": "镜铠",
+              "effect": "治愈光环18%"
+            },
+            {
+              "name": "黄金铠",
+              "effect": "HP上限+28%"
+            },
+            {
+              "name": "白银铠",
+              "effect": "防御特殊攻击"
+            },
+            {
+              "name": "龙鳞铠",
+              "effect": "防御特殊攻击"
+            },
+            {
+              "name": "连环铠",
+              "effect": "反击成双"
+            },
+            {
+              "name": "霸王乌金甲",
+              "effect": "能力辅助 攻→防"
+            },
+            {
+              "name": "蚩尤战甲",
+              "effect": "限制伤害75"
+            },
+            {
+              "name": "兽面吞云铠",
+              "effect": "吸血攻击30%"
+            },
+            {
+              "name": "亮银甲",
+              "effect": "绝对克制19%"
+            },
+            {
+              "name": "虎豹嘶风铠",
+              "effect": "提升周围-防精"
+            },
+            {
+              "name": "上将铠",
+              "effect": "策略模仿"
+            }
+          ]
+        },
+        {
+          "name": "衣服",
+          "items": [
+            {
+              "name": "青云羽衣",
+              "effect": "策略免疫"
+            },
+            {
+              "name": "短打劲装",
+              "effect": "自动提升全能力"
+            },
+            {
+              "name": "凤凰羽衣",
+              "effect": "回马强反10%"
+            },
+            {
+              "name": "飞龙斗袍",
+              "effect": "能力辅助 士→攻精"
+            },
+            {
+              "name": "青龙战袍",
+              "effect": "MP辅助-攻爆"
+            },
+            {
+              "name": "天仙洞衣",
+              "effect": "辅助全格挡18%"
+            },
+            {
+              "name": "鹤氅",
+              "effect": "辅助策略格挡36%"
+            },
+            {
+              "name": "国士无双袍",
+              "effect": "HP上限+28%"
+            },
+            {
+              "name": "漆黑道袍",
+              "effect": "迅捷之勇9%"
+            },
+            {
+              "name": "名士华服",
+              "effect": "辅助攻击格挡19%"
+            },
+            {
+              "name": "贯日袍",
+              "effect": "昭威奋烈1"
+            }
+          ]
+        },
+        {
+          "name": "辅助",
+          "items": [
+            {
+              "name": "白银盾",
+              "effect": "能力辅助 精→防"
+            },
+            {
+              "name": "风神盾",
+              "effect": "穿越偷袭"
+            },
+            {
+              "name": "淮南子",
+              "effect": "冲锋再动5%"
+            },
+            {
+              "name": "风车轮",
+              "effect": "提升防御力+16%"
+            },
+            {
+              "name": "诸葛巾",
+              "effect": "恢复HP状态35%"
+            },
+            {
+              "name": "精铁盔",
+              "effect": "节约MP-54%"
+            },
+            {
+              "name": "的卢",
+              "effect": "援护攻击2"
+            },
+            {
+              "name": "绝影",
+              "effect": "拓展范围"
+            },
+            {
+              "name": "赤兔",
+              "effect": "纵横无阻"
+            },
+            {
+              "name": "爪黄飞电",
+              "effect": "状态强化12"
+            },
+            {
+              "name": "照夜玉狮子",
+              "effect": "怀恨必中15%"
+            },
+            {
+              "name": "飞刀",
+              "effect": "节约MP-52%"
+            },
+            {
+              "name": "孟德新书",
+              "effect": "提升精神力+21%"
+            },
+            {
+              "name": "六韬",
+              "effect": "强化元素策略20%"
+            },
+            {
+              "name": "三略",
+              "effect": "二次行动"
+            },
+            {
+              "name": "太平清领书",
+              "effect": "吸血攻击33%"
+            },
+            {
+              "name": "遁甲天书",
+              "effect": "神魔附体5"
+            },
+            {
+              "name": "孙子兵法",
+              "effect": "提升精神力+22%"
+            },
+            {
+              "name": "青囊书",
+              "effect": "辅助策略格挡43%"
+            },
+            {
+              "name": "玉玺",
+              "effect": "反击成双"
+            },
+            {
+              "name": "青龙宝玉",
+              "effect": "策略反击-风龙"
+            },
+            {
+              "name": "朱雀宝玉",
+              "effect": "怀恨必中14%"
+            },
+            {
+              "name": "玄武宝玉",
+              "effect": "穿越偷袭"
+            },
+            {
+              "name": "白虎宝玉",
+              "effect": "状态强化12"
+            }
+          ]
+        }
+      ],
+      "specials": [
+        {
+          "title": "追击套装",
+          "items": [
+            "倚天剑：万夫莫敌2%",
+            "太平清领书：吸血攻击33%",
+            "古锭刀：属性增伤3%",
+            "黄金铠：HP上限+28%",
+            "绝影：拓展范围"
+          ]
+        },
+        {
+          "title": "传承套装",
+          "items": [
+            "凤凰羽衣：回马强反10%",
+            "遁甲天书：神魔附体5",
+            "爪黄飞电：状态强化12",
+            "流星锤：忽视能力-防士"
+          ]
+        },
+        {
+          "title": "吕布套装",
+          "items": [
+            "方天画戟：昭威奋烈1",
+            "吕布之弓：万夫莫敌2%",
+            "兽面吞云铠：吸血攻击30%",
+            "赤兔：纵横无阻"
+          ]
+        },
+        {
+          "title": "诸葛亮套装",
+          "items": [
+            "白羽扇：策略先手-策略编号68",
+            "鹤氅：辅助策略格挡36%",
+            "诸葛巾：恢复HP状态35%"
+          ]
+        },
+        {
+          "title": "赵云套装",
+          "items": [
+            "龙胆枪：主动连击",
+            "亮银甲：绝对克制19%",
+            "照夜玉狮子：怀恨必中15%"
+          ]
+        },
+        {
+          "title": "刘备套装",
+          "items": [
+            "雌雄双剑：麻痹破爆",
+            "的卢：援护攻击2"
+          ]
+        },
+        {
+          "title": "关羽套装",
+          "items": [
+            "青龙偃月刀：破坏状态攻击",
+            "青龙战袍：MP辅助-攻爆",
+            "赤兔：纵横无阻"
+          ]
+        },
+        {
+          "title": "张飞套装",
+          "items": [
+            "丈八蛇矛：削铁如泥ALL"
+          ]
+        },
+        {
+          "title": "好东西",
+          "items": [
+            "五火神焰扇：自动提升全能力",
+            "芭蕉扇：唯我独尊",
+            "青云羽衣：策略免疫",
+            "短打劲装：自动提升全能力",
+            "赤兔：纵横无阻",
+            "三略：二次行动",
+            "遁甲天书：神魔附体5"
+          ]
+        }
+      ]
+    }
+  }
+}

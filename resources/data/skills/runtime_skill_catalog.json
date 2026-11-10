@@ -589,7 +589,7 @@
   },
   {
     "id": 84,
-    "name": "弱点攻击 移动",
+    "name": "弱点攻击",
     "baseName": "弱点攻击",
     "formatType": 8,
     "parameter": 6

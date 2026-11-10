@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "layoutId": "personnel-v1",
+  "recordSize": 72,
+  "recordNameOffset": 8,
+  "recordJobOffset": 43,
+  "recordIdOffset": 4,
+  "recordIndexIdBase": 4096,
+  "plannedJobArrayAddress": "0x503F40",
+  "recordArrayBasePointerAddress": "0x4CEA00",
+  "SKILL_RULE_TABLE_POINTER_ADDRESS": 5246011,
+  "DIRECT_JOB_MATCH_FLAG_ADDRESS": 5267304,
+  "SKILL_NAME_TABLE_ADDRESS": 5031424,
+  "ABILITY_SHORT_NAMES_ADDRESS": 4779114,
+  "ALL_ABILITY_NAME_ADDRESS": 4764641,
+  "ABILITY_NAMES_ADDRESS": 4745947,
+  "STRATEGY_NAMES_ADDRESS": 4865655,
+  "SKILL_RULE_COUNT": 255,
+  "SKILL_RULE_STRIDE": 8,
+  "SKILL_NAME_RECORD_SIZE": 16,
+  "STRATEGY_RECORD_SIZE": 97
+}

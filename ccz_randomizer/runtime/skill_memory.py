@@ -1,29 +1,30 @@
 from __future__ import annotations
 
 import ctypes
-import re
 import struct
 from dataclasses import dataclass
 from ctypes import wintypes
 from typing import Callable, Iterable
+from ccz_randomizer.profiles import load_profile
+from ccz_randomizer.profile_context import current_context
 
+_PROFILE = load_profile()
+RECORD_ARRAY_BASE_POINTER_ADDRESS = _PROFILE.address("recordArrayBasePointerAddress")
+SKILL_RULE_TABLE_POINTER_ADDRESS = _PROFILE.address("SKILL_RULE_TABLE_POINTER_ADDRESS")
+DIRECT_JOB_MATCH_FLAG_ADDRESS = _PROFILE.address("DIRECT_JOB_MATCH_FLAG_ADDRESS")
+SKILL_NAME_TABLE_ADDRESS = _PROFILE.address("SKILL_NAME_TABLE_ADDRESS")
+ABILITY_SHORT_NAMES_ADDRESS = _PROFILE.address("ABILITY_SHORT_NAMES_ADDRESS")
+ALL_ABILITY_NAME_ADDRESS = _PROFILE.address("ALL_ABILITY_NAME_ADDRESS")
+ABILITY_NAMES_ADDRESS = _PROFILE.address("ABILITY_NAMES_ADDRESS")
+STRATEGY_NAMES_ADDRESS = _PROFILE.address("STRATEGY_NAMES_ADDRESS")
 
-RECORD_ARRAY_BASE_POINTER_ADDRESS = 0x004CEA00
-SKILL_RULE_TABLE_POINTER_ADDRESS = 0x00500C3B
-DIRECT_JOB_MATCH_FLAG_ADDRESS = 0x00505F68
-SKILL_NAME_TABLE_ADDRESS = 0x004CC600
-ABILITY_SHORT_NAMES_ADDRESS = 0x0048EC6A
-ALL_ABILITY_NAME_ADDRESS = 0x0048B3E1
-ABILITY_NAMES_ADDRESS = 0x00486ADB
-STRATEGY_NAMES_ADDRESS = 0x004A3E77
-
-RECORD_SIZE = 0x48
-MEMBER_ID_OFFSET = 0x04
-JOB_ID_OFFSET = 0x2B
-SKILL_RULE_COUNT = 0xFF
-SKILL_RULE_STRIDE = 8
-SKILL_NAME_RECORD_SIZE = 16
-STRATEGY_RECORD_SIZE = 0x61
+RECORD_SIZE = int(_PROFILE.memory_layout.get("recordSize", 0x48))
+MEMBER_ID_OFFSET = int(_PROFILE.memory_layout.get("recordIdOffset", 0x04))
+JOB_ID_OFFSET = int(_PROFILE.memory_layout.get("recordJobOffset", 0x2B))
+SKILL_RULE_COUNT = _PROFILE.address("SKILL_RULE_COUNT")
+SKILL_RULE_STRIDE = _PROFILE.address("SKILL_RULE_STRIDE")
+SKILL_NAME_RECORD_SIZE = _PROFILE.address("SKILL_NAME_RECORD_SIZE")
+STRATEGY_RECORD_SIZE = _PROFILE.address("STRATEGY_RECORD_SIZE")
 
 PROCESS_QUERY_INFORMATION = 0x0400
 PROCESS_VM_READ = 0x0010
@@ -166,79 +167,23 @@ def resolve_skill_ids(
     return tuple(personal), tuple(job)
 
 
-def _ability_mask_name(
-    parameter: int,
-    ability_names: tuple[str, ...],
-    all_ability_name: str,
-    count: int,
-) -> str:
-    mask = parameter & ((1 << count) - 1)
-    if mask == (1 << count) - 1:
-        return all_ability_name
-    return "".join(
-        ability_names[index]
-        for index in range(count)
-        if mask & (1 << index)
-    )
+def format_skill_name(base_name, format_type, parameter, *, ability_short_names,
+                      ability_names, all_ability_name, strategy_name=""):
+    from ccz_randomizer.display_rules import render_skill
+    tables = dict(ability_short_names=ability_short_names, ability_names=ability_names,
+                  all_ability_name=all_ability_name)
+    return render_skill(current_context().skills["displayRules"], tables, base_name,
+                        format_type, parameter, strategy_name)
 
 
-def format_skill_name(
-    base_name: str,
-    format_type: int,
-    parameter: int,
-    *,
-    ability_short_names: tuple[str, ...],
-    ability_names: tuple[str, ...],
-    all_ability_name: str,
-    strategy_name: str = "",
-) -> str:
-    if format_type == 0:
-        return base_name
-    if format_type == 1:
-        return f"{base_name} +{parameter}"
-    if format_type == 2:
-        return f"{base_name} +{parameter}%"
-    if format_type == 3:
-        return f"{base_name} -{parameter}%"
-    if format_type == 4:
-        return f"{base_name} {parameter}%"
-    if format_type == 5:
-        return f"{base_name} {parameter}"
-    if format_type == 6:
-        source_index, target_mask = divmod(parameter, 16)
-        if target_mask in (0, 15):
-            source_index -= 1
-            target_mask += 16
-        target_name = _ability_mask_name(
-            target_mask,
-            ability_short_names,
-            all_ability_name,
-            5,
-        )
-        source_name = (
-            ability_short_names[source_index]
-            if source_index < len(ability_short_names)
-            else str(source_index)
-        )
-        return f"{base_name} {source_name}→{target_name}"
-    if format_type == 7:
-        return f"{base_name} {strategy_name or parameter}"
-    if format_type == 8:
-        ability_name = (
-            ability_names[parameter]
-            if parameter < len(ability_names)
-            else str(parameter)
-        )
-        return f"{base_name} {ability_name}"
-    if format_type in (9, 10):
-        ability_name = _ability_mask_name(
-            parameter,
-            ability_short_names,
-            all_ability_name,
-            5 if format_type == 9 else 6,
-        )
-        return f"{base_name} {ability_name}"
-    return base_name
+def catalog_skill_name(row: dict, data=None) -> str:
+    rules = (data or current_context().skills)["displayRules"]
+    return rules["catalogOverrides"].get(row["name"], row["name"])
+
+
+def format_profile_skill_name(base_name: str, format_type: int, parameter: int) -> str:
+    return format_skill_name(base_name, format_type, parameter,
+                             **current_context().skills["nameFormatting"])
 
 
 def _read_null_strings(data: bytes, limit: int) -> tuple[str, ...]:
@@ -381,27 +326,6 @@ def read_skill_memory(
     )
 
 
-_IGNORED_NAME_CHARACTERS = re.compile(
-    r"[\s\-—－_()（）:：+＋%％]"
-)
-
-# Confirmed numeric changes in the 2.2 rule table. Keep saved custom scores
-# attached to the same talent; do not alias changed ability/strategy targets.
-_SKILL_22_NUMERIC_ALIASES = {
-    "辅助攻击格挡24": "辅助攻击格挡20",
-    "辅助全格挡18": "辅助全格挡16",
-    "减轻远距损伤50": "减轻远距损伤40",
-    "强化反击20": "强化反击15",
-    "盾反20": "盾反15",
-    "辅助连击率40": "辅助连击率25",
-}
-
-
 def normalize_skill_name(name: str) -> str:
-    normalized = str(name).strip()
-    if normalized.startswith("能力替换"):
-        normalized = normalized.replace("→", "替")
-    elif normalized.startswith("能力辅助"):
-        normalized = normalized.replace("→", "辅")
-    normalized = _IGNORED_NAME_CHARACTERS.sub("", normalized)
-    return _SKILL_22_NUMERIC_ALIASES.get(normalized, normalized)
+    from ccz_randomizer.display_rules import normalize_name
+    return normalize_name(current_context().skills["displayRules"], name)

@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import copy
 import json
+import math
 import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
 
 from ccz_randomizer.runtime.skill_memory import normalize_skill_name
-from ccz_randomizer.rule_members import RULE_MEMBER_NAMES
+from ccz_randomizer.rule_members import ALL_RULE_MEMBER_NAMES as RULE_MEMBER_NAMES
 from ccz_randomizer.rules.skill_scores import migrate_skill_scores, DEFAULT_SCORES
 
 
@@ -50,6 +51,13 @@ for _member_name in RULE_MEMBER_NAMES:
     )
 
 SIMPLE_PRESET_OPTIONS = {
+    "difficulty": {
+        "无要求": ("none", 7.4, "none", 5.0),
+        "宽松": ("average", 7.1, "none", 5.0),
+        "标准": ("average", 7.4, "average", 5.0 / 3),
+        "严格": ("count", 7.7, "count", 2.0),
+        "自定义": None,
+    },
     "jobQuality": {
         "宽松": {"three": 7.1, "seven": 7.1},
         "标准": {"three": 7.4, "seven": 7.4},
@@ -88,6 +96,7 @@ def _default_profile() -> dict[str, Any]:
         "builtin": True,
         "editorMode": "simple",
         "simpleSettings": {
+            "difficulty": "无要求",
             "jobQuality": "标准",
             "affinityImportance": "标准",
             "teamBalance": "标准",
@@ -97,12 +106,12 @@ def _default_profile() -> dict[str, Any]:
         },
         "threePerson": {
             "minJobAverage": 7.4,
-            "jobQualificationMode": "average",
+            "jobQualificationMode": "none",
             "minQualifiedCount": 2,
             "qualifiedMembers": list(THREE_MEMBER_NAMES),
         },
         "skillQualification": {
-            "mode": "total", "threshold": 5.0, "requiredCount": 1,
+            "mode": "none", "threshold": 5.0, "requiredCount": 1,
         },
         "dataCollection": {
             "recruitment": False,
@@ -278,6 +287,20 @@ def _require_choice(
 
 def apply_simple_settings(profile: dict[str, Any]) -> dict[str, Any]:
     settings = profile["simpleSettings"]
+    if "difficulty" in settings:
+        preset = SIMPLE_PRESET_OPTIONS["difficulty"][settings["difficulty"]]
+        if preset is not None:
+            job_mode, job_min, skill_mode, skill_min = preset
+            count = len(profile["threePerson"]["qualifiedMembers"])
+            profile["threePerson"].update(
+                jobQualificationMode=job_mode, minJobAverage=job_min,
+                minQualifiedCount=count if job_mode == "count" else 1,
+            )
+            profile["skillQualification"].update(
+                mode=skill_mode, threshold=skill_min,
+                requiredCount=count if skill_mode == "count" else 1,
+            )
+        return profile
     job_quality = SIMPLE_PRESET_OPTIONS["jobQuality"][
         settings["jobQuality"]
     ]
@@ -315,6 +338,8 @@ def _migrate_v1_profile(name: str, old: Any) -> dict[str, Any]:
     profile = _default_profile()
     profile["builtin"] = name == DEFAULT_PROFILE_NAME
     profile["editorMode"] = "advanced"
+    profile["simpleSettings"]["difficulty"] = "自定义"
+    profile["threePerson"]["jobQualificationMode"] = "average"
     profile.pop("skillQualification", None)
     old_three = old.get("threePerson", {})
     old_seven = old.get("sevenPerson", {})
@@ -400,7 +425,12 @@ def validate_rule_config(config: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(name, str) or not name.strip():
             raise ValueError("规则名称不能为空")
         profile = _merge_defaults(default_profile, raw_profile)
+        if "difficulty" not in raw_profile.get("simpleSettings", {}):
+            profile["simpleSettings"]["difficulty"] = "自定义"
+            # Older files must retain their original active gates.
+            profile["threePerson"]["jobQualificationMode"] = raw_profile.get("threePerson", {}).get("jobQualificationMode", "average")
         if "skillQualification" not in raw_profile:
+            profile["skillQualification"]["mode"] = "total"
             profile["skillQualification"]["threshold"] = profile["sevenPerson"]["lowMinSkillScore"]
         profile["builtin"] = bool(
             name == DEFAULT_PROFILE_NAME and profile.get("builtin", False)
@@ -443,7 +473,7 @@ def validate_rule_config(config: dict[str, Any]) -> dict[str, Any]:
         three["jobQualificationMode"] = _require_choice(
             three["jobQualificationMode"],
             f"{name}.三人兵种合格方式",
-            ("average", "count", "all", "total"),
+            ("none", "average", "count", "all", "total"),
         )
         three["minQualifiedCount"] = _require_integer(
             three["minQualifiedCount"],
@@ -461,9 +491,12 @@ def validate_rule_config(config: dict[str, Any]) -> dict[str, Any]:
                 f"{name}.三人兵种合格人数不能超过已选人物数量"
             )
         skill_gate = profile["skillQualification"]
-        skill_gate["mode"] = _require_choice(skill_gate["mode"], f"{name}.特技算分模式", ("count", "average", "total"))
+        skill_gate["mode"] = _require_choice(skill_gate["mode"], f"{name}.特技算分模式", ("none", "count", "average", "total"))
         skill_gate["threshold"] = _require_number(skill_gate["threshold"], f"{name}.特技合格分", 0, 100000)
         skill_gate["requiredCount"] = _require_integer(skill_gate["requiredCount"], f"{name}.特技合格人数", 1, len(three["qualifiedMembers"]))
+        if "specialSkillAutoPass" in skill_gate:
+            skill_gate["specialSkillAutoPass"] = _require_bool(
+                skill_gate["specialSkillAutoPass"], f"{name}.特殊特技直接合格")
         for key, label in (
             ("minJobAverage", "七人兵种门槛"),
             ("normalJobAverage", "普通兵种分界"),
@@ -750,6 +783,10 @@ def skill_types_match(job_type: str, skill_type: str) -> bool:
     )
 
 
+def _meets_threshold(score: float, threshold: float) -> bool:
+    return score >= threshold or math.isclose(score, threshold, rel_tol=0, abs_tol=1e-9)
+
+
 def evaluate_job_rules(
     config: dict[str, Any],
     mode: str,
@@ -806,7 +843,7 @@ def evaluate_job_rules(
         member_name
         for member_name in eligible_members
         if member_name in member_score_by_name
-        and member_score_by_name[member_name] >= threshold
+        and _meets_threshold(member_score_by_name[member_name], threshold)
     ]
     qualified_count = len(qualified_member_names)
     eligible_scores = [member_score_by_name[name] for name in eligible_members
@@ -817,9 +854,10 @@ def evaluate_job_rules(
         required_count = len(members)
     qualification_total = sum(eligible_scores)
     qualified = (
-        bool(eligible_scores) and qualification_total >= threshold
+        True if qualification_mode == "none" else
+        bool(eligible_scores) and _meets_threshold(qualification_total, threshold)
         if qualification_mode == "total" else
-        bool(eligible_scores) and qualification_average >= threshold
+        bool(eligible_scores) and _meets_threshold(qualification_average, threshold)
         if qualification_mode == "average"
         else required_count > 0 and qualified_count >= required_count
     )
@@ -910,7 +948,7 @@ def evaluate_skill_rules(
                     ),
                 )
             )
-            category = "individual" if qualification is not None else classify_skill_score(
+            category = ("special" if score > 0 and score >= seven["specialSkillWeight"] else "individual") if qualification is not None else classify_skill_score(
                 score,
                 seven["ordinarySkillWeight"],
                 seven["strongSkillWeight"],
@@ -921,6 +959,8 @@ def evaluate_skill_rules(
                 counted = score > 0 and effective_remaining.get(skill, 0) > 0
                 if counted:
                     effective_remaining[skill] -= 1
+                    if category == "special":
+                        special_count += 1
             elif category == "special":
                 special_count += 1
                 counted = True
@@ -950,15 +990,18 @@ def evaluate_skill_rules(
         minimum = qualification["threshold"]
         gate_mode = qualification["mode"]
         eligible = list(member_skills)
-        passed = [name for name, score in member_skill_scores.items() if score >= minimum]
+        passed = [name for name, score in member_skill_scores.items() if _meets_threshold(score, minimum)]
         average = skill_score / max(1, len(eligible))
         required = qualification["requiredCount"]
-        qualified = bool(eligible) and (
+        qualified = gate_mode == "none" or bool(eligible) and (
             len(passed) >= required if gate_mode == "count" else
-            average >= minimum if gate_mode == "average" else skill_score >= minimum)
+            _meets_threshold(average, minimum) if gate_mode == "average" else _meets_threshold(skill_score, minimum))
         gate_metrics = dict(qualificationMode=gate_mode, eligibleMembers=eligible,
             threshold=minimum, requiredCount=required, qualifiedCount=len(passed),
             qualifiedMemberNames=passed, qualificationAverage=average)
+        if qualification.get("specialSkillAutoPass", False) and special_count > 0:
+            qualified = True
+            auto_pass_reason = "special_skill"
     elif seven["specialSkillAutoPass"] and special_count > 0:
         qualified = True
         minimum = 0.0

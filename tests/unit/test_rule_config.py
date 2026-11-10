@@ -181,6 +181,7 @@ class RuleConfigTests(unittest.TestCase):
     def test_job_base_score_override_changes_result(self):
         config = default_rule_config()
         profile = config["profiles"][DEFAULT_PROFILE_NAME]
+        profile["threePerson"]["jobQualificationMode"] = "average"
         profile["jobScoring"]["jobBaseScores"] = {
             "群雄": 1,
             "虎豹骑": 1,
@@ -357,6 +358,7 @@ class RuleConfigTests(unittest.TestCase):
     def test_member_affinity_is_configurable_by_type(self):
         config = default_rule_config()
         profile = config["profiles"][DEFAULT_PROFILE_NAME]
+        profile["threePerson"]["jobQualificationMode"] = "average"
         profile["threePerson"]["minJobAverage"] = 8.4
         profile["memberAffinity"]["曹操"] = {
             "primaryType": "MASTER",
@@ -564,9 +566,10 @@ class RuleConfigTests(unittest.TestCase):
         self.assertFalse(result.qualified)
         self.assertEqual(0, result.metrics["skillScore"])
 
-    def test_simple_preset_updates_abstract_weights(self):
+    def test_legacy_simple_settings_without_new_preset_remain_supported(self):
         config = default_rule_config()
         profile = config["profiles"][DEFAULT_PROFILE_NAME]
+        profile["simpleSettings"].pop("difficulty")
         profile["simpleSettings"].update(
             {
                 "jobQuality": "严格",

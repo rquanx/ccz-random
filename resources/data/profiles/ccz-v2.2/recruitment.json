@@ -1,0 +1,2169 @@
+{
+  "schemaVersion": 1,
+  "gameVersion": "2.2",
+  "sourceScriptSha256": "b8c28549eaee638592d4fa042f45d4365c7506c0f0daca07858cacb715b61751",
+  "sourceImsgSha256": "01afec8e2a8d2441afbf600553c23ad7178ebd40bb1d6d408684d64cd5f64564",
+  "stages": [
+    {
+      "stageId": 0,
+      "recordIndices": [
+        146,
+        147,
+        5
+      ],
+      "name": "颍川之战",
+      "route": "共通"
+    },
+    {
+      "stageId": 1,
+      "recordIndices": [
+        134,
+        135,
+        10
+      ],
+      "name": "汜水关之战",
+      "route": "共通"
+    },
+    {
+      "stageId": 2,
+      "recordIndices": [
+        11
+      ],
+      "name": "虎牢关之战",
+      "route": "共通"
+    },
+    {
+      "stageId": 3,
+      "recordIndices": [
+        132,
+        133,
+        128,
+        130,
+        24
+      ],
+      "name": "荥阳追击战",
+      "route": "共通"
+    },
+    {
+      "stageId": 4,
+      "recordIndices": [
+        99
+      ],
+      "name": "青州讨伐战",
+      "route": "共通"
+    },
+    {
+      "stageId": 5,
+      "recordIndices": [
+        145,
+        14,
+        21
+      ],
+      "name": "徐州之战",
+      "route": "共通"
+    },
+    {
+      "stageId": 6,
+      "recordIndices": [
+        18
+      ],
+      "name": "濮阳夺回战",
+      "route": "共通"
+    },
+    {
+      "stageId": 9,
+      "recordIndices": [
+        131,
+        129,
+        13,
+        149
+      ],
+      "name": "天子救援战",
+      "route": "共通"
+    },
+    {
+      "stageId": 10,
+      "recordIndices": [
+        144,
+        205,
+        25
+      ],
+      "name": "宛城之战",
+      "route": "共通"
+    },
+    {
+      "stageId": 11,
+      "recordIndices": [
+        137
+      ],
+      "name": "寿春之战",
+      "route": "共通"
+    },
+    {
+      "stageId": 13,
+      "recordIndices": [
+        124,
+        125
+      ],
+      "name": "小沛救援战",
+      "route": "共通"
+    },
+    {
+      "stageId": 14,
+      "recordIndices": [
+        119,
+        122,
+        126,
+        123,
+        143,
+        17
+      ],
+      "name": "下邳包围战",
+      "route": "共通"
+    },
+    {
+      "stageId": 15,
+      "recordIndices": [
+        23
+      ],
+      "name": "徐州平定战",
+      "route": "共通"
+    },
+    {
+      "stageId": 16,
+      "recordIndices": [
+        108,
+        120,
+        121
+      ],
+      "name": "白马之战",
+      "route": "共通"
+    },
+    {
+      "stageId": 17,
+      "recordIndices": [
+        100,
+        109
+      ],
+      "name": "延津之战",
+      "route": "共通"
+    },
+    {
+      "stageId": 18,
+      "recordIndices": [
+        105,
+        110,
+        107,
+        111,
+        7
+      ],
+      "name": "官渡决战",
+      "route": "共通"
+    },
+    {
+      "stageId": 20,
+      "recordIndices": [
+        74,
+        75
+      ],
+      "name": "穰山之战",
+      "route": "共通"
+    },
+    {
+      "stageId": 21,
+      "recordIndices": [
+        8
+      ],
+      "name": "黎阳之战",
+      "route": "共通"
+    },
+    {
+      "stageId": 22,
+      "recordIndices": [
+        106,
+        206
+      ],
+      "name": "邺城之战",
+      "route": "共通"
+    },
+    {
+      "stageId": 23,
+      "recordIndices": [
+        113,
+        112,
+        103
+      ],
+      "name": "南皮攻略战",
+      "route": "共通"
+    },
+    {
+      "stageId": 24,
+      "recordIndices": [
+        114,
+        115,
+        116
+      ],
+      "name": "柳城平定战",
+      "route": "共通"
+    },
+    {
+      "stageId": 26,
+      "recordIndices": [
+        27,
+        26,
+        28,
+        64
+      ],
+      "name": "长坂坡之战",
+      "route": "共通"
+    },
+    {
+      "stageId": 28,
+      "recordIndices": [
+        91,
+        207
+      ],
+      "name": "赤壁之战",
+      "route": "共通"
+    },
+    {
+      "stageId": 29,
+      "recordIndices": [
+        98,
+        208
+      ],
+      "name": "赤壁突围战",
+      "route": "共通"
+    },
+    {
+      "stageId": 30,
+      "recordIndices": [
+        77,
+        95,
+        209
+      ],
+      "name": "合肥退敌战",
+      "route": "红线"
+    },
+    {
+      "stageId": 31,
+      "recordIndices": [
+        90
+      ],
+      "name": "渭水迎击战",
+      "route": "红线"
+    },
+    {
+      "stageId": 32,
+      "recordIndices": [
+        140,
+        141,
+        142
+      ],
+      "name": "汉中讨伐战",
+      "route": "红线"
+    },
+    {
+      "stageId": 33,
+      "recordIndices": [
+        89
+      ],
+      "name": "逍遥津之战",
+      "route": "红线"
+    },
+    {
+      "stageId": 34,
+      "recordIndices": [
+        78
+      ],
+      "name": "濡须口之战",
+      "route": "红线"
+    },
+    {
+      "stageId": 35,
+      "recordIndices": [
+        38,
+        63
+      ],
+      "name": "定军山之战",
+      "route": "红线"
+    },
+    {
+      "stageId": 38,
+      "recordIndices": [
+        33,
+        36,
+        80,
+        45,
+        65,
+        46,
+        47
+      ],
+      "name": "樊城救援战",
+      "route": "红线"
+    },
+    {
+      "stageId": 39,
+      "recordIndices": [
+        40,
+        43,
+        41,
+        42
+      ],
+      "name": "阳平关之战",
+      "route": "红线"
+    },
+    {
+      "stageId": 40,
+      "recordIndices": [
+        61,
+        68,
+        70,
+        73
+      ],
+      "name": "剑阁之战",
+      "route": "红线"
+    },
+    {
+      "stageId": 41,
+      "recordIndices": [
+        57,
+        37,
+        66,
+        44,
+        59
+      ],
+      "name": "成都决战",
+      "route": "红线"
+    },
+    {
+      "stageId": 42,
+      "recordIndices": [
+        35,
+        58,
+        60,
+        71,
+        72
+      ],
+      "name": "白帝城之战",
+      "route": "红线"
+    },
+    {
+      "stageId": 46,
+      "recordIndices": [
+        36,
+        38,
+        47
+      ],
+      "name": "定军山之战·异",
+      "route": "蓝线"
+    },
+    {
+      "stageId": 47,
+      "recordIndices": [
+        33,
+        46,
+        44,
+        53,
+        54,
+        49,
+        51,
+        82
+      ],
+      "name": "麦城救援战",
+      "route": "蓝线"
+    },
+    {
+      "stageId": 48,
+      "recordIndices": [
+        83
+      ],
+      "name": "江陵之战",
+      "route": "蓝线"
+    },
+    {
+      "stageId": 49,
+      "recordIndices": [
+        87,
+        89
+      ],
+      "name": "赤壁之战  贰",
+      "route": "蓝线"
+    },
+    {
+      "stageId": 50,
+      "recordIndices": [
+        93,
+        94
+      ],
+      "name": "濡须口之战",
+      "route": "蓝线"
+    },
+    {
+      "stageId": 51,
+      "recordIndices": [
+        80,
+        81,
+        84,
+        85,
+        86,
+        88,
+        78,
+        79
+      ],
+      "name": "建业决战",
+      "route": "蓝线"
+    },
+    {
+      "stageId": 52,
+      "recordIndices": [
+        57,
+        96,
+        92
+      ],
+      "name": "鱼腹浦之战",
+      "route": "蓝线"
+    }
+  ],
+  "people": [
+    {
+      "recordIndex": 146,
+      "name": "张宝",
+      "stages": [
+        {
+          "stageId": 0,
+          "name": "颍川之战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 147,
+      "name": "张梁",
+      "stages": [
+        {
+          "stageId": 0,
+          "name": "颍川之战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 5,
+      "name": "曹仁",
+      "stages": [
+        {
+          "stageId": 0,
+          "name": "颍川之战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 134,
+      "name": "华雄",
+      "stages": [
+        {
+          "stageId": 1,
+          "name": "汜水关之战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 135,
+      "name": "李肃",
+      "stages": [
+        {
+          "stageId": 1,
+          "name": "汜水关之战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 10,
+      "name": "乐进",
+      "stages": [
+        {
+          "stageId": 1,
+          "name": "汜水关之战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 11,
+      "name": "李典",
+      "stages": [
+        {
+          "stageId": 2,
+          "name": "虎牢关之战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 132,
+      "name": "李儒",
+      "stages": [
+        {
+          "stageId": 3,
+          "name": "荥阳追击战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 133,
+      "name": "樊稠",
+      "stages": [
+        {
+          "stageId": 3,
+          "name": "荥阳追击战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 128,
+      "name": "张济",
+      "stages": [
+        {
+          "stageId": 3,
+          "name": "荥阳追击战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 130,
+      "name": "徐荣",
+      "stages": [
+        {
+          "stageId": 3,
+          "name": "荥阳追击战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 24,
+      "name": "荀攸",
+      "stages": [
+        {
+          "stageId": 3,
+          "name": "荥阳追击战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 99,
+      "name": "孙坚",
+      "stages": [
+        {
+          "stageId": 4,
+          "name": "青州讨伐战",
+          "route": "共通"
+        }
+      ],
+      "cost": 2,
+      "fixedConfiguration": false,
+      "jobChoices": [
+        "群雄",
+        "保持当前随机结果"
+      ]
+    },
+    {
+      "recordIndex": 145,
+      "name": "陶谦",
+      "stages": [
+        {
+          "stageId": 5,
+          "name": "徐州之战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 14,
+      "name": "于禁",
+      "stages": [
+        {
+          "stageId": 5,
+          "name": "徐州之战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 21,
+      "name": "程昱",
+      "stages": [
+        {
+          "stageId": 5,
+          "name": "徐州之战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 18,
+      "name": "刘晔",
+      "stages": [
+        {
+          "stageId": 6,
+          "name": "濮阳夺回战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 131,
+      "name": "李傕",
+      "stages": [
+        {
+          "stageId": 9,
+          "name": "天子救援战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 129,
+      "name": "郭汜",
+      "stages": [
+        {
+          "stageId": 9,
+          "name": "天子救援战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 13,
+      "name": "徐晃",
+      "stages": [
+        {
+          "stageId": 9,
+          "name": "天子救援战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 149,
+      "name": "刘协",
+      "stages": [
+        {
+          "stageId": 9,
+          "name": "天子救援战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 144,
+      "name": "胡车儿",
+      "stages": [
+        {
+          "stageId": 10,
+          "name": "宛城之战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 205,
+      "name": "邹氏",
+      "stages": [
+        {
+          "stageId": 10,
+          "name": "宛城之战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": true,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 25,
+      "name": "满宠",
+      "stages": [
+        {
+          "stageId": 10,
+          "name": "宛城之战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 137,
+      "name": "纪灵",
+      "stages": [
+        {
+          "stageId": 11,
+          "name": "寿春之战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 124,
+      "name": "曹性",
+      "stages": [
+        {
+          "stageId": 13,
+          "name": "小沛救援战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 125,
+      "name": "臧霸",
+      "stages": [
+        {
+          "stageId": 13,
+          "name": "小沛救援战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 119,
+      "name": "吕布",
+      "stages": [
+        {
+          "stageId": 14,
+          "name": "下邳包围战",
+          "route": "共通"
+        }
+      ],
+      "cost": 4,
+      "fixedConfiguration": false,
+      "jobChoices": [
+        "宿卫骑",
+        "保持随机结果"
+      ]
+    },
+    {
+      "recordIndex": 122,
+      "name": "高顺",
+      "stages": [
+        {
+          "stageId": 14,
+          "name": "下邳包围战",
+          "route": "共通"
+        }
+      ],
+      "cost": 2,
+      "fixedConfiguration": false,
+      "jobChoices": [
+        "西凉骑",
+        "先锋",
+        "保持原兵种"
+      ]
+    },
+    {
+      "recordIndex": 126,
+      "name": "陈宫",
+      "stages": [
+        {
+          "stageId": 14,
+          "name": "下邳包围战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 123,
+      "name": "侯成",
+      "stages": [
+        {
+          "stageId": 14,
+          "name": "下邳包围战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 143,
+      "name": "张绣",
+      "stages": [
+        {
+          "stageId": 14,
+          "name": "下邳包围战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 17,
+      "name": "貂蝉",
+      "stages": [
+        {
+          "stageId": 14,
+          "name": "下邳包围战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 23,
+      "name": "贾诩",
+      "stages": [
+        {
+          "stageId": 15,
+          "name": "徐州平定战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 108,
+      "name": "颜良",
+      "stages": [
+        {
+          "stageId": 16,
+          "name": "白马之战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 120,
+      "name": "魏续",
+      "stages": [
+        {
+          "stageId": 16,
+          "name": "白马之战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 121,
+      "name": "宋宪",
+      "stages": [
+        {
+          "stageId": 16,
+          "name": "白马之战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 100,
+      "name": "孙策",
+      "stages": [
+        {
+          "stageId": 17,
+          "name": "延津之战",
+          "route": "共通"
+        }
+      ],
+      "cost": 3,
+      "fixedConfiguration": false,
+      "jobChoices": [
+        "群雄",
+        "勇将",
+        "保持当前随机结果"
+      ]
+    },
+    {
+      "recordIndex": 109,
+      "name": "文丑",
+      "stages": [
+        {
+          "stageId": 17,
+          "name": "延津之战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 105,
+      "name": "沮授",
+      "stages": [
+        {
+          "stageId": 18,
+          "name": "官渡决战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 110,
+      "name": "田丰",
+      "stages": [
+        {
+          "stageId": 18,
+          "name": "官渡决战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 107,
+      "name": "高览",
+      "stages": [
+        {
+          "stageId": 18,
+          "name": "官渡决战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 111,
+      "name": "淳于琼",
+      "stages": [
+        {
+          "stageId": 18,
+          "name": "官渡决战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 7,
+      "name": "张郃",
+      "stages": [
+        {
+          "stageId": 18,
+          "name": "官渡决战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 74,
+      "name": "刘辟",
+      "stages": [
+        {
+          "stageId": 20,
+          "name": "穰山之战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 75,
+      "name": "龚都",
+      "stages": [
+        {
+          "stageId": 20,
+          "name": "穰山之战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 8,
+      "name": "曹丕",
+      "stages": [
+        {
+          "stageId": 21,
+          "name": "黎阳之战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 106,
+      "name": "审配",
+      "stages": [
+        {
+          "stageId": 22,
+          "name": "邺城之战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 206,
+      "name": "甄宓",
+      "stages": [
+        {
+          "stageId": 22,
+          "name": "邺城之战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": true,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 113,
+      "name": "袁谭",
+      "stages": [
+        {
+          "stageId": 23,
+          "name": "南皮攻略战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 112,
+      "name": "辛评",
+      "stages": [
+        {
+          "stageId": 23,
+          "name": "南皮攻略战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 103,
+      "name": "郭图",
+      "stages": [
+        {
+          "stageId": 23,
+          "name": "南皮攻略战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 114,
+      "name": "袁熙",
+      "stages": [
+        {
+          "stageId": 24,
+          "name": "柳城平定战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 115,
+      "name": "袁尚",
+      "stages": [
+        {
+          "stageId": 24,
+          "name": "柳城平定战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 116,
+      "name": "高干",
+      "stages": [
+        {
+          "stageId": 24,
+          "name": "柳城平定战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 27,
+      "name": "文聘",
+      "stages": [
+        {
+          "stageId": 26,
+          "name": "长坂坡之战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 26,
+      "name": "夏侯恩",
+      "stages": [
+        {
+          "stageId": 26,
+          "name": "长坂坡之战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 28,
+      "name": "夏侯杰",
+      "stages": [
+        {
+          "stageId": 26,
+          "name": "长坂坡之战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 64,
+      "name": "刘琦",
+      "stages": [
+        {
+          "stageId": 26,
+          "name": "长坂坡之战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 91,
+      "name": "黄盖",
+      "stages": [
+        {
+          "stageId": 28,
+          "name": "赤壁之战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 207,
+      "name": "大乔",
+      "stages": [
+        {
+          "stageId": 28,
+          "name": "赤壁之战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": true,
+      "jobChoices": [
+        "炮车（携带床弩）",
+        "步兵（携带手戟）"
+      ]
+    },
+    {
+      "recordIndex": 98,
+      "name": "程普",
+      "stages": [
+        {
+          "stageId": 29,
+          "name": "赤壁突围战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 208,
+      "name": "小乔",
+      "stages": [
+        {
+          "stageId": 29,
+          "name": "赤壁突围战",
+          "route": "共通"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": true,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 77,
+      "name": "周瑜",
+      "stages": [
+        {
+          "stageId": 30,
+          "name": "合肥退敌战",
+          "route": "红线"
+        }
+      ],
+      "cost": 3,
+      "fixedConfiguration": false,
+      "jobChoices": [
+        "都督",
+        "将军",
+        "骑策"
+      ]
+    },
+    {
+      "recordIndex": 95,
+      "name": "太史慈",
+      "stages": [
+        {
+          "stageId": 30,
+          "name": "合肥退敌战",
+          "route": "红线"
+        }
+      ],
+      "cost": 2,
+      "fixedConfiguration": false,
+      "jobChoices": [
+        "宿卫骑",
+        "神羿骑",
+        "保持随机结果"
+      ]
+    },
+    {
+      "recordIndex": 209,
+      "name": "孙尚香",
+      "stages": [
+        {
+          "stageId": 30,
+          "name": "合肥退敌战",
+          "route": "红线"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": true,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 90,
+      "name": "庞统",
+      "stages": [
+        {
+          "stageId": 31,
+          "name": "渭水迎击战",
+          "route": "红线"
+        }
+      ],
+      "cost": 2,
+      "fixedConfiguration": false,
+      "jobChoices": [
+        "咒术师",
+        "保持随机结果"
+      ]
+    },
+    {
+      "recordIndex": 140,
+      "name": "张鲁",
+      "stages": [
+        {
+          "stageId": 32,
+          "name": "汉中讨伐战",
+          "route": "红线"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 141,
+      "name": "张卫",
+      "stages": [
+        {
+          "stageId": 32,
+          "name": "汉中讨伐战",
+          "route": "红线"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 142,
+      "name": "阎圃",
+      "stages": [
+        {
+          "stageId": 32,
+          "name": "汉中讨伐战",
+          "route": "红线"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 89,
+      "name": "陈武",
+      "stages": [
+        {
+          "stageId": 33,
+          "name": "逍遥津之战",
+          "route": "红线"
+        },
+        {
+          "stageId": 49,
+          "name": "赤壁之战  贰",
+          "route": "蓝线"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 78,
+      "name": "鲁肃",
+      "stages": [
+        {
+          "stageId": 34,
+          "name": "濡须口之战",
+          "route": "红线"
+        },
+        {
+          "stageId": 51,
+          "name": "建业决战",
+          "route": "蓝线"
+        }
+      ],
+      "cost": 2,
+      "fixedConfiguration": false,
+      "jobChoices": [
+        "都督",
+        "咒术士",
+        "保留随机结果"
+      ]
+    },
+    {
+      "recordIndex": 38,
+      "name": "法正",
+      "stages": [
+        {
+          "stageId": 35,
+          "name": "定军山之战",
+          "route": "红线"
+        },
+        {
+          "stageId": 46,
+          "name": "定军山之战·异",
+          "route": "蓝线"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 63,
+      "name": "雷铜",
+      "stages": [
+        {
+          "stageId": 35,
+          "name": "定军山之战",
+          "route": "红线"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 33,
+      "name": "张飞",
+      "stages": [
+        {
+          "stageId": 38,
+          "name": "樊城救援战",
+          "route": "红线"
+        },
+        {
+          "stageId": 47,
+          "name": "麦城救援战",
+          "route": "蓝线"
+        }
+      ],
+      "cost": 3,
+      "fixedConfiguration": false,
+      "jobChoices": [
+        "宿卫骑",
+        "保持随机结果"
+      ]
+    },
+    {
+      "recordIndex": 36,
+      "name": "黄忠",
+      "stages": [
+        {
+          "stageId": 38,
+          "name": "樊城救援战",
+          "route": "红线"
+        },
+        {
+          "stageId": 46,
+          "name": "定军山之战·异",
+          "route": "蓝线"
+        }
+      ],
+      "cost": 3,
+      "fixedConfiguration": false,
+      "jobChoices": [
+        "弓兵",
+        "穿杨手",
+        "弓骑兵",
+        "神羿骑",
+        "保留随机结果"
+      ]
+    },
+    {
+      "recordIndex": 80,
+      "name": "吕蒙",
+      "stages": [
+        {
+          "stageId": 38,
+          "name": "樊城救援战",
+          "route": "红线"
+        },
+        {
+          "stageId": 51,
+          "name": "建业决战",
+          "route": "蓝线"
+        }
+      ],
+      "cost": 3,
+      "fixedConfiguration": false,
+      "jobChoices": [
+        "策士",
+        "将军",
+        "都督",
+        "保留随机结果"
+      ]
+    },
+    {
+      "recordIndex": 45,
+      "name": "刘封",
+      "stages": [
+        {
+          "stageId": 38,
+          "name": "樊城救援战",
+          "route": "红线"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 65,
+      "name": "孟达",
+      "stages": [
+        {
+          "stageId": 38,
+          "name": "樊城救援战",
+          "route": "红线"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 46,
+      "name": "关平",
+      "stages": [
+        {
+          "stageId": 38,
+          "name": "樊城救援战",
+          "route": "红线"
+        },
+        {
+          "stageId": 47,
+          "name": "麦城救援战",
+          "route": "蓝线"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 47,
+      "name": "周仓",
+      "stages": [
+        {
+          "stageId": 38,
+          "name": "樊城救援战",
+          "route": "红线"
+        },
+        {
+          "stageId": 46,
+          "name": "定军山之战·异",
+          "route": "蓝线"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 40,
+      "name": "孙乾",
+      "stages": [
+        {
+          "stageId": 39,
+          "name": "阳平关之战",
+          "route": "红线"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 43,
+      "name": "简雍",
+      "stages": [
+        {
+          "stageId": 39,
+          "name": "阳平关之战",
+          "route": "红线"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 41,
+      "name": "糜竺",
+      "stages": [
+        {
+          "stageId": 39,
+          "name": "阳平关之战",
+          "route": "红线"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 42,
+      "name": "糜芳",
+      "stages": [
+        {
+          "stageId": 39,
+          "name": "阳平关之战",
+          "route": "红线"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 61,
+      "name": "吴懿",
+      "stages": [
+        {
+          "stageId": 40,
+          "name": "剑阁之战",
+          "route": "红线"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 68,
+      "name": "张嶷",
+      "stages": [
+        {
+          "stageId": 40,
+          "name": "剑阁之战",
+          "route": "红线"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 70,
+      "name": "张翼",
+      "stages": [
+        {
+          "stageId": 40,
+          "name": "剑阁之战",
+          "route": "红线"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 73,
+      "name": "孟优",
+      "stages": [
+        {
+          "stageId": 40,
+          "name": "剑阁之战",
+          "route": "红线"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 57,
+      "name": "马超",
+      "stages": [
+        {
+          "stageId": 41,
+          "name": "成都决战",
+          "route": "红线"
+        },
+        {
+          "stageId": 52,
+          "name": "鱼腹浦之战",
+          "route": "蓝线"
+        }
+      ],
+      "cost": 2,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 37,
+      "name": "魏延",
+      "stages": [
+        {
+          "stageId": 41,
+          "name": "成都决战",
+          "route": "红线"
+        }
+      ],
+      "cost": 2,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 66,
+      "name": "关索",
+      "stages": [
+        {
+          "stageId": 41,
+          "name": "成都决战",
+          "route": "红线"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 44,
+      "name": "廖化",
+      "stages": [
+        {
+          "stageId": 41,
+          "name": "成都决战",
+          "route": "红线"
+        },
+        {
+          "stageId": 47,
+          "name": "麦城救援战",
+          "route": "蓝线"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 59,
+      "name": "王平",
+      "stages": [
+        {
+          "stageId": 41,
+          "name": "成都决战",
+          "route": "红线"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 35,
+      "name": "诸葛亮",
+      "stages": [
+        {
+          "stageId": 42,
+          "name": "白帝城之战",
+          "route": "红线"
+        }
+      ],
+      "cost": 4,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 58,
+      "name": "马岱",
+      "stages": [
+        {
+          "stageId": 42,
+          "name": "白帝城之战",
+          "route": "红线"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 60,
+      "name": "李严",
+      "stages": [
+        {
+          "stageId": 42,
+          "name": "白帝城之战",
+          "route": "红线"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 71,
+      "name": "孟获",
+      "stages": [
+        {
+          "stageId": 42,
+          "name": "白帝城之战",
+          "route": "红线"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 72,
+      "name": "祝融",
+      "stages": [
+        {
+          "stageId": 42,
+          "name": "白帝城之战",
+          "route": "红线"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 53,
+      "name": "关兴",
+      "stages": [
+        {
+          "stageId": 47,
+          "name": "麦城救援战",
+          "route": "蓝线"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 54,
+      "name": "张苞",
+      "stages": [
+        {
+          "stageId": 47,
+          "name": "麦城救援战",
+          "route": "蓝线"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 49,
+      "name": "马良",
+      "stages": [
+        {
+          "stageId": 47,
+          "name": "麦城救援战",
+          "route": "蓝线"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 51,
+      "name": "王甫",
+      "stages": [
+        {
+          "stageId": 47,
+          "name": "麦城救援战",
+          "route": "蓝线"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 82,
+      "name": "潘璋",
+      "stages": [
+        {
+          "stageId": 47,
+          "name": "麦城救援战",
+          "route": "蓝线"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 83,
+      "name": "徐盛",
+      "stages": [
+        {
+          "stageId": 48,
+          "name": "江陵之战",
+          "route": "蓝线"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 87,
+      "name": "蒋钦",
+      "stages": [
+        {
+          "stageId": 49,
+          "name": "赤壁之战  贰",
+          "route": "蓝线"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 93,
+      "name": "董袭",
+      "stages": [
+        {
+          "stageId": 50,
+          "name": "濡须口之战",
+          "route": "蓝线"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 94,
+      "name": "韩当",
+      "stages": [
+        {
+          "stageId": 50,
+          "name": "濡须口之战",
+          "route": "蓝线"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 81,
+      "name": "陆逊",
+      "stages": [
+        {
+          "stageId": 51,
+          "name": "建业决战",
+          "route": "蓝线"
+        }
+      ],
+      "cost": 3,
+      "fixedConfiguration": false,
+      "jobChoices": [
+        "玉龙军",
+        "都督"
+      ]
+    },
+    {
+      "recordIndex": 84,
+      "name": "甘宁",
+      "stages": [
+        {
+          "stageId": 51,
+          "name": "建业决战",
+          "route": "蓝线"
+        }
+      ],
+      "cost": 3,
+      "fixedConfiguration": false,
+      "jobChoices": [
+        "水贼",
+        "云川卫",
+        "勇将",
+        "保留随机结果"
+      ]
+    },
+    {
+      "recordIndex": 85,
+      "name": "凌统",
+      "stages": [
+        {
+          "stageId": 51,
+          "name": "建业决战",
+          "route": "蓝线"
+        }
+      ],
+      "cost": 3,
+      "fixedConfiguration": false,
+      "jobChoices": [
+        "西凉骑",
+        "游牧骑",
+        "保留随机结果"
+      ]
+    },
+    {
+      "recordIndex": 86,
+      "name": "周泰",
+      "stages": [
+        {
+          "stageId": 51,
+          "name": "建业决战",
+          "route": "蓝线"
+        }
+      ],
+      "cost": 2,
+      "fixedConfiguration": false,
+      "jobChoices": [
+        "力士",
+        "保留随机结果"
+      ]
+    },
+    {
+      "recordIndex": 88,
+      "name": "张昭",
+      "stages": [
+        {
+          "stageId": 51,
+          "name": "建业决战",
+          "route": "蓝线"
+        }
+      ],
+      "cost": 2,
+      "fixedConfiguration": false,
+      "jobChoices": [
+        "策士",
+        "医师",
+        "保留随机结果"
+      ]
+    },
+    {
+      "recordIndex": 79,
+      "name": "诸葛瑾",
+      "stages": [
+        {
+          "stageId": 51,
+          "name": "建业决战",
+          "route": "蓝线"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 96,
+      "name": "丁奉",
+      "stages": [
+        {
+          "stageId": 52,
+          "name": "鱼腹浦之战",
+          "route": "蓝线"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    },
+    {
+      "recordIndex": 92,
+      "name": "全琮",
+      "stages": [
+        {
+          "stageId": 52,
+          "name": "鱼腹浦之战",
+          "route": "蓝线"
+        }
+      ],
+      "cost": 1,
+      "fixedConfiguration": false,
+      "jobChoices": []
+    }
+  ]
+}

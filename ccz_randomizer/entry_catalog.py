@@ -1,35 +1,31 @@
 """Story entry timing from 2.2 R scripts (before the matching S battle)."""
 from __future__ import annotations
 
-from ccz_randomizer.fixed_members import FIXED_MEMBER_INDICES
+from ccz_randomizer.fixed_members import fixed_member_indices
+from ccz_randomizer.game_versions import current_game_version, is_enhanced_game_version, normalize_game_version
 from ccz_randomizer.recruitment_catalog import load_catalog
+from ccz_randomizer.profiles import load_profile, profile_id_for_game_version
 
-# A story character can enter on different stages on the two routes.
 FIXED_ENTRY_STAGES = {
-    "曹操": ((0, "共通 · 颍川之战"),),
-    "夏侯惇": ((0, "共通 · 颍川之战"),),
-    "夏侯渊": ((0, "共通 · 颍川之战"),),
-    "曹洪": ((1, "共通 · 汜水关之战"),),
-    "典韦": ((4, "共通 · 青州讨伐战"),),
-    "荀彧": ((4, "共通 · 青州讨伐战"),),
-    "郭嘉": ((5, "共通 · 徐州之战"),),
-    "许褚": ((8, "共通 · 濮阳决战"),),
-    "张辽": ((15, "共通 · 徐州平定战"),),
-    "司马懿": ((32, "红线 · 汉中讨伐战"), (46, "蓝线 · 定军山之战·异")),
-    "庞德": ((33, "红线 · 逍遥津之战"), (46, "蓝线 · 定军山之战·异")),
-    "郭淮": ((35, "红线 · 定军山之战"),),
-    "曹彰": ((38, "红线 · 樊城救援战"), (46, "蓝线 · 定军山之战·异")),
-    "赵云": ((47, "蓝线 · 麦城救援战"),),
+    item["name"]: tuple((stage["stageId"], stage["label"]) for stage in item.get("stages", ()))
+    for item in load_profile("ccz-v2.2").fixed_entries["members"]
 }
 
 
-def attach_fixed_entries(rows: list[dict]) -> list[dict]:
+def fixed_entry_stages(version=None):
+    version = current_game_version() if version is None else normalize_game_version(version)
+    profile = load_profile(profile_id_for_game_version(version))
+    return {item["name"]: tuple((stage["stageId"], stage["label"]) for stage in item.get("stages", ())) for item in profile.fixed_entries["members"]}
+
+
+def attach_fixed_entries(rows: list[dict], *, version=None) -> list[dict]:
+    indices = fixed_member_indices(version)
     by_index = {row["recordIndex"]: row for row in rows}
     result = []
-    for name, entries in FIXED_ENTRY_STAGES.items():
-        row = dict(by_index[FIXED_MEMBER_INDICES[name]])
+    for name, entries in fixed_entry_stages(version).items():
+        row = dict(by_index[indices[name]])
         if row["name"] != name:
-            raise ValueError("固定入队人物与 2.2 目录不匹配")
+            raise ValueError("固定入队人物与当前版本目录不匹配")
         stages = [label for _index, label in entries]
         row.update(entryKind="fixed", stages=stages, stage=" / ".join(stages),
                    availabilityVerified=True, recruitmentCost=0)
@@ -37,16 +33,16 @@ def attach_fixed_entries(rows: list[dict]) -> list[dict]:
     return result
 
 
-def missing_fixed_entries() -> list[dict]:
+def missing_fixed_entries(version=None) -> list[dict]:
     return attach_fixed_entries([
         {"recordIndex": index, "name": name, "jobId": 0, "job": "未采集",
          "jobTalents": ["未采集"], "personalTalents": ["未采集"]}
-        for name, index in FIXED_MEMBER_INDICES.items()
-    ])
+        for name, index in fixed_member_indices(version).items()
+    ], version=version)
 
 
-def entry_stage_order() -> dict[str, int]:
+def entry_stage_order(version=None) -> dict[str, int]:
     order = {f'{stage["route"]} · {stage["name"]}': stage["stageId"]
-             for person in load_catalog() for stage in person["stages"]}
-    order.update({label: index for entries in FIXED_ENTRY_STAGES.values() for index, label in entries})
+             for person in load_catalog(version=version) for stage in person["stages"]}
+    order.update({label: index for entries in fixed_entry_stages(version).values() for index, label in entries})
     return order

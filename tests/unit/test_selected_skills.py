@@ -1,3 +1,4 @@
+from ccz_randomizer.ui.inputs import TextEntry
 import json
 import unittest
 from unittest.mock import patch
@@ -24,6 +25,7 @@ class SelectedSkillTests(unittest.TestCase):
         config['activeProfile'] = '张宝规则'
         profile = active_profile(config)
         profile.update(builtin=False, editorMode='advanced')
+        profile['dataCollection']['allRandomPersonnel'] = True
         profile['threePerson'].update(qualifiedMembers=['张宝'], minQualifiedCount=1, minJobAverage=8)
         root = tk.Tk()
         self.addCleanup(root.destroy)
@@ -48,11 +50,11 @@ class SelectedSkillTests(unittest.TestCase):
             self.assertTrue(all(w.winfo_x() + w.winfo_width() <= w.master.winfo_width() for w in checks))
             next(w for w in descendants(selection) if isinstance(w, tk.Button) and w.cget('text') == '取消').invoke()
             root.update()
-            mode = next(w for w in descendants(editor) if isinstance(w, ttk.Combobox) and tuple(w.cget('values')) == ('指定人数达标', '平均分达标', '总分达标') and int(w.grid_info()['row']) == 2)
+            mode = next(w for w in descendants(editor) if isinstance(w, ttk.Combobox) and tuple(w.cget('values')) == ('无要求', '指定人数达标', '平均分达标', '总分达标') and int(w.grid_info()['row']) == 2)
             mode.set('平均分达标')
             mode.event_generate('<<ComboboxSelected>>')
             threshold = next(w for w in descendants(editor) if isinstance(w, tk.Label) and w.cget('text') == '特技合格分')
-            entry = next(w for w in threshold.master.grid_slaves(row=2, column=1) if isinstance(w, tk.Entry))
+            entry = next(w for w in threshold.master.grid_slaves(row=2, column=1) if isinstance(w, TextEntry))
             entry.delete(0, 'end')
             entry.insert(0, '2.5')
             next(w for w in descendants(editor) if isinstance(w, tk.Button) and w.cget('text') == '保存规则').invoke()
@@ -60,7 +62,7 @@ class SelectedSkillTests(unittest.TestCase):
         result = active_profile(saved[0])
         self.assertEqual(['张宝'], result['threePerson']['qualifiedMembers'])
         self.assertEqual(8, result['threePerson']['minJobAverage'])
-        self.assertEqual(dict(mode='average', threshold=2.5, requiredCount=1), result['skillQualification'])
+        self.assertEqual(dict(mode='average', threshold=2.5, requiredCount=1, specialSkillAutoPass=False), result['skillQualification'])
 
     def test_only_selected_person_is_read_with_planned_job_and_real_talents(self):
         app.install(app.bundle_root())
@@ -75,7 +77,7 @@ class SelectedSkillTests(unittest.TestCase):
         expected = next(p for p in json.loads((FIXTURES / 'randomized-personnel.json').read_text(encoding='utf-8')) if p['name'] == '张宝')
         self.assertEqual(['张宝'], [m.name for m in members])
         self.assertEqual(expected['personalTalents'] + expected['jobTalents'], [s.name for s in members[0].skillList])
-        active_profile(rules)['skillQualification'].update(threshold=100)
+        active_profile(rules)['skillQualification'].update(mode='total', threshold=100)
         result = app.evaluate_task_skill_rules(rules, task_module, members, 20)
         self.assertFalse(result.qualified)
         self.assertEqual('', result.metrics['autoPassReason'])

@@ -26,6 +26,8 @@ def migrate_imported_profile(raw, mode):
     # Import here avoids a config/importer module cycle.
     from ccz_randomizer.rules.config import _default_profile, _merge_defaults
     profile = _merge_defaults(_default_profile(), raw)
+    profile["simpleSettings"]["difficulty"] = "自定义"
+    profile["threePerson"]["jobQualificationMode"] = raw.get("threePerson", {}).get("jobQualificationMode", "average")
     source = profile["threePerson" if mode == "three" else "sevenPerson"]
     profile["threePerson"] = {key: copy.deepcopy(source[key]) for key in (
         "minJobAverage", "jobQualificationMode", "minQualifiedCount", "qualifiedMembers")}

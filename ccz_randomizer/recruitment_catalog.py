@@ -3,15 +3,26 @@ from __future__ import annotations
 
 import json
 import sys
+from functools import lru_cache
 from pathlib import Path
+from ccz_randomizer.game_versions import catalog_game_version, current_game_version, normalize_game_version
+from ccz_randomizer.profiles import load_profile, profile_id_for_game_version
 
 
-def load_catalog(path: Path | None = None) -> tuple[dict, ...]:
+@lru_cache(maxsize=3)
+def _bundled_catalog(version: str) -> tuple[dict, ...]:
+    profile = load_profile(profile_id_for_game_version(version))
+    root = profile.root / profile.manifest["files"]["recruitment"]
+    return load_catalog(root, version=version)
+
+
+def load_catalog(path: Path | None = None, *, version: str | None = None) -> tuple[dict, ...]:
+    version = normalize_game_version(version) if version is not None else current_game_version()
     if path is None:
-        root = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[1]))
-        path = root / "resources/data/recruitment/recruits_2.2.json"
+        return _bundled_catalog(version)
     payload = json.loads(path.read_text(encoding="utf-8"))
-    if payload.get("schemaVersion") != 1 or payload.get("gameVersion") != "2.2":
+    profile = load_profile(profile_id_for_game_version(version))
+    if payload.get("schemaVersion") != 1 or payload.get("gameVersion") != profile.recruitment.get("gameVersion"):
         raise ValueError("招募目录版本不匹配")
     people = payload.get("people")
     if not isinstance(people, list) or not people:
@@ -44,7 +55,7 @@ def attach_recruitment(rows: list[dict], catalog: tuple[dict, ...]) -> list[dict
     for person in catalog:
         row = dict(by_index[person["recordIndex"]])
         if row["name"] != person["name"]:
-            raise ValueError("游戏人物与 2.2 招募目录不匹配")
+            raise ValueError("游戏人物与当前版本招募目录不匹配")
         stages = [f'{stage["route"]} · {stage["name"]}' for stage in person["stages"]]
         row.update(stages=stages, stage=" / ".join(stages), availabilityVerified=True,
                    recruitmentCost=person["cost"], jobChoices=person["jobChoices"],

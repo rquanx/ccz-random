@@ -1,0 +1,173 @@
+{
+  "schemaVersion": 1,
+  "members": [
+    {
+      "name": "曹操",
+      "recordIndex": 0,
+      "stages": [
+        {
+          "stageId": 0,
+          "label": "共通 · 颍川之战"
+        }
+      ]
+    },
+    {
+      "name": "夏侯惇",
+      "recordIndex": 1,
+      "stages": [
+        {
+          "stageId": 0,
+          "label": "共通 · 颍川之战"
+        }
+      ]
+    },
+    {
+      "name": "夏侯渊",
+      "recordIndex": 6,
+      "stages": [
+        {
+          "stageId": 0,
+          "label": "共通 · 颍川之战"
+        }
+      ]
+    },
+    {
+      "name": "曹洪",
+      "recordIndex": 12,
+      "stages": [
+        {
+          "stageId": 1,
+          "label": "共通 · 汜水关之战"
+        }
+      ]
+    },
+    {
+      "name": "典韦",
+      "recordIndex": 16,
+      "stages": [
+        {
+          "stageId": 4,
+          "label": "共通 · 青州讨伐战"
+        }
+      ]
+    },
+    {
+      "name": "荀彧",
+      "recordIndex": 20,
+      "stages": [
+        {
+          "stageId": 4,
+          "label": "共通 · 青州讨伐战"
+        }
+      ]
+    },
+    {
+      "name": "郭嘉",
+      "recordIndex": 22,
+      "stages": [
+        {
+          "stageId": 5,
+          "label": "共通 · 徐州之战"
+        }
+      ]
+    },
+    {
+      "name": "许褚",
+      "recordIndex": 15,
+      "stages": [
+        {
+          "stageId": 8,
+          "label": "共通 · 濮阳决战"
+        }
+      ]
+    },
+    {
+      "name": "张辽",
+      "recordIndex": 2,
+      "stages": [
+        {
+          "stageId": 15,
+          "label": "共通 · 徐州平定战"
+        }
+      ]
+    },
+    {
+      "name": "司马懿",
+      "recordIndex": 19,
+      "stages": [
+        {
+          "stageId": 32,
+          "label": "红线 · 汉中讨伐战"
+        },
+        {
+          "stageId": 46,
+          "label": "蓝线 · 定军山之战·异"
+        }
+      ]
+    },
+    {
+      "name": "庞德",
+      "recordIndex": 9,
+      "stages": [
+        {
+          "stageId": 33,
+          "label": "红线 · 逍遥津之战"
+        },
+        {
+          "stageId": 46,
+          "label": "蓝线 · 定军山之战·异"
+        }
+      ]
+    },
+    {
+      "name": "郭淮",
+      "recordIndex": 29,
+      "stages": [
+        {
+          "stageId": 35,
+          "label": "红线 · 定军山之战"
+        }
+      ]
+    },
+    {
+      "name": "曹彰",
+      "recordIndex": 4,
+      "stages": [
+        {
+          "stageId": 38,
+          "label": "红线 · 樊城救援战"
+        },
+        {
+          "stageId": 46,
+          "label": "蓝线 · 定军山之战·异"
+        }
+      ]
+    },
+    {
+      "name": "赵云",
+      "recordIndex": 34,
+      "stages": [
+        {
+          "stageId": 47,
+          "label": "蓝线 · 麦城救援战"
+        }
+      ]
+    }
+  ],
+  "memberOrder": [
+    0,
+    1,
+    6,
+    12,
+    16,
+    15,
+    20,
+    22,
+    2,
+    19,
+    9,
+    4,
+    29,
+    34
+  ]
+}

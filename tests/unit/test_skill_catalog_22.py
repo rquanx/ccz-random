@@ -9,6 +9,13 @@ from tests.unit.test_personnel_memory import RecordedReader
 
 
 class SkillCatalog22Tests(unittest.TestCase):
+    def test_current_skill_mapping_uses_all_240_runtime_entries(self):
+        names = app.canonical_skill_names()
+        self.assertEqual(240, len(names))
+        catalog = {name: (score, category, kind) for name, score, category, kind in app.skill_score_catalog()}
+        self.assertIn("能力辅助 士→全能力", catalog)
+        self.assertEqual((2.0, "强力", "WARRIOR"), catalog["能力辅助 士→全能力"])
+
     def test_catalog_matches_all_real_22_names_formats_and_parameters(self):
         snapshot = read_skill_memory(0, [0], reader_factory=RecordedReader)
         rows = app.runtime_skill_catalog_rows()

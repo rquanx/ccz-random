@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 import struct
+from ccz_randomizer.profiles import load_profile
+
+PLANNED_JOB_ARRAY_ADDRESS = load_profile().address("plannedJobArrayAddress")
 
 from ccz_randomizer.runtime.skill_memory import (
     ProcessMemoryReader, RECORD_ARRAY_BASE_POINTER_ADDRESS, RECORD_SIZE,
@@ -20,9 +23,21 @@ def decode_personnel_record(record: bytes, index: int) -> tuple[str, int, int]:
     return name, struct.unpack_from("<I", record, 4)[0], record[0x2B]
 
 
+def validate_personnel_identity(pid, expected, *, reader_factory=ProcessMemoryReader):
+    """Reject an old save's roster before rolling or committing a result."""
+    with reader_factory(pid) as reader:
+        base = struct.unpack("<I", reader.read(RECORD_ARRAY_BASE_POINTER_ADDRESS, 4))[0]
+        data = reader.read(base, (max(expected.values()) + 1) * RECORD_SIZE)
+    for name, index in expected.items():
+        actual, _member_id, _job = decode_personnel_record(data[index*RECORD_SIZE:(index+1)*RECORD_SIZE], index)
+        if actual != name:
+            raise ValueError(f"源存档人物与当前游戏版本不匹配：{name} 的位置读到 {actual}。请用当前游戏重新准备第 20 栏源存档")
+
+
 def read_rule_job_ids(pid, positions, *, reader_factory=ProcessMemoryReader):
     """Fast screening uses the same effective jobs as the personnel preview."""
-    from ccz_randomizer.rule_members import FIXED_JOB_INDICES
+    from ccz_randomizer.recruitment_catalog import load_catalog
+    FIXED_JOB_INDICES = frozenset(p["recordIndex"] for p in load_catalog() if p["fixedConfiguration"])
 
     positions = tuple(positions)
     if not positions:
@@ -31,7 +46,7 @@ def read_rule_job_ids(pid, positions, *, reader_factory=ProcessMemoryReader):
         raise ValueError("人物记录编号无效")
     with reader_factory(pid) as reader:
         size = max(positions) + 1
-        jobs = struct.unpack(f"<{size}I", reader.read(0x00503F40, size * 4))
+        jobs = struct.unpack(f"<{size}I", reader.read(PLANNED_JOB_ARRAY_ADDRESS, size * 4))
         fixed = FIXED_JOB_INDICES.intersection(positions)
         current = {}
         if fixed:
@@ -51,7 +66,7 @@ def read_personnel(pid: int, indices, *, planned=False, fixed_indices=(), reader
     with reader_factory(pid) as reader:
         base = struct.unpack("<I", reader.read(RECORD_ARRAY_BASE_POINTER_ADDRESS, 4))[0]
         data = reader.read(base, (max(positions) + 1) * RECORD_SIZE)
-        jobs = struct.unpack(f"<{max(positions)+1}I", reader.read(0x00503F40, (max(positions)+1)*4)) if planned else ()
+        jobs = struct.unpack(f"<{max(positions)+1}I", reader.read(PLANNED_JOB_ARRAY_ADDRESS, (max(positions)+1)*4)) if planned else ()
     fixed = frozenset(fixed_indices)
     planned_jobs = {index: (data[index * RECORD_SIZE + 0x2B] if index in fixed else jobs[index])
                     for index in positions} if planned else None

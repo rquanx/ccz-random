@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 import unittest
 
-from ccz_randomizer.recruitment import load_recruits, parse_recruits, filter_recruits
+from ccz_randomizer.recruitment import Recruit, display_job_options, load_recruits, parse_recruits, filter_recruits
 from ccz_randomizer.runtime.personnel_memory import decode_personnel_record
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "personnel_22"
@@ -63,3 +63,42 @@ class RecruitmentTests(unittest.TestCase):
         with self.assertRaises(FileNotFoundError):
             load_recruits(FIXTURES / "absent.json")
         self.assertEqual(self.rows, load_recruits(FIXTURES / "title.json"))
+
+    def test_saved_snapshot_remains_readable_without_its_old_profile(self):
+        payload = copy.deepcopy(self.payload)
+        payload["gameVersion"] = "archived-profile-build"
+        self.assertEqual(self.rows, parse_recruits(payload))
+
+    def test_display_job_options_keeps_only_concrete_recruitment_jobs(self):
+        row = Recruit(152, "曹休", "青州讨伐战", "山贼", (), (),
+                      True, ("青州讨伐战",), 2,
+                      ("弓骑兵", "保留随机结果"))
+        self.assertEqual("山贼/弓骑兵", display_job_options(row))
+
+        row = Recruit(153, "曹纯", "虎牢关之战", "策士", (), (),
+                      True, ("虎牢关之战",), 3,
+                      ("虎豹骑", "保留随机结果"))
+        self.assertEqual("策士/虎豹骑", display_job_options(row))
+
+        row = Recruit(31, "邓艾", "斜谷之战", "策士", (), (),
+                      True, ("斜谷之战",), 4,
+                      ("名将", "随机"))
+        self.assertEqual("策士/名将", display_job_options(row))
+
+    def test_real_1104_options_preserve_order_and_current_job(self):
+        from dataclasses import replace
+        payload = json.loads((FIXTURES.parent / "personnel_220_1104/randomized-result.json").read_text(encoding="utf-8"))
+        rows = parse_recruits(payload)
+        by_name = {row.name: row for row in rows}
+        expected = {
+            "曹休": "山贼/弓骑兵", "黄忠": "山贼/弓兵/穿杨手/弓骑兵/神羿骑",
+            "高顺": "山贼/西凉骑/先锋", "大乔": "山贼/炮车（携带床弩）/步兵（携带手戟）",
+            "邓艾": "山贼/名将", "周瑜": "山贼/都督/将军/骑策",
+        }
+        for name, label in expected.items():
+            with self.subTest(name=name):
+                self.assertEqual(label, display_job_options(replace(by_name[name], job="山贼")))
+        self.assertEqual("弓骑兵", display_job_options(replace(by_name["曹休"], job="弓骑兵")))
+        self.assertEqual(by_name["李典"].job, display_job_options(by_name["李典"]))
+        self.assertIn(by_name["曹纯"], filter_recruits(rows, "曹纯 虎豹骑"))
+        self.assertEqual(23, sum(bool(row.job_choices) for row in rows))

@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "toolCompatibility": [
+    "ccz-fast-v2"
+  ],
+  "profileId": "ccz-v2.2",
+  "gameVersion": "2.2",
+  "displayName": "曹操传 2.2（历史数据）",
+  "catalogVersion": 1,
+  "engineLayout": "personnel-v1",
+  "files": {
+    "fingerprints": "fingerprints.json",
+    "jobs": "jobs.json",
+    "fixedEntries": "fixed_entries.json",
+    "recruitment": "recruitment.json",
+    "memoryLayout": "memory_layout.json",
+    "skills": "skills.json",
+    "scriptRules": "script_rules.json"
+  },
+  "capabilities": {
+    "validateRoster": true,
+    "randomMode": "three"
+  },
+  "sha256": {
+    "fingerprints.json": "ef91bcd333f08984f07ddf96b328f7cb81e74224949311677d80f389c9d35657",
+    "jobs.json": "8dcd91590f959a64ead41e353626eaa40d12a5c1b01ab81c439976744a59a509",
+    "fixed_entries.json": "8e3060e846e359fec4934fb67287fa311e92389ef3bd1fa86feffb3100a12ad2",
+    "recruitment.json": "25e7059919b2cbf3d1c71c3fc21b0898f7ce260512ff70ef52c3d380b7b490d5",
+    "memory_layout.json": "a48007e54fe78c1f54b1e046a6e5c5ca89db170d4d4f55ed6746751b61cb69cc",
+    "skills.json": "f8bde7ec0844f44b6c86814c6ac7472e6fc12297ff9e53580dfa4059a2846ad2",
+    "script_rules.json": "806acbabb9c33f103de7df54276101ffcb6468fa7fd494151d8750e60df46ddc"
+  }
+}

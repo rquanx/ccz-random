@@ -1,6 +1,16 @@
 """Independent skill scores, with a one-time conversion of tier-based rules."""
 from ccz_randomizer.runtime.skill_memory import normalize_skill_name
 from ccz_randomizer.rules.skill_defaults import SKILL_DEFAULTS
+import math
+
+
+def special_score_category(score, threshold):
+    """Leave incomplete editor input unclassified until it is a valid score."""
+    try:
+        value, minimum = float(score), float(threshold)
+    except (ValueError, TypeError):
+        return ""
+    return "特殊" if math.isfinite(value) and math.isfinite(minimum) and value > 0 and value >= minimum else ""
 
 
 def resolve_setting(values, name, default):
@@ -11,7 +21,8 @@ def resolve_setting(values, name, default):
                  if normalize_skill_name(key) == normalized), default)
 
 
-def migrate_skill_scores(profile, catalog=SKILL_DEFAULTS):
+def migrate_skill_scores(profile, catalog=None):
+    catalog = SKILL_DEFAULTS if catalog is None else catalog
     seven = profile["sevenPerson"]
     if seven.get("individualSkillScores"):
         return

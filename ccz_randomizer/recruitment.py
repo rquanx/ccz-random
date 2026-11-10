@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from functools import lru_cache
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -22,6 +23,18 @@ class Recruit:
     entry_kind: str = "recruit"
 
 
+def display_job_options(row: Recruit) -> str:
+    """Return the random job followed by concrete recruitment job choices."""
+    values = [row.job]
+    for choice in row.job_choices:
+        # These entries are dialog actions, rather than another job name.
+        if choice == "随机" or "随机结果" in choice or "原兵种" in choice:
+            continue
+        if choice not in values:
+            values.append(choice)
+    return "/".join(values)
+
+
 def _talents(value: object) -> tuple[str, ...]:
     if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
         raise ValueError("天赋数据必须为文本数组")
@@ -29,8 +42,10 @@ def _talents(value: object) -> tuple[str, ...]:
 
 
 def parse_recruits(payload: object) -> tuple[Recruit, ...]:
-    if not isinstance(payload, dict) or payload.get("gameVersion") != "2.2":
-        raise ValueError("请选择 2.2 人员快照")
+    # A result snapshot is self-contained, and may outlive its game profile.
+    # Live game compatibility is checked before memory access, not here.
+    if not isinstance(payload, dict) or not isinstance(payload.get("gameVersion"), str) or not payload["gameVersion"].strip():
+        raise ValueError("人员快照缺少游戏版本")
     if payload.get("schemaVersion") != 1:
         raise ValueError("不支持的人员快照格式")
     rows = payload.get("personnel")
@@ -79,11 +94,16 @@ def load_recruits(path: Path) -> tuple[Recruit, ...]:
     return parse_recruits(json.loads(path.read_text(encoding="utf-8")))
 
 
+@lru_cache(maxsize=1024)
+def _search_text(row: Recruit) -> str:
+    return " ".join((row.name, row.stage, display_job_options(row),
+                     *row.job_talents, *row.personal_talents)).casefold()
+
+
 def filter_recruits(recruits: tuple[Recruit, ...], query: str = "", *,
                     stage: str = "", selected: frozenset[int] | None = None) -> tuple[Recruit, ...]:
     terms = query.casefold().split()
     return tuple(row for row in recruits
         if (not stage or row.stage == stage or stage in row.stages)
         and (selected is None or row.record_index in selected)
-        and all(term in " ".join((row.name, row.stage, row.job,
-            *row.job_talents, *row.personal_talents)).casefold() for term in terms))
+        and all(term in _search_text(row) for term in terms))

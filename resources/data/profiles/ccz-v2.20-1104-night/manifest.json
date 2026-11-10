@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "toolCompatibility": [
+    "ccz-fast-v2"
+  ],
+  "profileId": "ccz-v2.20-1104-night",
+  "gameVersion": "2.20-1104-night",
+  "displayName": "曹操传加强版 v2.20-1104 夜版",
+  "catalogVersion": 5,
+  "engineLayout": "personnel-v1",
+  "files": {
+    "fingerprints": "fingerprints.json",
+    "jobs": "jobs.json",
+    "fixedEntries": "fixed_entries.json",
+    "recruitment": "recruitment.json",
+    "memoryLayout": "memory_layout.json",
+    "skills": "skills.json",
+    "scriptRules": "script_rules.json"
+  },
+  "capabilities": {
+    "validateRoster": true,
+    "randomMode": "three"
+  },
+  "fingerprintVersion": "2.20-1104-night",
+  "sha256": {
+    "fingerprints.json": "40c672ec39694b732c9b4781978f224e8663e2750d345ec920a7c85562c7031a",
+    "jobs.json": "8dcd91590f959a64ead41e353626eaa40d12a5c1b01ab81c439976744a59a509",
+    "fixed_entries.json": "54dec633e4d5658c4a2c6553a7572a4d6b9a8c9a6ad22ec6c6f5fe3eeb5214eb",
+    "recruitment.json": "c53bb6e287968510e2cf5209cbca883e1867f95a1ad241e24a2e84eaaaf77b2a",
+    "memory_layout.json": "a48007e54fe78c1f54b1e046a6e5c5ca89db170d4d4f55ed6746751b61cb69cc",
+    "skills.json": "f8bde7ec0844f44b6c86814c6ac7472e6fc12297ff9e53580dfa4059a2846ad2",
+    "script_rules.json": "806acbabb9c33f103de7df54276101ffcb6468fa7fd494151d8750e60df46ddc"
+  }
+}

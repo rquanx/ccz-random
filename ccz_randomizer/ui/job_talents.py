@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from ccz_randomizer.ui.window_position import centered_toplevel
+from ccz_randomizer.ui.window_position import centered_toplevel, show_centered
+from ccz_randomizer.ui.inputs import SearchEntry
 from ccz_randomizer.ui.theme import setup_theme, style_dialog
 
 from ccz_randomizer.jobs import JOB_MAP
@@ -35,7 +36,7 @@ def show_job_talents_window(parent, *, snapshot: dict) -> None:
     dialog = centered_toplevel(parent)
     setup_theme(dialog)
     style_dialog(dialog)
-    dialog.title("2.2 兵种天赋")
+    dialog.title(f"{snapshot.get('gameVersion', '2.2')} 兵种天赋")
     dialog.geometry("900x680")
     dialog.minsize(680, 480)
     dialog.transient(parent)
@@ -45,7 +46,8 @@ def show_job_talents_window(parent, *, snapshot: dict) -> None:
     ttk.Label(outer, text="全部兵种天赋", font=("Microsoft YaHei UI", 17, "bold")).pack(anchor="w")
     ttk.Label(outer, text="本次随机的 40 类兵种天赋；未采集的历史数据标为未采集，不代表无天赋。", foreground=colors["muted"]).pack(anchor="w", pady=(4, 12))
     query = tk.StringVar()
-    ttk.Entry(outer, textvariable=query, width=32).pack(anchor="w", pady=(0, 12))
+    SearchEntry(outer, textvariable=query, width=32,
+        hint="即时搜索兵种或天赋；Esc 清空，Ctrl+A 全选").pack(anchor="w", pady=(0, 12))
     body = ttk.Frame(outer)
     body.pack(fill="both", expand=True)
     body.rowconfigure(0, weight=1)
@@ -81,7 +83,7 @@ def show_job_talents_window(parent, *, snapshot: dict) -> None:
         if last_layout is None or term != last_layout[1]:
             canvas.yview_moveto(0)
         last_layout = layout
-        visible = [card for card in cards if term in card[2]]
+        visible = [card for card in cards if all(word in card[2] for word in term.split())]
         canvas.delete("all")
         columns = max(1, min(3, width // 250))
         card_width = (width - 12 * (columns + 1)) / columns
@@ -125,3 +127,4 @@ def show_job_talents_window(parent, *, snapshot: dict) -> None:
     dialog.bind("<MouseWheel>", lambda event: canvas.yview_scroll(-int(event.delta / 120), "units"))
     query.trace_add("write", schedule)
     schedule()
+    show_centered(dialog)

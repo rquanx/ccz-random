@@ -1,54 +1,99 @@
-"""Shared initial placement for application dialogs."""
+"""Build dialogs hidden, then place their final outer frame before revealing."""
 from __future__ import annotations
 
+import logging
 import tkinter as tk
 
+from ccz_randomizer.ui.window_native import native_placement
 
-def center_on_parent(window, parent) -> None:
-    parent = parent.winfo_toplevel()
-    window.update_idletasks()
+_log = logging.getLogger(__name__)
+
+
+def _exists(window):
+    try:
+        return bool(window.winfo_exists())
+    except tk.TclError:
+        return False
+
+
+def centered_origin(work_area, width, height):
+    left, top, right, bottom = work_area
+    return left + max(0, (right-left-width)//2), top + max(0, (bottom-top-height)//2)
+
+
+def _fit_to_work_area(window, work, outer_width, outer_height):
+    available_width, available_height = work[2]-work[0], work[3]-work[1]
     width, height = window.winfo_width(), window.winfo_height()
-    # geometry positions the outer frame; rootx/rooty point inside the title
-    # bar and borders and would shift the dialog right and down.
-    x = parent.winfo_x() + (parent.winfo_width() - width) // 2
-    y = parent.winfo_y() + (parent.winfo_height() - height) // 2
-    # Clamp only to the desktop, not to the parent's upper-left corner:
-    # a dialog larger than its parent still needs to be centered.
-    left, top = window.winfo_vrootx(), window.winfo_vrooty()
-    x = max(left, min(x, left + max(0, window.winfo_vrootwidth() - width)))
-    y = max(top, min(y, top + max(0, window.winfo_vrootheight() - height)))
+    fitted_width = max(1, width-max(0, outer_width-available_width))
+    fitted_height = max(1, height-max(0, outer_height-available_height))
+    if (width, height) != (fitted_width, fitted_height):
+        min_width, min_height = window.minsize()
+        window.minsize(min(min_width, fitted_width), min(min_height, fitted_height))
+        window.geometry(f"{fitted_width}x{fitted_height}")
+        window.update_idletasks()
+
+
+def _center_native(window, parent, backend):
+    work = backend.work_area(parent)
+    # A bounded second pass accommodates a DPI-induced change in window size.
+    for _ in range(2):
+        left, top, right, bottom = backend.bounds(window)
+        _fit_to_work_area(window, work, right-left, bottom-top)
+        left, top, right, bottom = backend.bounds(window)
+        x, y = centered_origin(work, right-left, bottom-top)
+        backend.move(window, x, y)
+        window.update_idletasks()
+        placed = backend.bounds(window)
+        if placed == (x, y, x+right-left, y+bottom-top):
+            break
+
+
+def _center_fallback(window):
+    # A placement failure must never leave a dialog invisible.
+    work = (0, 0, window.winfo_screenwidth(), window.winfo_screenheight())
+    _fit_to_work_area(window, work, window.winfo_width(), window.winfo_height())
+    x, y = centered_origin(work, window.winfo_width(), window.winfo_height())
     window.geometry(f"+{x}+{y}")
+    window.update_idletasks()
 
 
 def centered_toplevel(parent):
+    """Create a dialog; the builder must finish with show_centered(window)."""
     window = tk.Toplevel(parent)
-    # Tk needs to map the native window to resolve its final dimensions.
-    # Keep it transparent until placement is complete, including when callers
-    # explicitly withdraw/deiconify or run layout updates during construction.
+    window.withdraw()
     window.attributes("-alpha", 0.0)
-    pending = None
-    positioned = False
-
-    def place() -> None:
-        nonlocal pending
-        pending = None
-        if window.winfo_exists() and parent.winfo_exists():
-            center_on_parent(window, parent)
-            window.update_idletasks()
-            window.attributes("-alpha", 1.0)
-
-    def mapped(event) -> None:
-        nonlocal pending, positioned
-        if event.widget is window and not positioned:
-            positioned = True
-            pending = window.after(0, place)
-
-    def destroyed(event) -> None:
-        nonlocal pending
-        if event.widget is window and pending is not None:
-            window.after_cancel(pending)
-            pending = None
-
-    window.bind("<Map>", mapped, add="+")
-    window.bind("<Destroy>", destroyed, add="+")
+    window._ccz_dialog_parent = parent
+    window._ccz_dialog_shown = False
     return window
+
+
+def show_centered(window):
+    """Finalize first placement; later calls only restore the window."""
+    if not _exists(window):
+        return
+    if getattr(window, "_ccz_dialog_shown", False):
+        window.deiconify()
+        return
+    parent = getattr(window, "_ccz_dialog_parent", window.master)
+    try:
+        # Map only after construction. Layout updates cannot reveal a half-built
+        # dialog, and no Map/Configure timer competes with later size changes.
+        window.deiconify()
+        window.update_idletasks()
+        try:
+            backend = native_placement()
+            if backend is None:
+                _center_fallback(window)
+            else:
+                _center_native(window, parent, backend)
+        except (OSError, tk.TclError):
+            _log.debug("Native dialog placement failed", exc_info=True)
+            if _exists(window):
+                try:
+                    _center_fallback(window)
+                except tk.TclError:
+                    _log.debug("Fallback dialog placement failed", exc_info=True)
+    finally:
+        if _exists(window):
+            window._ccz_dialog_shown = True
+            window.attributes("-alpha", 1.0)

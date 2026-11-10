@@ -1,10 +1,13 @@
 from __future__ import annotations
 
-from ccz_randomizer.ui.window_position import centered_toplevel
-from ccz_randomizer.rule_members import RULE_MEMBER_NAMES
+from ccz_randomizer.ui.inputs import SearchEntry, TextEntry
+from ccz_randomizer.ui.window_position import centered_toplevel, show_centered
+from ccz_randomizer.rule_members import rule_member_indices
 from ccz_randomizer.rules.help_content import ADVANCED_HELP_SECTIONS
 from ccz_randomizer.rules.legacy_import import LegacyModeRequired, read_legacy_mode
 from ccz_randomizer.ui.member_pages import MemberPages
+from ccz_randomizer.ui.searchable_combo import SelectionCombobox
+from ccz_randomizer.ui.text_prompt import ask_text
 from ccz_randomizer.ui.theme import COLORS, FONT, setup_theme, style_dialog
 
 import copy
@@ -12,9 +15,11 @@ import json
 import tkinter as tk
 from datetime import datetime
 from pathlib import Path
-from tkinter import filedialog, messagebox, simpledialog, ttk
+from tkinter import filedialog, messagebox, ttk
 from typing import Callable
 from ccz_randomizer.runtime.skill_memory import normalize_skill_name
+from ccz_randomizer.rules.skill_defaults import EXCLUSIVE_SKILLS_22
+from ccz_randomizer.rules.skill_scores import special_score_category
 
 
 from ccz_randomizer.rules.config import (
@@ -112,6 +117,7 @@ class ScoreGrid(tk.Frame):
         type_variables: dict[str, tk.StringVar] | None = None,
         type_options: tuple[str, ...] = SKILL_AFFINITY_TYPES,
         type_label: str = "匹配类型",
+        exclusive_names: frozenset[str] = frozenset(),
         **kwargs,
     ):
         super().__init__(parent, **kwargs)
@@ -120,6 +126,7 @@ class ScoreGrid(tk.Frame):
         self.type_variables = type_variables or {}
         self.type_options = type_options
         self.type_label = type_label
+        self.exclusive_names = exclusive_names
         self.card_height = 88 if self.type_variables else self.CARD_HEIGHT
         self.enabled = True
         self.editor: tk.Widget | None = None
@@ -144,7 +151,7 @@ class ScoreGrid(tk.Frame):
             background="#f5f5f5",
             foreground="#555555",
         ).pack(side="left")
-        self.search_entry = tk.Entry(
+        self.search_entry = SearchEntry(
             search_bar,
             textvariable=self.search_var,
         )
@@ -154,12 +161,6 @@ class ScoreGrid(tk.Frame):
             expand=True,
             padx=(8, 6),
         )
-        tk.Button(
-            search_bar,
-            text="清空",
-            command=lambda: self.search_var.set(""),
-            width=6,
-        ).pack(side="left")
         tk.Label(
             search_bar,
             textvariable=self.result_text,
@@ -287,6 +288,15 @@ class ScoreGrid(tk.Frame):
                 fill="#222222",
                 font=("Microsoft YaHei UI", 9),
             )
+            if name in self.exclusive_names:
+                self.canvas.create_text(
+                    x2 - 8,
+                    y1 + 16,
+                    text="专属特技",
+                    anchor="e",
+                    fill="#a44a4a",
+                    font=("Microsoft YaHei UI", 8),
+                )
             if name in self.type_variables:
                 type_x1 = x1 + 8
                 type_y1 = y1 + 30
@@ -548,8 +558,9 @@ class ScoreGrid(tk.Frame):
             x1, y1, x2, y2 = self.type_editor_boxes[item_index]
             skill_name = self.items[item_index][0]
             variable = self.type_variables[skill_name]
-            self.editor = ttk.Combobox(
+            self.editor = SelectionCombobox(
                 self.canvas,
+                style="Inline.TCombobox", font=(FONT, 8),
                 values=tuple(
                     TYPE_LABELS[value] for value in self.type_options
                 ),
@@ -562,8 +573,9 @@ class ScoreGrid(tk.Frame):
             item_index = match[4]
             x1, y1, x2, y2 = self.score_editor_boxes[item_index]
             variable = self.items[item_index][1]
-            self.editor = tk.Entry(
+            self.editor = TextEntry(
                 self.canvas,
+                style="Inline.TEntry", font=(FONT, 9),
                 justify="center",
             )
             self.editor.insert(0, variable.get())
@@ -577,11 +589,11 @@ class ScoreGrid(tk.Frame):
             height=y2 - y1,
             window=self.editor,
         )
-        if isinstance(self.editor, tk.Entry):
+        if isinstance(self.editor, ttk.Entry) and not isinstance(self.editor, ttk.Combobox):
             self.editor.select_range(0, "end")
         self.editor.focus_set()
         self.editor.bind("<Return>", lambda _event: self.commit_pending())
-        if isinstance(self.editor, tk.Entry):
+        if isinstance(self.editor, ttk.Entry) and not isinstance(self.editor, ttk.Combobox):
             self.editor.bind("<KeyRelease>", self._preview_score)
         if isinstance(self.editor, ttk.Combobox):
             self.editor.bind(
@@ -603,9 +615,9 @@ class ScoreGrid(tk.Frame):
         self.editor_window = None
         self.editing_index = None
         self.editing_kind = ""
-        if editor_window is not None:
+        if editor_window is not None and self.canvas.winfo_exists():
             self.canvas.delete(editor_window)
-        if editor is not None:
+        if editor is not None and editor.winfo_exists():
             editor.destroy()
 
 
@@ -673,14 +685,13 @@ def show_advanced_help(parent, selected_index: int) -> None:
         footer,
         text="关闭",
         command=dialog.destroy,
-        width=10,
     ).pack(side="right")
 
     dialog.update_idletasks()
     width = max(760, dialog.winfo_reqwidth())
     height = max(560, dialog.winfo_reqheight())
     dialog.geometry(f"{width}x{height}")
-    dialog.deiconify()
+    show_centered(dialog)
     dialog.lift()
     dialog.grab_set()
 
@@ -721,7 +732,7 @@ def show_member_affinity_editor(
                 label.grid(row=row, column=0, sticky="w", pady=4)
                 combos = []
                 for column in (1, 2):
-                    combo = ttk.Combobox(body, values=options,
+                    combo = SelectionCombobox(body, values=options,
                         state="readonly" if editable else "disabled", width=14)
                     combo.grid(row=row, column=column, sticky="w", padx=(12, 0), pady=4)
                     combos.append(combo)
@@ -751,9 +762,10 @@ def show_member_affinity_editor(
                   for name, (primary, secondary) in variables.items()})
         dialog.destroy()
 
-    tk.Button(actions, text="取消" if editable else "关闭", command=dialog.destroy, width=10).pack(side="right")
+    tk.Button(actions, text="取消" if editable else "关闭", command=dialog.destroy).pack(side="right")
     if editable:
-        tk.Button(actions, text="确定", command=apply_changes, width=10).pack(side="right", padx=(0, 8))
+        tk.Button(actions, text="确定", command=apply_changes).pack(side="right", padx=(0, 8))
+    show_centered(dialog)
     dialog.lift()
     dialog.grab_set()
 
@@ -816,8 +828,15 @@ def show_rule_editor(
     on_saved: Callable[[dict], None],
     save_notice: Callable[[dict], str | None] | None = None,
 ) -> None:
+    RULE_MEMBER_NAMES = tuple(rule_member_indices())
     setup_theme(parent)
     working = copy.deepcopy(validate_rule_config(config))
+    # Retain saved choices from another edition; runtime validation explains
+    # unavailable people rather than silently rewriting a saved profile.
+    RULE_MEMBER_NAMES = tuple(dict.fromkeys((*RULE_MEMBER_NAMES, *(
+        name for profile in working["profiles"].values()
+        for name in (*profile["threePerson"]["qualifiedMembers"], *profile["resultImage"]["members"])
+    ))))
     saved_snapshot = json.dumps(
         working,
         ensure_ascii=False,
@@ -839,8 +858,9 @@ def show_rule_editor(
     top.pack(fill="x")
     tk.Label(top, text="规则方案").pack(side="left")
     profile_var = tk.StringVar(value=selected_name)
-    profile_combo = ttk.Combobox(
+    profile_combo = SelectionCombobox(
         top,
+        search_label="搜索规则",
         textvariable=profile_var,
         values=tuple(working["profiles"]),
         state="readonly",
@@ -860,22 +880,12 @@ def show_rule_editor(
 
     simple_vars: dict[str, tk.StringVar] = {}
     simple_rows = (
-        (
-            "jobQuality",
-            "兵种质量要求",
-            "控制进入后续检查所需的整体兵种质量。",
-        ),
-        (
-            "affinityImportance",
-            "人物适配重视程度",
-            "越高越重视兵种类型是否符合人物倾向。",
-        ),
-        (
-            "skillQuality",
-            "特技质量要求",
-            "控制所选人物需要达到的特技总分。",
-        ),
-
+        ("difficulty", "筛选要求",
+         "无要求：全部通过。\n"
+         "宽松：兵种平均分 ≥ 7.1，特技不限。\n"
+         "标准：兵种平均分 ≥ 7.4，特技平均分 ≥ 5/3（约 1.67）。\n"
+         "严格：每个人兵种分 ≥ 7.7、特技分 ≥ 2。\n"
+         "自定义：保留高级模式设置。"),
     )
     for row, (key, label, description) in enumerate(simple_rows):
         tk.Label(
@@ -887,7 +897,7 @@ def show_rule_editor(
         options = tuple(SIMPLE_PRESET_OPTIONS[key])
         variable = tk.StringVar(value=options[0])
         simple_vars[key] = variable
-        combo = ttk.Combobox(
+        combo = SelectionCombobox(
             simple_tab,
             textvariable=variable,
             values=options,
@@ -902,6 +912,7 @@ def show_rule_editor(
             pady=(5, 0),
         )
         editable_widgets.append(combo)
+        combo.bind("<<ComboboxSelected>>", lambda _event: apply_selected_preset())
         tk.Label(
             simple_tab,
             text=description,
@@ -988,7 +999,7 @@ def show_rule_editor(
         )
         variable = tk.StringVar()
         number_vars[key] = variable
-        entry = tk.Entry(tab, textvariable=variable, width=16)
+        entry = TextEntry(tab, textvariable=variable, width=16)
         entry.grid(row=row, column=1, sticky="w", padx=(18, 10), pady=5)
         editable_widgets.append(entry)
         if hint:
@@ -1004,6 +1015,7 @@ def show_rule_editor(
         "",
     )
     qualification_mode_labels = {
+        "无要求": "none",
         "指定人数达标": "count",
         "平均分达标": "average",
         "总分达标": "total",
@@ -1021,7 +1033,7 @@ def show_rule_editor(
         count_var = tk.StringVar()
         qualification_mode_vars[key] = mode_var
         qualification_count_vars[key] = count_var
-        mode_combo = ttk.Combobox(
+        mode_combo = SelectionCombobox(
             threshold_tab,
             textvariable=mode_var,
             values=tuple(qualification_mode_labels),
@@ -1035,7 +1047,7 @@ def show_rule_editor(
             padx=(20, 8),
             pady=5,
         )
-        count_combo = ttk.Combobox(
+        count_combo = SelectionCombobox(
             threshold_tab,
             textvariable=count_var,
             values=tuple(
@@ -1054,7 +1066,6 @@ def show_rule_editor(
         member_button = tk.Button(
             threshold_tab,
             text=f"选择人物（{len(member_names)}/{len(member_names)}）",
-            width=18,
         )
         member_button.grid(
             row=0,
@@ -1151,20 +1162,17 @@ def show_rule_editor(
                 button_frame,
                 text="全选",
                 command=select_all,
-                width=10,
             ).pack(side="left")
-            tk.Button(button_frame, text="清空选择", command=clear_selection, width=10).pack(side="left", padx=(8, 0))
+            tk.Button(button_frame, text="清空选择", command=clear_selection).pack(side="left", padx=(8, 0))
             tk.Button(
                 button_frame,
                 text="取消",
                 command=dialog.destroy,
-                width=10,
             ).pack(side="right", padx=(8, 0))
             tk.Button(
                 button_frame,
                 text="确定",
                 command=confirm,
-                width=10,
             ).pack(side="right")
 
             dialog.update_idletasks()
@@ -1173,7 +1181,7 @@ def show_rule_editor(
             dialog.minsize(width, height)
             # centered_toplevel owns initial placement; only set the size here.
             dialog.geometry(f"{width}x{height}")
-            dialog.deiconify()
+            show_centered(dialog)
             dialog.lift()
             dialog.grab_set()
 
@@ -1202,10 +1210,10 @@ def show_rule_editor(
     skill_mode_labels = qualification_mode_labels
     skill_mode_var = tk.StringVar()
     skill_count_var = tk.StringVar()
-    skill_mode_combo = ttk.Combobox(threshold_tab, textvariable=skill_mode_var,
+    skill_mode_combo = SelectionCombobox(threshold_tab, textvariable=skill_mode_var,
         values=tuple(skill_mode_labels), state="readonly", width=18)
     skill_mode_combo.grid(row=2, column=3, padx=(20, 8), sticky="w")
-    skill_count_combo = ttk.Combobox(threshold_tab, textvariable=skill_count_var,
+    skill_count_combo = SelectionCombobox(threshold_tab, textvariable=skill_count_var,
         values=tuple(str(i) for i in range(1, len(THREE_MEMBER_NAMES) + 1)), width=4, state="readonly")
     skill_count_combo.grid(row=2, column=4, sticky="w")
     skill_count_label = tk.Label(threshold_tab, text="人达到门槛")
@@ -1288,7 +1296,6 @@ def show_rule_editor(
         threshold_tab,
         text="设置人物倾向",
         command=open_affinity_editor,
-        width=16,
     ).grid(row=0, column=2, columnspan=2, sticky="w", pady=5)
     result_image_settings = {"mode": "selected", "members": []}
 
@@ -1351,6 +1358,11 @@ def show_rule_editor(
         number_vars[key] = tk.StringVar()
     special_auto = tk.BooleanVar(value=False)
     high_auto = tk.BooleanVar(value=False)
+    add_number(skill_tab, 0, "special_weight", "特殊特技基础分 / 门槛")
+    special_check = tk.Checkbutton(skill_tab, text="出现特殊特技时直接合格",
+        variable=special_auto, anchor="w")
+    special_check.grid(row=1, column=0, columnspan=2, sticky="w", pady=5)
+    editable_widgets.append(special_check)
     skill_type_matching = tk.BooleanVar()
     bool_vars["skill_type_matching"] = skill_type_matching
     skill_type_check = tk.Checkbutton(
@@ -1391,8 +1403,12 @@ def show_rule_editor(
         skill_score_tab,
         skill_score_items,
         type_variables=skill_type_vars,
+        exclusive_names=EXCLUSIVE_SKILLS_22,
+        category_resolver=lambda _name, score, _category: special_score_category(
+            score, number_vars["special_weight"].get()),
     )
     skill_score_grid.pack(fill="both", expand=True)
+    number_vars["special_weight"].trace_add("write", lambda *_: skill_score_grid.refresh())
     score_grids = (job_score_grid, skill_score_grid)
 
     def is_builtin(name: str) -> bool:
@@ -1486,7 +1502,8 @@ def show_rule_editor(
             qualification_member_values["three"]
         )
         profile["skillQualification"] = dict(mode=skill_mode_labels[skill_mode_var.get()],
-            threshold=float(number_vars["skill_threshold"].get()), requiredCount=int(skill_count_var.get()))
+            threshold=float(number_vars["skill_threshold"].get()), requiredCount=int(skill_count_var.get()),
+            specialSkillAutoPass=bool(special_auto.get()))
         profile["sevenPerson"].update(
             {
                 "normalJobAverage": float(
@@ -1556,6 +1573,15 @@ def show_rule_editor(
         })
         if profile["editorMode"] == "simple":
             apply_simple_settings(profile)
+        else:
+            profile["simpleSettings"]["difficulty"] = "自定义"
+
+    def apply_selected_preset() -> None:
+        if loading or is_builtin(selected_name):
+            return
+        store_profile(selected_name, force=True)
+        load_profile(selected_name)
+        # Reload updates the form baseline; the working profile remains changed.
 
     def load_profile(name: str) -> None:
         nonlocal loading, selected_name, loaded_form, result_image_settings
@@ -1630,7 +1656,7 @@ def show_rule_editor(
                                     if value == profile["skillQualification"]["mode"]))
             skill_count_var.set(str(profile["skillQualification"]["requiredCount"]))
             skill_count_combo.configure(values=tuple(str(i) for i in range(1, len(three["qualifiedMembers"]) + 1)))
-            special_auto.set(False)
+            special_auto.set(profile["skillQualification"].get("specialSkillAutoPass", False))
             high_auto.set(False)
             skill_type_matching.set(seven["skillTypeMatchingEnabled"])
             affinity_enabled.set(scoring["affinityEnabled"])
@@ -1726,7 +1752,7 @@ def show_rule_editor(
         nonlocal selected_name
         if is_builtin(selected_name):
             return
-        name = simpledialog.askstring(
+        name = ask_text(
             "重命名规则",
             "输入新的规则名称：",
             initialvalue=selected_name,
@@ -1788,8 +1814,9 @@ def show_rule_editor(
         )
         values = ("全部规则", *working["profiles"].keys())
         scope_var = tk.StringVar(value=selected_name)
-        combo = ttk.Combobox(
+        combo = SelectionCombobox(
             frame,
+            search_label="搜索要导出的规则",
             textvariable=scope_var,
             values=values,
             state="readonly",
@@ -1804,17 +1831,17 @@ def show_rule_editor(
             dialog.destroy()
 
         tk.Button(
-            actions, text="取消", command=dialog.destroy, width=10
+            actions, text="取消", command=dialog.destroy
         ).pack(side="right", padx=(8, 0))
         tk.Button(
-            actions, text="下一步", command=confirm, width=10
+            actions, text="下一步", command=confirm
         ).pack(side="right")
         dialog.protocol("WM_DELETE_WINDOW", dialog.destroy)
         dialog.update_idletasks()
         width = dialog.winfo_reqwidth()
         height = dialog.winfo_reqheight()
         dialog.geometry(f"{width}x{height}")
-        dialog.deiconify()
+        show_centered(dialog)
         dialog.lift()
         dialog.grab_set()
         combo.focus_set()
@@ -1923,7 +1950,7 @@ def show_rule_editor(
         if any(merged["profiles"][name].get("legacyImport") for name in imported_names):
             migration_note = (
                 "\n\n旧版规则已自动迁移：沿用原运行模式的人物名单和兵种门槛，保留基础分、类型和人物倾向。"
-                "\n特技改用原较低兵种档的特技分数要求作为总分门槛；取消高兵种／特殊特技直接通过及文官扣分。"
+                "\n特技改用原较低兵种档的特技分数要求作为总分门槛；特殊特技直接合格可在特技规则中手动开启，高兵种直接通过及文官扣分不再启用。"
                 "\n迁移规则以高级模式打开，请检查门槛后使用。")
         messagebox.showinfo(
             "规则已导入",
@@ -1998,19 +2025,16 @@ def show_rule_editor(
                 else advanced_book.index(advanced_book.select())
             ),
         ),
-        width=10,
     )
     export_button = tk.Button(
         action_frame,
         text="导出规则",
         command=export_rules,
-        width=10,
     )
     import_button = tk.Button(
         action_frame,
         text="导入规则",
         command=import_rules,
-        width=10,
     )
     new_button.pack(side="left")
     rename_button.pack(side="left", padx=(8, 0))
@@ -2028,19 +2052,43 @@ def show_rule_editor(
         fg="#555555",
     ).pack(side="left")
     tk.Button(
-        footer, text="取消", command=request_close, width=10
+        footer, text="取消", command=request_close
     ).pack(side="right", padx=(8, 0))
     tk.Button(
-        footer, text="保存规则", command=save_all, width=12
+        footer, text="保存规则", command=save_all
     ).pack(side="right")
 
     profile_combo.bind("<<ComboboxSelected>>", switch_profile)
     editor.protocol("WM_DELETE_WINDOW", request_close)
+    def mark_custom_gate(*_args) -> None:
+        if not loading and not is_builtin(selected_name):
+            simple_vars["difficulty"].set("自定义")
+
+    for variable in (
+        number_vars["three_min"], number_vars["skill_threshold"],
+        *qualification_mode_vars.values(), *qualification_count_vars.values(),
+        skill_mode_var, skill_count_var,
+    ):
+        variable.trace_add("write", mark_custom_gate)
     load_profile(selected_name)
     editor.update_idletasks()
     width = max(980, editor.winfo_reqwidth())
     height = max(760, editor.winfo_reqheight())
     editor.geometry(f"{width}x{height}")
-    editor.deiconify()
+    show_centered(editor)
     editor.lift()
     editor.grab_set()
+
+    def refresh_profile_snapshot(_event=None):
+        # Preserve unsaved form values before rebuilding against the new data.
+        # Incomplete input stays editable; normal validation handles it on save.
+        try:
+            store_profile(selected_name, force=True)
+        except (ValueError, tk.TclError):
+            return
+        from ccz_randomizer import app
+        editor.destroy()
+        show_rule_editor(parent, base_dir, working, app.JOB_MAP, team_members,
+            app.skill_score_catalog(), on_saved, save_notice)
+
+    editor.bind("<<ProfileUpdated>>", refresh_profile_snapshot)

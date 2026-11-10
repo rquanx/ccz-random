@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
+import platform
 from pathlib import Path
 
 
@@ -15,6 +17,17 @@ MIN_CONCURRENCY = 1
 LEGACY_AUDIO_MUTE_RECOVERY_KEY = "legacyAudioMuteRecovered"
 AUDIO_MUTE_RECOVERY_VERSION_KEY = "audioMuteRecoveryVersion"
 AUDIO_MUTE_RECOVERY_VERSION = 2
+FIRST_USE_NOTICE_VERSION_KEY = "firstUseNoticeVersion"
+# Increment this value only when the first-use notice itself needs to be
+# shown again. Ordinary application releases keep the acknowledgement.
+FIRST_USE_NOTICE_VERSION = 1
+
+
+def first_use_notice_directory() -> Path:
+    """Keep acknowledgements local, outside portable game/config directories."""
+    local_data = os.environ.get("LOCALAPPDATA")
+    base = Path(local_data) if local_data else Path.home() / "AppData" / "Local"
+    return base / "CCZRandomizer" / "notices"
 
 
 def preferences_path(app_directory: Path) -> Path:
@@ -83,6 +96,83 @@ def load_compatibility_mode(app_directory: Path) -> bool:
         if isinstance(value, bool)
         else DEFAULT_COMPATIBILITY_MODE
     )
+
+
+def load_first_use_notice_seen(app_directory: Path) -> bool:
+    """Return whether the current first-use notice version was acknowledged."""
+    loaded = _load_preferences(app_directory)
+    value = loaded.get(FIRST_USE_NOTICE_VERSION_KEY)
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value >= FIRST_USE_NOTICE_VERSION
+    # Migrate the original boolean marker without making existing users see
+    # the same notice again. A future version bump will intentionally require
+    # acknowledgement again.
+    return (
+        FIRST_USE_NOTICE_VERSION == 1
+        and loaded.get("firstUseNoticeSeen") is True
+    )
+
+
+def mark_first_use_notice_seen(app_directory: Path) -> None:
+    payload = _load_preferences(app_directory)
+    previous = payload.get(FIRST_USE_NOTICE_VERSION_KEY)
+    version = FIRST_USE_NOTICE_VERSION
+    if isinstance(previous, int) and not isinstance(previous, bool):
+        version = max(version, previous)
+    payload.update(
+        {"version": 1, FIRST_USE_NOTICE_VERSION_KEY: version}
+    )
+    _save_preferences(app_directory, payload)
+
+
+def _notice_device_key() -> str:
+    # Bind portable fallback records to the device, without storing its raw ID.
+    try:
+        import winreg
+
+        with winreg.OpenKey(
+            winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Cryptography",
+            0, winreg.KEY_READ | winreg.KEY_WOW64_64KEY,
+        ) as key:
+            identity = str(winreg.QueryValueEx(key, "MachineGuid")[0])
+    except (ImportError, OSError):
+        identity = platform.node()
+    return hashlib.sha256(identity.encode("utf-8")).hexdigest()
+
+
+def first_use_notice_acknowledged(game_directory: Path) -> bool:
+    if load_first_use_notice_seen(first_use_notice_directory()):
+        return True
+    records = _load_preferences(game_directory).get("noticeVersionsByDevice", {})
+    if not isinstance(records, dict):
+        return False
+    version = records.get(_notice_device_key())
+    return isinstance(version, int) and not isinstance(version, bool) and version >= FIRST_USE_NOTICE_VERSION
+
+
+def acknowledge_first_use_notice(game_directory: Path) -> bool:
+    """Persist locally, then in the game directory; False allows session-only use."""
+    try:
+        mark_first_use_notice_seen(first_use_notice_directory())
+        return True
+    except OSError:
+        pass
+    try:
+        payload = _load_preferences(game_directory)
+        records = payload.get("noticeVersionsByDevice")
+        if not isinstance(records, dict):
+            records = {}
+        device = _notice_device_key()
+        previous = records.get(device)
+        records[device] = max(
+            previous if isinstance(previous, int) and not isinstance(previous, bool) else 0,
+            FIRST_USE_NOTICE_VERSION,
+        )
+        payload["noticeVersionsByDevice"] = records
+        _save_preferences(game_directory, payload)
+        return True
+    except OSError:
+        return False
 
 
 def save_random_runtime_settings(

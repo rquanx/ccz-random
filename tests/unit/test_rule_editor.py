@@ -1,3 +1,4 @@
+from ccz_randomizer.ui.inputs import TextEntry, SearchEntry
 from ccz_randomizer.rule_members import RULE_MEMBER_NAMES
 import tempfile
 import tkinter as tk
@@ -273,7 +274,7 @@ class RuleEditorTests(unittest.TestCase):
                     }
                     self.assertIn("导入规则", buttons)
                     self.assertIn("导出规则", buttons)
-                    self.assertIn(f"选择人物（3/{len(RULE_MEMBER_NAMES)}）", buttons)
+                    self.assertIn("选择人物（3/3）", buttons)
                     self.assertNotIn("选择人物（7/7）", buttons)
                     self.assertIn("设置人物倾向", buttons)
                     self.assertNotIn("设为当前规则", buttons)
@@ -361,7 +362,7 @@ class RuleEditorTests(unittest.TestCase):
                                 root.update()
                             if edit:
                                 entry = next(w for w in descendants(editor)
-                                             if isinstance(w, tk.Entry) and w.cget("state") == "normal")
+                                             if isinstance(w, TextEntry) and not isinstance(w, SearchEntry) and str(w.cget("state")) == "normal")
                                 entry.delete(0, "end")
                                 entry.insert(0, "9")
                             editor.tk.call(editor.protocol("WM_DELETE_WINDOW"))
@@ -565,6 +566,8 @@ class RuleEditorTests(unittest.TestCase):
     def test_member_affinity_is_edited_from_job_scoring_dialog(self):
         root = tk.Tk()
         root.withdraw()
+        config = default_rule_config()
+        config["profiles"]["默认规则"]["dataCollection"]["allRandomPersonnel"] = True
         saved = []
         try:
             with tempfile.TemporaryDirectory() as directory:
@@ -575,7 +578,7 @@ class RuleEditorTests(unittest.TestCase):
                     show_rule_editor(
                         root,
                         Path(directory),
-                        default_rule_config(),
+                        config,
                         JOB_MAP,
                         TEAM_MEMBERS,
                         SKILL_CATALOG,
@@ -606,7 +609,7 @@ class RuleEditorTests(unittest.TestCase):
                             "阶段门槛",
                             "兵种基础设置",
                             "特技基础设置",
-                            "信息采集",
+                            "实验功能",
                         )
                     )
                     self.assertNotIn(
@@ -752,6 +755,8 @@ class RuleEditorTests(unittest.TestCase):
     def test_job_count_members_can_be_selected_and_saved(self):
         root = tk.Tk()
         root.withdraw()
+        config = default_rule_config()
+        config["profiles"]["默认规则"]["dataCollection"]["allRandomPersonnel"] = True
         saved = []
         try:
             with tempfile.TemporaryDirectory() as directory:
@@ -762,7 +767,7 @@ class RuleEditorTests(unittest.TestCase):
                     show_rule_editor(
                         root,
                         Path(directory),
-                        default_rule_config(),
+                        config,
                         JOB_MAP,
                         TEAM_MEMBERS,
                         SKILL_CATALOG,
@@ -797,7 +802,7 @@ class RuleEditorTests(unittest.TestCase):
                         for widget in descendants(editor)
                         if isinstance(widget, ttk.Combobox)
                         and tuple(widget.cget("values"))
-                        == ("指定人数达标", "平均分达标", "总分达标")
+                        == ("无要求", "指定人数达标", "平均分达标", "总分达标")
                     ]
                     mode_combos[0].set("指定人数达标")
                     mode_combos[0].event_generate("<<ComboboxSelected>>")

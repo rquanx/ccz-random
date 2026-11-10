@@ -95,10 +95,11 @@ def render_equipment_sections(parent, equipment: dict):
             fg=COLORS["green"],
             bg=COLORS["surface_alt"],
         ).pack(anchor="w", pady=(0, 2))
-        for item in category.get("items") or []:
+        items = category.get("items") or []
+        if items:
             tk.Label(
                 category_frame,
-                text=f"{item.get('name', '')}  {item.get('effect', '')}",
+                text="\n".join(f"{item.get('name', '')}  {item.get('effect', '')}" for item in items),
                 font=(FONT, 8),
                 fg=COLORS["ink"],
                 bg=COLORS["surface_alt"],

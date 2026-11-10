@@ -3,6 +3,8 @@ from __future__ import annotations
 import tempfile
 import unittest
 import sqlite3
+import json
+from unittest.mock import patch
 from contextlib import closing
 from pathlib import Path
 
@@ -18,6 +20,38 @@ from ccz_randomizer.ui.history import (
 
 
 class HistoryRepositoryTests(unittest.TestCase):
+    def test_first_page_work_stays_bounded_with_thousands_of_rounds(self):
+        with tempfile.TemporaryDirectory() as directory:
+            repository = HistoryRepository(Path(directory))
+            repository.start_run("many", mode="three", loop_random=True,
+                                 rule_name="默认规则", rule={}, build={})
+            # Same minimal accepted-result shape used by the existing history tests.
+            # Payload size is immaterial here: list queries must not scan all results.
+            with closing(repository._connect()) as connection, connection:
+                connection.executemany(
+                    "INSERT INTO rounds(id,run_id,round_number,started_at,status) VALUES (?,'many',?,'2026-11-06T12:00:00','completed')",
+                    ((i, i) for i in range(1, 4001)),
+                )
+                connection.executemany(
+                    "INSERT INTO results(round_id,slot,accepted_attempt,created_at,mode,snapshot_json) VALUES (?,?,1,'2026-11-06T12:00:00','three',?)",
+                    ((i, slot, json.dumps(dict(slot=slot, acceptedAttempt=1)))
+                     for i in range(1, 4001) for slot in range(1, 16)),
+                )
+            instructions = []
+            connect = repository._connect
+            def measured_connection():
+                connection = connect()
+                connection.set_progress_handler(lambda: instructions.append(100) or 0, 100)
+                return connection
+            with patch.object(repository, "_connect", side_effect=measured_connection):
+                rows = repository.list_rounds()
+            self.assertEqual(list(range(4000, 3980, -1)), [row["id"] for row in rows])
+            self.assertTrue(all(row["result_count"] == 15 for row in rows))
+            self.assertLess(sum(instructions), 100_000)
+            self.assertEqual(4000, repository.count_rounds())
+            self.assertEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+                             [row["slot"] for row in repository.get_round_results(4000)])
+
     def test_empty_rounds_hidden_and_not_retained_after_finish(self):
         with tempfile.TemporaryDirectory() as directory:
             repository = HistoryRepository(Path(directory))

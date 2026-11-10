@@ -2,6 +2,7 @@
 import tkinter as tk
 from tkinter import ttk
 
+from ccz_randomizer.ui.inputs import SearchEntry
 from ccz_randomizer.ui.theme import setup_theme
 
 
@@ -20,7 +21,7 @@ class MemberPages(tk.Frame):
         toolbar = ttk.Frame(self)
         toolbar.pack(fill="x", pady=(0, 10))
         ttk.Label(toolbar, text="搜索人物").pack(side="left")
-        ttk.Entry(toolbar, textvariable=self.query).pack(side="left", fill="x", expand=True, padx=8)
+        SearchEntry(toolbar, textvariable=self.query).pack(side="left", fill="x", expand=True, padx=8)
         self.body = ttk.Frame(self)
         self.body.pack(fill="both", expand=True)
         footer = ttk.Frame(self)

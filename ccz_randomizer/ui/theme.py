@@ -21,17 +21,36 @@ COLORS = {
 
 def setup_theme(root: tk.Misc) -> None:
     """Apply the same fonts, colors, and spacing to Tk and ttk controls."""
+    owner = root._root()
+    if getattr(owner, "_ccz_theme_initialized", False):
+        return
     root.option_add("*Font", f"{{{FONT}}} 10")
     root.option_add("*Button.Font", f"{{{FONT}}} 10")
+    # Tk buttons otherwise size themselves from platform-specific defaults.
+    # Keep the visual rhythm consistent while letting each label determine
+    # its natural width.
+    root.option_add("*Button.padX", 8)
+    root.option_add("*Button.padY", 2)
+    root.option_add("*Button.highlightThickness", 0)
     root.option_add("*Label.Font", f"{{{FONT}}} 10")
     root.option_add("*Entry.Font", f"{{{FONT}}} 10")
+    root.option_add("*TCombobox*Listbox.font", f"{{{FONT}}} 10")
     style = ttk.Style(root)
-    style.configure("TButton", font=(FONT, 10), padding=(10, 6))
+    style.configure("TButton", font=(FONT, 10), padding=(8, 2))
     style.configure("TLabel", font=(FONT, 10))
     style.configure("TEntry", padding=(6, 4))
-    style.configure("TCombobox", padding=(6, 3))
+    style.configure("TCombobox", padding=(6, 4))
+    for control in ("TEntry", "TCombobox"):
+        style.configure(control, foreground=COLORS["ink"], fieldbackground=COLORS["surface"])
+        style.map(control, fieldbackground=[("disabled", COLORS["surface_alt"]),
+                                           ("readonly", COLORS["surface"])],
+                  foreground=[("disabled", COLORS["muted"])])
+    # Card editors have a fixed height; standard form padding would clip text.
+    style.configure("Inline.TEntry", padding=(3, 0))
+    style.configure("Inline.TCombobox", padding=(2, 0))
     style.configure("Treeview", font=(FONT, 10), rowheight=28)
     style.configure("Treeview.Heading", font=(FONT, 10, "bold"))
+    owner._ccz_theme_initialized = True
 
 
 def style_dialog(dialog: tk.Misc) -> None:

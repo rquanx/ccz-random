@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from ccz_randomizer.ui.window_position import centered_toplevel
-from ccz_randomizer.ui.theme import COLORS, FONT, style_dialog
+from ccz_randomizer.ui.window_position import centered_toplevel, show_centered
+from ccz_randomizer.ui.theme import COLORS, FONT, setup_theme, style_dialog
 from ccz_randomizer.rules.reporting import participating_members
 
 import json
@@ -52,7 +52,7 @@ def _threshold_result(value, threshold) -> str:
         gap = float(threshold) - float(value)
     except (TypeError, ValueError):
         return "评分数据未采集"
-    return f"还差 {_score(gap)} 分" if gap > 0 else "已达标"
+    return f"还差 {_score(gap)} 分" if gap > 1e-9 else "已达标"
 
 
 def format_result_detail(detail: dict[str, Any]) -> dict[str, Any]:
@@ -75,7 +75,9 @@ def format_result_detail(detail: dict[str, Any]) -> dict[str, Any]:
             if qualification_mode in {"count", "all"} and len(members) > 1:
                 row += "　" + _threshold_result(item.get("score"), threshold)
             rows.append(row)
-        if qualification_mode in {"count", "all"}:
+        if qualification_mode == "none":
+            explanation = "无要求，不设兵种评分门槛"
+        elif qualification_mode in {"count", "all"}:
             if len(members) == 1:
                 explanation = f"门槛 {_score(threshold)} 分，" + _threshold_result(members[0].get("score"), threshold)
             else:
@@ -117,7 +119,11 @@ def format_result_detail(detail: dict[str, Any]) -> dict[str, Any]:
             )
         auto_pass = str(metrics.get("autoPassReason") or "")
         gate_mode = metrics.get("qualificationMode")
-        if gate_mode == "count":
+        if auto_pass == "special_skill":
+            explanation = "存在特殊特技，按当前规则直接合格"
+        elif gate_mode == "none":
+            explanation = "无要求，不设特技评分门槛"
+        elif gate_mode == "count":
             threshold = metrics.get("threshold")
             if len(members) == 1:
                 explanation = f"门槛 {_score(threshold)} 分，" + _threshold_result(members[0].get("score"), threshold)
@@ -131,8 +137,6 @@ def format_result_detail(detail: dict[str, Any]) -> dict[str, Any]:
             label = "所选人物平均" if gate_mode == "average" else "所选人物总分"
             threshold = metrics.get("threshold")
             explanation = f"{label} {_score(value)} 分，门槛 {_score(threshold)} 分，" + _threshold_result(value, threshold)
-        elif auto_pass == "special_skill":
-            explanation = "存在特殊特技，按当前规则直接合格"
         elif auto_pass == "high_job_average":
             explanation = (
                 "兵种平均分达到直接合格条件："
@@ -178,11 +182,22 @@ def show_score_detail(root, detail: dict) -> None:
     from ccz_randomizer.ui.detail_actions import add_detail_actions
     view = format_result_detail(detail)
     dialog = centered_toplevel(root)
+    setup_theme(dialog)
     style_dialog(dialog)
     dialog.title("评分详情")
     dialog.geometry("720x590")
     dialog.minsize(620, 460)
     dialog.transient(root)
+    dialog.bind("<Escape>", lambda _event: dialog.destroy())
+
+    # 等待窗口完成映射后再抢占焦点，避免 centered_toplevel 的透明定位阶段
+    # 让焦点短暂落到主窗口，导致打开评分详情后第一次按 Esc 没有反应。
+    def focus_dialog() -> None:
+        if dialog.winfo_exists():
+            dialog.lift()
+            dialog.focus_force()
+
+    dialog.after_idle(focus_dialog)
 
     body = tk.Frame(dialog, padx=18, pady=16)
     body.pack(fill="both", expand=True)
@@ -250,4 +265,5 @@ def show_score_detail(root, detail: dict) -> None:
             )
         detail_text.insert("end", "\n")
     detail_text.configure(state="disabled")
+    show_centered(dialog)
 

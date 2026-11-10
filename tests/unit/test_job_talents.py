@@ -113,6 +113,14 @@ class JobTalentsTests(unittest.TestCase):
         root.update()
         recruit_window = next(w for w in descendants(root) if isinstance(w, tk.Toplevel) and w.title() == "入队人员")
         canvas = next(w for w in descendants(recruit_window) if isinstance(w, tk.Canvas))
+        import time
+        deadline = time.monotonic() + 3
+        while time.monotonic() < deadline:
+            root.update()
+            if any(canvas.itemcget(item, "text").startswith("曹仁 · ")
+                   for item in canvas.find_all() if canvas.type(item) == "text"):
+                break
+            time.sleep(.002)
         texts = [canvas.itemcget(item, "text") for item in canvas.find_all() if canvas.type(item) == "text"]
         self.assertTrue(any(text.startswith("曹仁 · ") for text in texts))
         self.assertIn("颍川之战", texts)

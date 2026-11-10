@@ -7,7 +7,7 @@ from pathlib import Path
 from tkinter import ttk
 
 from ccz_randomizer.runtime.storage_cleanup import CATEGORIES, clean_storage, scan_storage
-from ccz_randomizer.ui.window_position import centered_toplevel
+from ccz_randomizer.ui.window_position import centered_toplevel, show_centered
 from ccz_randomizer.ui.theme import setup_theme, style_dialog
 
 
@@ -114,5 +114,6 @@ def show_storage_cleanup(parent, base: Path, *, is_running=lambda: False) -> Non
     height = max(370, dialog.winfo_reqheight())
     dialog.minsize(width, height)
     dialog.geometry(f"{width}x{height}")
+    show_centered(dialog)
     begin()
     poll()

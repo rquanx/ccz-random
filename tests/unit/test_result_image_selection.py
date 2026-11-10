@@ -17,6 +17,7 @@ def custom_config():
     config = default_rule_config()
     profile = copy.deepcopy(config['profiles']['默认规则'])
     profile.update(builtin=False, editorMode='advanced')
+    profile['dataCollection']['allRandomPersonnel'] = True
     profile['threePerson'].update(qualifiedMembers=['张宝'], minQualifiedCount=1)
     profile['resultImage'] = {'mode':'custom', 'members':['曹操', '典韦']}
     config['profiles']['图片独立'] = profile

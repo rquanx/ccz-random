@@ -2,7 +2,7 @@
 import tkinter as tk
 from tkinter import messagebox
 from ccz_randomizer.ui.member_pages import MemberPages
-from ccz_randomizer.ui.window_position import centered_toplevel
+from ccz_randomizer.ui.window_position import centered_toplevel, show_centered
 
 
 def show_result_image_members(parent, settings, scoring_members, on_confirm):
@@ -50,3 +50,4 @@ def show_result_image_members(parent, settings, scoring_members, on_confirm):
         dialog.destroy()
     tk.Button(actions, text='取消', command=dialog.destroy).pack(side='right')
     tk.Button(actions, text='确定', command=confirm).pack(side='right', padx=8)
+    show_centered(dialog)

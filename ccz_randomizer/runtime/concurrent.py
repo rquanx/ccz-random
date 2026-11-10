@@ -535,7 +535,21 @@ def _compose_result_grid(panels: dict[int, Path], grid_path: Path) -> None:
     compose_result_panels(panels, grid_path)
 
 
-def run_concurrent_workers(
+def run_concurrent_workers(*, history=None, **options) -> int:
+    result = 1
+    try:
+        result = _run_concurrent_workers(history=history, **options)
+        return result
+    except KeyboardInterrupt:
+        result = 130
+        raise
+    finally:
+        if history is not None:
+            stopped = result == 130 or bool(options.get('stop_file') and options['stop_file'].exists())
+            history.finish_run('stopped' if stopped else ('completed' if result == 0 else 'failed'))
+
+
+def _run_concurrent_workers(
     *,
     game_executable: Path,
     result_count: int,
@@ -545,6 +559,7 @@ def run_concurrent_workers(
     worker_count: int = 1,
     loop_random: bool = False,
     compatibility_mode: bool = False,
+    history=None,
 ) -> int:
     """Run isolated workers and publish each completed result."""
     if worker_count < 1:
@@ -557,6 +572,7 @@ def run_concurrent_workers(
     try:
         if loop_random:
             result = _run_continuous_loop(
+                history=history,
                 game_executable=game_executable,
                 result_count=result_count,
                 mode=mode,
@@ -567,6 +583,7 @@ def run_concurrent_workers(
             )
         else:
             result = _run_concurrent_batch(
+                history=history,
                 game_executable=game_executable,
                 result_count=result_count,
                 mode=mode,
@@ -594,6 +611,7 @@ def run_concurrent_workers(
         try:
             if loop_random:
                 result = _run_continuous_loop(
+                    history=history,
                     game_executable=game_executable,
                     result_count=result_count,
                     mode=mode,
@@ -604,6 +622,7 @@ def run_concurrent_workers(
                 )
             else:
                 result = _run_concurrent_batch(
+                    history=history,
                     game_executable=game_executable,
                     result_count=result_count,
                     mode=mode,
@@ -643,6 +662,7 @@ def _run_original_directory_worker(
 ) -> int:
     child_env = os.environ.copy()
     child_env.pop("CCZ_GAME_RUNTIME_DIR", None)
+    child_env.pop("CCZ_HISTORY_MANAGED", None)
     child_env.update(
         {
             "CCZ_AUTOSTART": "1",
@@ -773,6 +793,7 @@ def _run_continuous_loop(
     base_dir: Path,
     worker_count: int,
     compatibility_mode: bool = False,
+    history=None,
 ) -> int:
     stamp = f"{os.getpid()}-{time.time_ns()}"
     runtime_root = base_dir / "ccz_fast_data"
@@ -882,6 +903,8 @@ def _run_continuous_loop(
     def create_round() -> None:
         nonlocal next_round_number
         round_number = next_round_number
+        if history is not None:
+            history.start_round(round_number)
         workspace = result_root / f"round-{round_number:06d}"
         (workspace / "SV").mkdir(parents=True, exist_ok=True)
         (workspace / "panels").mkdir(parents=True, exist_ok=True)
@@ -947,6 +970,7 @@ def _run_continuous_loop(
                 "CCZ_TOTAL_RESULT_COUNT": str(result_count),
                 "CCZ_RANDOM_MODE": mode,
                 "CCZ_LOOP_RANDOM": "0",
+                "CCZ_HISTORY_MANAGED": "1" if history is not None else "0",
                 "CCZ_HISTORY_ROUND_NUMBER": str(task.round_number),
                 "CCZ_RUN_STAMP": _batch_stamp(task.round_number),
                 "CCZ_CONCURRENT_WORKER": str(lane.index),
@@ -956,6 +980,9 @@ def _run_continuous_loop(
                 ),
             }
         )
+        if history is not None:
+            child_env["CCZ_HISTORY_RUN_ID"] = history.run_id
+            child_env["CCZ_STATE_BASE_DIR"] = str(history.repository.path.parent.parent)
         if not compatibility_mode:
             child_env["CCZ_DISABLE_AUDIO_MUTE"] = "1"
         if compatibility_mode:
@@ -1069,6 +1096,8 @@ def _run_continuous_loop(
                 _stop_worker_process(process, wait_seconds=1.0)
 
     def finalize_round(round_state: _LoopRound) -> None:
+        if history is not None:
+            history.finish_round(history.start_round(round_state.number), "completed")
         archive = round_state.workspace
         round_state.archived_path = archive
         grid_path = archive / "random.png"
@@ -1431,7 +1460,10 @@ def _run_concurrent_batch(
     worker_count: int,
     round_number: int,
     compatibility_mode: bool = False,
+    history=None,
 ) -> int:
+    if history is not None:
+        history.start_round(round_number)
     stamp = f"{os.getpid()}-{time.time_ns()}"
     runtime_root = base_dir / "ccz_fast_data"
     try:
@@ -1554,6 +1586,7 @@ def _run_concurrent_batch(
                 "CCZ_TOTAL_RESULT_COUNT": str(result_count),
                 "CCZ_RANDOM_MODE": mode,
                 "CCZ_LOOP_RANDOM": "0",
+                "CCZ_HISTORY_MANAGED": "1" if history is not None else "0",
                 "CCZ_HISTORY_ROUND_NUMBER": str(round_number),
                 "CCZ_RUN_STAMP": _batch_stamp(round_number),
                 "CCZ_CONCURRENT_WORKER": str(lane.index),
@@ -1563,6 +1596,9 @@ def _run_concurrent_batch(
                 ),
             }
         )
+        if history is not None:
+            child_env["CCZ_HISTORY_RUN_ID"] = history.run_id
+            child_env["CCZ_STATE_BASE_DIR"] = str(history.repository.path.parent.parent)
         if not compatibility_mode:
             child_env["CCZ_DISABLE_AUDIO_MUTE"] = "1"
         if compatibility_mode:

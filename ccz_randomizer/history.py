@@ -231,6 +231,17 @@ class HistoryRepository:
             assert row is not None
             return int(row["id"])
 
+    def require_round(self, run_id: str, round_number: int) -> int:
+        """Attach a worker without resetting shared metadata or lifecycle."""
+        with closing(self._connect()) as connection:
+            row = connection.execute(
+                'SELECT id FROM rounds WHERE run_id=? AND round_number=?',
+                (run_id, round_number),
+            ).fetchone()
+        if row is None:
+            raise RuntimeError('随机轮次尚未由调度进程创建，不能写入历史记录')
+        return int(row['id'])
+
     def finish_round(self, round_id: int, status: str) -> None:
         with closing(self._connect()) as connection, connection:
             connection.execute(

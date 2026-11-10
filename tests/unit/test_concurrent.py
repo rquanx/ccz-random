@@ -1101,6 +1101,7 @@ class ConcurrentSchedulingTests(unittest.TestCase):
 
         self.assertEqual(0, code)
         run_batch.assert_called_once_with(
+            history=None,
             game_executable=game_executable,
             result_count=15,
             mode="seven",

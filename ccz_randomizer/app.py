@@ -44,6 +44,7 @@ from ccz_randomizer.rules.config import (
 )
 from ccz_randomizer.rules.editor import show_rule_editor, show_toast
 from ccz_randomizer.history import HistoryRepository
+from ccz_randomizer.workflow.history_lifecycle import HistoryLifecycle
 from ccz_randomizer.ui.history import show_history_window
 from ccz_randomizer.ui.result_details import (
     decode_result_detail,
@@ -8425,7 +8426,17 @@ def main() -> int:
         mode = os.environ.get("CCZ_RANDOM_MODE", "three")
         worker_count = int(os.environ.get("CCZ_CONCURRENT_COUNT", "2"))
         stop_file_value = os.environ.get("CCZ_STOP_FILE", "")
+        history_base = Path(os.environ.get("CCZ_STATE_BASE_DIR") or app_dir())
+        history_run_id = os.environ.setdefault(
+            "CCZ_HISTORY_RUN_ID", f"concurrent-{os.getpid()}-{time.time_ns()}")
+        history = HistoryLifecycle(HistoryRepository(history_base), history_run_id,
+                                   expected_results=result_count)
+        parent_rules = load_rule_config(app_dir()).config
+        history.start_run(mode=mode, loop_random=os.environ.get("CCZ_LOOP_RANDOM") == "1",
+                          rule_name=parent_rules["activeProfile"],
+                          rule=active_profile(parent_rules), build=application_build_info())
         return run_concurrent_workers(
+            history=history,
             game_executable=game_executable,
             result_count=result_count,
             mode=mode,
@@ -8524,13 +8535,12 @@ def main() -> int:
         Path(state_base) if state_base else app
     )
     history_run_id = os.environ.get("CCZ_HISTORY_RUN_ID", run_id)
-    history_repository.start_run(
-        history_run_id,
-        mode="three" if three_person_mode else "seven",
-        loop_random=loop_random,
-        rule_name=rules["activeProfile"],
-        rule=active_rule_snapshot,
-        build=build_info,
+    history_lifecycle = HistoryLifecycle(
+        history_repository, history_run_id,
+        owner=os.environ.get("CCZ_HISTORY_MANAGED") != "1")
+    history_lifecycle.start_run(
+        mode="three" if three_person_mode else "seven", loop_random=loop_random,
+        rule_name=rules["activeProfile"], rule=active_rule_snapshot, build=build_info,
     )
     environment = environment_diagnostic(app, log_dir, tempfile.gettempdir())
     diagnostic_log(
@@ -8752,8 +8762,7 @@ def main() -> int:
                 postprocess_issues: dict[int, list[str]] = {}
                 attempt_started_at: dict[tuple[int, int], float] = {}
                 round_started_at = dt.datetime.now()
-                history_round_id = history_repository.start_round(
-                    history_run_id,
+                history_round_id = history_lifecycle.start_round(
                     round_number,
                 )
                 if loop_random:
@@ -9234,19 +9243,19 @@ def main() -> int:
                             "第 20 号源存档在随机过程中被修改"
                         )
                     if not loop_random:
-                        history_repository.finish_round(
+                        history_lifecycle.finish_round(
                             history_round_id,
                             "completed",
                         )
                 except KeyboardInterrupt:
-                    history_repository.finish_round(
+                    history_lifecycle.finish_round(
                         history_round_id,
                         "stopped",
                     )
                     archive_incomplete_round()
                     raise
                 except Exception:
-                    history_repository.finish_round(
+                    history_lifecycle.finish_round(
                         history_round_id,
                         "failed",
                     )
@@ -9269,14 +9278,14 @@ def main() -> int:
                         complete=True,
                     )
                 except Exception:
-                    history_repository.finish_round(
+                    history_lifecycle.finish_round(
                         history_round_id,
                         "failed",
                     )
                     raise
                 assert completed_dir is not None
                 final_grid = relocate_result_output(completed_dir)
-                history_repository.finish_round(
+                history_lifecycle.finish_round(
                     history_round_id,
                     "completed",
                 )
@@ -9304,7 +9313,7 @@ def main() -> int:
                 )
             else:
                 print(f"{result_count} 个结果存档已全部保存。")
-        history_repository.finish_run(history_run_id, "completed")
+        history_lifecycle.finish_run("completed")
         update_diagnostic_summary(
             status="completed",
             completed_results=len(expected_results),
@@ -9312,14 +9321,14 @@ def main() -> int:
         )
         return 0
     except KeyboardInterrupt:
-        history_repository.finish_run(history_run_id, "stopped")
+        history_lifecycle.finish_run("stopped")
         update_diagnostic_context(phase="stopped")
         diagnostic_log("worker_stopped", reason="keyboard_interrupt")
         update_diagnostic_summary(status="stopped")
         print("测试已中断。")
         return 130
     except Exception as exc:
-        history_repository.finish_run(history_run_id, "failed")
+        history_lifecycle.finish_run("failed")
         update_diagnostic_context(phase="worker_failed")
         blocked_details = security_software_block_details(exc)
         diagnostic_error(

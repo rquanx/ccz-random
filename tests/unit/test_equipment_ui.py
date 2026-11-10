@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 import tempfile
+import time
 import tkinter as tk
 from tkinter import ttk
 import unittest
@@ -211,6 +212,11 @@ class EquipmentTests(unittest.TestCase):
             self.assertFalse(any(isinstance(w, (ttk.Button, tk.Button)) and w.cget('text') == '清空'
                                  for w in descendants(dialog)))
             search.focus_force()
+            deadline = time.monotonic() + 2
+            while dialog.focus_get() != search and time.monotonic() < deadline:
+                root.update()
+                time.sleep(.005)
+            self.assertEqual(search, dialog.focus_get(), "输入前搜索框必须先获得焦点")
             search.insert(0, '雌雄')
             self.settle(root)
             self.assertEqual(['雌雄'], SearchHistory(self.history_path).items)

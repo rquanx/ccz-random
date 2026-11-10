@@ -167,7 +167,15 @@ class RecruitmentWindowTests(unittest.TestCase):
             return {row["name"] for row in rows
                     if any(text.startswith(row["name"] + " · ") for text in texts)}
 
-        self.assertEqual({row["name"] for row in rows}, visible_names())
+        # Initial cards render asynchronously; one update() need not drain all
+        # batches when another integration process is using the CPU.
+        import time
+        expected_initial = {row["name"] for row in rows}
+        deadline = time.monotonic() + 5
+        while visible_names() != expected_initial and time.monotonic() < deadline:
+            root.update()
+            time.sleep(.002)
+        self.assertEqual(expected_initial, visible_names())
         checkbox.invoke(); settle()
         expected = {row["name"] for row in rows if any(
             scores[normalize_skill_name(talent)] >= 5

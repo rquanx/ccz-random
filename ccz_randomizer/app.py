@@ -119,7 +119,6 @@ from ccz_randomizer.preferences import (
     acknowledge_first_use_notice,
     first_use_notice_acknowledged,
     load_compatibility_mode,
-    load_turbo_mode,
     load_concurrency,
     load_loop_random,
     save_random_runtime_settings,
@@ -6849,7 +6848,6 @@ def gui_main() -> int:
     compatibility_mode_var = tk.BooleanVar(
         value=load_compatibility_mode(app_dir())
     )
-    turbo_mode_var = tk.BooleanVar(value=load_turbo_mode(app_dir()))
     rule_load = load_rule_config(app_dir())
     current_rules = rule_load.config
     root._current_rule_profile = lambda: active_profile(current_rules)
@@ -7068,7 +7066,6 @@ def gui_main() -> int:
                 loop_random=bool(loop_var.get()),
                 concurrency=int(concurrency_var.get()),
                 compatibility_mode=bool(compatibility_mode_var.get()),
-                turbo_mode=bool(turbo_mode_var.get()),
             )
         except (OSError, ValueError, TypeError, tk.TclError):
             show_toast(root, "运行参数保存失败，请检查输入和工具目录。")
@@ -7107,13 +7104,6 @@ def gui_main() -> int:
         command=persist_runtime_settings,
     )
     compatibility_check.pack(side="left")
-    turbo_check = tk.Checkbutton(
-        runtime_settings_bar, text="极速模式", variable=turbo_mode_var,
-        command=persist_runtime_settings,
-    )
-    turbo_check.pack(side="left", padx=(12, 0))
-    from ccz_randomizer.ui.tooltip import HoverTooltip
-    turbo_check._tooltip = HoverTooltip(turbo_check, "更快的随机，但可能会导致 bug。")
 
     rule_settings_bar = tk.Frame(settings_panel)
     rule_settings_bar.pack(fill="x")
@@ -8042,7 +8032,6 @@ def gui_main() -> int:
             loop_check.configure(state="normal")
             concurrency_spin.configure(state="normal")
             compatibility_check.configure(state="normal")
-            turbo_check.configure(state="normal")
             stopped = stop_requested_by_user or code == 130
             if concurrent_console_state is not None:
                 if stopped:
@@ -8258,7 +8247,8 @@ def gui_main() -> int:
         env["CCZ_COMPATIBILITY_MODE"] = (
             "1" if compatibility_mode_enabled else "0"
         )
-        env["CCZ_TURBO_MODE"] = "1" if turbo_mode_var.get() else "0"
+        # The experimental mode is hidden; ignore saved/inherited opt-ins.
+        env["CCZ_TURBO_MODE"] = "0"
         env["CCZ_RUN_STAMP"] = dt.datetime.now().strftime(
             "%Y-%m-%d %H.%M.%S"
         )
@@ -8296,7 +8286,6 @@ def gui_main() -> int:
         loop_check.configure(state="disabled")
         concurrency_spin.configure(state="disabled")
         compatibility_check.configure(state="disabled")
-        turbo_check.configure(state="disabled")
 
     def stop() -> None:
         nonlocal stop_requested_by_user
@@ -8356,7 +8345,6 @@ def gui_main() -> int:
                 loop_random=bool(loop_var.get()),
                 concurrency=int(concurrency_var.get()),
                 compatibility_mode=bool(compatibility_mode_var.get()),
-                turbo_mode=bool(turbo_mode_var.get()),
             )
         except (OSError, ValueError, TypeError, tk.TclError):
             pass

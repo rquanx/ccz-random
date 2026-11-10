@@ -23,6 +23,20 @@ def services():
 
 
 class RandomInteractionTests(unittest.TestCase):
+    def test_fast_load_requires_supported_turbo_and_isolated_desktop(self):
+        api = services()
+        api.WINDOW_DESKTOP = 1234
+        self.assertEqual({}, RandomInteractionSession(api, 1).menu_load_options())
+        session = RandomInteractionSession(api, 1, turbo_enabled=True)
+        self.assertEqual({'fast_selection': True}, session.menu_load_options())
+        api.WINDOW_DESKTOP = 0
+        self.assertEqual({}, session.menu_load_options())
+        api.WINDOW_DESKTOP = 1234
+        session.for_attempt(1).disable('interaction_not_completed')
+        self.assertEqual({}, session.menu_load_options())
+        api.current_game_version = lambda: '2.10'
+        self.assertEqual({}, RandomInteractionSession(api, 1, turbo_enabled=True).menu_load_options())
+
     def test_normal_mode_does_not_construct_turbo_or_consult_its_version_gate(self):
         api = services()
         api.current_game_version = Mock(side_effect=AssertionError('常规模式无需极速版本判断'))

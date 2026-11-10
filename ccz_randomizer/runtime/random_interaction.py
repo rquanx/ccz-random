@@ -19,6 +19,15 @@ class RandomInteractionSession:
     def scene_delay(self, regular_delay):
         return self.for_attempt(1).scene_delay(regular_delay)
 
+    def menu_load_options(self):
+        strategy = self.for_attempt(1)
+        if strategy is self.normal:
+            return {}
+        # Synthetic foreground/input hooks must stay on the worker's desktop.
+        if not getattr(self.services, 'WINDOW_DESKTOP', 0):
+            return {}
+        return {'fast_selection': True}
+
     def for_attempt(self, attempt):
         if self.selected is not self.normal and not self.selected.enabled:
             self.selected = self.normal

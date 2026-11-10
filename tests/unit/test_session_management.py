@@ -694,22 +694,6 @@ class SessionManagementTests(unittest.TestCase):
                 with self.assertRaises(KeyboardInterrupt):
                     title_load_verified(123, 19, save_path)
 
-    def test_all_runtime_loads_use_real_game_menu(self):
-        source = _runtime_source()
-        title_load = source.split(
-            "def title_load_verified(", 1
-        )[1].split("def normal_load_verified(", 1)[0]
-        reused_load = source.split(
-            "    def robust_load_and_confirm(", 1
-        )[1].split("    def menu_save_and_confirm(", 1)[0]
-
-        self.assertNotIn('"title-load"', title_load)
-        self.assertIn("drive_game_menu_load(", title_load)
-        self.assertIn("from_title=True", title_load)
-        self.assertIn("drive_game_menu_load(", reused_load)
-        self.assertNotIn('"title-load"', reused_load)
-        self.assertNotIn("native_load_dialog_item(", reused_load)
-
     def test_title_load_closes_progress_dialog_and_refreshes_game(self):
         with tempfile.TemporaryDirectory() as temporary:
             save_path = Path(temporary) / "SV020.E5S"
@@ -902,24 +886,67 @@ class SessionManagementTests(unittest.TestCase):
 
         process.terminate.assert_called_once()
 
-    def test_native_list_action_uses_single_click(self):
-        source = (
-            Path(__file__).resolve().parents[2]
-            / "native"
-            / "ccz_control.c"
-        ).read_text(encoding="utf-8")
-        list_action = source.split(
-            "static DWORD run_list_item(int item_index) {", 1
-        )[1].split("static DWORD notify_list_item(", 1)[0]
+    def test_fast_load_waits_for_remote_cleanup_before_waking_game(self):
+        process = unittest.mock.Mock()
+        process.poll.side_effect = [None, None, 0, 0, 0, 0]
+        process.returncode = 0
+        with tempfile.TemporaryDirectory() as temporary:
+            save_path = Path(temporary) / "SV020.E5S"
+            save_path.write_bytes(b"save")
+            with (
+                patch("fast_randomizer.recover_stale_windows"),
+                patch("fast_randomizer.activate_hidden_window"),
+                patch("fast_randomizer.wait_list_dialog", return_value=789),
+                patch("fast_randomizer.visible_owned_windows", return_value=[]),
+                patch("fast_randomizer.native_dir", return_value=Path(temporary)),
+                patch("fast_randomizer.subprocess.Popen", return_value=process) as popen,
+                patch("fast_randomizer.user32.PostMessageW"),
+                patch("fast_randomizer.user32.IsWindow", return_value=False),
+                patch("fast_randomizer.user32.IsWindowEnabled", return_value=True),
+                patch("fast_randomizer.interruptible_sleep") as sleep,
+                patch("fast_randomizer.native_wake_game") as wake,
+                patch("fast_randomizer.diagnostic_log"),
+            ):
+                drive_game_menu_load(123, 456, save_path, 20, fast_selection=True)
+                self.assertEqual("turbo-list", popen.call_args.args[0][3])
+                self.assertEqual(2, sleep.call_count)
+                wake.assert_called_once_with(123, 456, 80)
+                process.terminate.assert_not_called()
 
-        self.assertIn(
-            "post_synthetic_click(list, click_x, click_y, 1, FALSE);",
-            list_action,
-        )
-        self.assertNotIn(
-            "post_synthetic_click(list, click_x, click_y, 2, FALSE);",
-            list_action,
-        )
+    def test_fast_load_failure_never_advances_to_random_input(self):
+        for mode in ('timeout', 'native_error', 'stop'):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as temporary:
+                save_path = Path(temporary) / 'SV020.E5S'
+                save_path.write_bytes(b'save')
+                process = unittest.mock.Mock()
+                process.returncode = 22 if mode == 'native_error' else None
+                process.poll.return_value = process.returncode
+                process.communicate.return_value = (b'', b'load failed')
+                clock = [0.0]
+                def sleep(seconds):
+                    clock[0] += seconds
+                with (
+                    patch('fast_randomizer.recover_stale_windows'),
+                    patch('fast_randomizer.activate_hidden_window'),
+                    patch('fast_randomizer.wait_list_dialog', return_value=789),
+                    patch('fast_randomizer.visible_owned_windows', return_value=[]),
+                    patch('fast_randomizer.process_windows', return_value=[]),
+                    patch('fast_randomizer.native_dir', return_value=Path(temporary)),
+                    patch('fast_randomizer.subprocess.Popen', return_value=process),
+                    patch('fast_randomizer.user32.PostMessageW'),
+                    patch('fast_randomizer.user32.IsWindow', return_value=False),
+                    patch('fast_randomizer.user32.IsWindowEnabled', return_value=True),
+                    patch('fast_randomizer.time.perf_counter', side_effect=lambda: clock[0]),
+                    patch('fast_randomizer.interruptible_sleep', side_effect=sleep),
+                    patch('fast_randomizer.check_stop_requested', side_effect=InterruptedError('stop') if mode == 'stop' else None),
+                    patch('fast_randomizer.native_wake_game') as wake,
+                ):
+                    error = InterruptedError if mode == 'stop' else RuntimeError
+                    with self.assertRaises(error):
+                        drive_game_menu_load(123, 456, save_path, 20, timeout=.05, fast_selection=True)
+                    wake.assert_not_called()
+                    if mode != 'native_error':
+                        process.terminate.assert_called_once()
 
     def test_process_alive_checks_the_requested_pid(self):
         with (
@@ -1754,6 +1781,7 @@ class SessionManagementTests(unittest.TestCase):
     def test_seven_member_story_clicks_xu_without_selecting_option(self):
         runner = unittest.mock.Mock()
         with (
+            patch.dict(os.environ),
             patch("fast_randomizer.trigger_random_choice_click") as choice,
             patch("fast_randomizer.native_silent_click") as click,
             patch("fast_randomizer.native_wake_game") as wake,

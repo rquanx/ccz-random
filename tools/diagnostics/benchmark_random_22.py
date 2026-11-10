@@ -24,14 +24,20 @@ def main():
     parser.add_argument('--save-results', action='store_true', help='Accept, save and reload each result in the sandbox')
     parser.add_argument('--skip-first-npc', action='store_true', help='Verify recovery when the first NPC click is lost')
     args = parser.parse_args()
+    if args.attempts < 2:
+        parser.error('--attempts must be at least 2')
+    run_benchmark(args)
+
+
+def run_benchmark(args):
     args.output = args.output.resolve()
     args.output.unlink(missing_ok=True)
     if args.attempts < 2:
-        parser.error('--attempts must be at least 2')
+        raise ValueError('attempts must be at least 2')
     source = args.game_dir.resolve()
     protected = [source / 'SV/SV020.E5S', source / 'RS/S_00.EEX']
     before = {p: hashlib.sha256(p.read_bytes()).hexdigest() for p in protected}
-    timings, events, rolls, saved_cases = [], [], [], []
+    timings, events, rolls, saved_cases, npc_modes = [], [], [], [], []
     with tempfile.TemporaryDirectory(prefix='ccz-speed-smoke-') as directory:
         sandbox = create_game_sandbox(source, root=Path(directory))
         os.environ.update(CCZ_GAME_EXE=str(sandbox / 'Ekd5.exe'),
@@ -81,12 +87,16 @@ def main():
         skipped = False
         def click(pid, hwnd, x, y, **kwargs):
             nonlocal skipped
+            if (x, y) == app.XU_CLIENT_POSITION:
+                npc_modes.append('normal')
             if args.skip_first_npc and not skipped and (x, y) == app.XU_CLIENT_POSITION:
                 skipped = True
                 return
             return original_click(pid, hwnd, x, y, **kwargs)
         def burst(hwnd, x, y, count, **kwargs):
             nonlocal skipped
+            if (x, y) == app.XU_CLIENT_POSITION:
+                npc_modes.append('turbo')
             if args.skip_first_npc and not skipped and (x, y) == app.XU_CLIENT_POSITION:
                 skipped = True
                 return
@@ -119,14 +129,27 @@ def main():
                 assert personnel(reloaded.pid) == saved_personnel, '重启游戏后的人物兵种或特技不一致'
     assert all(hashlib.sha256(p.read_bytes()).hexdigest() == digest for p, digest in before.items())
     assert len(set(rolls)) > 1, '多轮未观察到随机变化'
+    assert npc_modes, '未经过真实随机输入入口'
+    assert ('turbo' in npc_modes) == args.turbo, '实际随机策略与请求模式不一致'
     if args.skip_first_npc:
         assert skipped and any(e['event'] == 'interaction_no_change' for e in events), '未触发预期重试'
+        if args.turbo:
+            fallbacks = [e for e in events if e['event'] == 'turbo_fallback']
+            assert len(fallbacks) == 1, '极速失败必须仅回退一次'
+            assert npc_modes[0] == 'turbo' and all(mode == 'normal' for mode in npc_modes[1:]), '回退后再次进入极速路径'
+    elif args.turbo:
+        assert all(mode == 'turbo' for mode in npc_modes), '极速基准意外走了常规回退路径'
+    menu_loads = [e for e in events if e['event'] == 'game_menu_load_interaction_completed']
+    fast_loads = sum(bool(e.get('fast_selection')) for e in menu_loads)
     result = dict(attempts_ms=timings, repeated_median_ms=statistics.median(timings[1:]),
                   turbo=args.turbo, saved_results_verified=args.save_results,
-                  retries=sum(e['event'] == 'interaction_no_change' for e in events), rolls=rolls, events=events)
+                  retries=sum(e['event'] == 'interaction_no_change' for e in events), rolls=rolls, events=events,
+                  npc_modes=npc_modes)
+    result['fast_menu_loads'] = fast_loads
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, ensure_ascii=False, indent=2, default=str), encoding='utf-8')
     print(json.dumps({k: result[k] for k in ('attempts_ms', 'repeated_median_ms', 'retries')}, ensure_ascii=False))
+    return result
 
 
 if __name__ == '__main__':

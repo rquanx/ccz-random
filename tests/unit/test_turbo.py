@@ -19,7 +19,8 @@ class TurboTests(unittest.TestCase):
         return SimpleNamespace(
             current_game_version=lambda: '2.20-1104-night',
             check_stop_requested=Mock(), native_silent_click_burst=Mock(),
-            CONFIRM_FIRST_CLIENT_POSITION=(200, 100), R0_MEMORY_SIZE=0x30000,
+            # The opaque fixture spans 80 bytes; it models equality, not R0 parsing.
+            CONFIRM_FIRST_CLIENT_POSITION=(200, 100), R0_MEMORY_SIZE=80,
             time=SimpleNamespace(perf_counter=lambda: self.clock),
             interruptible_sleep=Mock(side_effect=sleep),
             read_job_ids=Mock(side_effect=jobs) if jobs is not None else Mock(return_value=(0, 0, 0)),
@@ -73,11 +74,22 @@ class TurboTests(unittest.TestCase):
     def test_unstable_changed_result_is_never_published(self):
         services = self.services()
         services.read_job_ids.return_value = (54, 57, 0)
-        services.read_memory.side_effect = lambda *args: str(self.clock).encode()
+        services.read_memory.side_effect = lambda *args: str(self.clock).encode().ljust(80, b'\0')
         turbo = TurboRandomPolicy(services, 123, enabled=True)
         with self.assertRaisesRegex(RuntimeError, '尚未稳定'):
             turbo.select_choice(456, (1, 2, 3), (0, 0, 0))
         self.assertFalse(turbo.enabled)
+
+    def test_slow_game_update_can_settle_without_skipping_verification(self):
+        after = (FIXTURES / 'recruitment-after.bin').read_bytes()
+        services = self.services()
+        services.read_job_ids.return_value = (54, 57, 0)
+        services.read_memory.side_effect = lambda *args: (
+            after if self.clock >= .8 else str(self.clock).encode().ljust(80, b'\0'))
+        turbo = TurboRandomPolicy(services, 123, enabled=True)
+        self.assertEqual((54, 57, 0), turbo.select_choice(456, (1, 2, 3), (0, 0, 0)))
+        self.assertGreaterEqual(self.clock, .85)
+        self.assertTrue(turbo.enabled)
 
     def test_stop_propagates_before_sending_input(self):
         services = self.services()
@@ -85,3 +97,48 @@ class TurboTests(unittest.TestCase):
         with self.assertRaises(InterruptedError):
             TurboRandomPolicy(services, 123, enabled=True).click(456, (1, 2))
         services.native_silent_click_burst.assert_not_called()
+
+    def test_stop_during_stability_wait_never_returns_a_result(self):
+        after = (FIXTURES / 'recruitment-after.bin').read_bytes()
+        services = self.services(jobs=[(54, 57, 0)], snapshots=[after])
+        # Before input, first poll, then stop before a second matching snapshot.
+        services.check_stop_requested.side_effect = [None, None, InterruptedError('stop')]
+        with self.assertRaises(InterruptedError):
+            TurboRandomPolicy(services, 123, enabled=True).select_choice(456, (1, 2, 3), (0, 0, 0))
+        self.assertEqual(1, services.read_memory.call_count)
+
+    def test_read_failure_propagates_without_accepting_a_partial_result(self):
+        for error in (OSError('process disappeared'), PermissionError('memory inaccessible')):
+            with self.subTest(error=error):
+                services = self.services(jobs=[(54, 57, 0)])
+                services.read_memory.side_effect = error
+                with self.assertRaises(type(error)):
+                    TurboRandomPolicy(services, 123, enabled=True).select_choice(456, (1, 2, 3), (0, 0, 0))
+
+    def test_two_identical_short_reads_are_never_a_stable_result(self):
+        after = (FIXTURES / 'recruitment-after.bin').read_bytes()
+        for incomplete in (b'', after[:-1]):
+            with self.subTest(size=len(incomplete)):
+                services = self.services()
+                services.read_job_ids.return_value = (54, 57, 0)
+                services.read_memory.return_value = incomplete
+                turbo = TurboRandomPolicy(services, 123, enabled=True)
+                with self.assertRaisesRegex(RuntimeError, '内存不完整'):
+                    turbo.select_choice(456, (1, 2, 3), (0, 0, 0))
+                self.assertFalse(turbo.enabled)
+
+    def test_return_to_baseline_resets_snapshot_stability(self):
+        after = (FIXTURES / 'recruitment-after.bin').read_bytes()
+        services = self.services(jobs=[(54, 57, 0), (0, 0, 0), (54, 57, 0), (54, 57, 0)],
+                                 snapshots=[after, after, after])
+        turbo = TurboRandomPolicy(services, 123, enabled=True)
+        self.assertEqual((54, 57, 0), turbo.select_choice(456, (1, 2, 3), (0, 0, 0)))
+        self.assertEqual(4, services.read_job_ids.call_count)
+
+    def test_input_timeout_propagates_without_reading_or_publishing_a_result(self):
+        services = self.services()
+        services.native_silent_click_burst.side_effect = TimeoutError('input timeout')
+        with self.assertRaises(TimeoutError):
+            TurboRandomPolicy(services, 123, enabled=True).select_choice(456, (1, 2, 3), (0, 0, 0))
+        services.read_job_ids.assert_not_called()
+        services.read_memory.assert_not_called()

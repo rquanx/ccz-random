@@ -64,7 +64,8 @@ enum {
     ACTION_TIMED_SILENT_CLICK = 45,
     ACTION_TIMED_SILENT_CLICK_BURST = 46,
     ACTION_ENABLE_ACCELERATION = 47,
-    ACTION_ASYNC_SOUND = 48
+    ACTION_ASYNC_SOUND = 48,
+    ACTION_TURBO_LIST_ITEM = 49
 };
 
 typedef struct ControlRequest {
@@ -2855,8 +2856,9 @@ static void activate_control(HWND window) {
     SendMessageW(window, WM_SETFOCUS, 0, 0);
 }
 
-static void post_synthetic_click(
-    HWND window, int x, int y, int count, BOOL right
+static void post_synthetic_click_timed(
+    HWND window, int x, int y, int count, BOOL right,
+    DWORD down_ms, DWORD up_ms, DWORD tail_ms
 ) {
     UINT move = WM_MOUSEMOVE;
     UINT down = right ? WM_RBUTTONDOWN : WM_LBUTTONDOWN;
@@ -2913,14 +2915,14 @@ static void post_synthetic_click(
             }
             SendMessageW(window, down, button, point);
         }
-        Sleep(250);
+        Sleep(down_ms);
         synthetic_left_down = 0;
         synthetic_right_down = 0;
         SendMessageW(window, up, 0, point);
-        Sleep(250);
+        Sleep(up_ms);
     }
 
-    Sleep(1800);
+    Sleep(tail_ms);
     update_input_hooks_safely(window, FALSE);
     if (
         previous_foreground != NULL &&
@@ -2935,6 +2937,10 @@ static void post_synthetic_click(
         hooked_set_foreground_window
     );
     InterlockedExchange(&allow_game_foreground, 0);
+}
+
+static void post_synthetic_click(HWND window, int x, int y, int count, BOOL right) {
+    post_synthetic_click_timed(window, x, y, count, right, 250, 250, 1800);
 }
 
 static DWORD post_silent_click_timed(
@@ -3632,7 +3638,7 @@ static DWORD run_enable_acceleration(void) {
     );
 }
 
-static DWORD run_list_item(int item_index) {
+static DWORD run_list_item_timed(int item_index, BOOL turbo) {
     HWND dialog = find_list_dialog();
     if (dialog == NULL) {
         return 2;
@@ -3669,8 +3675,16 @@ static DWORD run_list_item(int item_index) {
         click_x = 10;
     }
     int click_y = (item_rect.top + item_rect.bottom) / 2;
-    post_synthetic_click(list, click_x, click_y, 1, FALSE);
+    if (turbo) {
+        post_synthetic_click_timed(list, click_x, click_y, 1, FALSE, 100, 50, 100);
+    } else {
+        post_synthetic_click(list, click_x, click_y, 1, FALSE);
+    }
     return 0;
+}
+
+static DWORD run_list_item(int item_index) {
+    return run_list_item_timed(item_index, FALSE);
 }
 
 static DWORD notify_list_item(int item_index) {
@@ -4368,6 +4382,9 @@ __declspec(dllexport) DWORD WINAPI ControlAction(LPVOID parameter) {
             (HWND)(UINT_PTR)request.window,
             request.count
         );
+    }
+    if (request.action == ACTION_TURBO_LIST_ITEM) {
+        return run_list_item_timed(request.item_index, TRUE);
     }
     if (request.action == ACTION_DIRECT_LOAD) {
         return run_direct_load(request.item_index);

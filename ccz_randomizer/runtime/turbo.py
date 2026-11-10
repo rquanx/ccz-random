@@ -34,7 +34,9 @@ class TurboRandomPolicy:
         """Wait for the changed save state to settle before filtering it."""
         services = self.services
         self.click(hwnd, services.CONFIRM_FIRST_CLIENT_POSITION)
-        deadline = services.time.perf_counter() + .6
+        # Shorter menu input can expose a still-running game update. This is
+        # an upper bound only; stable results return immediately as before.
+        deadline = services.time.perf_counter() + 1.5
         previous = None
         current = before
         changed = False
@@ -44,6 +46,9 @@ class TurboRandomPolicy:
             if current != before and any(current):
                 changed = True
                 snapshot = services.read_memory(self.pid, 0, services.R0_MEMORY_SIZE)
+                if len(snapshot) != services.R0_MEMORY_SIZE:
+                    self.disable('incomplete_result')
+                    raise services.InteractionNotTriggered('极速随机结果内存不完整，重新读取源存档后再试')
                 if snapshot == previous:
                     return current
                 previous = snapshot

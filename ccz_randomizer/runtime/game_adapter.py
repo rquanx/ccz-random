@@ -256,6 +256,7 @@ def patch_runtime(
                 game_path.parent / "SV" / f"SV{index:03}.E5S"
             ),
             slot=index,
+            **interactions.menu_load_options(),
         )
 
     def menu_save_and_confirm(self, index: int) -> None:

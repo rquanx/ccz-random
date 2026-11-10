@@ -2690,6 +2690,7 @@ def drive_game_menu_load(
     *,
     timeout: float = 12.0,
     from_title: bool = False,
+    fast_selection: bool = False,
 ) -> None:
     if slot < 1:
         raise ValueError("读取存档槽位必须大于 0")
@@ -2727,7 +2728,7 @@ def drive_game_menu_load(
             str(injector),
             str(pid),
             str(control_dll),
-            "list",
+            "turbo-list" if fast_selection else "list",
             str(slot - 1),
         ],
         stdout=subprocess.PIPE,
@@ -2756,6 +2757,11 @@ def drive_game_menu_load(
                 and user32.IsWindowEnabled(game)
             )
             if load_finished:
+                if fast_selection and control.poll() is None:
+                    # The remote thread restores input hooks before reporting
+                    # completion. Never start random input while it still runs.
+                    interruptible_sleep(0.02)
+                    continue
                 if (
                     control.poll() is not None
                     and control.returncode != 0
@@ -2783,6 +2789,7 @@ def drive_game_menu_load(
                     pid=pid,
                     slot=slot,
                     save_path=save_path,
+                    fast_selection=fast_selection,
                 )
                 return
             if control.poll() is not None and control.returncode != 0:

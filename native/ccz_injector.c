@@ -297,6 +297,9 @@ int wmain(int argc, wchar_t **argv) {
     } else if (wcscmp(argv[3], L"dialog-accessible") == 0 && argc == 5) {
         request.action = 29;
         request.item_index = _wtoi(argv[4]);
+    } else if (wcscmp(argv[3], L"turbo-list") == 0 && argc == 5) {
+        request.action = 49;
+        request.item_index = _wtoi(argv[4]);
     } else if (wcscmp(argv[3], L"list") == 0 && argc == 5) {
         request.action = 1;
         request.item_index = _wtoi(argv[4]);

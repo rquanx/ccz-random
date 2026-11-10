@@ -70,6 +70,9 @@ from ccz_randomizer.runtime.log_retention import (
     cleanup_log_directory,
     trim_text_widget,
 )
+from ccz_randomizer.runtime.native_protocol import (
+    PERSISTENT_NATIVE_ACTION_CODES, encode_native_request,
+)
 from ccz_randomizer.runtime.audio_recovery import (
     ProcessAudioMuteMonitor,
     restore_process_audio_sessions,
@@ -209,56 +212,7 @@ NATIVE_CONTROL_RETRY_DELAY_SECONDS = 0.35
 NATIVE_CONTROL_RETRY_ACTIONS = frozenset(
     {"wake", "list", "loadui", "openload", "real-load"}
 )
-PERSISTENT_NATIVE_ACTION_CODES = {
-    "list": 1,
-    "click": 2,
-    "guard": 3,
-    "wake": 4,
-    "load": 5,
-    "save": 6,
-    "loadui": 7,
-    "closedialog": 8,
-    "status": 9,
-    "wndproc": 10,
-    "trace-random": 11,
-    "notifylist": 12,
-    "reallist": 13,
-    "trace-dialog": 14,
-    "openload": 15,
-    "trace-load": 16,
-    "trace-address": 17,
-    "event": 18,
-    "confirm-choice": 19,
-    "mouse": 20,
-    "frame-click": 21,
-    "silent-click": 22,
-    "dump-list": 23,
-    "dialog-dblclick": 24,
-    "real-load": 25,
-    "dialog-enter": 26,
-    "dialog-notify": 27,
-    "dialog-window": 28,
-    "dialog-accessible": 29,
-    "tick": 30,
-    "process-state": 31,
-    "dispatch-state": 32,
-    "mark-ready": 33,
-    "dump-contexts": 34,
-    "loop-load": 35,
-    "start-loop": 36,
-    "title-load": 37,
-    "pulse-click": 38,
-    "arm-first-choice": 39,
-    "pulse-burst": 40,
-    "silent-burst": 41,
-    "list-window": 42,
-    "end-dialog": 43,
-    "mute-audio": 44,
-    "silent-click-timed": 45,
-    "silent-burst-timed": 46,
-    "enable-acceleration": 47,
-    "async-sound": 48,
-}
+
 OFFSCREEN_X = -3000
 OFFSCREEN_Y = -3000
 SOURCE_SAVE_NUMBER = 20
@@ -1607,16 +1561,7 @@ class PersistentNativeController:
         *,
         interruptible: bool = True,
     ) -> None:
-        if not arguments or arguments[0] not in PERSISTENT_NATIVE_ACTION_CODES:
-            raise ValueError(f"持久化控件不支持操作：{arguments!r}")
-        values = [
-            PERSISTENT_NATIVE_ACTION_CODES[arguments[0]],
-            *[int(value, 0) for value in arguments[1:]],
-        ]
-        values.extend([0] * (7 - len(values)))
-        if len(values) != 7:
-            raise ValueError(f"控件参数数量不正确：{arguments!r}")
-        line = " ".join(str(value) for value in values) + "\n"
+        line = encode_native_request(arguments)
         started = time.perf_counter()
         with self._write_lock:
             if self.process.poll() is not None:

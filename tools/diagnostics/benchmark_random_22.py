@@ -71,6 +71,14 @@ def run_benchmark(args):
                 events.append(dict(event=event, measured_at_ms=round(time.perf_counter()*1000, 1), **fields))
         original_click = app.native_silent_click
         original_burst = app.native_silent_click_burst
+        original_control = app.run_native_control
+        def native_control(pid, arguments, **kwargs):
+            started = time.perf_counter()
+            try:
+                return original_control(pid, arguments, **kwargs)
+            finally:
+                events.append(dict(event='native_call', action=arguments,
+                    elapsed_ms=round((time.perf_counter()-started)*1000, 1)))
         def measured(name, function):
             def call(*positional, **kwargs):
                 started = time.perf_counter()
@@ -105,6 +113,7 @@ def run_benchmark(args):
                 patch.object(app, 'diagnostic_log', side_effect=record), \
                 patch.object(app, 'native_silent_click', side_effect=click), \
                 patch.object(app, 'native_silent_click_burst', side_effect=burst), ExitStack() as stack:
+            stack.enter_context(patch.object(app, 'run_native_control', side_effect=native_control))
             for name in ('recover_stale_windows', 'wait_list_dialog', 'click_leftmost_dialog_button'):
                 stack.enter_context(patch.object(app, name, side_effect=measured(name, getattr(app, name))))
             app.patch_runtime(task_module, game.pid, three_person_mode=True, rules=rules)

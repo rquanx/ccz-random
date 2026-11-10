@@ -107,6 +107,7 @@ static BOOL is_remote_module_valid(HANDLE process, DWORD module) {
 
 int wmain(int argc, wchar_t **argv) {
     BOOL server_mode = FALSE;
+    BOOL encode_only = argc >= 2 && wcscmp(argv[1], L"--encode-request") == 0;
     if (argc >= 2 && wcscmp(argv[1], L"--server") == 0) {
         if (argc != 4) {
             return 64;
@@ -312,6 +313,12 @@ int wmain(int argc, wchar_t **argv) {
         request.right = _wtoi(argv[8]);
     } else {
         return 65;
+    }
+    if (encode_only) {
+        wprintf(L"%d %lu %d %d %d %d %d\n", request.action,
+            request.window, request.x, request.y, request.count,
+            request.right, request.item_index);
+        return 0;
     }
     HANDLE process = OpenProcess(
         PROCESS_CREATE_THREAD | PROCESS_QUERY_INFORMATION |

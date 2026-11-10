@@ -98,7 +98,7 @@ class ProcessExitDiagnosticTests(unittest.TestCase):
         class FakeProcess:
             def __init__(self):
                 self.stdin = FakeStdin()
-                self.stdout = FakeStream(lines=("0\n",))
+                self.stdout = FakeStream(lines=("0\n",) * 4)
                 self.stderr = FakeStream(lines=())
                 self.returncode = None
 
@@ -127,12 +127,18 @@ class ProcessExitDiagnosticTests(unittest.TestCase):
         ):
             controller = app_module.PersistentNativeController(123)
             controller.execute(["status"])
+            controller.execute(["wake", "456", "80"])
+            controller.execute(["loadui", "19", "0"])
+            controller.execute(["mouse", "513", "369", "234"])
             controller.close()
 
         self.assertEqual(
             "9 0 0 0 0 0 0\n",
             fake_process.stdin.writes[0],
         )
+        self.assertEqual("4 456 0 0 80 0 0\n", fake_process.stdin.writes[1])
+        self.assertEqual("7 0 0 0 0 0 19\n", fake_process.stdin.writes[2])
+        self.assertEqual("20 0 369 234 513 0 0\n", fake_process.stdin.writes[3])
 
     def test_native_control_slot_count_is_bounded_and_configurable(self):
         with patch.dict(

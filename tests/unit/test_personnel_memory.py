@@ -1,3 +1,5 @@
+from unittest.mock import patch
+import os
 import json
 from pathlib import Path
 import unittest
@@ -27,6 +29,11 @@ class RecordedReader:
 
 
 class PersonnelMemoryTests(unittest.TestCase):
+    def setUp(self):
+        version = patch.dict(os.environ, CCZ_GAME_VERSION="2.2")
+        version.start()
+        self.addCleanup(version.stop)
+
     def test_randomized_jobs_and_talents_match_real_saved_result(self):
         catalog = load_catalog()
         actual = read_personnel(0, [p["recordIndex"] for p in catalog], planned=True,

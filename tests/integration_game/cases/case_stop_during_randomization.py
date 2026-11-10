@@ -44,7 +44,8 @@ def main() -> None:
         for line in process.stdout:
             lines.put(line)
 
-    threading.Thread(target=read_output, daemon=True).start()
+    reader = threading.Thread(target=read_output, daemon=True)
+    reader.start()
     output: list[str] = []
     deadline = time.perf_counter() + 30
     marker_seen = False
@@ -67,6 +68,8 @@ def main() -> None:
             break
     if not marker_seen:
         process.kill()
+        process.wait(timeout=5)
+        reader.join(timeout=5)
         raise RuntimeError("停止测试未进入真实随机阶段")
 
     requested_at = time.perf_counter()
@@ -75,8 +78,13 @@ def main() -> None:
         return_code = process.wait(timeout=8)
     except subprocess.TimeoutExpired:
         process.kill()
+        process.wait(timeout=5)
+        reader.join(timeout=5)
         raise RuntimeError("停止请求发出后 8 秒内工作进程仍未退出")
     elapsed = time.perf_counter() - requested_at
+    reader.join(timeout=5)
+    if reader.is_alive():
+        raise RuntimeError("工作进程退出后日志读取线程未结束")
     while not lines.empty():
         output.append(lines.get_nowait())
     text = "".join(output)

@@ -12,6 +12,12 @@ class GameCase:
 
 
 CASES = (
+    GameCase("normal-save-readback", "case_normal_save_readback.py",
+             "常规主流程三轮筛选保存，重启读取全部人物兵种和特技"),
+    GameCase("turbo-save-readback", "case_turbo_save_readback.py",
+             "极速主流程三轮筛选保存，重启读取全部人物兵种和特技"),
+    GameCase("turbo-fallback-readback", "case_turbo_fallback_readback.py",
+             "极速首次 NPC 输入失效后回退，后续保存和重启读回"),
     GameCase(
         "dialog-message",
         "case_dialog_message.py",
@@ -44,6 +50,7 @@ CASES = (
         "randomizer-three-normal-load",
         "case_randomizer_three_normal_load.py",
         "验证三人随机与正常读档复用",
+        default=False,  # Legacy low-level diagnostic; production runner is tested by readback cases.
     ),
     GameCase(
         "three-member-inspection",
@@ -54,6 +61,7 @@ CASES = (
         "randomizer-seven-normal-load",
         "case_randomizer_seven_normal_load.py",
         "验证七人随机与正常读档复用",
+        default=False,  # Legacy low-level diagnostic; production runner is tested by readback cases.
     ),
     GameCase(
         "seven-result-save-stage",
@@ -80,7 +88,7 @@ CASES = (
     GameCase(
         "native-ui-load",
         "case_native_ui_load.py",
-        "验证静默读档不抢前台和鼠标",
+        "验证静默读档结束后前台窗口保持不变",
     ),
     GameCase(
         "repeat-sv020",
@@ -110,11 +118,13 @@ CASES = (
         "silent-real-flow",
         "case_silent_real_flow.py",
         "验证静默真实随机流程",
+        default=False,  # Legacy low-level diagnostic; production runner is tested by readback cases.
     ),
     GameCase(
         "start-game-loop",
         "case_start_game_loop.py",
         "验证游戏启动和循环状态",
+        default=False,  # Legacy low-level diagnostic; production runner is tested by readback cases.
     ),
     GameCase(
         "stop-during-randomization",

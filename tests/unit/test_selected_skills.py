@@ -1,3 +1,4 @@
+import os
 from ccz_randomizer.ui.inputs import TextEntry
 import json
 import unittest
@@ -12,6 +13,11 @@ from tests.unit.test_personnel_memory import RecordedReader, FIXTURES
 
 
 class SelectedSkillTests(unittest.TestCase):
+    def setUp(self):
+        version = patch.dict(os.environ, CCZ_GAME_VERSION="2.2")
+        version.start()
+        self.addCleanup(version.stop)
+
     def test_editor_saves_independent_gates_for_shared_selection(self):
         import copy
         import tempfile

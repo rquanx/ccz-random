@@ -1,3 +1,4 @@
+import os
 """Exercise real Tk upload buttons without sending logs to a server."""
 from ccz_randomizer.ui.inputs import TextEntry
 import sys
@@ -17,6 +18,11 @@ def descendants(widget):
 
 
 class SupportUiTests(unittest.TestCase):
+    def setUp(self):
+        environment = patch.dict(os.environ)
+        environment.start()
+        self.addCleanup(environment.stop)
+
     def test_grouped_menu_routes_each_action_to_the_same_dialog(self):
         from ccz_randomizer.ui.support_menu import show_support_menu
         root = tk.Tk()

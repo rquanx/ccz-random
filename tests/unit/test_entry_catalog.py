@@ -1,3 +1,5 @@
+from unittest.mock import patch
+import os
 import json
 from pathlib import Path
 import struct
@@ -13,6 +15,11 @@ FIXTURES = Path(__file__).resolve().parents[1] / "fixtures/personnel_22"
 
 
 class EntryCatalogTests(unittest.TestCase):
+    def setUp(self):
+        version = patch.dict(os.environ, CCZ_GAME_VERSION="2.2")
+        version.start()
+        self.addCleanup(version.stop)
+
     def test_entry_stages_match_real_script_assignments(self):
         evidence = json.loads((FIXTURES / "fixed-entry-evidence.json").read_text(encoding="utf-8"))
         actual = set()

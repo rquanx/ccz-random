@@ -28,22 +28,15 @@ def game_is_running() -> bool:
     return completed.returncode == 0 and '"Ekd5.exe"' in completed.stdout
 
 
-def run_unit_tests() -> int:
-    completed = subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "unittest",
-            "discover",
-            "-s",
-            "tests/unit",
-            "-p",
-            "test_*.py",
-            "-v",
-        ],
-        cwd=REPO_ROOT,
-        check=False,
-    )
+def run_unit_tests(order="normal", seed=20261110, names=()) -> int:
+    from tests.helpers.desktop import background_desktop
+    environment = dict(os.environ, PYTHONPATH=str(REPO_ROOT), PYTHONFAULTHANDLER="1")
+    with background_desktop() as startup:
+        completed = subprocess.run(
+            [sys.executable, "-m", "tests.unit_runner", "--order", order, "--seed", str(seed), *names],
+            cwd=REPO_ROOT, env=environment, startupinfo=startup,
+            timeout=600, check=False,
+        )
     return completed.returncode
 
 
@@ -61,7 +54,10 @@ def parse_args() -> argparse.Namespace:
         description="曹操传随机工具测试入口",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
-    subparsers.add_parser("unit", help="只运行不启动游戏的测试")
+    unit_parser = subparsers.add_parser("unit", help="只运行不启动游戏的测试")
+    unit_parser.add_argument("--order", choices=("normal", "reverse", "shuffle"), default="normal")
+    unit_parser.add_argument("--seed", type=int, default=20261110)
+    unit_parser.add_argument("names", nargs="*", help="可选的 unittest 模块、类或方法名")
 
     list_parser = subparsers.add_parser("list-game", help="列出完整游戏测试")
     list_parser.set_defaults(list_game=True)
@@ -104,7 +100,7 @@ def main() -> int:
             print(f"{case.name:30} [{category}] {case.description}")
         return 0
     if args.command == "unit":
-        return run_unit_tests()
+        return run_unit_tests(args.order, args.seed, args.names)
     if args.command == "all":
         unit_result = run_unit_tests()
         if unit_result:

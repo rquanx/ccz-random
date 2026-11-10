@@ -1,3 +1,5 @@
+from unittest.mock import patch
+import os
 import json
 from pathlib import Path
 import unittest
@@ -11,6 +13,11 @@ FIXTURES = Path(__file__).resolve().parents[1] / "fixtures/personnel_22"
 
 
 class RecruitmentCatalogTests(unittest.TestCase):
+    def setUp(self):
+        version = patch.dict(os.environ, CCZ_GAME_VERSION="2.2")
+        version.start()
+        self.addCleanup(version.stop)
+
     def test_real_script_assignments_match_all_catalog_stages(self):
         extracted = extract_stage_recruits((FIXTURES / "r99-stage-assignments.bin").read_bytes())
         actual = {stage["stageId"]: stage["recordIndices"] for stage in extracted}

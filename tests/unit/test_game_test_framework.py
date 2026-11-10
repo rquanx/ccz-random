@@ -1,6 +1,7 @@
 import tempfile
 import unittest
 import os
+import shutil
 from pathlib import Path
 from unittest.mock import patch
 
@@ -29,6 +30,10 @@ class GameTestFrameworkTests(unittest.TestCase):
         self.assertIn("result-save-stage", names)
         self.assertNotIn("seven-result-save-stage", names)
         self.assertNotIn("seven-member-inspection", names)
+        self.assertNotIn("silent-real-flow", names)
+        self.assertNotIn("randomizer-seven-normal-load", names)
+        self.assertNotIn("start-game-loop", names)
+        self.assertTrue({"normal-save-readback", "turbo-save-readback", "turbo-fallback-readback"} <= names)
 
     def test_select_cases_preserves_manifest_order(self):
         selected = select_cases(["repeat-sv020", "dialog-message"])
@@ -77,6 +82,36 @@ class GameTestFrameworkTests(unittest.TestCase):
     def test_manifest_case_names_are_unique(self):
         names = [case.name for case in CASES]
         self.assertEqual(len(names), len(set(names)))
+
+    def test_backup_restores_root_script_and_settings_after_case_exception(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            original = root / "S_00.eex"
+            original.write_bytes(b"original root script")
+            with self.assertRaisesRegex(ValueError, "case failed"):
+                with GameFileBackup(root):
+                    original.write_bytes(b"mutated root script")
+                    (root / "CczCustom.ini").write_bytes(b"new settings")
+                    raise ValueError("case failed")
+            self.assertEqual(b"original root script", original.read_bytes())
+            self.assertFalse((root / "CczCustom.ini").exists())
+
+    def test_failed_restore_retains_backup_and_explains_recovery_location(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "CczCustom.ini"
+            source.write_bytes(b"original settings")
+            backup = GameFileBackup(root)
+            backup.__enter__()
+            self.addCleanup(shutil.rmtree, backup.backup_dir, ignore_errors=True)
+            source.write_bytes(b"mutated")
+            with patch("tests.helpers.game_backup.shutil.copy2", side_effect=PermissionError("locked")):
+                with self.assertRaisesRegex(OSError, "备份保留在") as failure:
+                    backup.__exit__(None, None, None)
+            self.assertIn(str(backup.backup_dir), str(failure.exception))
+            self.assertEqual(b"original settings", (backup.backup_dir / "CczCustom.ini").read_bytes())
+            backup.restore()
+            self.assertEqual(b"original settings", source.read_bytes())
 
 
 if __name__ == "__main__":

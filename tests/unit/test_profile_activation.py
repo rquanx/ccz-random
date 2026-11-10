@@ -3,6 +3,7 @@ import sys
 import tempfile
 import tkinter as tk
 import unittest
+import textwrap
 from pathlib import Path
 from unittest.mock import patch
 
@@ -42,7 +43,7 @@ class ProfileActivationTests(unittest.TestCase):
 
     def test_activation_refreshes_job_skill_memory_and_editor_snapshots(self):
         code = '''
-import copy, hashlib, json, os, shutil, tempfile, tkinter as tk
+import copy, gc, hashlib, json, os, shutil, tempfile, tkinter as tk
 from pathlib import Path
 from ccz_randomizer import profiles
 from tools.build_profile_package import build_package
@@ -109,9 +110,17 @@ with tempfile.TemporaryDirectory() as temp:
     assert replacement is not window
     check = next(w for w in descendants(replacement) if isinstance(w, tk.Checkbutton) and w.cget('text') == '出现特殊特技时直接合格')
     assert root.getvar(check.cget('variable')) == 1
-    replacement.destroy(); root.destroy()
+    replacement.destroy()
+    del check, replacement, window
+    gc.collect()  # Tcl is still alive while widget/Variable cycles are released.
+    root.destroy()
+    gc.collect()
 '''
-        child = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+        # Dispose Tcl/PhotoImage cycles while Python and Tcl are still fully alive.
+        # Module-level widgets otherwise survive until interpreter shutdown.
+        code = "import gc\ndef exercise():\n" + textwrap.indent(code, "    ") + "\nexercise()\ngc.collect()\n"
+        child = subprocess.run([sys.executable, "-c", code], cwd=Path(__file__).resolve().parents[2],
+                               capture_output=True, text=True, timeout=30)
         self.assertEqual(0, child.returncode, child.stderr)
 
     def test_roster_update_waits_for_idle_and_keeps_worker_snapshot(self):

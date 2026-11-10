@@ -1,3 +1,4 @@
+import os
 import tempfile
 import unittest
 import sys
@@ -10,6 +11,11 @@ from ccz_randomizer.ui.polling import poll_and_reschedule, report_poll_error
 
 
 class ProgressPollingTests(unittest.TestCase):
+    def setUp(self):
+        environment = patch.dict(os.environ)
+        environment.start()
+        self.addCleanup(environment.stop)
+
     def test_concurrent_stop_keeps_one_result_link_and_can_restart(self):
         from ccz_randomizer import app
         from ccz_randomizer.runtime.concurrent import encode_concurrent_event

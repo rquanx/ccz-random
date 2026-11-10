@@ -67,21 +67,18 @@ class BuildInfoTests(unittest.TestCase):
             format_user_log("工具版本：" + text),
         )
 
-    def test_release_version_is_4_0_1(self) -> None:
-        version = (
-            Path(__file__).resolve().parents[2] / "VERSION"
-        ).read_text(encoding="utf-8").strip()
-
-        self.assertEqual("4.0.1", version)
-
-    def test_changelog_contains_only_verified_release_notes(self) -> None:
+    def test_changelog_matches_current_release(self) -> None:
+        version = (Path(__file__).resolve().parents[2] / "VERSION").read_text(encoding="utf-8").strip()
+        application_changelog.cache_clear()
+        self.addCleanup(application_changelog.cache_clear)
         entries = application_changelog()
-
-        self.assertEqual(8, len(entries))
-        self.assertEqual("4.0.1", entries[0]["version"])
-        self.assertTrue(entries[0]["changes"])
+        self.assertTrue(entries)
+        self.assertEqual(version, entries[0]["version"])
+        self.assertEqual(len(entries), len({entry["version"] for entry in entries}))
+        self.assertTrue(all(entry["changes"] for entry in entries))
 
     def test_frozen_changelog_is_loaded_from_bundle(self) -> None:
+        self.addCleanup(application_changelog.cache_clear)
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / "CHANGELOG.json").write_text(

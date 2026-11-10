@@ -1,3 +1,4 @@
+import os
 from ccz_randomizer.ui.inputs import TextEntry, SearchEntry
 from ccz_randomizer.rule_members import RULE_MEMBER_NAMES
 import tempfile
@@ -44,6 +45,11 @@ def descendants(widget):
 
 
 class RuleEditorTests(unittest.TestCase):
+    def setUp(self):
+        version = patch.dict(os.environ, CCZ_GAME_VERSION="2.2")
+        version.start()
+        self.addCleanup(version.stop)
+
     def test_destroyed_toast_cancels_pending_close_callback(self):
         root = tk.Tk()
         root.withdraw()

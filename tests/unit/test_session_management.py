@@ -695,11 +695,7 @@ class SessionManagementTests(unittest.TestCase):
                     title_load_verified(123, 19, save_path)
 
     def test_all_runtime_loads_use_real_game_menu(self):
-        source = (
-            Path(__file__).resolve().parents[2]
-            / "ccz_randomizer"
-            / "app.py"
-        ).read_text(encoding="utf-8")
+        source = _runtime_source()
         title_load = source.split(
             "def title_load_verified(", 1
         )[1].split("def normal_load_verified(", 1)[0]
@@ -1370,6 +1366,32 @@ class SessionManagementTests(unittest.TestCase):
         self.assertIn('action_button.pack(side="right")', layout)
         self.assertNotIn("textvariable=status", layout)
 
+    def test_main_navigation_buttons_keep_order_and_uniform_width(self):
+        source = (
+            Path(__file__).resolve().parents[2]
+            / "ccz_randomizer"
+            / "app.py"
+        ).read_text(encoding="utf-8")
+        layout = source.split(
+            "    settings_panel = tk.Frame(outer)", 1
+        )[1].split(
+            "    output = scrolledtext.ScrolledText(", 1
+        )[0]
+        self.assertLess(layout.index('text="规则设置"'), layout.index('text="历史记录"'))
+        self.assertLess(layout.index('text="历史记录"'), layout.index('text="常见问题"'))
+        for text in ("规则设置", "历史记录", "常见问题"):
+            start = layout.index(f'text="{text}"')
+            end = layout.index("\n    )", start)
+            self.assertNotIn("width=10", layout[start:end])
+        theme_source = (
+            Path(__file__).resolve().parents[2]
+            / "ccz_randomizer"
+            / "ui"
+            / "theme.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn('root.option_add("*Button.padX", 8)', theme_source)
+        self.assertIn('root.option_add("*Button.padY", 2)', theme_source)
+
     def test_runtime_cleanup_repairs_s00_and_scratch_save(self):
         game = Path(r"C:\game\Ekd5.exe")
         with (
@@ -1397,11 +1419,7 @@ class SessionManagementTests(unittest.TestCase):
     def test_reused_session_uses_normal_load_and_three_interaction_attempts(
         self,
     ):
-        source = (
-            Path(__file__).resolve().parents[2]
-            / "ccz_randomizer"
-            / "app.py"
-        ).read_text(encoding="utf-8")
+        source = _runtime_source()
         self.assertIn('load_mode = "normal"', source)
         self.assertIn("interaction_limit = 3", source)
         self.assertIn(
@@ -1438,11 +1456,7 @@ class SessionManagementTests(unittest.TestCase):
         self.assertNotIn("restore_slot=scratch_slot", source)
 
     def test_full_inspection_uses_story_then_memory_skill_resolution(self):
-        source = (
-            Path(__file__).resolve().parents[2]
-            / "ccz_randomizer"
-            / "app.py"
-        ).read_text(encoding="utf-8")
+        source = _runtime_source()
         self.assertIn(
             "advance_people_info_in_game_order(",
             source,
@@ -1480,11 +1494,7 @@ class SessionManagementTests(unittest.TestCase):
         self.assertNotIn('text="历史结果"', source)
 
     def test_same_session_skill_capture_uses_full_print_window_frame(self):
-        source = (
-            Path(__file__).resolve().parents[2]
-            / "ccz_randomizer"
-            / "app.py"
-        ).read_text(encoding="utf-8")
+        source = _runtime_source()
         robust_get_mat = source.split(
             "    def robust_get_mat(", 1
         )[1].split("    def click_relative_hwnd(", 1)[0]
@@ -1497,11 +1507,7 @@ class SessionManagementTests(unittest.TestCase):
         self.assertIn("skill_memory_resolved", source)
 
     def test_window_capture_has_recoverable_fallbacks(self):
-        source = (
-            Path(__file__).resolve().parents[2]
-            / "ccz_randomizer"
-            / "app.py"
-        ).read_text(encoding="utf-8")
+        source = _runtime_source()
         robust_get_mat = source.split(
             "    def robust_get_mat(", 1
         )[1].split("    def click_relative_hwnd(", 1)[0]
@@ -1554,11 +1560,7 @@ class SessionManagementTests(unittest.TestCase):
         )
 
     def test_seven_member_inspection_refreshes_consumed_session_directly(self):
-        source = (
-            Path(__file__).resolve().parents[2]
-            / "ccz_randomizer"
-            / "app.py"
-        ).read_text(encoding="utf-8")
+        source = _runtime_source()
 
         self.assertIn("self._session_consumed = True", source)
         self.assertIn("refresh_consumed_session = False", source)
@@ -1731,11 +1733,7 @@ class SessionManagementTests(unittest.TestCase):
         )
 
     def test_three_person_flow_uses_same_session_skill_memory(self):
-        source = (
-            Path(__file__).resolve().parents[2]
-            / "ccz_randomizer"
-            / "app.py"
-        ).read_text(encoding="utf-8")
+        source = _runtime_source()
         three_flow = source.split("    def r0_only_run(self)", 1)[1].split(
             "        if three_person_mode:", 1
         )[1].split("        else:", 1)[0]
@@ -1745,11 +1743,7 @@ class SessionManagementTests(unittest.TestCase):
         self.assertNotIn("run_candidate_inspection(", three_flow)
 
     def test_random_flow_enables_acceleration_before_xu_interaction(self):
-        source = (
-            Path(__file__).resolve().parents[2]
-            / "ccz_randomizer"
-            / "app.py"
-        ).read_text(encoding="utf-8")
+        source = _runtime_source()
         run_flow = source.split("    def r0_only_run(self)", 1)[1]
 
         self.assertLess(
@@ -2751,6 +2745,15 @@ class SessionManagementTests(unittest.TestCase):
                     )
 
         self.assertEqual(2, run_once.call_count)
+
+
+
+
+def _runtime_source():
+    """Legacy structural guards span the extracted adapter and its services."""
+    root = Path(__file__).resolve().parents[2] / "ccz_randomizer"
+    return "\n".join((root / name).read_text(encoding="utf-8") for name in
+                     ("app.py", "runtime/game_adapter.py", "runtime/inspection_adapter.py"))
 
 
 if __name__ == "__main__":

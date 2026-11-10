@@ -559,7 +559,8 @@ def show_history_window(parent, repository: HistoryRepository) -> None:
     selection_to_restore = None
     loader = HistoryLoader(dialog)
     operations = count()
-    applied_filters = dict(query="", marked_only=False, started_after=None, started_before=None)
+    applied_filters = dict(query="", marked_only=False, started_after=None, started_before=None, rule_name=None)
+    rule_names = []
 
     def request_action(action, done, failed):
         # Writes and exports must not be cancelled by a subsequent action.
@@ -583,6 +584,11 @@ def show_history_window(parent, repository: HistoryRepository) -> None:
     query_entry = SearchEntry(filters, textvariable=query_var, width=28,
         hint="搜索轮次名称、备注和规则；回车应用筛选，Esc 清空输入")
     query_entry.pack(side="left", padx=8)
+
+    tk.Label(filters, text="规则", bg=COLORS["page"]).pack(side="left", padx=(8, 4))
+    rule_combo = ttk.Combobox(filters, state="readonly", width=18, values=("全部规则",))
+    rule_combo.current(0)
+    rule_combo.pack(side="left", padx=(0, 8))
 
     start_var, end_var = tk.StringVar(), tk.StringVar()
     tk.Label(filters, text="时间", bg=COLORS["page"]).pack(side="left", padx=(12, 4))
@@ -1000,13 +1006,20 @@ def show_history_window(parent, repository: HistoryRepository) -> None:
         def read_page():
             count = repository.count_rounds(**filters)
             resolved_page = min(requested_page, max(1, math.ceil(count / ROUND_PAGE_SIZE)))
-            return resolved_page, repository.list_rounds(resolved_page, ROUND_PAGE_SIZE, **filters), count
+            return resolved_page, repository.list_rounds(resolved_page, ROUND_PAGE_SIZE, **filters), count, repository.list_rule_names()
 
         loader.request("page", read_page, show_page, show_error)
 
     def show_page(result) -> None:
-        nonlocal page, total, active_edit_finish
-        page, rows, total = result
+        nonlocal page, total, active_edit_finish, rule_names
+        page, rows, total, rule_names = result
+        # Selection uses the item index, so a real profile named “全部规则”
+        # remains distinct from the all-rules option.
+        selected_rule = applied_filters["rule_name"]
+        if selected_rule is not None and selected_rule not in rule_names:
+            rule_names.append(selected_rule)
+        rule_combo.configure(values=("全部规则", *rule_names))
+        rule_combo.current(0 if selected_rule is None else rule_names.index(selected_rule) + 1)
         active_ids = {int(row["id"]) for row in rows}
         # A long history can contain hundreds of rounds.  Keeping every page's
         # Tk card alive made filtering and redraws progressively heavier, so
@@ -1105,7 +1118,8 @@ def show_history_window(parent, repository: HistoryRepository) -> None:
             messagebox.showerror("筛选时间无效", str(error), parent=dialog)
             return
         applied_filters = dict(query=query_var.get().strip(), marked_only=False,
-                               started_after=after, started_before=before)
+                               started_after=after, started_before=before,
+                               rule_name=rule_names[rule_combo.current() - 1] if rule_combo.current() > 0 else None)
         page = 1
         load_page()
 
@@ -1113,6 +1127,7 @@ def show_history_window(parent, repository: HistoryRepository) -> None:
         query_var.set("")
         start_var.set("")
         end_var.set("")
+        rule_combo.current(0)
         apply_filters()
 
     def edit_round():
@@ -1138,6 +1153,7 @@ def show_history_window(parent, repository: HistoryRepository) -> None:
         return "break"
 
     query_entry.bind("<Return>", apply_filters)
+    rule_combo.bind("<<ComboboxSelected>>", apply_filters)
     rounds.bind("<Button-1>", edit_round_icon, add="+")
     start_entry.bind("<Button-1>", lambda _event: open_time_picker(start_entry))
     end_entry.bind("<Button-1>", lambda _event: open_time_picker(end_entry))

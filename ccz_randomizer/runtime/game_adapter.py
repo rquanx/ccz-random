@@ -11,6 +11,8 @@ def patch_runtime(
     game_executable: Path | None = None,
     *, services,
 ) -> None:
+    import numpy as np
+
     INITIAL_TEAM_MEMBERS = services.INITIAL_TEAM_MEMBERS
     InteractionNotTriggered = services.InteractionNotTriggered
     JOB_MAP = services.JOB_MAP
@@ -74,7 +76,6 @@ def patch_runtime(
     native_silent_click_burst = services.native_silent_click_burst
     native_wake_game = services.native_wake_game
     normal_load_verified = services.normal_load_verified
-    np = services.np
     os = services.os
     post_click = services.post_click
     post_key_to_game = services.post_key_to_game

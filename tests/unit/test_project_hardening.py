@@ -14,6 +14,8 @@ import tkinter as tk
 import unittest
 from unittest.mock import patch
 
+import numpy as np
+
 from ccz_randomizer.profiles import load_profile, validate_profile, install_profile_package, profile_storage_root
 from ccz_randomizer.ui.tasks import WindowTasks
 from tests.profile_fixtures import lifecycle_packages
@@ -266,6 +268,35 @@ class WindowTaskTests(unittest.TestCase):
 
 
 class RuntimeAdapterTests(unittest.TestCase):
+    def test_capture_works_before_application_media_modules_are_loaded(self):
+        from types import SimpleNamespace, ModuleType
+        from ccz_randomizer import app
+
+        class BaseWindow:
+            hwnd = 123
+            def getMat(self, *args):
+                raise AssertionError("Valid PrintWindow capture must be retained")
+
+        class Task:
+            checkPeopleAtR0 = lambda self: True
+            checkCczVersion = lambda self: True
+            loadAndConfirm = lambda self: True
+            saveAndConfirm = lambda self: True
+
+        modules = {"window": ModuleType("window"),
+                   "window.BaseWindow": SimpleNamespace(BaseWindow=BaseWindow),
+                   "window.CczWindow": SimpleNamespace(CczPeopleWindow=type("PeopleWindow", (), {}))}
+        panel = np.array([[[0, 0, 0], [255, 255, 255]]], dtype=np.uint8)
+        with tempfile.TemporaryDirectory() as temp, patch.dict(sys.modules, modules), \
+                patch.object(app, "np", None), \
+                patch.object(app, "print_window_mat", return_value=panel):
+            directory = Path(temp)
+            (directory / "SV").mkdir()
+            (directory / "SV/SV020.E5S").write_bytes(b"source preserved")
+            task = SimpleNamespace(CczReRandTask=Task, KeyboardUtils=SimpleNamespace())
+            app.patch_runtime(task, 123, game_executable=directory / "Ekd5.exe")
+            np.testing.assert_array_equal(BaseWindow().getMat(), panel)
+
     def test_adapters_keep_original_methods_and_route_keyboard_to_selected_process(self):
         from types import SimpleNamespace, ModuleType
         from ccz_randomizer import app

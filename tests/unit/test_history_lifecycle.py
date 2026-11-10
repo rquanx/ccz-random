@@ -14,6 +14,26 @@ from ccz_randomizer.runtime.concurrent import run_concurrent_workers
 
 
 class HistoryLifecycleTests(unittest.TestCase):
+    def test_original_directory_fallback_completed_round_is_not_reclassified_on_stop(self):
+        with tempfile.TemporaryDirectory() as directory:
+            repository = HistoryRepository(Path(directory))
+            outer = HistoryLifecycle(repository, "run", expected_results=3)
+            outer.start_run(mode="three", loop_random=True, rule_name="rule", rule={}, build={})
+            round_id = outer.start_round(1)
+            # Production fallback uses complete 15-slot rounds even when the
+            # parallel scheduler was requested with a smaller result count.
+            fallback = HistoryLifecycle(repository, "run", expected_results=15)
+            self.assertEqual(round_id, fallback.start_round(1))
+            for slot in range(1, 16):
+                repository.save_result(round_id, dict(slot=slot, acceptedAttempt=1))
+            fallback.finish_round(round_id, "completed")
+            partial = fallback.start_round(2)
+            repository.save_result(partial, dict(slot=1, acceptedAttempt=1))
+            fallback.finish_run("stopped")
+            outer.finish_run("stopped")
+            self.assertEqual("completed", repository.get_round_status(round_id))
+            self.assertEqual("stopped", repository.get_round_status(partial))
+
     def test_stop_file_finalizes_partial_batch_as_stopped(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

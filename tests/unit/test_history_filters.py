@@ -30,6 +30,26 @@ class HistoryTimeRangeTests(unittest.TestCase):
 
 
 class HistoryFilterRepositoryTests(unittest.TestCase):
+    def test_rule_filter_is_exact_composes_with_search_dates_and_paging(self):
+        for name in ("默认规则-加严", "旧规则_%'", "全部规则"):
+            self.repo.start_run(name, mode="three", loop_random=False, rule_name=name, rule={}, build={})
+            rid = self.repo.start_round(name, 1)
+            self.repo.save_result(rid, self.snapshot)
+            self.repo.annotate_round(rid, title="匹配备注", note="", marked=True)
+        names = self.repo.list_rule_names()
+        self.assertEqual({"默认规则", "默认规则-加严", "旧规则_%'", "全部规则"}, set(names))
+        self.assertEqual(7, self.repo.count_rounds(rule_name="默认规则"))
+        self.assertEqual(1, self.repo.count_rounds(rule_name="默认规则-加严", query="匹配备注", marked_only=True))
+        self.assertEqual(0, self.repo.count_rounds(rule_name="默认规则", query="匹配备注"))
+        self.assertEqual(0, self.repo.count_rounds(rule_name="不存在"))
+        self.assertEqual(1, self.repo.count_rounds(rule_name="旧规则_%'"))
+        filters = dict(rule_name="默认规则", **self.bounds("2026-11-07", "2026-11-07"))
+        self.assertEqual(5, self.repo.count_rounds(**filters))
+        self.assertEqual([self.ids[1]], [r["id"] for r in self.repo.list_rounds(page=3, page_size=2, **filters)])
+        self.repo.start_run("empty", mode="three", loop_random=True, rule_name="没有存档的规则", rule={}, build={})
+        self.repo.start_round("empty", 1)
+        self.assertNotIn("没有存档的规则", self.repo.list_rule_names())
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)

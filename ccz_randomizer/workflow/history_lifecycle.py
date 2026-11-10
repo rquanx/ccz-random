@@ -36,7 +36,7 @@ class HistoryLifecycle:
         # Called only after all slot workers have exited. Empty rounds are
         # safe to prune now; a participant must never perform this cleanup.
         for round_id in self._rounds.values():
-            if round_id not in self._finished:
+            if round_id not in self._finished and self.repository.get_round_status(round_id) == "running":
                 complete = len(self.repository.get_round_summaries(round_id)) == self.expected_results
                 self.finish_round(round_id, 'completed' if complete else status)
         self.repository.finish_run(self.run_id, status)

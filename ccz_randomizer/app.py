@@ -45,6 +45,7 @@ from ccz_randomizer.rules.config import (
 from ccz_randomizer.rules.editor import show_rule_editor, show_toast
 from ccz_randomizer.history import HistoryRepository
 from ccz_randomizer.workflow.history_lifecycle import HistoryLifecycle
+from ccz_randomizer.workflow.run_rules import capture_run_rules, load_run_rules
 from ccz_randomizer.ui.history import show_history_window
 from ccz_randomizer.ui.result_details import (
     decode_result_detail,
@@ -8193,6 +8194,7 @@ def gui_main() -> int:
         last_formatted_line = ""
         security_blocked_details = None
         env = os.environ.copy()
+        capture_run_rules(current_rules, env)
         try:
             result_count = int(env.get("CCZ_RESULT_COUNT", "15"))
         except ValueError:
@@ -8431,7 +8433,8 @@ def main() -> int:
             "CCZ_HISTORY_RUN_ID", f"concurrent-{os.getpid()}-{time.time_ns()}")
         history = HistoryLifecycle(HistoryRepository(history_base), history_run_id,
                                    expected_results=result_count)
-        parent_rules = load_rule_config(app_dir()).config
+        parent_rules = load_run_rules(app_dir(), os.environ).config
+        capture_run_rules(parent_rules, os.environ)
         history.start_run(mode=mode, loop_random=os.environ.get("CCZ_LOOP_RANDOM") == "1",
                           rule_name=parent_rules["activeProfile"],
                           rule=active_profile(parent_rules), build=application_build_info())
@@ -8518,7 +8521,7 @@ def main() -> int:
     print("循环随机：" + ("开启" if loop_random else "关闭"))
     print(f"日志: {log_path}")
     print(f"诊断日志: {DIAGNOSTIC_LOG_PATH}")
-    rule_load = load_rule_config(app)
+    rule_load = load_run_rules(app, os.environ)
     rules = rule_load.config
     active_rule_snapshot = active_profile(rules)
     active_rule_json = json.dumps(

@@ -242,6 +242,11 @@ class HistoryRepository:
             raise RuntimeError('随机轮次尚未由调度进程创建，不能写入历史记录')
         return int(row['id'])
 
+    def get_round_status(self, round_id: int) -> str | None:
+        with closing(self._connect()) as connection:
+            row = connection.execute("SELECT status FROM rounds WHERE id=?", (round_id,)).fetchone()
+        return str(row[0]) if row else None
+
     def finish_round(self, round_id: int, status: str) -> None:
         with closing(self._connect()) as connection, connection:
             connection.execute(
@@ -363,7 +368,7 @@ class HistoryRepository:
 
     @staticmethod
     def _round_filter(query: str, marked_only: bool, started_after: str | None = None,
-                      started_before: str | None = None) -> tuple[str, list]:
+                      started_before: str | None = None, rule_name: str | None = None) -> tuple[str, list]:
         clauses = []
         parameters = []
         matching = ["results.round_id = rounds.id"]
@@ -384,11 +389,25 @@ class HistoryRepository:
         if started_before:
             clauses.append("rounds.started_at < ?")
             parameters.append(started_before)
+        if rule_name is not None:
+            clauses.append("EXISTS (SELECT 1 FROM runs WHERE runs.id=rounds.run_id AND runs.rule_name=?)")
+            parameters.append(rule_name)
         return " AND ".join(clauses), parameters
 
+    def list_rule_names(self) -> list[str]:
+        """Include rules from saved history even if their current profile was deleted."""
+        with closing(self._connect()) as connection:
+            rows = connection.execute(
+                "SELECT DISTINCT rule_name FROM runs WHERE EXISTS ("
+                "SELECT 1 FROM rounds JOIN results ON results.round_id=rounds.id "
+                "WHERE rounds.run_id=runs.id) ORDER BY rule_name COLLATE NOCASE, rule_name"
+            ).fetchall()
+        return [str(row[0]) for row in rows]
+
     def count_rounds(self, *, query: str = "", marked_only: bool = False,
-                     started_after: str | None = None, started_before: str | None = None) -> int:
-        where, parameters = self._round_filter(query, marked_only, started_after, started_before)
+                     started_after: str | None = None, started_before: str | None = None,
+                     rule_name: str | None = None) -> int:
+        where, parameters = self._round_filter(query, marked_only, started_after, started_before, rule_name)
         with closing(self._connect()) as connection, connection:
             return int(
                 connection.execute(
@@ -405,11 +424,12 @@ class HistoryRepository:
         marked_only: bool = False,
         started_after: str | None = None,
         started_before: str | None = None,
+        rule_name: str | None = None,
     ) -> list[dict[str, Any]]:
         page = max(1, int(page))
         page_size = max(1, min(100, int(page_size)))
         offset = (page - 1) * page_size
-        where, parameters = self._round_filter(query, marked_only, started_after, started_before)
+        where, parameters = self._round_filter(query, marked_only, started_after, started_before, rule_name)
         with closing(self._connect()) as connection, connection:
             rows = connection.execute(
                 f"""

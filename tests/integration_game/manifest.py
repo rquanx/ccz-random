@@ -12,6 +12,8 @@ class GameCase:
 
 
 CASES = (
+    GameCase("loop-history-rules", "case_loop_history_rules.py",
+             "切换规则后普通随机与循环随机，核对历史轮次、规则快照、归档及存档副本", default=False),
     GameCase("normal-save-readback", "case_normal_save_readback.py",
              "常规主流程三轮筛选保存，重启读取全部人物兵种和特技"),
     GameCase("turbo-save-readback", "case_turbo_save_readback.py",

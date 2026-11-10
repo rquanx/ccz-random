@@ -11,7 +11,13 @@ import psutil
 
 from ccz_randomizer.runtime.log_retention import is_managed_log_file
 
-CATEGORIES = {"logs": "运行日志", "screenshots": "故障截图", "sandboxes": "残留沙箱"}
+CATEGORIES = {
+    "logs": "运行日志",
+    "screenshots": "故障截图",
+    "sandboxes": "残留沙箱",
+    "results": "随机结果",
+    "history": "历史记录（含存档副本）",
+}
 _SESSION = re.compile(r"^(\d+)-\d+$")
 
 
@@ -55,6 +61,25 @@ def _candidates(base: Path):
             stale = bool(match) and not psutil.pid_exists(int(match.group(1)))
             for path in _files(session):
                 yield "sandboxes", path, stale
+
+    # Result images and archived round files are owned by the randomizer and
+    # can be removed explicitly by the user.  Keep the scan recursive so
+    # loop-round folders and per-round panel images are included as well.
+    results = base / "randResult"
+    if results.is_dir() and not _linked(results):
+        for path in _files(results):
+            yield "results", path, True
+
+    # The history database is kept separately from the game files.  Include
+    # SQLite sidecar files too (WAL/SHM) so a clear operation cannot leave a
+    # partially retained database behind.
+    history_root = base / "ccz_fast_data"
+    if history_root.is_dir() and not _linked(history_root):
+        for path in history_root.iterdir():
+            if path.name == "sandboxes" or path.is_dir() or _linked(path):
+                continue
+            if path.is_file():
+                yield "history", path, True
 
 
 def scan_storage(base: Path) -> dict[str, StorageUsage]:

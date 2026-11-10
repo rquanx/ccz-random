@@ -8,29 +8,17 @@ project_root = Path(SPECPATH).parent
 sys.path.insert(0, str(Path(SPECPATH)))
 from build_metadata import write_build_info
 
-build_info_path = write_build_info(project_root)
-extracted_root = Path(
-    'C:/Users/91658/Documents/Codex/2026-09-18/hi/work/'
-    'exe-analysis/tool.exe_extracted'
-)
+from runtime_dependencies import runtime_root, RUNTIME_PACKAGES, dependency_manifest
+extracted_root = runtime_root(project_root)
 excluded_original_folders = {
+    '.tmp', 'artifacts', 'randResult', '__pycache__',
     'cv2',
     'numpy',
     'numpy.libs',
     'numpy-2.4.6.dist-info',
     'PIL',
 }
-runtime_packages = {
-    'cfg',
-    'encrypt',
-    'keyboard',
-    'models',
-    'pydirectinput',
-    'task',
-    'utils',
-    'win32con',
-    'window',
-}
+runtime_packages = RUNTIME_PACKAGES
 excluded_original_files = {
     'PYZ.pyz',
     'base_library.zip',
@@ -70,6 +58,9 @@ for source in extracted_root.rglob('*'):
     original_datas.append((str(source), str(destination)))
 
 
+build_info_path = write_build_info(project_root, runtime_files=dependency_manifest(
+    [Path(source) for source, _ in original_datas], extracted_root))
+
 a = Analysis(
     [str(project_root / 'fast_randomizer.py')],
     pathex=[str(project_root)],
@@ -77,7 +68,8 @@ a = Analysis(
     datas=original_datas + [
         (str(project_root / 'resources/app/random_s00.eex'), '.'),
         (str(project_root / 'resources/app/2.2/original_s00.eex'), 'resources/app/2.2'),
-        (str(project_root / 'resources/data/recruitment/recruits_2.2.json'), 'resources/data/recruitment'),
+        (str(project_root / 'resources/data/recruitment'), 'resources/data/recruitment'),
+        (str(project_root / 'resources/data/profiles'), 'resources/data/profiles'),
         (str(project_root / 'resources/app/source_slot_20_help.png'), '.'),
         (
             str(

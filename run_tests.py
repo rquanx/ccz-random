@@ -12,7 +12,7 @@ from tests.integration_game.runner import run_game_cases
 
 REPO_ROOT = Path(__file__).resolve().parent
 DEFAULT_GAME_DIR = Path(
-    r"E:\game\ccz\曹操传加强版V2.10.4c\曹操传加强版V2.10.4c"
+    r"E:\game\ccz\曹操传加强版v2.20-1104夜"
 )
 
 

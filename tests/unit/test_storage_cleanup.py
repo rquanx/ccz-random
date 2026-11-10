@@ -98,7 +98,10 @@ class StorageCleanupTests(unittest.TestCase):
                 self.assertEqual(clean_storage(base, {"logs"}), (1, 0))
                 self.assertTrue(screenshot.exists())
                 self.assertFalse(log.exists())
-                self.assertEqual(clean_storage(base, set(CATEGORIES)), (2, 0))
+                self.assertEqual(
+                    clean_storage(base, {"logs", "screenshots", "sandboxes"}),
+                    (2, 0),
+                )
                 self.assertFalse(dead.exists())
                 for path in (recent, unknown, live, unowned, result):
                     self.assertEqual(path.read_bytes(), b"12345678")
@@ -127,3 +130,32 @@ class StorageCleanupTests(unittest.TestCase):
             with patch("ccz_randomizer.runtime.storage_cleanup.psutil.pid_exists", return_value=True):
                 self.assertEqual(clean_storage(base, {"sandboxes"}), (0, 0))
             self.assertTrue(path.exists())
+
+    def test_results_and_history_are_counted_and_cleaned_by_category(self):
+        with tempfile.TemporaryDirectory() as temp:
+            base = Path(temp)
+            result = base / "randResult/loop/round-000001/panel.png"
+            result.parent.mkdir(parents=True)
+            result.write_bytes(b"result" * 100)
+            history = base / "ccz_fast_data/history.sqlite3"
+            history.parent.mkdir(parents=True)
+            history.write_bytes(b"history" * 200)
+            sidecar = base / "ccz_fast_data/history.sqlite3-wal"
+            sidecar.write_bytes(b"wal" * 50)
+
+            usage = scan_storage(base)
+            self.assertEqual(usage["results"].total, result.stat().st_size)
+            self.assertEqual(usage["results"].cleanable, result.stat().st_size)
+            self.assertEqual(
+                usage["history"].total,
+                history.stat().st_size + sidecar.stat().st_size,
+            )
+            self.assertEqual(
+                clean_storage(base, {"results"}),
+                (1, 0),
+            )
+            self.assertFalse(result.exists())
+            self.assertTrue(history.exists())
+            self.assertEqual(clean_storage(base, {"history"}), (2, 0))
+            self.assertFalse(history.exists())
+            self.assertFalse(sidecar.exists())

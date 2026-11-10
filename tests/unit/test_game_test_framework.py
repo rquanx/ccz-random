@@ -1,12 +1,21 @@
 import tempfile
 import unittest
+import os
 from pathlib import Path
+from unittest.mock import patch
 
 from tests.helpers.game_backup import GameFileBackup
 from tests.integration_game.manifest import CASES, select_cases
 
 
 class GameTestFrameworkTests(unittest.TestCase):
+    def test_game_cli_defaults_to_current_release_directory(self):
+        import run_tests
+        with patch.dict(os.environ, {}, clear=True), \
+             patch("sys.argv", ["run_tests.py", "game", "--confirm-game"]):
+            args = run_tests.parse_args()
+        self.assertEqual(Path(r"E:\game\ccz\曹操传加强版v2.20-1104夜"), args.game_dir)
+
     def test_default_selection_excludes_manual_diagnostics(self):
         selected = select_cases([])
 
@@ -16,6 +25,10 @@ class GameTestFrameworkTests(unittest.TestCase):
             "scene-wait-benchmark",
             [case.name for case in selected],
         )
+        names = {case.name for case in selected}
+        self.assertIn("result-save-stage", names)
+        self.assertNotIn("seven-result-save-stage", names)
+        self.assertNotIn("seven-member-inspection", names)
 
     def test_select_cases_preserves_manifest_order(self):
         selected = select_cases(["repeat-sv020", "dialog-message"])

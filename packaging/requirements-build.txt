@@ -1,0 +1,16 @@
+# Verified Windows x64 / CPython 3.14.3 build environment.
+altgraph==0.17.5
+capstone==5.0.9
+comtypes==1.4.17
+frida==17.19.0
+numpy==2.3.5
+opencv-python-headless==4.11.0.86
+packaging==26.3
+pefile==2023.2.7
+pillow==11.3.0
+psutil==7.2.2
+pycaw==20260921
+pyinstaller==6.16.0
+pyinstaller-hooks-contrib==2026.7
+pywin32-ctypes==0.2.3
+setuptools==84.0.0

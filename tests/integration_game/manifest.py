@@ -59,11 +59,18 @@ CASES = (
         "seven-result-save-stage",
         "case_seven_result_save_stage.py",
         "验证七人结果保存的是剧情推进前的初始场景存档",
+        default=False,  # Legacy engine path; the current app only exposes three-person mode.
+    ),
+    GameCase(
+        "result-save-stage",
+        "case_result_save_stage.py",
+        "验证当前随机流程通过游戏菜单保存到指定结果槽位",
     ),
     GameCase(
         "seven-member-inspection",
         "case_seven_member_inspection.py",
         "验证七人候选存档的剧情推进与能力读取",
+        default=False,
     ),
     GameCase(
         "native-confirm",

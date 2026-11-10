@@ -6,6 +6,7 @@ import json
 import os
 import subprocess
 import sys
+import struct
 from pathlib import Path
 
 
@@ -34,15 +35,11 @@ def _source_hash(project_root: Path) -> str:
     candidates.extend(
         sorted((project_root / "ccz_randomizer").rglob("*.py"))
     )
-    candidates.extend(
-        path
-        for path in (
-            project_root / "native" / "ccz_control.dll",
-            project_root / "native" / "ccz_injector.exe",
-            project_root / "resources" / "app" / "random_s00.eex",
-        )
-        if path.is_file()
-    )
+    for folder in ("resources", "packaging", "native", "tools/windows"):
+        candidates.extend(sorted(path for path in (project_root / folder).rglob("*")
+                                 if path.is_file() and "__pycache__" not in path.parts
+                                 and path.suffix not in {".pyc", ".obj", ".res", ".lib", ".exp"}))
+    candidates = sorted(set(candidates))
     digest = hashlib.sha256()
     for path in candidates:
         if not path.is_file():
@@ -54,7 +51,7 @@ def _source_hash(project_root: Path) -> str:
     return digest.hexdigest()
 
 
-def write_build_info(project_root: Path) -> Path:
+def write_build_info(project_root: Path, *, runtime_files=None) -> Path:
     version_path = project_root / "VERSION"
     version = os.environ.get("CCZ_APP_VERSION", "").strip()
     if not version:
@@ -77,6 +74,13 @@ def write_build_info(project_root: Path) -> Path:
         "gitCommit": commit or "unknown",
         "gitDirty": dirty,
         "python": sys.version.split()[0],
+        "architectureBits": struct.calcsize("P") * 8,
+        "runtimeFiles": runtime_files or {},
+        "dependencies": {name: _dependency_version(name) for name in
+                         ("pyinstaller", "pyinstaller-hooks-contrib", "pillow", "psutil", "pycaw",
+                          "numpy", "opencv-python-headless", "comtypes", "packaging",
+                          "pywin32-ctypes", "setuptools")},
+        "profiles": _profile_metadata(project_root),
     }
     if output.is_file():
         try:
@@ -89,11 +93,13 @@ def write_build_info(project_root: Path) -> Path:
         ):
             return output
 
+    provenance_hash = hashlib.sha256(json.dumps(stable_fields, sort_keys=True,
+                                                ensure_ascii=False).encode("utf-8")).hexdigest()
     built_at = dt.datetime.now().astimezone()
     build_id = (
         built_at.strftime("%Y%m%d.%H%M%S")
         + "-"
-        + source_hash[:12]
+        + provenance_hash[:12]
     )
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(
@@ -109,3 +115,20 @@ def write_build_info(project_root: Path) -> Path:
         encoding="utf-8",
     )
     return output
+
+
+def _dependency_version(name):
+    from importlib.metadata import version, PackageNotFoundError
+    try:
+        return version(name)
+    except PackageNotFoundError:
+        return "not-installed"
+
+
+def _profile_metadata(project_root):
+    result = []
+    for manifest in sorted((project_root / "resources/data/profiles").glob("*/manifest.json")):
+        data = json.loads(manifest.read_text(encoding="utf-8"))
+        result.append({"profileId": data["profileId"], "catalogVersion": data["catalogVersion"],
+                       "files": data.get("sha256", {})})
+    return result

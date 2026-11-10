@@ -19,7 +19,7 @@ def main() -> None:
             "CCZ_AUTOSTART": "1",
             "CCZ_NO_PAUSE": "1",
             "CCZ_STOP_FILE": str(stop_file),
-            "CCZ_RANDOM_MODE": "seven",
+            "CCZ_RANDOM_MODE": "three",
             "CCZ_LOOP_RANDOM": "0",
             "CCZ_RESULT_COUNT": "15",
             "CCZ_TEST_ACCEPT_FIRST": "1",
@@ -60,13 +60,14 @@ def main() -> None:
             (
                 "候选存档已由游戏原生保存",
                 "候选存档已通过游戏菜单保存",
+                "游戏原生随机已触发",
             )
         ):
             marker_seen = True
             break
     if not marker_seen:
         process.kill()
-        raise RuntimeError("停止测试未进入七人剧情推进前的候选保存阶段")
+        raise RuntimeError("停止测试未进入真实随机阶段")
 
     requested_at = time.perf_counter()
     stop_file.write_text("stop", encoding="ascii")

@@ -98,6 +98,11 @@ def load_compatibility_mode(app_directory: Path) -> bool:
     )
 
 
+def load_turbo_mode(app_directory: Path) -> bool:
+    value = _load_preferences(app_directory).get("turboMode")
+    return value if isinstance(value, bool) else False
+
+
 def load_first_use_notice_seen(app_directory: Path) -> bool:
     """Return whether the current first-use notice version was acknowledged."""
     loaded = _load_preferences(app_directory)
@@ -181,6 +186,7 @@ def save_random_runtime_settings(
     loop_random: bool,
     concurrency: int,
     compatibility_mode: bool = False,
+    turbo_mode: bool = False,
 ) -> None:
     if not isinstance(loop_random, bool):
         raise ValueError("循环随机设置必须是布尔值")
@@ -192,6 +198,8 @@ def save_random_runtime_settings(
         raise ValueError("同时运行数量必须大于 0")
     if not isinstance(compatibility_mode, bool):
         raise ValueError("兼容模式设置必须是布尔值")
+    if not isinstance(turbo_mode, bool):
+        raise ValueError("极速模式设置必须是布尔值")
     payload = _load_preferences(app_directory)
     payload.update(
         {
@@ -199,6 +207,7 @@ def save_random_runtime_settings(
             "loopRandom": loop_random,
             "concurrency": concurrency,
             "compatibilityMode": compatibility_mode,
+            "turboMode": turbo_mode,
         }
     )
     _save_preferences(app_directory, payload)

@@ -89,14 +89,22 @@ class ProgressPollingTests(unittest.TestCase):
             workers = []
             def launch(*args, **kwargs):
                 worker = Worker()
+                worker.environment = kwargs['env']
                 workers.append(worker)
                 return worker
 
             def exercise(root):
                 state = sys._getframe(1).f_locals
                 try:
+                    self.assertFalse(state["turbo_mode_var"].get())
+                    checks = [w for w in state["runtime_settings_bar"].winfo_children() if isinstance(w, tk.Checkbutton)]
+                    self.assertEqual(["兼容模式", "极速模式"], [w.cget("text") for w in checks[-2:]])
+                    self.assertIn("可能会导致 bug", state["turbo_check"]._tooltip.text)
                     for number in (1, 2):
+                        state["turbo_mode_var"].set(number == 1)
                         state["start"]()
+                        self.assertEqual('1' if number == 1 else '0', workers[-1].environment['CCZ_TURBO_MODE'])
+                        self.assertEqual('disabled', str(state["turbo_check"].cget('state')))
                         self.assertEqual("停止随机", state["action_button"].cget("text"))
                         state["output_queue"].put("R0 三人兵种筛选: 张宝:弓兵; 结果=不通过")
                         state["poll_worker_once"]()
@@ -104,6 +112,7 @@ class ProgressPollingTests(unittest.TestCase):
                         workers[-1].returncode = 0
                         state["poll_worker_once"]()
                         self.assertEqual("开始随机", state["action_button"].cget("text"))
+                        self.assertEqual('normal', str(state["turbo_check"].cget('state')))
                     self.assertEqual(2, len(workers))
                 finally:
                     for child in list(root.winfo_children()):

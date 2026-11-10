@@ -139,6 +139,8 @@ def patch_runtime(
     source_save = game_path.parent / "SV" / "SV020.E5S"
     source_save_bytes = source_save.read_bytes()
     source_memory = source_save_bytes[:R0_MEMORY_SIZE]
+    from ccz_randomizer.runtime.random_interaction import RandomInteractionSession
+    interactions = RandomInteractionSession(services, pid, turbo_enabled=os.environ.get("CCZ_TURBO_MODE") == "1")
 
     def get_hwnd_by_name(self, window_name: str) -> None:
         self._BaseWindow__hwnd = find_process_window(pid, window_name)
@@ -808,7 +810,7 @@ def patch_runtime(
             load_mode=load_mode,
             reused_session=reused_session,
         )
-        interruptible_sleep(scene_ready_delay)
+        interruptible_sleep(interactions.scene_delay(scene_ready_delay))
 
         if is_enhanced_game_version(self._game_version):
             validate_personnel_identity(pid, rule_member_indices(self._game_version))
@@ -817,6 +819,7 @@ def patch_runtime(
         interaction_limit = 3
         for interaction_attempt in range(1, interaction_limit + 1):
             check_stop_requested()
+            interaction = interactions.for_attempt(interaction_attempt)
             interaction_started = time.perf_counter()
             diagnostic_log(
                 "interaction_start",
@@ -837,14 +840,7 @@ def patch_runtime(
             )
             npc_click_started = time.perf_counter()
             try:
-                native_silent_click(
-                    pid,
-                    game,
-                    XU_CLIENT_POSITION[0],
-                    XU_CLIENT_POSITION[1],
-                    # A failed first interaction retries with the old delay.
-                    tail_delay_ms=0 if interaction_attempt == 1 else None,
-                )
+                interaction.click_npc(game, XU_CLIENT_POSITION, interaction_attempt)
             except NativeControlError as exc:
                 if reused_session:
                     diagnostic_log(
@@ -858,7 +854,7 @@ def patch_runtime(
                         "正常读档后，后台交互组件未能继续响应"
                     ) from exc
                 raise
-            interruptible_sleep(0.5)
+            interaction.settle_npc()
             after_npc = read_job_ids(pid, active_positions)
             diagnostic_log(
                 "interaction_npc_clicked",
@@ -880,8 +876,7 @@ def patch_runtime(
                 ),
             )
             choice_click_started = time.perf_counter()
-            current = trigger_random_choice_click(
-                pid,
+            current = interaction.select_choice(
                 game,
                 active_positions,
                 before,
@@ -900,13 +895,7 @@ def patch_runtime(
                 reused_session=reused_session,
                 geometry=click_geometry_diagnostic(game),
             )
-            random_deadline = time.perf_counter() + 3
-            while time.perf_counter() < random_deadline:
-                check_stop_requested()
-                current = read_job_ids(pid, active_positions)
-                if current != before and any(current):
-                    break
-                interruptible_sleep(0.05)
+            current = interaction.wait_for_result(active_positions, before, current)
             if current != before and any(current):
                 diagnostic_log(
                     "interaction_succeeded",
@@ -937,6 +926,7 @@ def patch_runtime(
                     source_memory=source_memory,
                 ),
             )
+            interactions.on_no_change(interaction, scene_ready_delay)
             if interaction_attempt < interaction_limit:
                 print(
                     "许子将后台交互未触发随机，"

@@ -8,6 +8,49 @@ from random_workflow import (
 
 
 class WorkflowTests(unittest.TestCase):
+    def test_unlimited_rejections_pass_ten_thousand_then_advance_and_reset_counter(self):
+        last_attempt = {}
+        finished = []
+        results = run_random_workflow(
+            result_count=2,
+            run_attempt=lambda slot, attempt, loaded: (
+                last_attempt.update({slot: attempt})
+                or AttemptResult(attempt == (10001 if slot == 1 else 1), True, slot)),
+            recover_session=lambda *_args: self.fail("rejections must not restart the game"),
+            should_recover=lambda _exc: False,
+            on_accepted=lambda result: finished.append((result.result_slot, result.round_index)),
+        )
+        self.assertEqual({1: 10001, 2: 1}, last_attempt)
+        self.assertEqual([(1, 10001), (2, 1)], finished)
+        self.assertEqual([1, 2], [result.payload for result in results])
+
+    def test_unlimited_attempts_still_stop_and_keep_previously_committed_result(self):
+        calls = []
+        committed = []
+        def attempt(slot, number, loaded):
+            calls.append((slot, number))
+            return AttemptResult(slot == 1, True, slot)
+        def stop():
+            if calls and calls[-1] == (2, 10001):
+                raise KeyboardInterrupt
+        with self.assertRaises(KeyboardInterrupt):
+            run_random_workflow(result_count=2, run_attempt=attempt,
+                recover_session=lambda *_args: self.fail("unexpected recovery"),
+                should_recover=lambda _exc: False, check_stop=stop,
+                on_accepted=lambda result: committed.append(result.payload))
+        self.assertEqual([1], committed)
+        self.assertEqual((2, 10001), calls[-1])
+
+    def test_unlimited_attempts_propagate_actual_error_without_continuing(self):
+        def attempt(slot, number, loaded):
+            if number == 10001:
+                raise OverflowError("actual error")
+            return AttemptResult(False, True, None)
+        with self.assertRaisesRegex(OverflowError, "actual error"):
+            run_random_workflow(result_count=1, run_attempt=attempt,
+                recover_session=lambda *_args: self.fail("unexpected recovery"),
+                should_recover=lambda _exc: False)
+
     def test_result_slot_range_can_start_after_first_slot(self):
         visited = []
 

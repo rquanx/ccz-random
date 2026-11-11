@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from itertools import count
 from typing import Callable, Generic, Sequence, TypeVar
 
 
@@ -25,7 +26,7 @@ class AcceptedResult(Generic[T]):
 def run_random_workflow(
     *,
     result_count: int,
-    max_attempts: int,
+    max_attempts: int | None = None,
     run_attempt: Callable[[int, int, bool], AttemptResult[T]],
     recover_session: Callable[[BaseException, int, int], None],
     should_recover: Callable[[BaseException], bool],
@@ -73,7 +74,7 @@ def run_random_workflow(
             for slot in slots
         ):
             raise ValueError("result slots must stay within 1-15")
-    if max_attempts < 1:
+    if max_attempts is not None and max_attempts < 1:
         raise ValueError("max_attempts must be at least 1")
 
     accepted_results: list[AcceptedResult[T]] = []
@@ -82,7 +83,8 @@ def run_random_workflow(
 
     for result_slot in slots:
         stop_check()
-        for round_index in range(1, max_attempts + 1):
+        attempts = count(1) if max_attempts is None else range(1, max_attempts + 1)
+        for round_index in attempts:
             stop_check()
             if on_attempt_started is not None:
                 on_attempt_started(result_slot, round_index)

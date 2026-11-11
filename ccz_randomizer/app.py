@@ -9214,7 +9214,6 @@ def main() -> int:
 
                     run_random_workflow(
                         result_count=result_count,
-                        max_attempts=10000,
                         run_attempt=run_attempt,
                         recover_session=recover_session,
                         should_recover=(

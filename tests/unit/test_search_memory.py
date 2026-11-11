@@ -27,13 +27,20 @@ class SearchMemoryTests(unittest.TestCase):
                     body.pack()
                     memory = SearchMemory(entry, query, path, has_matches=lambda word: word in words,
                                           parent=root, before=body, idle_ms=1)
+                    root.geometry("720x240")
+                    root.deiconify()
+                    root.update()
                     query.set(words[0])  # Pending automatic recording must be cancelled.
                     index = memory.history.items.index(words[0])
                     delete = memory.bar.delete_buttons[index]
                     self.assertEqual("", delete.cget("text"))
                     self.assertTrue(delete.cget("image"))
-                    self.assertEqual("0", delete.place_info()["x"])
-                    self.assertEqual("0", delete.place_info()["y"])
+                    root.update_idletasks()
+                    group = memory.bar.groups[index]
+                    label = memory.bar.buttons[index]
+                    self.assertGreaterEqual(delete.winfo_x(), label.winfo_x() + label.winfo_width())
+                    self.assertLessEqual(delete.winfo_x() + delete.winfo_width(), group.winfo_width())
+                    self.assertLess(delete.winfo_y(), label.winfo_height() / 2)
                     memory.bar.delete_buttons[index].invoke()
                     root.update()
                     memory.remember()  # Focus-out / close also must not restore it.

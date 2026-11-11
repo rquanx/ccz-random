@@ -138,6 +138,8 @@ def _default_profile() -> dict[str, Any]:
             "highJobAutoPass": True,
         },
         "jobScoring": {
+            "highJobThreshold": 9.0,
+            "highJobAutoPass": False,
             "baseScoreWeight": 1.0,
             "jobBaseScores": {},
             "jobTypeOverrides": {},
@@ -466,6 +468,10 @@ def validate_rule_config(config: dict[str, Any]) -> dict[str, Any]:
             display["members"] = _require_member_selection(display["members"], f"{name}.结果图人物", RULE_MEMBER_NAMES)
         seven = profile["sevenPerson"]
         scoring = profile["jobScoring"]
+        scoring["highJobThreshold"] = _require_number(
+            scoring["highJobThreshold"], f"{name}.高阶兵种基础分门槛", 0, 20)
+        scoring["highJobAutoPass"] = _require_bool(
+            scoring["highJobAutoPass"], f"{name}.高阶兵种直接合格")
         three["minJobAverage"] = _require_number(
             three["minJobAverage"], f"{name}.兵种合格分", 0,
             20 * len(RULE_MEMBER_NAMES) if three["jobQualificationMode"] == "total" else 20
@@ -800,11 +806,13 @@ def evaluate_job_rules(
     master_count = 0
     job_names = [str(job["name"]) for job in jobs]
     member_scores: list[float] = []
+    base_scores: list[float] = []
 
     for index, (job, fallback_member) in enumerate(zip(jobs, members)):
         name = str(job["name"])
         raw_score = float(job["score"])
         score = float(scoring["jobBaseScores"].get(name, raw_score))
+        base_scores.append(score)
         weighted_score = score * scoring["baseScoreWeight"]
         job_type = str(
             scoring["jobTypeOverrides"].get(name, job["type"])
@@ -861,6 +869,11 @@ def evaluate_job_rules(
         if qualification_mode == "average"
         else required_count > 0 and qualified_count >= required_count
     )
+    high_threshold = scoring.get("highJobThreshold", 9.0)
+    high_members = [str(member["name"]) for member, score in zip(members, base_scores)
+                    if str(member["name"]) in eligible_members and score >= high_threshold]
+    auto_pass = bool(scoring.get("highJobAutoPass", False) and high_members)
+    qualified = qualified or auto_pass
     reasons = (
         ()
         if qualified
@@ -871,6 +884,9 @@ def evaluate_job_rules(
         reasons,
         {
             "average": average,
+            "autoPassReason": "high_job" if auto_pass else "",
+            "highJobThreshold": high_threshold,
+            "highJobMembers": high_members,
             "qualificationAverage": qualification_average,
             "qualificationTotal": qualification_total,
             "masterCount": master_count,

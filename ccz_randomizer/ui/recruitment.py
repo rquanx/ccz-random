@@ -20,6 +20,18 @@ from ccz_randomizer.ui.searchable_combo import SearchableCombobox
 SEARCH_HISTORY_IDLE_MS = 1000
 
 
+def high_job_names(rule: dict | None) -> frozenset[str]:
+    from ccz_randomizer import jobs
+    profile = rule or {}
+    if "profiles" in profile:
+        profile = profile.get("profiles", {}).get(profile.get("activeProfile"), {})
+    scoring = profile.get("jobScoring", {})
+    overrides = scoring.get("jobBaseScores", {})
+    threshold = scoring.get("highJobThreshold", 9.0)
+    return frozenset(name for name, score, _kind in jobs.JOB_MAP.values()
+                     if overrides.get(name, score) >= threshold)
+
+
 def special_talent_names(rule: dict | None) -> frozenset[str]:
     """Return names that the selected rule currently treats as special."""
     profile = rule or {}
@@ -70,21 +82,34 @@ def show_recruit_window(parent, catalog_path: Path | None = None, *, snapshot: d
     filters = ttk.Frame(outer); filters.pack(fill="x", pady=12)
     query, stage = tk.StringVar(), tk.StringVar(value="全部关卡")
     special_only = tk.BooleanVar(value=False)
+    high_only = tk.BooleanVar(value=False)
     ttk.Label(filters, text="搜索人物、兵种或天赋", foreground=colors["muted"]).pack(side="left")
-    entry = SearchEntry(filters, textvariable=query, width=28,
+    entry = SearchEntry(filters, textvariable=query, width=20,
         hint="即时搜索人物、兵种或天赋；Esc 清空，Ctrl+A 全选"); entry.pack(side="left", padx=(8,12))
     stage_order = entry_stage_order(payload.get("gameVersion"))
     stage_values = tuple(sorted(dict.fromkeys(value for row in recruits for value in (row.stages or (row.stage,))),
                                 key=lambda label: stage_order.get(label, 999)))
-    stage_combo = SearchableCombobox(filters, textvariable=stage, width=24,
+    stage_combo = SearchableCombobox(filters, textvariable=stage, width=18,
         search_label="搜索关卡", empty_text="没有匹配的关卡",
         values=("全部关卡", *(value.removeprefix("共通 · ") for value in stage_values)))
     stage_combo.pack(side="left", padx=(0,12))
     ttk.Checkbutton(filters, text="只看特殊技能", variable=special_only).pack(side="left")
+    ttk.Checkbutton(filters, text="只看高阶兵种", variable=high_only).pack(side="left", padx=(10, 0))
+    def resize_filters(event):
+        compact = event.width < 950
+        entry.configure(width=12 if compact else 20)
+        stage_combo.configure(width=12 if compact else 18)
+    filters.bind("<Configure>", resize_filters)
     def selected_stage():
         return next((value for value in stage_values if value.removeprefix("共通 · ") == stage.get()), "")
 
     cached_special_names = None
+    cached_high_names = None
+    def current_high_names():
+        nonlocal cached_high_names
+        if cached_high_names is None:
+            cached_high_names = high_job_names(current_rule())
+        return cached_high_names
     normalized_talents = {row.record_index: frozenset(normalize_skill_name(talent)
                          for talent in (*row.job_talents, *row.personal_talents)) for row in recruits}
     def current_special_names():
@@ -95,6 +120,9 @@ def show_recruit_window(parent, catalog_path: Path | None = None, *, snapshot: d
 
     def matching_recruits(word: str, special_names: frozenset[str]) -> tuple[Recruit, ...]:
         rows = filter_recruits(recruits, word, stage=selected_stage())
+        if high_only.get():
+            high_names = current_high_names()
+            rows = tuple(row for row in rows if set(display_job_options(row).split("/")) & high_names)
         if not special_only.get():
             return rows
         return tuple(row for row in rows if normalized_talents[row.record_index] & special_names)
@@ -105,6 +133,8 @@ def show_recruit_window(parent, catalog_path: Path | None = None, *, snapshot: d
         has_matches=lambda word: bool(matching_recruits(word, current_special_names())),
         parent=outer, before=body, idle_ms=SEARCH_HISTORY_IDLE_MS)
     canvas = tk.Canvas(body, background=colors["alt"], highlightthickness=0); canvas.grid(row=0,column=0,sticky="nsew")
+    from tkinter.font import Font
+    heading_font = Font(canvas, family="Microsoft YaHei UI", size=10, weight="bold")
     vertical = ttk.Scrollbar(body, orient="vertical", command=canvas.yview); vertical.grid(row=0,column=1,sticky="ns")
     canvas.configure(yscrollcommand=vertical.set)
     stage_people: OrderedDict[str, list[Recruit]] = OrderedDict()
@@ -117,9 +147,10 @@ def show_recruit_window(parent, catalog_path: Path | None = None, *, snapshot: d
         nonlocal refresh_after, last_layout, render_generation
         refresh_after = None
         special_names = current_special_names()
+        high_names = current_high_names()
         stage_filter = selected_stage()
         width = max(1, canvas.winfo_width())
-        layout = (width, query.get(), stage_filter, special_only.get(), special_names)
+        layout = (width, query.get(), stage_filter, special_only.get(), special_names, high_only.get(), high_names)
         if layout == last_layout:
             return
         last_layout = layout
@@ -154,8 +185,31 @@ def show_recruit_window(parent, catalog_path: Path | None = None, *, snapshot: d
                 x + card_width - 12, cursor, anchor="ne", text="固定" if row.entry_kind == "fixed" else f"{row.cost}次",
                 fill=colors["muted"], font=("Microsoft YaHei UI", 9), tags=(tag,))
             cost_bounds = canvas.bbox(cost)
-            line(f"{row.name} · {display_job_options(row)}", bold=True,
-                 reserve=cost_bounds[2] - cost_bounds[0] + 12)
+            options = display_job_options(row).split("/")
+            if not set(options) & high_names:
+                line(f"{row.name} · {display_job_options(row)}", bold=True,
+                     reserve=cost_bounds[2] - cost_bounds[0] + 12)
+            else:
+                font = heading_font
+                left = x + 12
+                right = x + card_width - 24 - (cost_bounds[2] - cost_bounds[0])
+                pen = left
+                segments = [(row.name + " · ", False)]
+                for index, job_name in enumerate(options):
+                    if index:
+                        segments.append(("/", False))
+                    segments.append((job_name, job_name in high_names))
+                for text, high in segments:
+                    length = font.measure(text)
+                    if pen > left and pen + length > right:
+                        pen = left
+                        cursor += font.metrics("linespace") + 2
+                        right = x + card_width - 12
+                    item = canvas.create_text(pen, cursor, anchor="nw", text=text,
+                        fill=COLORS["danger"] if high else colors["ink"],
+                        font=font, tags=(tag,))
+                    pen += length
+                cursor = canvas.bbox(item)[3] + 5
             for title, talents in (("兵种天赋", row.job_talents),
                                    ("人物天赋", row.personal_talents)):
                 cursor += 5
@@ -220,9 +274,11 @@ def show_recruit_window(parent, catalog_path: Path | None = None, *, snapshot: d
     query.trace_add("write", schedule_query)
     stage.trace_add("write", schedule_query)
     special_only.trace_add("write", schedule_query)
+    high_only.trace_add("write", schedule_query)
     def rules_updated(*_args):
-        nonlocal cached_special_names
+        nonlocal cached_special_names, cached_high_names
         cached_special_names = None
+        cached_high_names = None
         schedule_query()
     remove_rule_listener = bind_window_event(parent._root(), "<<RulesUpdated>>", rules_updated)
     def close() -> None:

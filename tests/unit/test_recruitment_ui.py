@@ -400,7 +400,12 @@ class RecruitmentWindowTests(unittest.TestCase):
             time.sleep(.002)
         texts = [canvas.itemcget(item, "text") for item in canvas.find_all() if canvas.type(item) == "text"]
         self.assertIn("曹休 · 轻炮车/弓骑兵", texts)
-        self.assertIn("曹纯 · 道士/虎豹骑", texts)
+        self.assertIn("曹纯 · ", texts)
+        self.assertIn("道士", texts)
+        self.assertIn("虎豹骑", texts)
+        self.assertTrue(any(canvas.itemcget(item, "text") == "虎豹骑"
+                            and canvas.itemcget(item, "fill") == "#B42318"
+                            for item in canvas.find_all() if canvas.type(item) == "text"))
         self.assertFalse(any("随机结果" in text or "入队时兵种选项" in text for text in texts))
         self.assertIn("兵种天赋", texts)
         self.assertIn("人物天赋", texts)
@@ -429,7 +434,7 @@ class RecruitmentWindowTests(unittest.TestCase):
             return [canvas.itemcget(item, "text") for item in canvas.find_all() if canvas.type(item) == "text"]
         wait_until(root, lambda: any(text.startswith("曹仁 · ") for text in texts()))
         self.assertTrue(any(text.startswith("曹仁 · ") for text in texts()))
-        self.assertEqual(["只看特殊技能"],
+        self.assertEqual(["只看特殊技能", "只看高阶兵种"],
                          [w.cget("text") for w in widgets if isinstance(w, ttk.Checkbutton)])
         dialog = next(w for w in widgets if isinstance(w, tk.Toplevel))
         self.assertEqual(dialog.title(), "入队人员")
@@ -445,6 +450,11 @@ class RecruitmentWindowTests(unittest.TestCase):
         self.assertLess(abs((special_filter.winfo_rooty() + special_filter.winfo_height() / 2)
                             - (stage_combo.winfo_rooty() + stage_combo.winfo_height() / 2)), 2)
         self.assertLessEqual(special_filter.winfo_rootx() + special_filter.winfo_reqwidth(),
+                             dialog.winfo_rootx() + dialog.winfo_width() - 20)
+        high_filter = next(w for w in widgets if isinstance(w, ttk.Checkbutton)
+                           and w.cget("text") == "只看高阶兵种")
+        self.assertTrue(high_filter.winfo_ismapped())
+        self.assertLessEqual(high_filter.winfo_rootx() + high_filter.winfo_reqwidth(),
                              dialog.winfo_rootx() + dialog.winfo_width() - 20)
         rectangles = [canvas.coords(item) for item in canvas.find_all()
                       if canvas.type(item) == "rectangle"]

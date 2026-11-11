@@ -1262,6 +1262,12 @@ def show_rule_editor(
     )
     affinity_check.grid(row=4, column=0, columnspan=2, sticky="w", pady=5)
     editable_widgets.append(affinity_check)
+    add_number(job_tab, 5, "high_job_threshold", "高阶兵种基础分 / 门槛")
+    high_job_auto = tk.BooleanVar(value=False)
+    high_job_check = tk.Checkbutton(job_tab, text="出现高阶兵种时直接合格",
+                                   variable=high_job_auto, anchor="w")
+    high_job_check.grid(row=6, column=0, columnspan=2, sticky="w", pady=5)
+    editable_widgets.append(high_job_check)
 
     affinity_vars: dict[str, tuple[tk.StringVar, tk.StringVar]] = {}
     affinity_member_names = RULE_MEMBER_NAMES
@@ -1504,6 +1510,8 @@ def show_rule_editor(
         profile["skillQualification"] = dict(mode=skill_mode_labels[skill_mode_var.get()],
             threshold=float(number_vars["skill_threshold"].get()), requiredCount=int(skill_count_var.get()),
             specialSkillAutoPass=bool(special_auto.get()))
+        profile["jobScoring"]["highJobThreshold"] = float(number_vars["high_job_threshold"].get())
+        profile["jobScoring"]["highJobAutoPass"] = bool(high_job_auto.get())
         profile["sevenPerson"].update(
             {
                 "normalJobAverage": float(
@@ -1602,6 +1610,7 @@ def show_rule_editor(
             scoring = profile["jobScoring"]
             values = {
                 "three_min": three["minJobAverage"],
+                "high_job_threshold": scoring["highJobThreshold"],
                 "skill_threshold": profile["skillQualification"]["threshold"],
                 "normal_average": seven["normalJobAverage"],
                 "high_average": seven["highJobAverage"],
@@ -1657,6 +1666,7 @@ def show_rule_editor(
             skill_count_var.set(str(profile["skillQualification"]["requiredCount"]))
             skill_count_combo.configure(values=tuple(str(i) for i in range(1, len(three["qualifiedMembers"]) + 1)))
             special_auto.set(profile["skillQualification"].get("specialSkillAutoPass", False))
+            high_job_auto.set(scoring["highJobAutoPass"])
             high_auto.set(False)
             skill_type_matching.set(seven["skillTypeMatchingEnabled"])
             affinity_enabled.set(scoring["affinityEnabled"])

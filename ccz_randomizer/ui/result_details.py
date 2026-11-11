@@ -75,7 +75,9 @@ def format_result_detail(detail: dict[str, Any]) -> dict[str, Any]:
             if qualification_mode in {"count", "all"} and len(members) > 1:
                 row += "　" + _threshold_result(item.get("score"), threshold)
             rows.append(row)
-        if qualification_mode == "none":
+        if metrics.get("autoPassReason") == "high_job":
+            explanation = "所选人物出现高阶兵种，按当前规则直接通过兵种阶段"
+        elif qualification_mode == "none":
             explanation = "无要求，不设兵种评分门槛"
         elif qualification_mode in {"count", "all"}:
             if len(members) == 1:

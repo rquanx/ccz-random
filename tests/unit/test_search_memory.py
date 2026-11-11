@@ -29,6 +29,11 @@ class SearchMemoryTests(unittest.TestCase):
                                           parent=root, before=body, idle_ms=1)
                     query.set(words[0])  # Pending automatic recording must be cancelled.
                     index = memory.history.items.index(words[0])
+                    delete = memory.bar.delete_buttons[index]
+                    self.assertEqual("", delete.cget("text"))
+                    self.assertTrue(delete.cget("image"))
+                    self.assertEqual("0", delete.place_info()["x"])
+                    self.assertEqual("0", delete.place_info()["y"])
                     memory.bar.delete_buttons[index].invoke()
                     root.update()
                     memory.remember()  # Focus-out / close also must not restore it.

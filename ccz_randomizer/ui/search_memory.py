@@ -10,7 +10,8 @@ class SearchMemory:
         self.history = SearchHistory(path)
         self.session = SearchSession(self.history)
         self.pending = None
-        self.bar = RecentSearchesBar(parent, self.reuse)
+        self.suppressed = None
+        self.bar = RecentSearchesBar(parent, self.reuse, self.remove, self.clear)
         self._render()
         self.trace = query.trace_add("write", self._changed)
         entry.bind("<Return>", self.remember, add="+")
@@ -27,9 +28,27 @@ class SearchMemory:
         self.bar.set_items(self.history.items)
         if self.history.items and not self.bar.winfo_manager():
             self.bar.pack(fill="x", before=self.before, pady=(0, 12))
+        elif not self.history.items:
+            self.bar.pack_forget()
+
+    def _suppress_current(self):
+        self._cancel()
+        self.session.reset()
+        self.suppressed = normalize_keyword(self.query.get()).casefold()
+
+    def remove(self, word):
+        self._suppress_current()
+        self.history.remove(word)
+        self._render()
+
+    def clear(self):
+        self._suppress_current()
+        self.history.clear()
+        self._render()
 
     def _changed(self, *_args):
         self._cancel()
+        self.suppressed = None
         if not normalize_keyword(self.query.get()):
             self.session.reset()
         else:
@@ -38,7 +57,7 @@ class SearchMemory:
     def remember(self, _event=None, *, automatic=False, render=True):
         self._cancel()
         word = normalize_keyword(self.query.get())
-        if not word or not self.has_matches(word):
+        if not word or word.casefold() == self.suppressed or not self.has_matches(word):
             if not automatic:
                 self.session.reset()
             return

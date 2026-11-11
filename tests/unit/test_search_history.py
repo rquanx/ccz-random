@@ -7,6 +7,21 @@ from ccz_randomizer.search_history import SearchHistory, SearchSession
 
 
 class SearchHistoryTests(unittest.TestCase):
+    def test_delete_and_clear_persist_and_do_not_restore_stale_window_items(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "searches.json"
+            first, second = SearchHistory(path), SearchHistory(path)
+            first.remember("曹操")
+            first.remember("夏侯惇")
+            second.remove(" 曹操 ")
+            self.assertEqual(["夏侯惇"], SearchHistory(path).items)
+            first.remember("夏侯渊")
+            self.assertEqual(["夏侯渊", "夏侯惇"], SearchHistory(path).items)
+            second.clear()
+            self.assertEqual([], SearchHistory(path).items)
+            first.remember("曹仁")
+            self.assertEqual(["曹仁"], SearchHistory(path).items)
+
     def test_auto_session_merges_new_prefixes_but_preserves_existing_keywords(self):
         with tempfile.TemporaryDirectory() as temp:
             history = SearchHistory(Path(temp)/"searches.json")

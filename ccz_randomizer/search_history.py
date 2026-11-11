@@ -51,6 +51,19 @@ class SearchHistory:
         updated = [word, *(item for item in current if item.casefold() not in removed)][:self.limit]
         if updated == self.items and current == self.items:
             return False
+        self._save(updated)
+        return True
+
+    def remove(self, value):
+        word = normalize_keyword(value).casefold()
+        current = self._read()
+        current = self.items if current is None else current
+        self._save([item for item in current if item.casefold() != word])
+
+    def clear(self):
+        self._save([])
+
+    def _save(self, updated):
         self.items = updated
         temporary = self.path.with_name(f".{self.path.name}.{os.getpid()}.{uuid4().hex}.tmp")
         try:
@@ -64,7 +77,6 @@ class SearchHistory:
                 temporary.unlink(missing_ok=True)
             except OSError:
                 pass
-        return True
 
 
 class SearchSession:

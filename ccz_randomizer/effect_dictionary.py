@@ -12,16 +12,12 @@ import sys
 
 from ccz_randomizer.profile_context import current_context
 
-PENDING = "说明待核实"
-
-
 @dataclass(frozen=True)
 class EffectEntry:
     key: str
     name: str
     category: str
     description: str
-    status: str
     aliases: tuple[str, ...] = ()
     pattern: str = ""
 
@@ -77,36 +73,16 @@ def load_effect_dictionary(context=None):
     if digest != data["catalogHash"]:
         return EffectDictionary(version=context.game_version, notice=unavailable)
     entries = []
-    by_base = {}
     for skill in data["skills"]:
-        by_base.setdefault(skill["baseName"], []).append(skill)
         description = skill["description"]
+        if not description:
+            continue
         entries.append(EffectEntry(f'skill:{skill["id"]}', skill["name"], "特技说明",
-            description or "游戏独立说明表未提供已核实的机制说明。", "游戏说明" if description else PENDING,
-            (skill["baseName"],)))
+            description, (skill["baseName"],)))
     for code, rule in sorted(effects.items(), key=lambda item: int(item[0])):
         template = rule.get("template", rule.get("base", ""))
         name = re.sub(r"[+\-]?\{value\}%?|[\-]?\{strategy\}", "", template).strip()
-        description = "该宝物特效的机制尚未核实，请勿依据宝物自带的固定描述判断效果。"
-        status = PENDING
         aliases = ()
-        # Same-name skill help is a reference, never evidence that item parameters use
-        # the same formula. Do not infer composite effects or map similar names.
-        references = [item for item in by_base.get(name, ()) if item["description"]]
-        if references:
-            parts = []
-            for item in references:
-                text = f'{item["name"]}\n{item["description"]}'
-                if text not in parts:
-                    parts.append(text)
-            description = "\n\n".join(parts)
-            description += "\n\n以上为同名特技的原始说明，仅供理解机制。宝物的参数、倍率和触发规则仍需核实，不能直接套用说明中的固定数字。"
-            status = "同名特技参考"
-            aliases = tuple(item["name"] for item in references)
-        confirmed = data.get("equipment", {}).get(code)
-        if confirmed and confirmed["name"] == name:
-            description = confirmed["description"]
-            status = "游戏更新说明"
         pattern = re.escape(template)
         pattern = pattern.replace(re.escape("{value}"), r"\d+(?:\.\d+)?").replace(re.escape("{strategy}"), r".+")
         if rule["op"] == "skill":
@@ -114,8 +90,10 @@ def load_effect_dictionary(context=None):
         if rule["op"] == "lookup":
             name = "穿透攻击"
             aliases = tuple(rule["values"].values())
-        entries.append(EffectEntry(f"equipment:{code}", name, "宝物特效", description, status, aliases, pattern))
-    entries.sort(key=lambda item: (item.category != "宝物特效",
-                                  {"游戏更新说明": 0, "同名特技参考": 1, "游戏说明": 1, PENDING: 2}[item.status]))
-    return EffectDictionary(entries, version=context.game_version,
-        notice="按实际特效名称查询，不按宝物名称判断。说明来自本版游戏独立特技说明；复合特效和参数差异仍需核实。")
+        explanation = data.get("equipment", {}).get(code)
+        if not explanation or explanation["name"] != name or not explanation["description"].strip():
+            return EffectDictionary(version=context.game_version, notice=unavailable)
+        entries.append(EffectEntry(f"equipment:{code}", name, "宝物特效", explanation["description"],
+                                   aliases, pattern))
+    entries.sort(key=lambda item: item.category != "宝物特效")
+    return EffectDictionary(entries, version=context.game_version)

@@ -24,9 +24,8 @@ def show_effect_dictionary(parent):
     body.columnconfigure(0, weight=1)
     body.rowconfigure(3, weight=1)
     ttk.Label(body, text="特效字典", font=(FONT, 16, "bold")).grid(row=0, column=0, sticky="w")
-    ttk.Label(body, text=f"适用资料：{dictionary.version}", foreground="#667085").grid(row=1, column=0, sticky="w", pady=(4, 12))
     filters = ttk.Frame(body)
-    filters.grid(row=2, column=0, sticky="ew", pady=(0, 12))
+    filters.grid(row=2, column=0, sticky="ew", pady=12)
     query = tk.StringVar(dialog)
     category = tk.StringVar(dialog, value="宝物特效")
     ttk.Label(filters, text="搜索名称或效果").pack(side="left", padx=(0, 8))
@@ -40,11 +39,9 @@ def show_effect_dictionary(parent):
     left, right = ttk.Frame(panes), ttk.Frame(panes)
     panes.add(left, weight=2)
     panes.add(right, weight=3)
-    table = ttk.Treeview(left, columns=("status",), show="tree headings", selectmode="browse")
+    table = ttk.Treeview(left, show="tree headings", selectmode="browse")
     table.heading("#0", text="特效名称")
-    table.heading("status", text="说明来源")
-    table.column("#0", width=190, minwidth=120)
-    table.column("status", width=110, minwidth=90, stretch=False)
+    table.column("#0", width=280, minwidth=120)
     scrollbar = ttk.Scrollbar(left, command=table.yview)
     table.configure(yscrollcommand=scrollbar.set)
     scrollbar.pack(side="right", fill="y")
@@ -59,9 +56,10 @@ def show_effect_dictionary(parent):
     detail.tag_configure("muted", foreground="#667085", spacing3=12)
     count = tk.StringVar(dialog)
     ttk.Label(body, textvariable=count, foreground="#667085").grid(row=4, column=0, sticky="w", pady=(8, 4))
-    notice = ttk.Label(body, text=dictionary.notice, foreground="#667085", wraplength=920)
-    notice.grid(row=5, column=0, sticky="ew")
-    notice.bind("<Configure>", lambda event: notice.configure(wraplength=max(200, event.width)))
+    if dictionary.notice:
+        notice = ttk.Label(body, text=dictionary.notice, foreground="#667085", wraplength=920)
+        notice.grid(row=5, column=0, sticky="ew")
+        notice.bind("<Configure>", lambda event: notice.configure(wraplength=max(200, event.width)))
     ttk.Button(body, text="关闭", command=dialog.destroy).grid(row=6, column=0, sticky="e", pady=(10, 0))
     visible = {}
     pending = None
@@ -73,7 +71,6 @@ def show_effect_dictionary(parent):
         detail.delete("1.0", "end")
         if item:
             detail.insert("end", item.name + "\n", "title")
-            detail.insert("end", f"{item.category} · {item.status}\n\n", "muted")
             detail.insert("end", item.description)
         else:
             detail.insert("end", "没有匹配的特效\n", "title")
@@ -90,7 +87,7 @@ def show_effect_dictionary(parent):
         if table.get_children():
             table.delete(*table.get_children())
         for item in results:
-            table.insert("", "end", iid=item.key, text=item.name, values=(item.status,))
+            table.insert("", "end", iid=item.key, text=item.name)
         if results:
             key = previous[0] if previous and previous[0] in visible else results[0].key
             table.selection_set(key)

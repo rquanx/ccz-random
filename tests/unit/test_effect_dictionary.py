@@ -7,7 +7,7 @@ from tkinter import ttk
 import unittest
 from unittest.mock import patch
 
-from ccz_randomizer.effect_dictionary import PENDING, _plain, load_effect_dictionary
+from ccz_randomizer.effect_dictionary import _plain, load_effect_dictionary
 from ccz_randomizer.profile_context import current_context
 
 
@@ -23,8 +23,8 @@ class EffectDictionaryTests(unittest.TestCase):
 
     def test_help_is_independent_and_covers_current_effect_codes(self):
         self.assertEqual(86, len(self.dictionary.search(category="宝物特效")))
-        self.assertEqual(240, len(self.dictionary.search(category="特技说明")))
-        self.assertEqual(326, len({item.key for item in self.dictionary.entries}))
+        self.assertEqual(226, len(self.dictionary.search(category="特技说明")))
+        self.assertEqual(312, len({item.key for item in self.dictionary.entries}))
         guide = self.dictionary.search("引导攻击", "特技说明")
         self.assertEqual(1, len(guide))
         self.assertIn("击杀一个敌人后", guide[0].description)
@@ -39,28 +39,42 @@ class EffectDictionaryTests(unittest.TestCase):
         self.assertIn("equipment:54", {item.key for item in self.dictionary.search("击杀 连续", "宝物特效")})
         self.assertEqual((), self.dictionary.search("完全不存在的特效"))
 
-    def test_composite_is_not_guessed_from_similar_skill_names(self):
-        for query in ("回马强反", "辅士猛击", "昭威奋烈", "百战不殆"):
+    def test_original_item_codes_resolve_composite_effects(self):
+        expected = {"回马强反": ("转向90°", "反击伤害不衰减"),
+                    "辅士猛击": ("士气", "混乱"),
+                    "昭威奋烈": ("再反击一次", "首次受到"),
+                    "百战不殆": ("自身等级", "敌人等级"),
+                    "辅爆强连": ("爆发力", "连击率"),
+                    "怀恨必中": ("必定命中", "被攻击的次数")}
+        for query, details in expected.items():
             entry, = self.dictionary.search(query, "宝物特效")
-            self.assertEqual(PENDING, entry.status)
-            self.assertIn("尚未核实", entry.description)
+            for detail in details:
+                self.assertIn(detail, entry.description)
         entry, = self.dictionary.search("穿越偷袭", "宝物特效")
-        self.assertEqual("游戏更新说明", entry.status)
         self.assertIn("穿越移动", entry.description)
         self.assertIn("偷袭攻击", entry.description)
 
-    def test_same_name_help_retains_original_numbers_as_reference(self):
+    def test_equipment_uses_its_own_mechanism_and_parameters(self):
         entry, = self.dictionary.search("破甲攻击25%", "宝物特效")
-        self.assertEqual("同名特技参考", entry.status)
-        self.assertIn("固定值伤害", entry.description)
-        self.assertIn("不能直接套用", entry.description)
+        self.assertIn("目标最大HP", entry.description)
+        self.assertIn("必定命中", entry.description)
+        entry, = self.dictionary.search("限制伤害75", "宝物特效")
+        self.assertIn("最高为特效值", entry.description)
+        self.assertNotIn("70", entry.description)
         entry, = self.dictionary.search("攻击限伤", "特技说明")
         self.assertIn("70", entry.description)
+
+    def test_all_equipment_entries_have_direct_explanations(self):
+        self.assertEqual("", self.dictionary.notice)
+        for item in self.dictionary.search(category="宝物特效"):
+            self.assertTrue(item.description.strip())
+            for redundant in ("尚未核实", "说明待核实", "仅供理解", "说明来源", "不能直接套用", "同名特技"):
+                self.assertNotIn(redundant, item.description)
 
     def test_empty_placeholder_and_joke_help_is_not_presented_as_mechanics(self):
         entries = {item.key: item for item in self.dictionary.entries}
         for skill_id in (3, 36, 73, 78, 103, 211):
-            self.assertEqual(PENDING, entries[f"skill:{skill_id}"].status)
+            self.assertNotIn(f"skill:{skill_id}", entries)
         self.assertFalse(self.dictionary.search("晴天雨天"))
 
     def test_different_version_or_changed_catalog_never_reuses_old_help(self):
@@ -83,7 +97,7 @@ class EffectDictionaryTests(unittest.TestCase):
         _read_resource.cache_clear()
         self.addCleanup(_read_resource.cache_clear)
         with patch("sys._MEIPASS", str(root), create=True):
-            self.assertEqual(326, len(load_effect_dictionary().entries))
+            self.assertEqual(312, len(load_effect_dictionary().entries))
 
 
 class EffectDictionaryUiTests(unittest.TestCase):
@@ -105,6 +119,8 @@ class EffectDictionaryUiTests(unittest.TestCase):
         self.assertEqual(("equipment:93",), table.get_children())
         self.assertIn("偷袭攻击", text.get("1.0", "end"))
         self.assertEqual("disabled", text.cget("state"))
+        self.assertFalse(table.cget("columns"))
+        self.assertNotIn("说明来源", text.get("1.0", "end"))
         search.delete(0, "end")
         search.insert(0, "无此特效")
         self.root.after(150, self.root.quit)
@@ -124,7 +140,7 @@ class EffectDictionaryUiTests(unittest.TestCase):
         self.root.after(150, self.root.quit)
         self.root.mainloop()
         table = next(w for w in descendants(dialog) if isinstance(w, ttk.Treeview))
-        self.assertEqual(240, len(table.get_children()))
+        self.assertEqual(226, len(table.get_children()))
         dialog.destroy()
 
     def test_unavailable_help_shows_explanation_without_stale_rows(self):

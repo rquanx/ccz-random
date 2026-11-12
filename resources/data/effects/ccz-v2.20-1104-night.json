@@ -14,10 +14,1034 @@
     "statement": "1.穿越移动→穿越偷袭=穿越移动+偷袭攻击。"
   },
   "equipment": {
+    "41": {
+      "name": "突击先手",
+      "description": "移动时可穿过敌军；敌人发动攻击时，装备者先进行一次攻击。",
+      "originalItems": [
+        {
+          "name": "赤兔",
+          "record": 2069,
+          "bytes": "b3e0cdc30000000000000000000000000029ff50020600ff01"
+        }
+      ]
+    },
+    "42": {
+      "name": "如履平地",
+      "description": "所有地形移动消耗为1；地形适应力最低为105%，原本超过105%的地形适应力再增加5%。",
+      "originalItems": [
+        {
+          "name": "的卢",
+          "record": 2067,
+          "bytes": "b5c4c2ac000000000000000000000000002aff4e020104ff01"
+        }
+      ]
+    },
+    "44": {
+      "name": "中毒破士",
+      "description": "攻击附带中毒、士气下降效果。",
+      "basis": "literal-effect-label"
+    },
+    "45": {
+      "name": "麻痹破爆",
+      "description": "使被攻击的目标麻痹，并降低其爆发力状态。",
+      "originalItems": [
+        {
+          "name": "无当弩",
+          "record": 2003,
+          "bytes": "cedeb5b1e5f3000000000000000000000005ff9e2d12010c00"
+        }
+      ]
+    },
+    "46": {
+      "name": "封策破精",
+      "description": "攻击附带封策、精神力下降效果。",
+      "basis": "literal-effect-label"
+    },
+    "49": {
+      "name": "致命一击ALL",
+      "description": "攻击和策略必定暴击。",
+      "originalItems": [
+        {
+          "name": "青釭剑",
+          "record": 1978,
+          "bytes": "c7e0e247bda3000000000000000000000013ff17310a030b01"
+        },
+        {
+          "name": "百辟刀",
+          "record": 2009,
+          "bytes": "b0d9b1d9b5b6000000000000000000000007ff84310a010a00"
+        }
+      ]
+    },
+    "54": {
+      "name": "引导攻击",
+      "description": "主动攻击击杀敌人后，继续攻击范围内的另一名敌人，最多连续攻击三次；武器达到7级后不再要求击杀。",
+      "originalItems": [
+        {
+          "name": "方天画戟",
+          "record": 1982,
+          "bytes": "b7bdccecbbadeaaa00000000000000000003ff393614000b01"
+        }
+      ]
+    },
+    "55": {
+      "name": "策略随心",
+      "description": "施放策略时无视天气和地形限制，并且必定命中。",
+      "originalItems": [
+        {
+          "name": "五火神焰扇",
+          "record": 1996,
+          "bytes": "cee5bbf0c9f1d1e6c9c8000000000000000fff3c370d160a01"
+        }
+      ]
+    },
+    "59": {
+      "name": "策略模仿",
+      "description": "可使用周身四格相邻单位拥有的策略；青龙、朱雀、玄武、白虎、回归和召唤类策略不在模仿范围内。",
+      "originalItems": [
+        {
+          "name": "天仙洞衣",
+          "record": 2039,
+          "bytes": "cceccfc9b6b4d2c200000000000000000017ff863b0c010c01"
+        }
+      ]
+    },
+    "64": {
+      "name": "防御远距攻击",
+      "description": "免疫来自弓箭、炮车的远程普通攻击。",
+      "originalItems": [
+        {
+          "name": "镜铠",
+          "record": 2025,
+          "bytes": "beb5eef80000000000000000000000000015ff2c400c010b01"
+        }
+      ]
+    },
+    "65": {
+      "name": "防御特殊攻击",
+      "description": "必定格挡致命一击和连击；装备者的攻击范围至少为周身八格。",
+      "originalItems": [
+        {
+          "name": "黄金铠",
+          "record": 2026,
+          "bytes": "bbc6bdf0eef8000000000000000000000015ff2d4107010c01"
+        },
+        {
+          "name": "玄铁甲",
+          "record": 2054,
+          "bytes": "d0feccfabcd7000000000000000000000015ffbd410d010d00"
+        }
+      ]
+    },
+    "66": {
+      "name": "主动连击",
+      "description": "主动攻击必定连击；武器达到7级后，反击也必定连击。",
+      "originalItems": [
+        {
+          "name": "龙骑枪",
+          "record": 1993,
+          "bytes": "c1fac6efc7b9000000000000000000000003ff254212000a01"
+        },
+        {
+          "name": "强弩",
+          "record": 2087,
+          "bytes": "c7bfe5f30000000000000000000000000042ff6e020000ff00"
+        }
+      ]
+    },
+    "70": {
+      "name": "自动使用-粟",
+      "description": "受伤并达到相应的缺血量后，自动对自身使用补给品恢复HP，不消耗库存。",
+      "originalItems": [
+        {
+          "name": "青云羽衣",
+          "record": 2034,
+          "bytes": "c7e0d4c6d3f0d2c200000000000000000017ff354605aa0a01"
+        }
+      ]
+    },
+    "71": {
+      "name": "束缚破攻",
+      "description": "周身四格的敌人无法移动，但不能限制“恶路移动”“辅助地形”等特技；攻击还会降低目标的攻击力状态。",
+      "originalItems": [
+        {
+          "name": "龙麟铠",
+          "record": 2028,
+          "bytes": "c1faf7ebeef8000000000000000000000015ff2f4710010b01"
+        }
+      ]
+    },
+    "72": {
+      "name": "削铁如泥ALL",
+      "description": "物理攻击和策略均附加目标最大HP的10%～15%伤害。",
+      "skillHelp": [
+        111
+      ]
+    },
+    "73": {
+      "name": "异常攻击",
+      "description": "攻击可使目标陷入中毒、麻痹等随机异常状态。",
+      "originalItems": [
+        {
+          "name": "金火罐车",
+          "record": 1994,
+          "bytes": "bdf0bbf0b9deb3b500000000000000000009ff3a490e010d01"
+        }
+      ]
+    },
+    "79": {
+      "name": "策略免疫",
+      "description": "使敌方策略无法命中自身，但不能阻止具有“策略必中”的策略。",
+      "skillHelp": [
+        99
+      ]
+    },
+    "80": {
+      "name": "百战不殆",
+      "description": "物理与策略均附加“自身等级÷2＋5”点伤害；受到物理与策略伤害时，减少“敌人等级÷2＋5”点伤害。",
+      "originalItems": [
+        {
+          "name": "白帝剑",
+          "record": 2006,
+          "bytes": "b0d7b5dbbda3000000000000000000000001ffa45008010800"
+        },
+        {
+          "name": "孙子兵法",
+          "record": 2081,
+          "bytes": "cbefd7d3b1f8b7a800000000000000000050ff7a020100ff01"
+        }
+      ]
+    },
+    "83": {
+      "name": "策略穿透",
+      "description": "使部分策略的影响范围扩大一格，例如单体变穿透两格、穿透两格变穿透三格。",
+      "originalItems": [
+        {
+          "name": "断澜",
+          "record": 2011,
+          "bytes": "b6cfc0bd0000000000000000000000000013ffa7530a010500"
+        }
+      ]
+    },
+    "90": {
+      "name": "二次行动",
+      "description": "行动结束后可以再行动一次。",
+      "originalItems": [
+        {
+          "name": "思召",
+          "record": 2012,
+          "bytes": "cbbcd5d90000000000000000000000000001ffc05a05010500"
+        },
+        {
+          "name": "爪黄飞电",
+          "record": 2070,
+          "bytes": "d7a6bbc6b7c9b5e70000000000000000005aff52020232ff01"
+        }
+      ]
+    },
+    "91": {
+      "name": "纵横无阻",
+      "description": "树林、荒地、山地、大河、城内的地形适应力恒为110%，移动消耗为1。",
+      "originalItems": [
+        {
+          "name": "照夜玉狮子",
+          "record": 2071,
+          "bytes": "d5d5d2b9d3f1caa8d7d3000000000000005bff51023332ff01"
+        }
+      ]
+    },
     "93": {
       "name": "穿越偷袭",
-      "description": "兼具穿越移动和偷袭攻击。\n\n穿越移动：无视地形，敌军卡位任意移动。\n\n偷袭攻击：从敌人侧面发起攻击时，对其伤害增加25%，背面提升至50%。"
+      "description": "兼具穿越移动和偷袭攻击：无视地形、敌军卡位进行移动；从侧面攻击增伤25%，从背面攻击增伤50%。",
+      "basis": "update-note-and-skill-help"
+    },
+    "94": {
+      "name": "破坏状态攻击",
+      "description": "攻击造成伤害后，随机降低目标的各项能力状态。",
+      "originalItems": [
+        {
+          "name": "飞将短刃",
+          "record": 2013,
+          "bytes": "b7c9bdabb6ccc8d000000000000000000007ffc15e0b010b00"
+        },
+        {
+          "name": "孟德新书",
+          "record": 2074,
+          "bytes": "c3cfb5c2d0c2cae90000000000000000005eff55020101ff01"
+        }
+      ]
+    },
+    "97": {
+      "name": "唯我独尊",
+      "description": "将自身最高的一项能力作为其他能力的数值，不显示在面板。",
+      "originalItems": [
+        {
+          "name": "青龙宝玉",
+          "record": 2088,
+          "bytes": "c7e0c1fab1a6d3f100000000000000000061ff89020000ff01"
+        }
+      ]
+    },
+    "98": {
+      "name": "策略连击",
+      "description": "部分策略可连续释放两次，第二次造成50%伤害，只消耗一次MP。",
+      "originalItems": [
+        {
+          "name": "白羽扇",
+          "record": 1995,
+          "bytes": "b0d7d3f0c9c800000000000000000000000fff3b6207010701"
+        }
+      ]
+    },
+    "106": {
+      "name": "反击成双",
+      "description": "反击时必定双击。",
+      "skillHelp": [
+        186
+      ]
+    },
+    "108": {
+      "name": "学会策略",
+      "description": "习得小补给、大补给、援队、觉醒、冥想策略。",
+      "originalItems": [
+        {
+          "name": "战地救护指南",
+          "record": 2092,
+          "bytes": "d5bdb5d8bec8bba4d6b8c4cf00000000006cff78020800ff00"
+        }
+      ]
+    },
+    "117": {
+      "name": "特效屏蔽",
+      "description": "使周身四格敌人的大部分个人、兵种和装备特技失效。",
+      "originalItems": [
+        {
+          "name": "玄武宝玉",
+          "record": 2090,
+          "bytes": "d0fecee4b1a6d3f100000000000000000075ff8b020100ff01"
+        }
+      ]
+    },
+    "118": {
+      "name": "拓展范围",
+      "description": "攻击范围与策略施法范围均扩大一格，并无视敌人的“防御致命一击”特技。",
+      "originalItems": [
+        {
+          "name": "先登刃",
+          "record": 2002,
+          "bytes": "cfc8b5c7c8d0000000000000000000000001ff41760f030c00"
+        },
+        {
+          "name": "飞刀",
+          "record": 2072,
+          "bytes": "b7c9b5b60000000000000000000000000076ff53020305ff01"
+        }
+      ]
+    },
+    "26": {
+      "name": "恢复HP状态",
+      "description": "每回合开始时恢复最大HP的特效百分比，并清除异常状态。",
+      "originalItems": [
+        {
+          "name": "酒葫芦",
+          "record": 2093,
+          "bytes": "bec6baf9c2ab00000000000000000000001aff4d021932ff00"
+        }
+      ]
+    },
+    "29": {
+      "name": "迅捷之勇",
+      "description": "全能力提高［自身移动力×（特效值÷10）］%；攻击还会降低目标的移动力状态。",
+      "originalItems": [
+        {
+          "name": "吕布之弓",
+          "record": 1985,
+          "bytes": "c2c0b2bcd6aeb9ad00000000000000000005ff1e1d0d0a0b01"
+        }
+      ]
+    },
+    "31": {
+      "name": "破甲攻击",
+      "description": "攻击按目标最大HP的特效百分比造成伤害，并且必定命中。",
+      "originalItems": [
+        {
+          "name": "流星锤",
+          "record": 1987,
+          "bytes": "c1f7d0c7b4b8000000000000000000000007ff201f010f0101"
+        },
+        {
+          "name": "手戟",
+          "record": 2059,
+          "bytes": "cad6eaaa000000000000000000000000001fff4602140a0100"
+        }
+      ]
+    },
+    "32": {
+      "name": "提升攻击力",
+      "description": "攻击力提高特效百分比。",
+      "originalItems": [
+        {
+          "name": "六韬",
+          "record": 2075,
+          "bytes": "c1f9e8ba0000000000000000000000000020ff56020f00ff01"
+        }
+      ]
+    },
+    "33": {
+      "name": "提升防御力",
+      "description": "防御力提高特效百分比。",
+      "originalItems": [
+        {
+          "name": "金戈铠",
+          "record": 2049,
+          "bytes": "bdf0b8eaeef8000000000000000000000015ff87210a0c0c00"
+        },
+        {
+          "name": "三略",
+          "record": 2076,
+          "bytes": "c8fdc2d40000000000000000000000000021ff75020f00ff01"
+        }
+      ]
+    },
+    "34": {
+      "name": "提升精神力",
+      "description": "精神力提高特效百分比。",
+      "originalItems": [
+        {
+          "name": "鹤氅",
+          "record": 2040,
+          "bytes": "bad7eba90000000000000000000000000017ff36220c100c01"
+        }
+      ]
+    },
+    "35": {
+      "name": "辅爆强连",
+      "description": "爆发力和连击率均提高特效百分比。",
+      "originalItems": [
+        {
+          "name": "飞龙斗袍",
+          "record": 2037,
+          "bytes": "b7c9c1fab6b7c5db00000000000000000017ff33230c120c01"
+        },
+        {
+          "name": "乌油甲",
+          "record": 2046,
+          "bytes": "cedad3cdbcd7000000000000000000000015ffa52307100b00"
+        }
+      ]
+    },
+    "36": {
+      "name": "辅士猛击",
+      "description": "提高士气和攻击伤害；攻击被敌人格挡时，仍可造成生命值伤害，并使目标混乱。",
+      "originalItems": [
+        {
+          "name": "霸王枪",
+          "record": 1989,
+          "bytes": "b0d4cdf5c7b9000000000000000000000003ff22240d140a01"
+        },
+        {
+          "name": "力士锦袍",
+          "record": 2044,
+          "bytes": "c1a6cabfbdf5c5db00000000000000000017ff95240c100a00"
+        }
+      ]
+    },
+    "37": {
+      "name": "HP上限",
+      "description": "最大HP提高特效百分比。",
+      "originalItems": [
+        {
+          "name": "铜盔",
+          "record": 2064,
+          "bytes": "cdadbff80000000000000000000000000025ff4b021405ff00"
+        }
+      ]
+    },
+    "43": {
+      "name": "混乱攻击",
+      "description": "攻击有特效百分比的概率使目标混乱。",
+      "originalItems": [
+        {
+          "name": "遁甲天书",
+          "record": 2079,
+          "bytes": "b6ddbcd7cceccae90000000000000000002bff7c02320aff01"
+        }
+      ]
+    },
+    "48": {
+      "name": "昭威奋烈",
+      "description": "主动攻击受到敌人反击后，可再反击一次；每回合首次受到的攻击伤害变为1，格挡也会消耗这次机会。",
+      "originalItems": [
+        {
+          "name": "雌雄双剑",
+          "record": 1976,
+          "bytes": "b4c6d0dbcbabbda300000000000000000001ff15300d010d01"
+        }
+      ]
+    },
+    "50": {
+      "name": "远距攻击",
+      "description": "额外增加远距离攻击范围，并与自身攻击范围叠加；范围形状由特效参数决定。",
+      "skillHelp": [
+        159
+      ]
+    },
+    "53": {
+      "name": "增伤强命",
+      "description": "提高攻击伤害和攻击命中率；使目标强制后退一格，无法后退时攻击伤害额外提高40%。",
+      "nativeCalls": [
+        "0x421123",
+        "0x421135",
+        "0x43B698"
+      ],
+      "skillHelp": [
+        31,
+        97,
+        98
+      ]
+    },
+    "56": {
+      "name": "强化元素策略",
+      "description": "提高火、风、水、地四系策略伤害，并无视“减轻策略损伤”特技。",
+      "originalItems": [
+        {
+          "name": "芭蕉扇",
+          "record": 1997,
+          "bytes": "b0c5bdb6c9c800000000000000000000000fff98380c120b01"
+        },
+        {
+          "name": "筹算竹简",
+          "record": 2094,
+          "bytes": "b3efcbe3d6f1bcf200000000000000000038ff9d021219ff00"
+        }
+      ]
+    },
+    "57": {
+      "name": "节约MP",
+      "description": "策略消耗的MP减少特效百分比。",
+      "originalItems": [
+        {
+          "name": "圣者宝剑",
+          "record": 1998,
+          "bytes": "caa5d5dfb1a6bda300000000000000000011ff3e39121e0b01"
+        }
+      ]
+    },
+    "60": {
+      "name": "辅助妨碍策略",
+      "description": "提高策略命中率，并提高雷系、毒烟、定身等非元素策略的伤害。",
+      "originalItems": [
+        {
+          "name": "七星剑",
+          "record": 1999,
+          "bytes": "c6dfd0c7bda3000000000000000000000011ff3d3c0d140b01"
+        }
+      ]
+    },
+    "61": {
+      "name": "辅助攻击格挡",
+      "description": "提高对普通攻击的格挡概率。",
+      "originalItems": [
+        {
+          "name": "倚天剑",
+          "record": 1977,
+          "bytes": "d2d0ccecbda3000000000000000000000001ff163d0c120c01"
+        }
+      ]
+    },
+    "62": {
+      "name": "辅助策略格挡",
+      "description": "提高对策略的格挡概率。",
+      "originalItems": [
+        {
+          "name": "白银盾",
+          "record": 2056,
+          "bytes": "b0d7d2f8b6dc00000000000000000000003eff44023c0aff01"
+        }
+      ]
+    },
+    "63": {
+      "name": "辅助全格挡",
+      "description": "同时提高对普通攻击和策略的格挡概率。",
+      "originalItems": [
+        {
+          "name": "风神盾",
+          "record": 2057,
+          "bytes": "b7e7c9f1b6dc00000000000000000000003fff4202140aff01"
+        }
+      ]
+    },
+    "67": {
+      "name": "减轻策略损伤",
+      "description": "受到的策略伤害减少特效百分比。",
+      "originalItems": [
+        {
+          "name": "白银铠",
+          "record": 2027,
+          "bytes": "b0d7d2f8eef8000000000000000000000015ff2e4307320b01"
+        },
+        {
+          "name": "百锻甲",
+          "record": 2048,
+          "bytes": "b0d9b6cdbcd7000000000000000000000015ffa0430f1e0d00"
+        }
+      ]
+    },
+    "68": {
+      "name": "MP防御",
+      "description": "受到伤害时以MP代替HP扣减；每回合自动恢复特效值的MP。",
+      "originalItems": [
+        {
+          "name": "漆黑道袍",
+          "record": 2042,
+          "bytes": "c6e1badab5c0c5db00000000000000000017ff3844080a0e01"
+        }
+      ]
+    },
+    "74": {
+      "name": "步兵克制",
+      "description": "增强对步兵类部队的克制效果。",
+      "basis": "literal-effect-label"
+    },
+    "75": {
+      "name": "盾反破防",
+      "description": "格挡敌人的攻击后，对攻击者造成特效百分比的HP真实伤害，并附加麻痹、降低防御状态的效果。",
+      "skillHelp": [
+        115
+      ]
+    },
+    "76": {
+      "name": "状态强化",
+      "description": "自身和周围八格友军的增益状态效果额外提高10%，减益状态效果减弱20%。",
+      "skillHelp": [
+        116
+      ]
+    },
+    "77": {
+      "name": "疾风迅雷",
+      "description": "增加没羽箭攻击范围；攻击伤害提高［（特效值－目标移动力）×5］%。",
+      "originalItems": [
+        {
+          "name": "龙胆枪",
+          "record": 1983,
+          "bytes": "c1fab5a8c7b9000000000000000000000003ff1c4d13090b01"
+        }
+      ]
+    },
+    "78": {
+      "name": "绝对克制",
+      "description": "提高造成的攻击伤害，并减轻受到的攻击伤害；加成显示在兵种克制区域。",
+      "originalItems": [
+        {
+          "name": "连环铠",
+          "record": 2029,
+          "bytes": "c1acbbb7eef8000000000000000000000015ff9b4e0b120b01"
+        },
+        {
+          "name": "宿卫马铠",
+          "record": 2095,
+          "bytes": "cbdecec0c2edeef80000000000000000004eff71021100ff00"
+        }
+      ]
+    },
+    "82": {
+      "name": "治愈光环",
+      "description": "每回合恢复周围八格友军HP，并清除其异常状态。",
+      "originalItems": [
+        {
+          "name": "青囊书",
+          "record": 2084,
+          "bytes": "c7e0c4d2cae9000000000000000000000052ff78020f05ff01"
+        }
+      ]
+    },
+    "84": {
+      "name": "属性增伤",
+      "description": "物理与策略均附加“自身五项能力之和×特效百分比”的伤害。",
+      "originalItems": [
+        {
+          "name": "青冥剑",
+          "record": 1990,
+          "bytes": "c7e0daa4bda3000000000000000000000001ff96540c030c01"
+        }
+      ]
+    },
+    "86": {
+      "name": "奇正相生",
+      "description": "攻击正四向敌人时增加伤害；被斜向敌人攻击时减少伤害。",
+      "originalItems": [
+        {
+          "name": "古锭刀",
+          "record": 1979,
+          "bytes": "b9c5b6a7b5b6000000000000000000000007ff915608160d01"
+        },
+        {
+          "name": "解烦弓",
+          "record": 2004,
+          "bytes": "bde2b7b3b9ad000000000000000000000005ffa2560a140a00"
+        }
+      ]
+    },
+    "87": {
+      "name": "骑马克制",
+      "description": "增强对骑马类部队的克制效果。",
+      "basis": "literal-effect-label"
+    },
+    "88": {
+      "name": "援护攻击",
+      "description": "敌方回合友军受到攻击后，若攻击者处于装备者攻击范围内，装备者可对其发动攻击；每回合触发次数由特效值决定。",
+      "originalItems": [
+        {
+          "name": "李广之弓",
+          "record": 1984,
+          "bytes": "c0eeb9e3d6aeb9ad00000000000000000005ff1d580c020b01"
+        },
+        {
+          "name": "棺材",
+          "record": 2085,
+          "bytes": "b9d7b2c40000000000000000000000000058ff9c0202002300"
+        }
+      ]
+    },
+    "89": {
+      "name": "反弹伤害异常",
+      "description": "免疫敌方攻击造成的异常状态和能力下降，并将其反弹给攻击者；同时反弹受到伤害的特效百分比。",
+      "originalItems": [
+        {
+          "name": "亮银甲",
+          "record": 2033,
+          "bytes": "c1c1d2f8bcd7000000000000000000000015ff82590a1e0d01"
+        }
+      ]
+    },
+    "92": {
+      "name": "神魔附体",
+      "description": "各项能力成长最低为4。",
+      "originalItems": [
+        {
+          "name": "精铁盔",
+          "record": 2065,
+          "bytes": "beabccfabff800000000000000000000005cff4c020400ff01"
+        }
+      ]
+    },
+    "95": {
+      "name": "冲锋再动",
+      "description": "主动攻击前每移动一格，攻击伤害提高特效百分比；攻击后还可以移动一次。",
+      "originalItems": [
+        {
+          "name": "风车轮",
+          "record": 2060,
+          "bytes": "b7e7b3b5c2d600000000000000000000005fff99020557ff01"
+        }
+      ]
+    },
+    "96": {
+      "name": "物理减伤",
+      "description": "受到的物理攻击伤害减少特效百分比。",
+      "originalItems": [
+        {
+          "name": "兽面吞云铠",
+          "record": 2032,
+          "bytes": "cadec3e6cdccd4c6eef80000000000000015ff30600a210e01"
+        },
+        {
+          "name": "铜盾",
+          "record": 2055,
+          "bytes": "cdadb6dc0000000000000000000000000060ff43021900ff00"
+        }
+      ]
+    },
+    "99": {
+      "name": "同仇敌忾",
+      "description": "友军主动攻击敌人后，若该敌人处于装备者攻击范围内，装备者也可发动一次攻击；每回合触发次数由特效值决定。",
+      "originalItems": [
+        {
+          "name": "双鞭",
+          "record": 1988,
+          "bytes": "cbabb1de0000000000000000000000000007ff9a630f020a01"
+        }
+      ]
+    },
+    "100": {
+      "name": "众志成城",
+      "description": "提升周围八格友军的全能力，并降低周围八格敌军的全能力。",
+      "originalItems": [
+        {
+          "name": "虎贲重甲",
+          "record": 2047,
+          "bytes": "bba2eadad6d8bcd700000000000000000015ff9f6407030a00"
+        },
+        {
+          "name": "白虎宝玉",
+          "record": 2091,
+          "bytes": "b0d7bba2b1a6d3f100000000000000000064ff88020800ff01"
+        }
+      ]
+    },
+    "101": {
+      "name": "吸血攻击",
+      "description": "攻击后恢复HP，恢复量为造成伤害的特效百分比。",
+      "originalItems": [
+        {
+          "name": "万念俱灰",
+          "record": 2000,
+          "bytes": "cdf2c4eebee3bbd200000000000000000013ff90650f2c0f00"
+        },
+        {
+          "name": "凤凰羽衣",
+          "record": 2036,
+          "bytes": "b7efbbcbd3f0d2c200000000000000000017ff32650c1e0901"
+        }
+      ]
+    },
+    "104": {
+      "name": "回马强反",
+      "description": "攻击转向90°时增伤特效百分比，转向180°时增伤翻倍；反击伤害不衰减，并根据已损失HP比例增加反击伤害，增伤上限为特效百分比。",
+      "originalItems": [
+        {
+          "name": "绝影",
+          "record": 2068,
+          "bytes": "bef8d3b00000000000000000000000000068ff4f020a0aff01"
+        }
+      ]
+    },
+    "105": {
+      "name": "一夫当关",
+      "description": "周围八格没有友军时，全能力提高特效百分比；有友军时，加成减半。",
+      "originalItems": [
+        {
+          "name": "双戟",
+          "record": 1992,
+          "bytes": "cbabeaaa0000000000000000000000000007ff196908090c01"
+        }
+      ]
+    },
+    "107": {
+      "name": "怀恨必中",
+      "description": "攻击必定命中；攻击额外伤害为“特效值×本回合此前被攻击的次数”。",
+      "originalItems": [
+        {
+          "name": "精铁戟",
+          "record": 2005,
+          "bytes": "beabccfaeaaa000000000000000000000003ff6a6b120a0b00"
+        },
+        {
+          "name": "蚩尤战甲",
+          "record": 2031,
+          "bytes": "f2bfd3c8d5bdbcd700000000000000000015ff806b0c080b01"
+        }
+      ]
+    },
+    "109": {
+      "name": "鬼神之勇",
+      "description": "全能力提高“已损失HP百分比÷2”%，提高幅度不超过特效百分比。",
+      "originalItems": [
+        {
+          "name": "点钢枪",
+          "record": 2007,
+          "bytes": "b5e3b8d6c7b9000000000000000000000003ff796d100a0a00"
+        },
+        {
+          "name": "霸王乌金甲",
+          "record": 2030,
+          "bytes": "b0d4cdf5cedabdf0bcd70000000000000015ff316d0b0a0b01"
+        }
+      ]
+    },
+    "113": {
+      "name": "万夫莫敌",
+      "description": "全能力提高［（周围八格敌军数＋1）×特效值］%。",
+      "originalItems": [
+        {
+          "name": "开山斧",
+          "record": 1991,
+          "bytes": "bfaac9bdb8ab000000000000000000000003ff247107020b01"
+        }
+      ]
+    },
+    "114": {
+      "name": "限制伤害",
+      "description": "受到的普通攻击伤害最高为特效值；部分特殊伤害效果可突破此上限。",
+      "originalItems": [
+        {
+          "name": "国士无双袍",
+          "record": 2041,
+          "bytes": "b9facabfcedecbabc5db0000000000000017ff37720c4b0901"
+        }
+      ]
+    },
+    "115": {
+      "name": "转移伤害",
+      "description": "攻击范围内有敌军时，减轻受到的攻击伤害，并将减轻的部分转移给范围内的敌人。",
+      "originalItems": [
+        {
+          "name": "短打劲装",
+          "record": 2035,
+          "bytes": "b6ccb4f2bea2d7b000000000000000000017ff85730e140a01"
+        }
+      ]
+    },
+    "28": {
+      "name": "HP辅助",
+      "description": "将最大HP的8%加到指定能力上，不显示在面板。能力种类由特效名称中的后缀决定。",
+      "originalItems": [
+        {
+          "name": "解烦甲",
+          "record": 2045,
+          "bytes": "bde2b7b3bcd7000000000000000000000015ff4a1c0c090a00"
+        },
+        {
+          "name": "贯日袍",
+          "record": 2053,
+          "bytes": "b9e1c8d5c5db000000000000000000000017ffa81c0a1f0901"
+        }
+      ]
+    },
+    "81": {
+      "name": "提升周围",
+      "description": "每回合开始时提升周围八格友军的指定能力。能力种类由特效名称后缀决定。",
+      "originalItems": [
+        {
+          "name": "主将军旗",
+          "record": 2063,
+          "bytes": "d6f7bdabbefcc6ec00000000000000000051ff4702050a1300"
+        }
+      ]
+    },
+    "102": {
+      "name": "自动提升",
+      "description": "每回合开始时自动提升自身的指定能力状态。能力种类由特效名称后缀决定。",
+      "originalItems": [
+        {
+          "name": "淮南子",
+          "record": 2058,
+          "bytes": "bbb4c4cfd7d3000000000000000000000066ff45023f01ff01"
+        }
+      ]
+    },
+    "110": {
+      "name": "MP辅助",
+      "description": "将当前MP的30%加到指定能力上，不显示在面板。能力种类由特效名称后缀决定。",
+      "originalItems": [
+        {
+          "name": "宝雕弓",
+          "record": 2008,
+          "bytes": "b1a6b5f1b9ad000000000000000000000005ffa36e0b030b00"
+        },
+        {
+          "name": "青龙战袍",
+          "record": 2038,
+          "bytes": "c7e0c1fad5bdc5db00000000000000000017ff346e0c150e01"
+        }
+      ]
+    },
+    "122": {
+      "name": "忽视能力",
+      "description": "作战时忽视敌方指定能力的12%。能力种类由特效名称后缀决定。",
+      "originalItems": [
+        {
+          "name": "虎豹嘶风铠",
+          "record": 2050,
+          "bytes": "bba2b1aacbbbb7e7eef80000000000000015ff927a0c050a01"
+        },
+        {
+          "name": "春秋左传",
+          "record": 2082,
+          "bytes": "b4bac7efd7f3b4ab0000000000000000007aff7b020a32ff00"
+        }
+      ]
+    },
+    "112": {
+      "name": "弱点攻击",
+      "description": "攻击和施放策略时，将目标能力中最低的一项视为其防御力、精神力、爆发力和士气。",
+      "skillHelp": [
+        84
+      ]
+    },
+    "123": {
+      "name": "能力辅助",
+      "description": "将箭头左侧能力的12%加到右侧能力上，不显示在面板。",
+      "originalItems": [
+        {
+          "name": "上将铠",
+          "record": 2051,
+          "bytes": "c9cfbdabeef8000000000000000000000015ff1b7b0a430a01"
+        }
+      ]
+    },
+    "124": {
+      "name": "能力替换",
+      "description": "将箭头右侧能力提升到与左侧相等，不显示在面板；右侧原本更高时不生效，士气除外。",
+      "originalItems": [
+        {
+          "name": "名士华服",
+          "record": 2043,
+          "bytes": "c3fbcabfbbaab7fe00000000000000000017ff6c7c14220c01"
+        }
+      ]
+    },
+    "51": {
+      "name": "穿透攻击",
+      "description": "攻击可穿透两格、三格，或横扫目标左右的敌人；穿透伤害不衰减。范围形状由特效名称后缀决定。",
+      "originalItems": [
+        {
+          "name": "丈八蛇矛",
+          "record": 1981,
+          "bytes": "d5c9b0cbc9dfc3ac00000000000000000003ff1a3312040d01"
+        },
+        {
+          "name": "扫六合",
+          "record": 2010,
+          "bytes": "c9a8c1f9bacf000000000000000000000003ffa13309090900"
+        },
+        {
+          "name": "追风箭",
+          "record": 2080,
+          "bytes": "d7b7b7e7bcfd000000000000000000000033ffa90207000200"
+        }
+      ]
+    },
+    "119": {
+      "name": "攻击追加",
+      "description": "普通攻击后追加名称后缀指定的策略；因天气、地形或MP不足无法释放时，用普通攻击替代。",
+      "originalItems": [
+        {
+          "name": "朱雀宝玉",
+          "record": 2089,
+          "bytes": "d6ecc8b8b1a6d3f100000000000000000077ff8a020300ff01"
+        }
+      ]
+    },
+    "120": {
+      "name": "策略先手",
+      "description": "敌方发动攻击时，先使用名称后缀指定的策略攻击敌人。",
+      "originalItems": [
+        {
+          "name": "龙渊剑",
+          "record": 1986,
+          "bytes": "c1fad4a8bda3000000000000000000000013ff94780a060b01"
+        }
+      ]
+    },
+    "121": {
+      "name": "策略反击",
+      "description": "受到敌人主动攻击后，用名称后缀指定的策略代替普通攻击进行反击。",
+      "originalItems": [
+        {
+          "name": "诸葛巾",
+          "record": 2062,
+          "bytes": "d6eeb8f0bded000000000000000000000079ff49025200ff01"
+        }
+      ]
     }
+  },
+  "equipmentSource": {
+    "executableSha256": "aece85339ff48c24e8d783d2d65766e8c9f7be00bd7389d38a8cad8f7cbd95a5",
+    "itemTableAddress": "0x4A1140",
+    "recordSize": 25,
+    "descriptionIndexBase": 1946,
+    "itemEvidenceSha256": "0605e41d0b58ae64adbfcc88fdc32498ce01b411f06871f8baa308684a20ba23"
   },
   "skills": [
     {

@@ -14,7 +14,7 @@ def show_support_menu(parent, actions, package_version):
     body = tk.Frame(dialog, padx=18, pady=16)
     body.pack(fill="both", expand=True)
     groups = (
-        ("使用帮助", (("guide", "不会用？"), ("effects", "特效字典"))),
+        ("使用帮助", (("guide", "不会用？"), ("effects", "特效手册"))),
         ("故障排查", (("diagnostics", "随机用不了？"), ("sound", "游戏没声音"),
                      ("logs", "上传最新日志"))),
         ("数据与维护", (("update", f"手动更新数据（{package_version}）"), ("cleanup", "空间清理"))),

@@ -26,11 +26,11 @@ class SupportUiTests(unittest.TestCase):
     def test_dictionary_is_available_from_main_window_before_any_random_run(self):
         def exercise(root):
             button = next(w for w in descendants(root)
-                          if isinstance(w, tk.Button) and w.cget("text") == "特效字典")
+                          if isinstance(w, tk.Button) and w.cget("text") == "特效手册")
             self.assertEqual("normal", button.cget("state"))
             button.invoke()
             dialog = next(w for w in root.winfo_children()
-                          if isinstance(w, tk.Toplevel) and w.title() == "特效字典")
+                          if isinstance(w, tk.Toplevel) and w.title() == "特效手册")
             from tkinter import ttk
             table = next(w for w in descendants(dialog) if isinstance(w, ttk.Treeview))
             self.assertEqual(289, len(table.get_children()))
@@ -63,7 +63,7 @@ class SupportUiTests(unittest.TestCase):
         dialog = show_support_menu(root, actions, "3")
         root.update()
         buttons = [widget for widget in descendants(dialog) if isinstance(widget, tk.Button)]
-        self.assertEqual(["不会用？", "特效字典", "随机用不了？", "游戏没声音", "上传最新日志", "手动更新数据（3）", "空间清理", "关闭"],
+        self.assertEqual(["不会用？", "特效手册", "随机用不了？", "游戏没声音", "上传最新日志", "手动更新数据（3）", "空间清理", "关闭"],
             [button.cget("text") for button in buttons])
         headings = [widget.cget("text") for widget in descendants(dialog) if isinstance(widget, tk.Label)]
         self.assertEqual(["使用帮助", "故障排查", "数据与维护"], headings)

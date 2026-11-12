@@ -200,7 +200,7 @@ class EffectDictionaryUiTests(unittest.TestCase):
             show_equipment_window(self.root, snapshot={}, history_path=Path(temp) / "search.json")
             dialog = next(w for w in self.root.winfo_children() if isinstance(w, tk.Toplevel))
             button = next(w for w in descendants(dialog)
-                          if isinstance(w, ttk.Button) and w.cget("text") == "特效字典")
+                          if isinstance(w, ttk.Button) and w.cget("text") == "特效手册")
             button.invoke()
             show.assert_called_once_with(dialog)
             dialog.destroy()

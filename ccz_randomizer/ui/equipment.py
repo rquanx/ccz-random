@@ -57,7 +57,7 @@ def show_equipment_window(parent, *, snapshot: dict, history_path: Path | None =
         hint="即时搜索宝物、效果或组合；Esc 清空，Ctrl+A 全选")
     entry.pack(side="left", padx=10)
     from ccz_randomizer.ui.effect_dictionary import show_effect_dictionary
-    ttk.Button(filters, text="特效字典", command=lambda: show_effect_dictionary(dialog)).pack(side="right")
+    ttk.Button(filters, text="特效手册", command=lambda: show_effect_dictionary(dialog)).pack(side="right")
     body = ttk.Frame(outer)
     body.pack(fill="both", expand=True)
     equipment = snapshot.get("equipment")

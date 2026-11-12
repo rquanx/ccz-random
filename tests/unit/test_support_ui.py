@@ -33,7 +33,7 @@ class SupportUiTests(unittest.TestCase):
                           if isinstance(w, tk.Toplevel) and w.title() == "特效字典")
             from tkinter import ttk
             table = next(w for w in descendants(dialog) if isinstance(w, ttk.Treeview))
-            self.assertEqual(86, len(table.get_children()))
+            self.assertEqual(312, len(table.get_children()))
             detail = next(w for w in descendants(dialog) if isinstance(w, tk.Text))
             self.assertIn("恢复最大HP", detail.get("1.0", "end"))
             dialog.destroy()

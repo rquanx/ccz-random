@@ -112,7 +112,7 @@ class EffectDictionaryUiTests(unittest.TestCase):
         table = next(w for w in descendants(dialog) if isinstance(w, ttk.Treeview))
         text = next(w for w in descendants(dialog) if isinstance(w, tk.Text))
         search = next(w for w in descendants(dialog) if isinstance(w, ttk.Entry) and not isinstance(w, ttk.Combobox))
-        self.assertEqual(86, len(table.get_children()))
+        self.assertEqual(312, len(table.get_children()))
         search.insert(0, "穿越偷袭")
         self.root.after(150, self.root.quit)
         self.root.mainloop()
@@ -132,15 +132,15 @@ class EffectDictionaryUiTests(unittest.TestCase):
         self.root.after(150, self.root.quit)
         self.root.mainloop()  # Strict runner also checks Tk timer errors after close.
 
-    def test_category_change_displays_skill_help(self):
+    def test_all_categories_are_visible_without_a_selector(self):
         from ccz_randomizer.ui.effect_dictionary import show_effect_dictionary
         dialog = show_effect_dictionary(self.root)
-        select = next(w for w in descendants(dialog) if isinstance(w, ttk.Combobox))
-        select.set("特技说明")
-        self.root.after(150, self.root.quit)
-        self.root.mainloop()
+        self.assertFalse(any(isinstance(w, ttk.Combobox) for w in descendants(dialog)))
         table = next(w for w in descendants(dialog) if isinstance(w, ttk.Treeview))
-        self.assertEqual(226, len(table.get_children()))
+        keys = table.get_children()
+        self.assertEqual(312, len(keys))
+        self.assertIn("equipment:93", keys)
+        self.assertIn("skill:54", keys)
         dialog.destroy()
 
     def test_unavailable_help_shows_explanation_without_stale_rows(self):

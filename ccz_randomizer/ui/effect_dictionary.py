@@ -27,13 +27,9 @@ def show_effect_dictionary(parent):
     filters = ttk.Frame(body)
     filters.grid(row=2, column=0, sticky="ew", pady=12)
     query = tk.StringVar(dialog)
-    category = tk.StringVar(dialog, value="宝物特效")
     ttk.Label(filters, text="搜索名称或效果").pack(side="left", padx=(0, 8))
     search = SearchEntry(filters, textvariable=query, hint="可粘贴带数值的宝物特效名称；多个关键词用空格分隔")
     search.pack(side="left", fill="x", expand=True)
-    select = ttk.Combobox(filters, textvariable=category, state="readonly", width=12,
-                         values=("宝物特效", "特技说明", "全部"))
-    select.pack(side="left", padx=(12, 0))
     panes = ttk.Panedwindow(body, orient="horizontal")
     panes.grid(row=3, column=0, sticky="nsew")
     left, right = ttk.Frame(panes), ttk.Frame(panes)
@@ -74,7 +70,7 @@ def show_effect_dictionary(parent):
             detail.insert("end", item.description)
         else:
             detail.insert("end", "没有匹配的特效\n", "title")
-            detail.insert("end", dictionary.notice if not dictionary.entries else "试试缩短关键词，或切换到“全部”。")
+            detail.insert("end", dictionary.notice if not dictionary.entries else "试试缩短关键词，或清空搜索查看全部。")
         detail.configure(state="disabled")
         detail.yview_moveto(0)
 
@@ -82,7 +78,7 @@ def show_effect_dictionary(parent):
         nonlocal pending, visible
         pending = None
         previous = table.selection()
-        results = dictionary.search(query.get(), category.get())
+        results = dictionary.search(query.get())
         visible = {item.key: item for item in results}
         if table.get_children():
             table.delete(*table.get_children())
@@ -108,7 +104,6 @@ def show_effect_dictionary(parent):
             pending = None
 
     query.trace_add("write", schedule)
-    category.trace_add("write", schedule)
     table.bind("<<TreeviewSelect>>", show_selected)
     dialog.bind("<Destroy>", cleanup, add="+")
     refresh()

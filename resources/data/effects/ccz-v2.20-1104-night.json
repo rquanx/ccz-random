@@ -1,0 +1,1704 @@
+{
+  "profileId": "ccz-v2.20-1104-night",
+  "gameVersion": "2.20-1104-night",
+  "catalogHash": "0348c0f9090bf39e1690fd1e8bde6cdfadba705ca699569f62b6ad15789c9998",
+  "source": {
+    "file": "Imsg.e5",
+    "sha256": "a29c01b83cbc5b1bc9a1f0f071b9f9480a91f7673ce50b618d91de5a932941f9",
+    "recordSize": 200,
+    "firstSkillRecord": 430
+  },
+  "updatesSource": {
+    "file": "更新说明.txt",
+    "sha256": "835a58ac7a80dab8c4e6eea379cc6035efd6b9476f9c2d0ae2c898cc385e2952",
+    "statement": "1.穿越移动→穿越偷袭=穿越移动+偷袭攻击。"
+  },
+  "equipment": {
+    "93": {
+      "name": "穿越偷袭",
+      "description": "兼具穿越移动和偷袭攻击。\n\n穿越移动：无视地形，敌军卡位任意移动。\n\n偷袭攻击：从敌人侧面发起攻击时，对其伤害增加25%，背面提升至50%。"
+    }
+  },
+  "skills": [
+    {
+      "id": 0,
+      "name": "每回合恢复HP 20%",
+      "baseName": "每回合恢复HP",
+      "record": 430,
+      "description": "回合开始时恢复特效值"
+    },
+    {
+      "id": 1,
+      "name": "每回合恢复MP 8",
+      "baseName": "每回合恢复MP",
+      "record": 431,
+      "description": "回合开始时恢复特效值"
+    },
+    {
+      "id": 2,
+      "name": "每回合恢复状态",
+      "baseName": "每回合恢复状态",
+      "record": 432,
+      "description": "回合开始时清除异常状态"
+    },
+    {
+      "id": 3,
+      "name": "每回合获得exp +10",
+      "baseName": "每回合获得exp",
+      "record": 433,
+      "description": ""
+    },
+    {
+      "id": 4,
+      "name": "每回合武器exp +8",
+      "baseName": "每回合武器exp",
+      "record": 434,
+      "description": ""
+    },
+    {
+      "id": 5,
+      "name": "每回合护具exp +8",
+      "baseName": "每回合护具exp",
+      "record": 435,
+      "description": ""
+    },
+    {
+      "id": 6,
+      "name": "破坏攻击",
+      "baseName": "破坏攻击",
+      "record": 436,
+      "description": "攻击敌方后，降低其[攻击力]。"
+    },
+    {
+      "id": 7,
+      "name": "破坏防御",
+      "baseName": "破坏防御",
+      "record": 437,
+      "description": "攻击敌方后，降低其[防御力]。"
+    },
+    {
+      "id": 8,
+      "name": "破坏精神",
+      "baseName": "破坏精神",
+      "record": 438,
+      "description": "攻击敌方后，降低其[精神力]。"
+    },
+    {
+      "id": 9,
+      "name": "破坏爆发",
+      "baseName": "破坏爆发",
+      "record": 439,
+      "description": "攻击敌方后，降低其[爆发力]。"
+    },
+    {
+      "id": 10,
+      "name": "破坏士气",
+      "baseName": "破坏士气",
+      "record": 440,
+      "description": "攻击敌方后，降低其[士气]。"
+    },
+    {
+      "id": 11,
+      "name": "破坏移动",
+      "baseName": "破坏移动",
+      "record": 441,
+      "description": "攻击敌方后，降低其[移动力]。"
+    },
+    {
+      "id": 12,
+      "name": "随机状态攻击",
+      "baseName": "随机状态攻击",
+      "record": 442,
+      "description": "随机降低敌方各项能力。"
+    },
+    {
+      "id": 13,
+      "name": "麻痹攻击 60%",
+      "baseName": "麻痹攻击",
+      "record": 443,
+      "description": "攻击时，概率使对方进入[麻痹]状态。"
+    },
+    {
+      "id": 14,
+      "name": "禁咒攻击 100%",
+      "baseName": "禁咒攻击",
+      "record": 444,
+      "description": "攻击时，概率使对方进入[禁咒]状态。"
+    },
+    {
+      "id": 15,
+      "name": "混乱攻击 50%",
+      "baseName": "混乱攻击",
+      "record": 445,
+      "description": "攻击时，概率使对方进入[混乱]状态。"
+    },
+    {
+      "id": 16,
+      "name": "中毒攻击 100%",
+      "baseName": "中毒攻击",
+      "record": 446,
+      "description": "攻击时，概率使对方进入[中毒]状态。\n\n-中毒状态下，每回合损失15%最大生命值。\n\n-回复效果减少一半，消耗品不受影响。"
+    },
+    {
+      "id": 17,
+      "name": "随机属性攻击",
+      "baseName": "随机属性攻击",
+      "record": 447,
+      "description": "攻击后，随机使敌人陷入各种不良状态。"
+    },
+    {
+      "id": 18,
+      "name": "反弹异常攻击",
+      "baseName": "反弹异常攻击",
+      "record": 448,
+      "description": "反弹敌方攻击附带的[异常状态]和[破坏能力]效果。\n\n-可以反弹[猛击]和[盾反]的效果。"
+    },
+    {
+      "id": 19,
+      "name": "反弹伤害 60%",
+      "baseName": "反弹伤害",
+      "record": 449,
+      "description": "受到攻击伤害时，攻击者承受伤害*特效值的伤害"
+    },
+    {
+      "id": 20,
+      "name": "吸血攻击 40%",
+      "baseName": "吸血攻击",
+      "record": 450,
+      "description": "攻击造成伤害后，恢复伤害值*特效值的HP"
+    },
+    {
+      "id": 21,
+      "name": "吸收金钱",
+      "baseName": "吸收金钱",
+      "record": 451,
+      "description": "攻击时，每造成1点伤害增加1金钱。"
+    },
+    {
+      "id": 22,
+      "name": "破甲攻击 25%",
+      "baseName": "破甲攻击",
+      "record": 452,
+      "description": "造成固定值伤害。"
+    },
+    {
+      "id": 23,
+      "name": "奋战攻击",
+      "baseName": "奋战攻击",
+      "record": 453,
+      "description": "连续攻击范围内的多位敌方。"
+    },
+    {
+      "id": 24,
+      "name": "引导攻击",
+      "baseName": "引导攻击",
+      "record": 454,
+      "description": "击杀一个敌人后，连续攻击范围内的另一个敌人。"
+    },
+    {
+      "id": 25,
+      "name": "冲锋攻击 +6%",
+      "baseName": "冲锋攻击",
+      "record": 455,
+      "description": "根据移动的距离增伤。"
+    },
+    {
+      "id": 26,
+      "name": "先手攻击",
+      "baseName": "先手攻击",
+      "record": 456,
+      "description": "敌方发动攻击时，装备者会优先攻击。"
+    },
+    {
+      "id": 27,
+      "name": "策略绝对命中",
+      "baseName": "策略绝对命中",
+      "record": 457,
+      "description": "策略必定命中，可以突破[策略免疫]"
+    },
+    {
+      "id": 28,
+      "name": "提升策略命中 +20%",
+      "baseName": "提升策略命中",
+      "record": 458,
+      "description": "可以超过策略原命中上限。"
+    },
+    {
+      "id": 29,
+      "name": "辅助策略格挡 +40%",
+      "baseName": "辅助策略格挡",
+      "record": 459,
+      "description": "减少策略命中率。"
+    },
+    {
+      "id": 30,
+      "name": "攻击绝对命中",
+      "baseName": "攻击绝对命中",
+      "record": 460,
+      "description": "特技持有者的攻击必定命中。"
+    },
+    {
+      "id": 31,
+      "name": "辅助攻击命中 +20%",
+      "baseName": "辅助攻击命中",
+      "record": 461,
+      "description": "增加特技持有者的攻击命中率。"
+    },
+    {
+      "id": 32,
+      "name": "辅助攻击格挡 +20%",
+      "baseName": "辅助攻击格挡",
+      "record": 462,
+      "description": "降低攻击命中率。"
+    },
+    {
+      "id": 33,
+      "name": "辅助全格挡 +16%",
+      "baseName": "辅助全格挡",
+      "record": 463,
+      "description": "减少攻击和策略的命中率。"
+    },
+    {
+      "id": 34,
+      "name": "减轻远距损伤 -40%",
+      "baseName": "减轻远距损伤",
+      "record": 464,
+      "description": "减轻来自弓箭、炮车的攻击伤害。"
+    },
+    {
+      "id": 35,
+      "name": "减轻物理损伤 -30%",
+      "baseName": "减轻物理损伤",
+      "record": 465,
+      "description": "减轻来自攻击的伤害。"
+    },
+    {
+      "id": 36,
+      "name": "集气加倍",
+      "baseName": "集气加倍",
+      "record": 466,
+      "description": ""
+    },
+    {
+      "id": 37,
+      "name": "反击后反击",
+      "baseName": "反击后反击",
+      "record": 467,
+      "description": "被对方反击后，再进行一次攻击。"
+    },
+    {
+      "id": 38,
+      "name": "无反击攻击",
+      "baseName": "无反击攻击",
+      "record": 468,
+      "description": "主动攻击后让敌方无法发动反击。"
+    },
+    {
+      "id": 39,
+      "name": "妨碍策略增伤 25%",
+      "baseName": "妨碍策略增伤",
+      "record": 469,
+      "description": "毒，定身，诱惑类策略增伤。"
+    },
+    {
+      "id": 40,
+      "name": "元素策略增伤 25%",
+      "baseName": "元素策略增伤",
+      "record": 470,
+      "description": "火，水，风，地类策略增伤。"
+    },
+    {
+      "id": 41,
+      "name": "减轻策略损伤 -40%",
+      "baseName": "减轻策略损伤",
+      "record": 471,
+      "description": "减轻来自策略的伤害。"
+    },
+    {
+      "id": 42,
+      "name": "策略无视天气",
+      "baseName": "策略无视天气",
+      "record": 472,
+      "description": "特技持有者施放策略时无视天气限制。"
+    },
+    {
+      "id": 43,
+      "name": "策略无视地形",
+      "baseName": "策略无视地形",
+      "record": 473,
+      "description": "特技持有者施放策略是无视地形限制。"
+    },
+    {
+      "id": 44,
+      "name": "仇恨攻击 +12%",
+      "baseName": "仇恨攻击",
+      "record": 474,
+      "description": "根据受到的攻击次数增伤。"
+    },
+    {
+      "id": 45,
+      "name": "策略模仿",
+      "baseName": "策略模仿",
+      "record": 475,
+      "description": "模仿周围四格单位的策略。"
+    },
+    {
+      "id": 46,
+      "name": "节约MP -40%",
+      "baseName": "节约MP",
+      "record": 476,
+      "description": "减少策略消耗  -注意不要突破99%"
+    },
+    {
+      "id": 47,
+      "name": "防御远距攻击",
+      "baseName": "防御远距攻击",
+      "record": 477,
+      "description": "必定格挡来自弓箭、炮车的攻击。"
+    },
+    {
+      "id": 48,
+      "name": "防御特殊攻击",
+      "baseName": "防御特殊攻击",
+      "record": 478,
+      "description": "-必定格挡[致命一击]。\n\n-必定格挡[连击]。"
+    },
+    {
+      "id": 49,
+      "name": "物理免疫",
+      "baseName": "物理免疫",
+      "record": 479,
+      "description": "格挡所有攻击。"
+    },
+    {
+      "id": 50,
+      "name": "MP防御",
+      "baseName": "MP防御",
+      "record": 480,
+      "description": "受到攻击后，MP代替HP消耗。"
+    },
+    {
+      "id": 51,
+      "name": "致命一击",
+      "baseName": "致命一击",
+      "record": 481,
+      "description": "[攻击]和[策略]必定暴击。\n\n-攻击暴击伤害系数=150% + [暴击率的1/2]%\n\n-策略暴击伤害系数=125% + [暴击率的1/4]%"
+    },
+    {
+      "id": 52,
+      "name": "主动连击",
+      "baseName": "主动连击",
+      "record": 482,
+      "description": "主动攻击时必定连击。"
+    },
+    {
+      "id": 53,
+      "name": "双枪攻击",
+      "baseName": "双枪攻击",
+      "record": 483,
+      "description": "[主动攻击]和[反击]都是双击。"
+    },
+    {
+      "id": 54,
+      "name": "穿越移动",
+      "baseName": "穿越移动",
+      "record": 484,
+      "description": "无视地形，敌军卡位任意移动。"
+    },
+    {
+      "id": 55,
+      "name": "突击移动",
+      "baseName": "突击移动",
+      "record": 485,
+      "description": "无视敌军卡位移动。"
+    },
+    {
+      "id": 56,
+      "name": "二次行动",
+      "baseName": "二次行动",
+      "record": 486,
+      "description": "做出行动指令后可再行动一次。"
+    },
+    {
+      "id": 57,
+      "name": "唯我独尊",
+      "baseName": "唯我独尊",
+      "record": 487,
+      "description": "取最高的一项能力值视为其全能力。"
+    },
+    {
+      "id": 58,
+      "name": "策略连击",
+      "baseName": "策略连击",
+      "record": 488,
+      "description": "施放策略时必定连击，连击造成50%伤害且不消耗MP。"
+    },
+    {
+      "id": 59,
+      "name": "同仇敌忾 2",
+      "baseName": "同仇敌忾",
+      "record": 489,
+      "description": "对友军攻击的敌人，追加一次攻击，每回合最多触发N次。"
+    },
+    {
+      "id": 60,
+      "name": "众志成城 6%",
+      "baseName": "众志成城",
+      "record": 490,
+      "description": "装备者周围的友军全能力上升，敌军全能力下降。"
+    },
+    {
+      "id": 61,
+      "name": "神魔附体 4",
+      "baseName": "神魔附体",
+      "record": 491,
+      "description": "无视人物和兵种属性限制，各项能力的最低成长为4点。"
+    },
+    {
+      "id": 62,
+      "name": "骑马攻击 35%",
+      "baseName": "骑马攻击",
+      "record": 492,
+      "description": "对[骑马]的单位增加伤害。"
+    },
+    {
+      "id": 63,
+      "name": "步兵攻击 35%",
+      "baseName": "步兵攻击",
+      "record": 493,
+      "description": "对[行走]的单位增加伤害。"
+    },
+    {
+      "id": 64,
+      "name": "骑马防御 35%",
+      "baseName": "骑马防御",
+      "record": 494,
+      "description": "减少[骑马]单位的伤害。"
+    },
+    {
+      "id": 65,
+      "name": "步兵防御 35%",
+      "baseName": "步兵防御",
+      "record": 495,
+      "description": "减少[步行]单位的伤害。"
+    },
+    {
+      "id": 66,
+      "name": "偷袭攻击",
+      "baseName": "偷袭攻击",
+      "record": 496,
+      "description": "从敌人侧面发起攻击时，对其伤害增加25%，背面提升至50%。"
+    },
+    {
+      "id": 67,
+      "name": "增加连击上限 +1",
+      "baseName": "增加连击上限",
+      "record": 497,
+      "description": "连击的伤害不再衰减，且连击次数上限变为3次。"
+    },
+    {
+      "id": 68,
+      "name": "回马攻击 20%",
+      "baseName": "回马攻击",
+      "record": 498,
+      "description": "如果发起攻击时转身，则造成的伤害增加。"
+    },
+    {
+      "id": 69,
+      "name": "获得功勋 +2",
+      "baseName": "获得功勋",
+      "record": 499,
+      "description": "每次获得的功勋额外增加。"
+    },
+    {
+      "id": 70,
+      "name": "深入敌后",
+      "baseName": "深入敌后",
+      "record": 500,
+      "description": "[敌方回合]会变为[敌军]，从而避免被敌军攻击。"
+    },
+    {
+      "id": 71,
+      "name": "一夫当关 10%",
+      "baseName": "一夫当关",
+      "record": 501,
+      "description": "提升全能力，友军在身边时只有一半效果。"
+    },
+    {
+      "id": 72,
+      "name": "强化反击 15%",
+      "baseName": "强化反击",
+      "record": 502,
+      "description": "反击伤害不衰减且增加自身已损失体力比率的伤害，上限为特效值。"
+    },
+    {
+      "id": 73,
+      "name": "学会策略-四系",
+      "baseName": "学会策略-四系",
+      "record": 503,
+      "description": ""
+    },
+    {
+      "id": 74,
+      "name": "学会策略-降能力",
+      "baseName": "学会策略-降能力",
+      "record": 504,
+      "description": ""
+    },
+    {
+      "id": 75,
+      "name": "学会策略-妨碍",
+      "baseName": "学会策略-妨碍",
+      "record": 505,
+      "description": ""
+    },
+    {
+      "id": 76,
+      "name": "学会策略-补给",
+      "baseName": "学会策略-补给",
+      "record": 506,
+      "description": ""
+    },
+    {
+      "id": 77,
+      "name": "学会策略-升能力",
+      "baseName": "学会策略-升能力",
+      "record": 507,
+      "description": ""
+    },
+    {
+      "id": 78,
+      "name": "学会策略-天象",
+      "baseName": "学会策略-天象",
+      "record": 508,
+      "description": ""
+    },
+    {
+      "id": 79,
+      "name": "学会策略-回归",
+      "baseName": "学会策略-回归",
+      "record": 509,
+      "description": ""
+    },
+    {
+      "id": 80,
+      "name": "学会策略-连击",
+      "baseName": "学会策略-连击",
+      "record": 510,
+      "description": ""
+    },
+    {
+      "id": 81,
+      "name": "鬼神之勇 12%",
+      "baseName": "鬼神之勇",
+      "record": 511,
+      "description": "根据损血程度增加全能力。"
+    },
+    {
+      "id": 82,
+      "name": "海纳百川 10",
+      "baseName": "海纳百川",
+      "record": 512,
+      "description": "被攻击后回复特效值的MP，同时拥有[MP防御]时本特技无效。"
+    },
+    {
+      "id": 83,
+      "name": "众矢之的 策略",
+      "baseName": "众矢之的 策略",
+      "record": 513,
+      "description": "敌人的伤害策略会优先指定特技持有者。"
+    },
+    {
+      "id": 84,
+      "name": "弱点攻击",
+      "baseName": "弱点攻击",
+      "record": 514,
+      "description": "进行攻击和施放策略时，对方能力中最低的一项视为其防御，精神，爆发，士气。"
+    },
+    {
+      "id": 85,
+      "name": "万夫莫敌 3%",
+      "baseName": "万夫莫敌",
+      "record": 515,
+      "description": "周围敌军越多全能力越高。"
+    },
+    {
+      "id": 86,
+      "name": "攻击限伤 70",
+      "baseName": "攻击限伤",
+      "record": 516,
+      "description": "受到的攻击伤害不会超过70点。"
+    },
+    {
+      "id": 87,
+      "name": "转移伤害 20%",
+      "baseName": "转移伤害",
+      "record": 517,
+      "description": "被攻击时，将部分伤害转移给攻击范围内的其他敌人。"
+    },
+    {
+      "id": 88,
+      "name": "特效模仿",
+      "baseName": "特效模仿",
+      "record": 518,
+      "description": "模仿周围四格的[装备][个人][兵种]特效。\n\n-不分敌我，但有些特效无法模仿。"
+    },
+    {
+      "id": 89,
+      "name": "特效屏蔽",
+      "baseName": "特效屏蔽",
+      "record": 519,
+      "description": "使周围四格的部分[装备][个人][兵种]特效无效。"
+    },
+    {
+      "id": 90,
+      "name": "再次移动",
+      "baseName": "再次移动",
+      "record": 520,
+      "description": "行动完毕之后可再次[移动]。"
+    },
+    {
+      "id": 91,
+      "name": "提升攻击范围",
+      "baseName": "提升攻击范围",
+      "record": 521,
+      "description": "增强攻击范围。"
+    },
+    {
+      "id": 92,
+      "name": "提升施法范围",
+      "baseName": "提升施法范围",
+      "record": 522,
+      "description": "增强施法范围。"
+    },
+    {
+      "id": 93,
+      "name": "攻击追加 诱惑",
+      "baseName": "攻击追加",
+      "record": 523,
+      "description": "攻击后会立即进行一次[特效]追击；如果发动双击则追击2次。\n\n-无法发动[特效]时，将由[攻击]替代。"
+    },
+    {
+      "id": 94,
+      "name": "策略先手 毒烟",
+      "baseName": "策略先手",
+      "record": 524,
+      "description": "被攻击时，使用[特效]策略先手攻击。\n\n-无法发动[特效]时，将由[攻击]替代。"
+    },
+    {
+      "id": 95,
+      "name": "策略反击 烈火",
+      "baseName": "策略反击",
+      "record": 525,
+      "description": "由[特效]代替[攻击]进行反击。\n\n-无法发动[特效]时，将由[攻击]替代。"
+    },
+    {
+      "id": 96,
+      "name": "铁索横江",
+      "baseName": "铁索横江",
+      "record": 526,
+      "description": "束缚周围四格敌人，其无法移动。\n\n-[恶路移动]不受此效果影响。"
+    },
+    {
+      "id": 97,
+      "name": "突破攻击",
+      "baseName": "突破攻击",
+      "record": 527,
+      "description": "被攻击的敌方会强制后退一格，如果对方无法后退，则攻击的伤害增加40%。"
+    },
+    {
+      "id": 98,
+      "name": "伤害增幅 +30%",
+      "baseName": "伤害增幅",
+      "record": 528,
+      "description": "增加物理伤害。"
+    },
+    {
+      "id": 99,
+      "name": "策略免疫",
+      "baseName": "策略免疫",
+      "record": 529,
+      "description": "使策略无法命中，但无法影响[策略必中]。"
+    },
+    {
+      "id": 100,
+      "name": "恢复周围状态",
+      "baseName": "恢复周围状态",
+      "record": 530,
+      "description": "回合开始时，恢复周围友军的异常状态。"
+    },
+    {
+      "id": 101,
+      "name": "回复周围HP 12%",
+      "baseName": "回复周围HP",
+      "record": 531,
+      "description": "每回合自动回复周围友方的HP。"
+    },
+    {
+      "id": 102,
+      "name": "回复周围MP 10%",
+      "baseName": "回复周围MP",
+      "record": 532,
+      "description": "每回合自动回复周围友方的MP。"
+    },
+    {
+      "id": 103,
+      "name": "空特技 0%",
+      "baseName": "空特技",
+      "record": 533,
+      "description": ""
+    },
+    {
+      "id": 104,
+      "name": "强化物理穿透 25%",
+      "baseName": "强化物理穿透",
+      "record": 534,
+      "description": "若特技持有者同时能造成[穿透攻击]，则：\n\n①穿透攻击伤害不衰减。\n\n②只攻击到一个敌人时，伤害增加特效值。"
+    },
+    {
+      "id": 105,
+      "name": "同心协力 3%",
+      "baseName": "同心协力",
+      "record": 535,
+      "description": "周围友军越多全能力越高。"
+    },
+    {
+      "id": 106,
+      "name": "迅捷之勇 12%",
+      "baseName": "迅捷之勇",
+      "record": 536,
+      "description": "全能力增加[移动力x(N/10)%]。"
+    },
+    {
+      "id": 107,
+      "name": "椎锋突进 5%",
+      "baseName": "椎锋突进",
+      "record": 537,
+      "description": "根据移动的距离增加暴击和连击几率。"
+    },
+    {
+      "id": 108,
+      "name": "绝对反击",
+      "baseName": "绝对反击",
+      "record": 538,
+      "description": "被攻击时无视攻击距离进行反击。"
+    },
+    {
+      "id": 109,
+      "name": "不惧敌围 3%",
+      "baseName": "不惧敌围",
+      "record": 539,
+      "description": "周围八格敌人全属性下降[周围八格敌人数量*3]%"
+    },
+    {
+      "id": 110,
+      "name": "贵尚儒雅",
+      "baseName": "贵尚儒雅",
+      "record": 540,
+      "description": "根据等级提升习得部分策略。"
+    },
+    {
+      "id": 111,
+      "name": "削铁如泥",
+      "baseName": "削铁如泥",
+      "record": 541,
+      "description": "附加对方10-15%最大生命值的额外伤害，攻击和法术均可触发。"
+    },
+    {
+      "id": 112,
+      "name": "强化致命一击 +40%",
+      "baseName": "强化致命一击",
+      "record": 542,
+      "description": "增加致命一击的伤害，且无视[防御致命一击]效果。\n\n-增伤与原暴击伤害加法计算，非乘法计算。"
+    },
+    {
+      "id": 113,
+      "name": "援护攻击 3",
+      "baseName": "援护攻击",
+      "record": 543,
+      "description": "对方回合，敌军攻击友方单位时，此效果拥有者会攻击对应敌方。"
+    },
+    {
+      "id": 114,
+      "name": "猛击 20%",
+      "baseName": "猛击",
+      "record": 544,
+      "description": "攻击被对方格挡后，会对其造成20%HP真实伤害，并将对方混乱。"
+    },
+    {
+      "id": 115,
+      "name": "盾反 15%",
+      "baseName": "盾反",
+      "record": 545,
+      "description": "格挡敌人攻击后，会对其造成特效值的HP真实伤害，并将对方麻痹。"
+    },
+    {
+      "id": 116,
+      "name": "状态强化 12",
+      "baseName": "状态强化",
+      "record": 546,
+      "description": "自身和周围八格我军，BUFF效果额外提升10%\n\nDEBUFF效果减弱20%"
+    },
+    {
+      "id": 117,
+      "name": "疾风攻击 12",
+      "baseName": "疾风攻击",
+      "record": 547,
+      "description": "对方移动力越低，对其伤害越高。"
+    },
+    {
+      "id": 118,
+      "name": "绝对克制 18%",
+      "baseName": "绝对克制",
+      "record": 548,
+      "description": "对敌人的克制效果加强，被克制效果减少。"
+    },
+    {
+      "id": 119,
+      "name": "穿透攻击 十字",
+      "baseName": "穿透攻击 十字",
+      "record": 549,
+      "description": "攻击可以对目标周围的多个敌人造成伤害。"
+    },
+    {
+      "id": 120,
+      "name": "穿透攻击 九宫",
+      "baseName": "穿透攻击 九宫",
+      "record": 550,
+      "description": "攻击可以对目标周围的多个敌人造成伤害。"
+    },
+    {
+      "id": 121,
+      "name": "穿透攻击 没羽箭",
+      "baseName": "穿透攻击 没羽箭",
+      "record": 551,
+      "description": "攻击可以对目标周围的多个敌人造成伤害。"
+    },
+    {
+      "id": 122,
+      "name": "穿透攻击 二格",
+      "baseName": "穿透攻击 二格",
+      "record": 552,
+      "description": "攻击可以直线或斜线穿透2个敌人。"
+    },
+    {
+      "id": 123,
+      "name": "穿透攻击 三格",
+      "baseName": "穿透攻击 三格",
+      "record": 553,
+      "description": "攻击可以直线或斜线穿透3个敌人。"
+    },
+    {
+      "id": 124,
+      "name": "穿透攻击 六格",
+      "baseName": "穿透攻击 六格",
+      "record": 554,
+      "description": "攻击可以直线或斜线穿透6个敌人。"
+    },
+    {
+      "id": 125,
+      "name": "穿透攻击 横扫",
+      "baseName": "穿透攻击 横扫",
+      "record": 555,
+      "description": "攻击可以对目标周围的多个敌人造成伤害。"
+    },
+    {
+      "id": 126,
+      "name": "穿透攻击 环击",
+      "baseName": "穿透攻击 环击",
+      "record": 556,
+      "description": "攻击后，自己周围八格的敌人都会受到伤害。"
+    },
+    {
+      "id": 127,
+      "name": "穿透攻击 溅射",
+      "baseName": "穿透攻击 溅射",
+      "record": 557,
+      "description": "攻击可以对目标周围的多个敌人造成伤害。"
+    },
+    {
+      "id": 128,
+      "name": "能力替换 攻→防",
+      "baseName": "能力替换",
+      "record": 558,
+      "description": "将箭头右侧能力提升到与左侧相等。\n\n①不在面板显示。\n\n②若右侧比左侧数值高则不生效，士气除外。"
+    },
+    {
+      "id": 129,
+      "name": "能力替换 防→精",
+      "baseName": "能力替换",
+      "record": 559,
+      "description": "将箭头右侧能力提升到与左侧相等。\n\n①不在面板显示。\n\n②若右侧比左侧数值高则不生效，士气除外。"
+    },
+    {
+      "id": 130,
+      "name": "能力替换 精→防爆",
+      "baseName": "能力替换",
+      "record": 560,
+      "description": "将箭头右侧能力提升到与左侧相等。\n\n①不在面板显示。\n\n②若右侧比左侧数值高则不生效，士气除外。"
+    },
+    {
+      "id": 131,
+      "name": "能力替换 攻→士",
+      "baseName": "能力替换",
+      "record": 561,
+      "description": "将箭头右侧能力提升到与左侧相等。\n\n①不在面板显示。\n\n②若右侧比左侧数值高则不生效，士气除外。"
+    },
+    {
+      "id": 132,
+      "name": "能力替换 防→攻",
+      "baseName": "能力替换",
+      "record": 562,
+      "description": "将箭头右侧能力提升到与左侧相等。\n\n①不在面板显示。\n\n②若右侧比左侧数值高则不生效，士气除外。"
+    },
+    {
+      "id": 133,
+      "name": "能力辅助 攻→精爆",
+      "baseName": "能力辅助",
+      "record": 563,
+      "description": "左侧能力的12%加成在右侧能力上，不显示在面板。"
+    },
+    {
+      "id": 134,
+      "name": "能力辅助 防→攻精",
+      "baseName": "能力辅助",
+      "record": 564,
+      "description": "左侧能力的12%加成在右侧能力上，不显示在面板。"
+    },
+    {
+      "id": 135,
+      "name": "能力辅助 精→防精",
+      "baseName": "能力辅助",
+      "record": 565,
+      "description": "左侧能力的12%加成在右侧能力上，不显示在面板。"
+    },
+    {
+      "id": 136,
+      "name": "能力辅助 爆→攻防",
+      "baseName": "能力辅助",
+      "record": 566,
+      "description": "左侧能力的12%加成在右侧能力上，不显示在面板。"
+    },
+    {
+      "id": 137,
+      "name": "能力辅助 士→全能力",
+      "baseName": "能力辅助",
+      "record": 567,
+      "description": "左侧能力的12%加成在右侧能力上，不显示在面板。"
+    },
+    {
+      "id": 138,
+      "name": "忽视能力 全能力",
+      "baseName": "忽视能力",
+      "record": 568,
+      "description": "作战时，忽视敌方对应能力12%。"
+    },
+    {
+      "id": 139,
+      "name": "忽视能力 攻防",
+      "baseName": "忽视能力",
+      "record": 569,
+      "description": "作战时，忽视敌方对应能力12%。"
+    },
+    {
+      "id": 140,
+      "name": "忽视能力 精",
+      "baseName": "忽视能力",
+      "record": 570,
+      "description": "作战时，忽视敌方对应能力12%。"
+    },
+    {
+      "id": 141,
+      "name": "忽视能力 防士",
+      "baseName": "忽视能力",
+      "record": 571,
+      "description": "作战时，忽视敌方对应能力12%。"
+    },
+    {
+      "id": 142,
+      "name": "忽视能力 精士",
+      "baseName": "忽视能力",
+      "record": 572,
+      "description": "作战时，忽视敌方对应能力12%。"
+    },
+    {
+      "id": 143,
+      "name": "忽视能力 攻精",
+      "baseName": "忽视能力",
+      "record": 573,
+      "description": "作战时，忽视敌方对应能力12%。"
+    },
+    {
+      "id": 144,
+      "name": "自动提升 全能力",
+      "baseName": "自动提升",
+      "record": 574,
+      "description": "每回合自动提升对应能力。"
+    },
+    {
+      "id": 145,
+      "name": "自动提升 攻精",
+      "baseName": "自动提升",
+      "record": 575,
+      "description": "每回合自动提升对应能力。"
+    },
+    {
+      "id": 146,
+      "name": "自动提升 攻防",
+      "baseName": "自动提升",
+      "record": 576,
+      "description": "每回合自动提升对应能力。"
+    },
+    {
+      "id": 147,
+      "name": "自动提升 攻爆",
+      "baseName": "自动提升",
+      "record": 577,
+      "description": "每回合自动提升对应能力。"
+    },
+    {
+      "id": 148,
+      "name": "自动提升 防精",
+      "baseName": "自动提升",
+      "record": 578,
+      "description": "每回合自动提升对应能力。"
+    },
+    {
+      "id": 149,
+      "name": "自动提升 精士",
+      "baseName": "自动提升",
+      "record": 579,
+      "description": "每回合自动提升对应能力。"
+    },
+    {
+      "id": 150,
+      "name": "自动提升 防移",
+      "baseName": "自动提升",
+      "record": 580,
+      "description": "每回合自动提升对应能力。"
+    },
+    {
+      "id": 151,
+      "name": "提升周围 攻",
+      "baseName": "提升周围",
+      "record": 581,
+      "description": "每回合提升周围八格我方和友军对应能力。"
+    },
+    {
+      "id": 152,
+      "name": "提升周围 防",
+      "baseName": "提升周围",
+      "record": 582,
+      "description": "每回合提升周围八格我方和友军对应能力。"
+    },
+    {
+      "id": 153,
+      "name": "提升周围 精",
+      "baseName": "提升周围",
+      "record": 583,
+      "description": "每回合提升周围八格我方和友军对应能力。"
+    },
+    {
+      "id": 154,
+      "name": "提升周围 爆士",
+      "baseName": "提升周围",
+      "record": 584,
+      "description": "每回合提升周围八格我方和友军对应能力。"
+    },
+    {
+      "id": 155,
+      "name": "提升周围 移",
+      "baseName": "提升周围",
+      "record": 585,
+      "description": "每回合提升周围八格我方和友军对应能力。"
+    },
+    {
+      "id": 156,
+      "name": "提升周围 攻防",
+      "baseName": "提升周围",
+      "record": 586,
+      "description": "每回合提升周围八格我方和友军对应能力。"
+    },
+    {
+      "id": 157,
+      "name": "远距攻击 八向",
+      "baseName": "远距攻击 八向",
+      "record": 587,
+      "description": "额外增加攻击范围，且和自身攻击范围叠加。"
+    },
+    {
+      "id": 158,
+      "name": "远距攻击 没羽箭",
+      "baseName": "远距攻击 没羽箭",
+      "record": 588,
+      "description": "额外增加攻击范围，且和自身攻击范围叠加。"
+    },
+    {
+      "id": 159,
+      "name": "远距攻击 方格",
+      "baseName": "远距攻击 方格",
+      "record": 589,
+      "description": "额外增加攻击范围，且和自身攻击范围叠加。"
+    },
+    {
+      "id": 160,
+      "name": "远距攻击 大没羽",
+      "baseName": "远距攻击 大没羽",
+      "record": 590,
+      "description": "额外增加攻击范围，且和自身攻击范围叠加。"
+    },
+    {
+      "id": 161,
+      "name": "远距攻击 刺客",
+      "baseName": "远距攻击 刺客",
+      "record": 591,
+      "description": "额外增加攻击范围，且和自身攻击范围叠加。"
+    },
+    {
+      "id": 162,
+      "name": "远距攻击 大爆炎",
+      "baseName": "远距攻击 大爆炎",
+      "record": 592,
+      "description": "额外增加攻击范围，且和自身攻击范围叠加。"
+    },
+    {
+      "id": 163,
+      "name": "远距攻击 炮车",
+      "baseName": "远距攻击 炮车",
+      "record": 593,
+      "description": "额外增加攻击范围，且和自身攻击范围叠加。"
+    },
+    {
+      "id": 164,
+      "name": "远距攻击 圆环",
+      "baseName": "远距攻击 圆环",
+      "record": 594,
+      "description": "额外增加攻击范围，且和自身攻击范围叠加。"
+    },
+    {
+      "id": 165,
+      "name": "附加伤害 攻击 10%",
+      "baseName": "附加伤害 攻击",
+      "record": 595,
+      "description": "[物理]和[策略]伤害额外增加[对应能力*N%]。\n\n-不受各种增伤效果影响。"
+    },
+    {
+      "id": 166,
+      "name": "附加伤害 防御 10%",
+      "baseName": "附加伤害 防御",
+      "record": 596,
+      "description": "[物理]和[策略]伤害额外增加[对应能力*N%]。\n\n-不受各种增伤效果影响。"
+    },
+    {
+      "id": 167,
+      "name": "附加伤害 精神 10%",
+      "baseName": "附加伤害 精神",
+      "record": 597,
+      "description": "[物理]和[策略]伤害额外增加[对应能力*N%]。\n\n-不受各种增伤效果影响。"
+    },
+    {
+      "id": 168,
+      "name": "附加伤害 爆发 12%",
+      "baseName": "附加伤害 爆发",
+      "record": 598,
+      "description": "[物理]和[策略]伤害额外增加[对应能力*N%]。\n\n-不受各种增伤效果影响。"
+    },
+    {
+      "id": 169,
+      "name": "附加伤害 士气 12%",
+      "baseName": "附加伤害 士气",
+      "record": 599,
+      "description": "[物理]和[策略]伤害额外增加[对应能力*N%]。\n\n-不受各种增伤效果影响。"
+    },
+    {
+      "id": 170,
+      "name": "策略破坏 攻",
+      "baseName": "策略破坏",
+      "record": 600,
+      "description": "部分策略命中敌人后，降低其对应能力。\n\n-[策略免疫]无视此效果。"
+    },
+    {
+      "id": 171,
+      "name": "策略破坏 防",
+      "baseName": "策略破坏",
+      "record": 601,
+      "description": "部分策略命中敌人后，降低其对应能力。\n\n-[策略免疫]无视此效果。"
+    },
+    {
+      "id": 172,
+      "name": "策略破坏 精",
+      "baseName": "策略破坏",
+      "record": 602,
+      "description": "部分策略命中敌人后，降低其对应能力。\n\n-[策略免疫]无视此效果。"
+    },
+    {
+      "id": 173,
+      "name": "策略破坏 爆士",
+      "baseName": "策略破坏",
+      "record": 603,
+      "description": "部分策略命中敌人后，降低其对应能力。\n\n-[策略免疫]无视此效果。"
+    },
+    {
+      "id": 174,
+      "name": "策略破坏 攻精",
+      "baseName": "策略破坏",
+      "record": 604,
+      "description": "部分策略命中敌人后，降低其对应能力。\n\n-[策略免疫]无视此效果。"
+    },
+    {
+      "id": 175,
+      "name": "策略破坏 全能力",
+      "baseName": "策略破坏",
+      "record": 605,
+      "description": "部分策略命中敌人后，降低其对应能力。\n\n-[策略免疫]无视此效果。"
+    },
+    {
+      "id": 176,
+      "name": "固定增伤",
+      "baseName": "固定增伤",
+      "record": 606,
+      "description": "[物理]和[策略]额外增加[自身等级/2+5]点伤害。\n\n-不受各种增伤效果影响。"
+    },
+    {
+      "id": 177,
+      "name": "固定减伤",
+      "baseName": "固定减伤",
+      "record": 607,
+      "description": "特技持有者减少[敌人等级/2+5]点[物理]和[策略]伤害。\n\n-不受各种减伤效果影响。"
+    },
+    {
+      "id": 178,
+      "name": "纵横无阻",
+      "baseName": "纵横无阻",
+      "record": 608,
+      "description": "树林，荒地，山地，大河，城内地形适应恒为110%，且移动消耗为1。"
+    },
+    {
+      "id": 179,
+      "name": "辅助地形状态",
+      "baseName": "辅助地形状态",
+      "record": 609,
+      "description": "全地形的适应力不低于105%，如果本就不低于105%，则额外+5%适应力。"
+    },
+    {
+      "id": 180,
+      "name": "恶路移动",
+      "baseName": "恶路移动",
+      "record": 610,
+      "description": "全地形移动消耗降为1。"
+    },
+    {
+      "id": 181,
+      "name": "破坏MP攻击",
+      "baseName": "破坏MP攻击",
+      "record": 611,
+      "description": "击中敌人时清空其MP，且无视[MP防御]效果。"
+    },
+    {
+      "id": 182,
+      "name": "强化策略穿透",
+      "baseName": "强化策略穿透",
+      "record": 612,
+      "description": "释放策略时，影响范围增加。"
+    },
+    {
+      "id": 183,
+      "name": "自身治疗强化 75%",
+      "baseName": "自身治疗强化",
+      "record": 613,
+      "description": "自身受到[回复HP]类策略影响时，回复效果增加。"
+    },
+    {
+      "id": 184,
+      "name": "辅助治疗策略 50%",
+      "baseName": "辅助治疗策略",
+      "record": 614,
+      "description": "释放[回复HP]类策略时，回复效果增加。"
+    },
+    {
+      "id": 185,
+      "name": "逆境减伤",
+      "baseName": "逆境减伤",
+      "record": 615,
+      "description": "根据损失的生命值获得物理和策略减伤，最多为75%。"
+    },
+    {
+      "id": 186,
+      "name": "反击成双",
+      "baseName": "反击成双",
+      "record": 616,
+      "description": "反击时必定双击。"
+    },
+    {
+      "id": 187,
+      "name": "增加正向伤害 35%",
+      "baseName": "增加正向伤害",
+      "record": 617,
+      "description": "攻击正前方敌人时伤害增加。"
+    },
+    {
+      "id": 188,
+      "name": "减少斜向伤害 40%",
+      "baseName": "减少斜向伤害",
+      "record": 618,
+      "description": "受到不是[正东][正西][正南][正北]四个方向的攻击时，伤害减少。"
+    },
+    {
+      "id": 189,
+      "name": "远距离增伤 10%",
+      "baseName": "远距离增伤",
+      "record": 619,
+      "description": "距离敌人越远，伤害越高。"
+    },
+    {
+      "id": 190,
+      "name": "落井下石 15%",
+      "baseName": "落井下石",
+      "record": 620,
+      "description": "敌人每有一项能力debuff，[物理]和[策略]伤害提升特效值（可叠加）。"
+    },
+    {
+      "id": 191,
+      "name": "止戈为武",
+      "baseName": "止戈为武",
+      "record": 621,
+      "description": "特技持有者正四格内友军受到攻击时，若：\n\n①持有者不在混乱状态。\n\n②持有者也在攻击方攻击范围内。\n\n则代替友军成为攻击目标并可发动反击。"
+    },
+    {
+      "id": 192,
+      "name": "MP转伤攻击 25%",
+      "baseName": "MP转伤攻击",
+      "record": 622,
+      "description": "攻击时消耗MP增伤，每1点MP提供1%增伤，一次攻击最多消耗25，并且回复此次伤害25%的MP。"
+    },
+    {
+      "id": 193,
+      "name": "化力为疗 15%",
+      "baseName": "化力为疗",
+      "record": 623,
+      "description": "自身受到的伤害小于一定比例时，将此次伤害转化为生命回复。"
+    },
+    {
+      "id": 194,
+      "name": "夺锐攻击",
+      "baseName": "夺锐攻击",
+      "record": 624,
+      "description": "攻击敌人后，夺取敌人身上的全部增益效果。"
+    },
+    {
+      "id": 195,
+      "name": "四向夺锋",
+      "baseName": "四向夺锋",
+      "record": 625,
+      "description": "周围四格的敌人，攻击范围强制变为四向。"
+    },
+    {
+      "id": 196,
+      "name": "侧翼突袭 35%",
+      "baseName": "侧翼突袭",
+      "record": 626,
+      "description": "在敌人贴身四个斜向方格攻击时，伤害增加35%且无法被反击。"
+    },
+    {
+      "id": 197,
+      "name": "辅助移动力 +2",
+      "baseName": "辅助移动力",
+      "record": 627,
+      "description": "移动力上升，这不会也要说明吧。"
+    },
+    {
+      "id": 198,
+      "name": "强化成长 攻",
+      "baseName": "强化成长",
+      "record": 628,
+      "description": "对应能力的成长值额外+1。"
+    },
+    {
+      "id": 199,
+      "name": "强化成长 防",
+      "baseName": "强化成长",
+      "record": 629,
+      "description": "对应能力的成长值额外+1。"
+    },
+    {
+      "id": 200,
+      "name": "强化成长 精",
+      "baseName": "强化成长",
+      "record": 630,
+      "description": "对应能力的成长值额外+1。"
+    },
+    {
+      "id": 201,
+      "name": "强化成长 爆",
+      "baseName": "强化成长",
+      "record": 631,
+      "description": "对应能力的成长值额外+1。"
+    },
+    {
+      "id": 202,
+      "name": "强化成长 士",
+      "baseName": "强化成长",
+      "record": 632,
+      "description": "对应能力的成长值额外+1。"
+    },
+    {
+      "id": 203,
+      "name": "强化成长 攻防",
+      "baseName": "强化成长",
+      "record": 633,
+      "description": "对应能力的成长值额外+1。"
+    },
+    {
+      "id": 204,
+      "name": "强化成长 防精",
+      "baseName": "强化成长",
+      "record": 634,
+      "description": "对应能力的成长值额外+1。"
+    },
+    {
+      "id": 205,
+      "name": "强化成长 爆士",
+      "baseName": "强化成长",
+      "record": 635,
+      "description": "对应能力的成长值额外+1。"
+    },
+    {
+      "id": 206,
+      "name": "强化成长 全能力",
+      "baseName": "强化成长",
+      "record": 636,
+      "description": "对应能力的成长值额外+1。"
+    },
+    {
+      "id": 207,
+      "name": "无视策略减伤",
+      "baseName": "无视策略减伤",
+      "record": 637,
+      "description": "无视特技[减轻策略损伤]"
+    },
+    {
+      "id": 208,
+      "name": "攻击保底伤害 40",
+      "baseName": "攻击保底伤害",
+      "record": 638,
+      "description": "攻击造成的伤害最低不会低于特效值"
+    },
+    {
+      "id": 209,
+      "name": "致命成双",
+      "baseName": "致命成双",
+      "record": 639,
+      "description": "攻击时如果发动致命一击则必定连击"
+    },
+    {
+      "id": 210,
+      "name": "辅助连击率 25%",
+      "baseName": "辅助连击率",
+      "record": 640,
+      "description": "增加特效值的连击率"
+    },
+    {
+      "id": 211,
+      "name": "免疫异常状态",
+      "baseName": "免疫异常状态",
+      "record": 641,
+      "description": ""
+    },
+    {
+      "id": 212,
+      "name": "策略保底伤害 50",
+      "baseName": "策略保底伤害",
+      "record": 642,
+      "description": "策略造成的伤害最低不会低于特效值，如果本就高于特效值，则增伤20%。"
+    },
+    {
+      "id": 213,
+      "name": "策略限伤 60",
+      "baseName": "策略限伤",
+      "record": 643,
+      "description": "受到的策略伤害最高不会高于特效值，如果本就不高于特效值，则减伤20%。"
+    },
+    {
+      "id": 214,
+      "name": "辅助山战 110%",
+      "baseName": "辅助山战",
+      "record": 644,
+      "description": "在山地、荒地、树林地形的适应力恒为特效值，且移动力消耗为1。"
+    },
+    {
+      "id": 215,
+      "name": "辅助水战 110%",
+      "baseName": "辅助水战",
+      "record": 645,
+      "description": "在大河、浅滩、沼泽、小河地形的适应力恒为特效值，且移动力消耗为1。"
+    },
+    {
+      "id": 216,
+      "name": "鹰视狼顾 2",
+      "baseName": "鹰视狼顾",
+      "record": 646,
+      "description": "每回合前两次受到的攻击伤害降为1。"
+    },
+    {
+      "id": 217,
+      "name": "勇冠三军",
+      "baseName": "勇冠三军",
+      "record": 647,
+      "description": "兵种随机范围限定为[可装备枪类武器]的兵种（机关、魔王除外）。"
+    },
+    {
+      "id": 218,
+      "name": "再顾倾国",
+      "baseName": "再顾倾国",
+      "record": 648,
+      "description": "50级时习得策略[回归]。"
+    },
+    {
+      "id": 219,
+      "name": "白虎锐鸣",
+      "baseName": "白虎锐鸣",
+      "record": 649,
+      "description": "50级时习得策略[白虎]。"
+    },
+    {
+      "id": 220,
+      "name": "天人之勇",
+      "baseName": "天人之勇",
+      "record": 650,
+      "description": "兵种随机范围限定为[可装备刀类武器]的兵种（机关、魔王除外）。"
+    },
+    {
+      "id": 221,
+      "name": "万里龙城",
+      "baseName": "万里龙城",
+      "record": 651,
+      "description": "特技持有者身下地形始终为[关隘]。"
+    },
+    {
+      "id": 222,
+      "name": "步步为营",
+      "baseName": "步步为营",
+      "record": 652,
+      "description": "特技持有者身下地形始终为[兵营]。"
+    },
+    {
+      "id": 223,
+      "name": "锦帆踏江",
+      "baseName": "锦帆踏江",
+      "record": 653,
+      "description": "特技持有者身下地形始终为[大河]。"
+    },
+    {
+      "id": 224,
+      "name": "山川易势",
+      "baseName": "山川易势",
+      "record": 654,
+      "description": "特技持有者身下地形始终为[山地]。"
+    },
+    {
+      "id": 225,
+      "name": "HP辅助能力 全能力",
+      "baseName": "HP辅助能力",
+      "record": 655,
+      "description": "HP最大值的8%加成到对应属性上，不显示在面板。"
+    },
+    {
+      "id": 226,
+      "name": "HP辅助能力 攻士",
+      "baseName": "HP辅助能力",
+      "record": 656,
+      "description": "HP最大值的8%加成到对应属性上，不显示在面板。"
+    },
+    {
+      "id": 227,
+      "name": "HP辅助能力 攻防",
+      "baseName": "HP辅助能力",
+      "record": 657,
+      "description": "HP最大值的8%加成到对应属性上，不显示在面板。"
+    },
+    {
+      "id": 228,
+      "name": "HP辅助能力 攻爆",
+      "baseName": "HP辅助能力",
+      "record": 658,
+      "description": "HP最大值的8%加成到对应属性上，不显示在面板。"
+    },
+    {
+      "id": 229,
+      "name": "HP辅助能力 防精",
+      "baseName": "HP辅助能力",
+      "record": 659,
+      "description": "HP最大值的8%加成到对应属性上，不显示在面板。"
+    },
+    {
+      "id": 230,
+      "name": "MP辅助能力 全能力",
+      "baseName": "MP辅助能力",
+      "record": 660,
+      "description": "当前MP值的30%加成到对应属性上，不显示在面板。"
+    },
+    {
+      "id": 231,
+      "name": "MP辅助能力 攻防",
+      "baseName": "MP辅助能力",
+      "record": 661,
+      "description": "当前MP值的30%加成到对应属性上，不显示在面板。"
+    },
+    {
+      "id": 232,
+      "name": "MP辅助能力 精士",
+      "baseName": "MP辅助能力",
+      "record": 662,
+      "description": "当前MP值的30%加成到对应属性上，不显示在面板。"
+    },
+    {
+      "id": 233,
+      "name": "MP辅助能力 攻爆",
+      "baseName": "MP辅助能力",
+      "record": 663,
+      "description": "当前MP值的30%加成到对应属性上，不显示在面板。"
+    },
+    {
+      "id": 234,
+      "name": "MP辅助能力 防精",
+      "baseName": "MP辅助能力",
+      "record": 664,
+      "description": "当前MP值的30%加成到对应属性上，不显示在面板。"
+    },
+    {
+      "id": 235,
+      "name": "翩若惊鸿",
+      "baseName": "翩若惊鸿",
+      "record": 665,
+      "description": "甄宓通过[策略]指令释放[诱惑]时，自身获得士气debuff，同时随机对目标附加各种状态。"
+    },
+    {
+      "id": 236,
+      "name": "娇纵三江",
+      "baseName": "娇纵三江",
+      "record": 666,
+      "description": "①能装备所有种类武器，且每种类武器拥有不同攻击范围。\n\n②每回合一次，孙尚香击杀敌人后，可再次行动，并随机获得一项属性buff。"
+    },
+    {
+      "id": 237,
+      "name": "超世之杰",
+      "baseName": "超世之杰",
+      "record": 667,
+      "description": "当能力（攻击力、防御力等）变为下降状态时，自动恢复为正常状态。"
+    },
+    {
+      "id": 238,
+      "name": "战必先登",
+      "baseName": "战必先登",
+      "record": 668,
+      "description": "习得策略：骁果"
+    },
+    {
+      "id": 239,
+      "name": "古之恶来",
+      "baseName": "古之恶来",
+      "record": 669,
+      "description": "①受到麻痹状态时立刻解除。\n\n②反击时也可通过连击率来判断是否进行连击。"
+    }
+  ]
+}

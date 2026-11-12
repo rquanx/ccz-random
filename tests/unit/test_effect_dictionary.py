@@ -24,11 +24,34 @@ class EffectDictionaryTests(unittest.TestCase):
     def test_help_is_independent_and_covers_current_effect_codes(self):
         self.assertEqual(86, len(self.dictionary.search(category="宝物特效")))
         self.assertEqual(226, len(self.dictionary.search(category="特技说明")))
-        self.assertEqual(312, len({item.key for item in self.dictionary.entries}))
+        self.assertEqual(289, len({item.key for item in self.dictionary.entries}))
         guide = self.dictionary.search("引导攻击", "特技说明")
         self.assertEqual(1, len(guide))
         self.assertIn("击杀一个敌人后", guide[0].description)
         self.assertIn("连续攻击范围内的另一个敌人", guide[0].description)
+
+    def test_equivalent_names_share_one_result_and_preserve_alias_search(self):
+        for query in ("削铁如泥", "削铁如泥ALL"):
+            entry, = self.dictionary.search(query)
+            self.assertEqual("削铁如泥", entry.name)
+            self.assertIn("10%～15%", entry.description)
+            self.assertEqual(("equipment:72", "skill:111"), entry.source_keys)
+        for query in ("反击成双", "策略免疫", "纵横无阻", "吸血攻击"):
+            with self.subTest(query=query):
+                entry, = [item for item in self.dictionary.search(query) if item.name == query]
+                self.assertEqual(2, len(entry.source_keys))
+        entry, = self.dictionary.search("节约MP -30%")
+        self.assertEqual("equipment:57", entry.key)
+
+    def test_same_name_different_mechanisms_remain_distinct(self):
+        for query in ("破甲攻击", "MP防御", "主动连击", "引导攻击", "迅捷之勇"):
+            results = [item for item in self.dictionary.search(query) if item.name.startswith(query)]
+            self.assertEqual(2, len(results), query)
+            self.assertTrue(any("（宝物）" in item.name for item in results))
+            self.assertTrue(any("（特技）" in item.name for item in results))
+        equipment, skill = self.dictionary.search("破甲攻击")
+        self.assertIn("最大HP", equipment.description)
+        self.assertIn("固定值", skill.description)
 
     def test_parameterized_names_and_keywords_find_the_effect(self):
         for query, key in (("一夫当关12%", "equipment:105"), ("节约MP-30%", "equipment:57"),
@@ -97,7 +120,7 @@ class EffectDictionaryTests(unittest.TestCase):
         _read_resource.cache_clear()
         self.addCleanup(_read_resource.cache_clear)
         with patch("sys._MEIPASS", str(root), create=True):
-            self.assertEqual(312, len(load_effect_dictionary().entries))
+            self.assertEqual(289, len(load_effect_dictionary().entries))
 
 
 class EffectDictionaryUiTests(unittest.TestCase):
@@ -112,7 +135,7 @@ class EffectDictionaryUiTests(unittest.TestCase):
         table = next(w for w in descendants(dialog) if isinstance(w, ttk.Treeview))
         text = next(w for w in descendants(dialog) if isinstance(w, tk.Text))
         search = next(w for w in descendants(dialog) if isinstance(w, ttk.Entry) and not isinstance(w, ttk.Combobox))
-        self.assertEqual(312, len(table.get_children()))
+        self.assertEqual(289, len(table.get_children()))
         search.insert(0, "穿越偷袭")
         self.root.after(150, self.root.quit)
         self.root.mainloop()
@@ -138,7 +161,7 @@ class EffectDictionaryUiTests(unittest.TestCase):
         self.assertFalse(any(isinstance(w, ttk.Combobox) for w in descendants(dialog)))
         table = next(w for w in descendants(dialog) if isinstance(w, ttk.Treeview))
         keys = table.get_children()
-        self.assertEqual(312, len(keys))
+        self.assertEqual(289, len(keys))
         self.assertIn("equipment:93", keys)
         self.assertIn("skill:54", keys)
         dialog.destroy()

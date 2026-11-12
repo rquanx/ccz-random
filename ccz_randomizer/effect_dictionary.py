@@ -20,6 +20,8 @@ class EffectEntry:
     description: str
     aliases: tuple[str, ...] = ()
     pattern: str = ""
+    source_keys: tuple[str, ...] = ()
+    categories: tuple[str, ...] = ()
 
 
 class EffectDictionary:
@@ -35,7 +37,7 @@ class EffectDictionary:
         query = query.strip().casefold()
         terms = query.split()
         return tuple(entry for entry, text, pattern in self._index
-                     if (category == "全部" or category == entry.category)
+                     if (category == "全部" or category == entry.category or category in entry.categories)
                      and (all(term in text for term in terms)
                           or bool(query and pattern and pattern.fullmatch(query))))
 
@@ -96,4 +98,5 @@ def load_effect_dictionary(context=None):
         entries.append(EffectEntry(f"equipment:{code}", name, "宝物特效", explanation["description"],
                                    aliases, pattern))
     entries.sort(key=lambda item: item.category != "宝物特效")
-    return EffectDictionary(entries, version=context.game_version)
+    from ccz_randomizer.effect_dictionary_merge import merge_equivalent_effects
+    return EffectDictionary(merge_equivalent_effects(entries), version=context.game_version)

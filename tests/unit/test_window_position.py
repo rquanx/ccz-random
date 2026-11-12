@@ -177,6 +177,7 @@ class WindowPositionTests(unittest.TestCase):
         from ccz_randomizer.rules.config import default_rule_config
         from ccz_randomizer.rules.editor import show_rule_editor, show_advanced_help
         from ccz_randomizer.ui.equipment import show_equipment_window
+        from ccz_randomizer.ui.effect_dictionary import show_effect_dictionary
         from ccz_randomizer.ui.history import show_history_window
         from ccz_randomizer.ui.recruitment import show_recruit_window
         from ccz_randomizer.ui.result_details import show_score_detail
@@ -197,8 +198,9 @@ class WindowPositionTests(unittest.TestCase):
                 lambda: show_advanced_help(self.root, 0),
                 lambda: show_rule_editor(self.root, base, default_rule_config(), JOB_MAP, TEAM_MEMBERS, (), lambda _: None),
                 lambda: show_changelog_window(self.root),
+                lambda: show_effect_dictionary(self.root),
             ]
-            actions = {key: lambda parent: None for key in ("guide", "diagnostics", "sound", "logs", "update", "cleanup")}
+            actions = {key: lambda parent: None for key in ("guide", "effects", "diagnostics", "sound", "logs", "update", "cleanup")}
             factories[4] = lambda: show_support_menu(self.root, actions, "3")
             for index, factory in enumerate(factories):
                 with self.subTest(dialog=index):

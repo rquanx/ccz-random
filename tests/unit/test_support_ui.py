@@ -29,12 +29,12 @@ class SupportUiTests(unittest.TestCase):
         self.addCleanup(root.destroy)
         root.withdraw()
         calls = []
-        keys = ("guide", "diagnostics", "sound", "logs", "update", "cleanup")
+        keys = ("guide", "effects", "diagnostics", "sound", "logs", "update", "cleanup")
         actions = {key: lambda parent, key=key: calls.append((key, parent)) for key in keys}
         dialog = show_support_menu(root, actions, "3")
         root.update()
         buttons = [widget for widget in descendants(dialog) if isinstance(widget, tk.Button)]
-        self.assertEqual(["不会用？", "随机用不了？", "游戏没声音", "上传最新日志", "手动更新数据（3）", "空间清理", "关闭"],
+        self.assertEqual(["不会用？", "特效字典", "随机用不了？", "游戏没声音", "上传最新日志", "手动更新数据（3）", "空间清理", "关闭"],
             [button.cget("text") for button in buttons])
         headings = [widget.cget("text") for widget in descendants(dialog) if isinstance(widget, tk.Label)]
         self.assertEqual(["使用帮助", "故障排查", "数据与维护"], headings)

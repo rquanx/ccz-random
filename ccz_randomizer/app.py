@@ -7252,12 +7252,14 @@ def gui_main() -> int:
     def open_repair_dialog() -> None:
         from ccz_randomizer.ui.usage_guide import show_usage_guide
         from ccz_randomizer.ui.support_menu import show_support_menu
+        from ccz_randomizer.ui.effect_dictionary import show_effect_dictionary
         try:
             package_version = profile_version_label(application_directory())
         except Exception:
             package_version = "未知"
         show_support_menu(root, {
             "guide": show_usage_guide,
+            "effects": show_effect_dictionary,
             "diagnostics": open_unusable_diagnostics,
             "sound": repair_game_sound,
             "logs": upload_latest_logs,

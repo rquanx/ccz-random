@@ -23,6 +23,31 @@ class SupportUiTests(unittest.TestCase):
         environment.start()
         self.addCleanup(environment.stop)
 
+    def test_dictionary_is_available_from_main_window_before_any_random_run(self):
+        def exercise(root):
+            button = next(w for w in descendants(root)
+                          if isinstance(w, tk.Button) and w.cget("text") == "特效字典")
+            self.assertEqual("normal", button.cget("state"))
+            button.invoke()
+            dialog = next(w for w in root.winfo_children()
+                          if isinstance(w, tk.Toplevel) and w.title() == "特效字典")
+            from tkinter import ttk
+            table = next(w for w in descendants(dialog) if isinstance(w, ttk.Treeview))
+            self.assertEqual(86, len(table.get_children()))
+            detail = next(w for w in descendants(dialog) if isinstance(w, tk.Text))
+            self.assertIn("恢复最大HP", detail.get("1.0", "end"))
+            dialog.destroy()
+            root.destroy()
+
+        with tempfile.TemporaryDirectory() as folder, \
+             patch.object(tk.Tk, "mainloop", exercise), \
+             patch.object(app, "app_dir", return_value=Path(folder)), \
+             patch("ccz_randomizer.profile_session.startup_profile_check"), \
+             patch.object(app.threading.Thread, "start"), \
+             patch.object(app, "HiddenGameSession") as randomize:
+            app.gui_main()
+            randomize.assert_not_called()
+
     def test_grouped_menu_routes_each_action_to_the_same_dialog(self):
         from ccz_randomizer.ui.support_menu import show_support_menu
         root = tk.Tk()

@@ -7128,6 +7128,11 @@ def gui_main() -> int:
         rule_settings_bar, text="历史记录", command=lambda: open_history()
     )
     recruit_button.pack(side="left", padx=(8, 0))
+    from ccz_randomizer.ui.effect_dictionary import show_effect_dictionary
+    effects_button = tk.Button(
+        rule_settings_bar, text="特效字典", command=lambda: show_effect_dictionary(root)
+    )
+    effects_button.pack(side="left", padx=(8, 0))
     repair_button = tk.Button(
         rule_settings_bar,
         text="常见问题",

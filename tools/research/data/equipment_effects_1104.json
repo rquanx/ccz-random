@@ -1019,5 +1019,126 @@
         "bytes": "d6eeb8f0bded000000000000000000000079ff49025200ff01"
       }
     ]
+  },
+  "116": {
+    "name": "特效模仿",
+    "description": "模仿周围四格单位的装备、个人和兵种特效，不分敌我；部分特效无法模仿。",
+    "skillHelp": [
+      88
+    ],
+    "nativeName": {
+      "tableAddress": "0x5003F8",
+      "index": 30,
+      "stringAddress": "0x4CE104",
+      "bytes": "ccd8d0a7c4a3b7c2"
+    }
+  },
+  "27": {
+    "name": "每回合恢复MP",
+    "description": "每回合恢复MP，恢复数值由特效参数指定。",
+    "basis": "literal-effect-label",
+    "nativeName": {
+      "stringAddress": "0x0048BFF5",
+      "suffixKind": 5
+    }
+  },
+  "30": {
+    "name": "每回合获得装备EXP",
+    "description": "每回合获得装备经验，经验数值由特效参数指定。",
+    "basis": "literal-effect-label",
+    "nativeName": {
+      "stringAddress": "0x0048C01E",
+      "suffixKind": 5
+    }
+  },
+  "38": {
+    "name": "MP上限",
+    "description": "提高MP上限，增加数值由特效参数指定。",
+    "basis": "literal-effect-label",
+    "nativeName": {
+      "stringAddress": "0x0048C075",
+      "suffixKind": 1
+    }
+  },
+  "39": {
+    "name": "辅助获得Exp",
+    "description": "提高获得经验的比例，比例由特效参数指定。",
+    "basis": "literal-effect-label",
+    "nativeName": {
+      "stringAddress": "0x0048C07C",
+      "suffixKind": 2
+    }
+  },
+  "40": {
+    "name": "辅助移动力",
+    "description": "提高移动力，增加数值由特效参数指定。",
+    "basis": "literal-effect-label",
+    "nativeName": {
+      "stringAddress": "0x0048C088",
+      "suffixKind": 1
+    }
+  },
+  "47": {
+    "name": "保底策伤",
+    "description": "设置策略伤害的保底数值，数值由特效参数指定。",
+    "basis": "literal-effect-label",
+    "nativeName": {
+      "stringAddress": "0x0048C0C9",
+      "suffixKind": 5
+    }
+  },
+  "52": {
+    "name": "无反攻击",
+    "description": "攻击时使目标无法反击。",
+    "basis": "literal-effect-label",
+    "nativeName": {
+      "stringAddress": "0x0048C102",
+      "suffixKind": 0
+    }
+  },
+  "58": {
+    "name": "可以禁咒",
+    "description": "可以对目标施加禁咒状态。",
+    "basis": "literal-effect-label",
+    "nativeName": {
+      "stringAddress": "0x0048C140",
+      "suffixKind": 0
+    }
+  },
+  "69": {
+    "name": "减轻远距损伤",
+    "description": "减轻受到的远距攻击伤害，减伤比例由特效参数指定。",
+    "basis": "literal-effect-label",
+    "nativeName": {
+      "stringAddress": "0x0048C1BF",
+      "suffixKind": 3
+    }
+  },
+  "85": {
+    "name": "保底物伤",
+    "description": "设置物理伤害的保底数值，数值由特效参数指定。",
+    "basis": "literal-effect-label",
+    "nativeName": {
+      "stringAddress": "0x0048C253",
+      "suffixKind": 5
+    }
+  },
+  "103": {
+    "name": "获得功勋",
+    "description": "增加每次获得的功勋，增加数值由特效参数指定。",
+    "basis": "literal-effect-label",
+    "nativeName": {
+      "stringAddress": "0x004CE08F",
+      "suffixKind": 1
+    }
+  },
+  "111": {
+    "name": "众矢之的",
+    "description": "众矢之的效果；后缀区分攻击、策略或ALL，空后缀表示未指定类别。",
+    "basis": "literal-effect-label",
+    "nativeName": {
+      "stringAddress": "0x004CE0D7",
+      "suffixKind": 6
+    }
   }
 }

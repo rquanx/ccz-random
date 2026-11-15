@@ -32,6 +32,7 @@ def packaging_module(name):
 
 class PublicationTests(unittest.TestCase):
     def test_simultaneous_same_and_different_revision_installations(self):
+        revision = load_profile().manifest["catalogVersion"] + 1
         with tempfile.TemporaryDirectory() as temp:
             directory = Path(temp)
             old, new = lifecycle_packages(directory)
@@ -53,7 +54,7 @@ install_profile_package(Path(sys.argv[1]), Path(sys.argv[2]))
                     _, errors = child.communicate(timeout=20)
                     self.assertEqual(0, child.returncode, errors.decode(errors="replace"))
                 active = load_profile(app_directory=appdir)
-                self.assertIn(active.manifest["catalogVersion"], (6, 7))
+                self.assertIn(active.manifest["catalogVersion"], (revision, revision + 1))
                 root = profile_storage_root(appdir)
                 installed = [path for path in root.iterdir() if path.is_dir() and not path.name.startswith(".")]
                 self.assertEqual(2, len(installed))
@@ -67,6 +68,7 @@ install_profile_package(Path(sys.argv[1]), Path(sys.argv[2]))
                         child.wait()
 
     def test_process_dying_before_activation_keeps_previous_and_releases_lock(self):
+        revision = load_profile().manifest["catalogVersion"] + 2
         with tempfile.TemporaryDirectory() as temp:
             directory = Path(temp)
             old, new = lifecycle_packages(directory)
@@ -97,7 +99,7 @@ install_profile_package(Path(sys.argv[1]), Path(sys.argv[2]))
                 child.wait(timeout=5)
             self.assertEqual(previous.root, load_profile(app_directory=appdir).root)
             current = install_profile_package(new, appdir)
-            self.assertEqual(7, current.manifest["catalogVersion"])
+            self.assertEqual(revision, current.manifest["catalogVersion"])
             self.assertEqual(current.root, load_profile(app_directory=appdir).root)
 
     def test_snapshot_is_deeply_immutable_and_retained_after_publication(self):

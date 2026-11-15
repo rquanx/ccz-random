@@ -134,7 +134,8 @@ from pathlib import Path
 from ccz_randomizer import profiles
 directory = Path(sys.argv[1])
 profiles._default_app_directory = lambda: directory
-profiles.install_profile_package(Path(sys.argv[2]), directory)
+old = profiles.install_profile_package(Path(sys.argv[2]), directory)
+old_revision = old.manifest['catalogVersion']
 os.environ['CCZ_GAME_VERSION'] = profiles.load_profile().game_version
 from ccz_randomizer.rule_members import rule_member_indices
 from ccz_randomizer.recruitment_catalog import load_catalog
@@ -156,11 +157,11 @@ parent = Parent()
 session = ProfileUpdateSession(parent, directory, is_idle=lambda: not busy[0], display=states.append, notify=notices.append)
 session.downloaded(new)
 assert states[-1].state == 'pending'
-assert states[-1].current == 6 and states[-1].target == 7
+assert states[-1].current == old_revision and states[-1].target == old_revision + 1
 assert len(rule_member_indices()) == 143
 # A worker is pinned to the old immutable directory even though active.json changed.
 old_root = session.current.root.name
-worker_code = 'from ccz_randomizer.profiles import load_profile; assert load_profile().manifest["catalogVersion"] == 6'
+worker_code = 'from ccz_randomizer.profiles import load_profile; assert load_profile().manifest["catalogVersion"] == ' + str(old_revision)
 worker_env = dict(os.environ, CCZ_PROFILE_DIRECTORY=old_root)
 worker_code = 'from pathlib import Path; from ccz_randomizer import profiles; profiles._default_app_directory=lambda:Path(' + repr(str(directory)) + '); ' + worker_code
 import subprocess
@@ -170,9 +171,9 @@ busy[0] = False
 parent.callbacks.pop()()
 assert len(rule_member_indices()) == 144
 assert rule_member_indices()['关羽'] == 3
-assert states[-1].state == 'latest' and states[-1].current == 7
-assert profiles.load_profile().manifest['catalogVersion'] == 7
-assert profile_version_label(directory) == '7'
+assert states[-1].state == 'latest' and states[-1].current == old_revision + 1
+assert profiles.load_profile().manifest['catalogVersion'] == old_revision + 1
+assert profile_version_label(directory) == str(old_revision + 1)
 assert len(load_catalog()) == 126
 assert app.skill_score_catalog()
 assert not notices

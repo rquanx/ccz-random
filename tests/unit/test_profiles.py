@@ -28,6 +28,7 @@ class ProfileTests(unittest.TestCase):
         from ccz_randomizer.rule_members import rule_member_indices
 
         from tests.profile_fixtures import lifecycle_packages
+        revision = load_profile().manifest["catalogVersion"] + 1
         with tempfile.TemporaryDirectory() as temp:
             directory = Path(temp)
             old_archive, new_archive = lifecycle_packages(directory)
@@ -36,13 +37,13 @@ class ProfileTests(unittest.TestCase):
             with patch.object(profiles, "_default_app_directory", return_value=appdir), \
                  patch.object(profiles, "_PINNED_PROFILE_DIRECTORY", None):
                 running = load_profile()
-                self.assertEqual(6, running.manifest["catalogVersion"])
+                self.assertEqual(revision, running.manifest["catalogVersion"])
                 self.assertEqual(143, len(rule_member_indices(running.game_version)))
-                self.assertEqual("6", profile_version_label(appdir))
+                self.assertEqual(str(revision), profile_version_label(appdir))
                 install_profile_package(new_archive, appdir)
                 self.assertEqual(143, len(rule_member_indices(running.game_version)))
                 self.assertNotIn("关羽", rule_member_indices(running.game_version))
-                self.assertEqual("当前 6；已下载 7，空闲时生效", profile_version_label(appdir))
+                self.assertEqual(f"当前 {revision}；已下载 {revision + 1}，空闲时生效", profile_version_label(appdir))
 
             code = '''
 import sys
@@ -54,7 +55,7 @@ from ccz_randomizer.profile_updates import profile_version_label
 current = profiles.load_profile()
 assert len(rule_member_indices(current.game_version)) == 144
 assert rule_member_indices(current.game_version)["关羽"] == 3
-assert profile_version_label(Path(sys.argv[1])) == "7"
+assert profile_version_label(Path(sys.argv[1])) == str(current.manifest["catalogVersion"])
 '''
             child = subprocess.run([sys.executable, "-c", code, str(appdir)], capture_output=True, text=True)
             self.assertEqual(0, child.returncode, child.stderr)

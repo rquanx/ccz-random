@@ -1,0 +1,603 @@
+{
+  "source": "2.20-1104-night native equipment name tables and suffix dispatch",
+  "executableSha256": "aece85339ff48c24e8d783d2d65766e8c9f7be00bd7389d38a8cad8f7cbd95a5",
+  "nameFunction": "0x4230D5",
+  "suffixFunction": "0x462167",
+  "suffixTable": "0x462309",
+  "entries": [
+    {
+      "code": 26,
+      "name": "恢复HP状态",
+      "suffixKind": 4,
+      "nameAddress": "0x0048BFE8"
+    },
+    {
+      "code": 27,
+      "name": "每回合恢复MP",
+      "suffixKind": 5,
+      "nameAddress": "0x0048BFF5"
+    },
+    {
+      "code": 28,
+      "name": "HP辅助",
+      "suffixKind": 6,
+      "nameAddress": "0x0048C002"
+    },
+    {
+      "code": 29,
+      "name": "迅勇破移",
+      "suffixKind": 4,
+      "nameAddress": "0x0048C011"
+    },
+    {
+      "code": 30,
+      "name": "每回合获得装备EXP",
+      "suffixKind": 5,
+      "nameAddress": "0x0048C01E"
+    },
+    {
+      "code": 31,
+      "name": "破甲攻击",
+      "suffixKind": 4,
+      "nameAddress": "0x0048C030"
+    },
+    {
+      "code": 32,
+      "name": "提升攻击力",
+      "suffixKind": 2,
+      "nameAddress": "0x0048C039"
+    },
+    {
+      "code": 33,
+      "name": "提升防御力",
+      "suffixKind": 2,
+      "nameAddress": "0x0048C044"
+    },
+    {
+      "code": 34,
+      "name": "提升精神力",
+      "suffixKind": 2,
+      "nameAddress": "0x0048C04F"
+    },
+    {
+      "code": 35,
+      "name": "辅爆强连",
+      "suffixKind": 2,
+      "nameAddress": "0x0048C05A"
+    },
+    {
+      "code": 36,
+      "name": "辅士猛击",
+      "suffixKind": 2,
+      "nameAddress": "0x0048C065"
+    },
+    {
+      "code": 37,
+      "name": "HP上限",
+      "suffixKind": 2,
+      "nameAddress": "0x0048C06E"
+    },
+    {
+      "code": 38,
+      "name": "MP上限",
+      "suffixKind": 1,
+      "nameAddress": "0x0048C075"
+    },
+    {
+      "code": 39,
+      "name": "辅助获得Exp",
+      "suffixKind": 2,
+      "nameAddress": "0x0048C07C"
+    },
+    {
+      "code": 40,
+      "name": "辅助移动力",
+      "suffixKind": 1,
+      "nameAddress": "0x0048C088"
+    },
+    {
+      "code": 41,
+      "name": "突击先手",
+      "suffixKind": 0,
+      "nameAddress": "0x0048C093"
+    },
+    {
+      "code": 42,
+      "name": "如履平地",
+      "suffixKind": 0,
+      "nameAddress": "0x0048C09C"
+    },
+    {
+      "code": 43,
+      "name": "混乱攻击",
+      "suffixKind": 4,
+      "nameAddress": "0x0048C0A5"
+    },
+    {
+      "code": 44,
+      "name": "中毒破士",
+      "suffixKind": 0,
+      "nameAddress": "0x0048C0AE"
+    },
+    {
+      "code": 45,
+      "name": "麻痹破爆",
+      "suffixKind": 0,
+      "nameAddress": "0x0048C0B7"
+    },
+    {
+      "code": 46,
+      "name": "封策破精",
+      "suffixKind": 0,
+      "nameAddress": "0x0048C0C0"
+    },
+    {
+      "code": 47,
+      "name": "保底策伤",
+      "suffixKind": 5,
+      "nameAddress": "0x0048C0C9"
+    },
+    {
+      "code": 48,
+      "name": "昭威奋烈",
+      "suffixKind": 5,
+      "nameAddress": "0x0048C0D6"
+    },
+    {
+      "code": 49,
+      "name": "致命一击",
+      "suffixKind": 6,
+      "nameAddress": "0x0048C0E3"
+    },
+    {
+      "code": 50,
+      "name": "远距攻击",
+      "suffixKind": 5,
+      "nameAddress": "0x0048C0F0"
+    },
+    {
+      "code": 51,
+      "name": "穿透攻击",
+      "suffixKind": 6,
+      "nameAddress": "0x0048C0F9"
+    },
+    {
+      "code": 52,
+      "name": "无反攻击",
+      "suffixKind": 0,
+      "nameAddress": "0x0048C102"
+    },
+    {
+      "code": 53,
+      "name": "增伤强命",
+      "suffixKind": 2,
+      "nameAddress": "0x0048C10D"
+    },
+    {
+      "code": 54,
+      "name": "引导攻击",
+      "suffixKind": 0,
+      "nameAddress": "0x0048C116"
+    },
+    {
+      "code": 55,
+      "name": "策略随心",
+      "suffixKind": 0,
+      "nameAddress": "0x0048C11F"
+    },
+    {
+      "code": 56,
+      "name": "强化元素策略",
+      "suffixKind": 4,
+      "nameAddress": "0x0048C12C"
+    },
+    {
+      "code": 57,
+      "name": "节约MP",
+      "suffixKind": 3,
+      "nameAddress": "0x0048C139"
+    },
+    {
+      "code": 58,
+      "name": "可以禁咒",
+      "suffixKind": 0,
+      "nameAddress": "0x0048C140"
+    },
+    {
+      "code": 59,
+      "name": "策略模仿",
+      "suffixKind": 0,
+      "nameAddress": "0x0048C149"
+    },
+    {
+      "code": 60,
+      "name": "辅助妨碍策略",
+      "suffixKind": 2,
+      "nameAddress": "0x0048C152"
+    },
+    {
+      "code": 61,
+      "name": "辅助攻击格挡",
+      "suffixKind": 4,
+      "nameAddress": "0x0048C15F"
+    },
+    {
+      "code": 62,
+      "name": "辅助策略格挡",
+      "suffixKind": 4,
+      "nameAddress": "0x0048C16C"
+    },
+    {
+      "code": 63,
+      "name": "辅助全格挡",
+      "suffixKind": 4,
+      "nameAddress": "0x0048C179"
+    },
+    {
+      "code": 64,
+      "name": "防御远距攻击",
+      "suffixKind": 0,
+      "nameAddress": "0x0048C184"
+    },
+    {
+      "code": 65,
+      "name": "防御特殊攻击",
+      "suffixKind": 0,
+      "nameAddress": "0x0048C191"
+    },
+    {
+      "code": 66,
+      "name": "主动连击",
+      "suffixKind": 0,
+      "nameAddress": "0x0048C19E"
+    },
+    {
+      "code": 67,
+      "name": "减轻策略损伤",
+      "suffixKind": 3,
+      "nameAddress": "0x0048C1A7"
+    },
+    {
+      "code": 68,
+      "name": "MP防御",
+      "suffixKind": 1,
+      "nameAddress": "0x0048C1B4"
+    },
+    {
+      "code": 69,
+      "name": "减轻远距损伤",
+      "suffixKind": 3,
+      "nameAddress": "0x0048C1BF"
+    },
+    {
+      "code": 70,
+      "name": "自动使用",
+      "suffixKind": 6,
+      "nameAddress": "0x0048C1CC"
+    },
+    {
+      "code": 71,
+      "name": "束缚破攻",
+      "suffixKind": 0,
+      "nameAddress": "0x0048C1D5"
+    },
+    {
+      "code": 72,
+      "name": "削铁如泥",
+      "suffixKind": 6,
+      "nameAddress": "0x0048C1DE"
+    },
+    {
+      "code": 73,
+      "name": "异常攻击",
+      "suffixKind": 0,
+      "nameAddress": "0x0048C1E7"
+    },
+    {
+      "code": 74,
+      "name": "步兵克制",
+      "suffixKind": 4,
+      "nameAddress": "0x0048C1F0"
+    },
+    {
+      "code": 75,
+      "name": "盾反破防",
+      "suffixKind": 4,
+      "nameAddress": "0x0048C1F9"
+    },
+    {
+      "code": 76,
+      "name": "状态强化",
+      "suffixKind": 5,
+      "nameAddress": "0x0048C202"
+    },
+    {
+      "code": 77,
+      "name": "疾风迅雷",
+      "suffixKind": 5,
+      "nameAddress": "0x0048C20B"
+    },
+    {
+      "code": 78,
+      "name": "绝对克制",
+      "suffixKind": 4,
+      "nameAddress": "0x0048C214"
+    },
+    {
+      "code": 79,
+      "name": "策略免疫",
+      "suffixKind": 0,
+      "nameAddress": "0x0048C21D"
+    },
+    {
+      "code": 80,
+      "name": "百战不殆",
+      "suffixKind": 0,
+      "nameAddress": "0x0048C226"
+    },
+    {
+      "code": 81,
+      "name": "提升周围",
+      "suffixKind": 6,
+      "nameAddress": "0x0048C22F"
+    },
+    {
+      "code": 82,
+      "name": "治愈光环",
+      "suffixKind": 4,
+      "nameAddress": "0x0048C238"
+    },
+    {
+      "code": 83,
+      "name": "策略穿透",
+      "suffixKind": 0,
+      "nameAddress": "0x0048C241"
+    },
+    {
+      "code": 84,
+      "name": "能力附伤",
+      "suffixKind": 4,
+      "nameAddress": "0x0048C24A"
+    },
+    {
+      "code": 85,
+      "name": "保底物伤",
+      "suffixKind": 5,
+      "nameAddress": "0x0048C253"
+    },
+    {
+      "code": 86,
+      "name": "奇正相生",
+      "suffixKind": 4,
+      "nameAddress": "0x0048C25C"
+    },
+    {
+      "code": 87,
+      "name": "骑马克制",
+      "suffixKind": 4,
+      "nameAddress": "0x0048C265"
+    },
+    {
+      "code": 88,
+      "name": "援护攻击",
+      "suffixKind": 5,
+      "nameAddress": "0x004CE000"
+    },
+    {
+      "code": 89,
+      "name": "反弹伤害异常",
+      "suffixKind": 4,
+      "nameAddress": "0x004CE009"
+    },
+    {
+      "code": 90,
+      "name": "二次行动",
+      "suffixKind": 0,
+      "nameAddress": "0x004CE016"
+    },
+    {
+      "code": 91,
+      "name": "纵横无阻",
+      "suffixKind": 0,
+      "nameAddress": "0x004CE01F"
+    },
+    {
+      "code": 92,
+      "name": "神魔附体",
+      "suffixKind": 5,
+      "nameAddress": "0x004CE028"
+    },
+    {
+      "code": 93,
+      "name": "穿越偷袭",
+      "suffixKind": 0,
+      "nameAddress": "0x004CE031"
+    },
+    {
+      "code": 94,
+      "name": "破坏状态攻击",
+      "suffixKind": 0,
+      "nameAddress": "0x004CE03A"
+    },
+    {
+      "code": 95,
+      "name": "冲锋再动",
+      "suffixKind": 4,
+      "nameAddress": "0x004CE047"
+    },
+    {
+      "code": 96,
+      "name": "物理减伤",
+      "suffixKind": 4,
+      "nameAddress": "0x004CE050"
+    },
+    {
+      "code": 97,
+      "name": "唯我独尊",
+      "suffixKind": 0,
+      "nameAddress": "0x004CE059"
+    },
+    {
+      "code": 98,
+      "name": "策略连击",
+      "suffixKind": 0,
+      "nameAddress": "0x004CE062"
+    },
+    {
+      "code": 99,
+      "name": "同仇敌忾",
+      "suffixKind": 5,
+      "nameAddress": "0x004CE06B"
+    },
+    {
+      "code": 100,
+      "name": "众志成城",
+      "suffixKind": 4,
+      "nameAddress": "0x004CE074"
+    },
+    {
+      "code": 101,
+      "name": "吸血攻击",
+      "suffixKind": 4,
+      "nameAddress": "0x004CE07D"
+    },
+    {
+      "code": 102,
+      "name": "自动提升",
+      "suffixKind": 6,
+      "nameAddress": "0x004CE086"
+    },
+    {
+      "code": 103,
+      "name": "获得功勋",
+      "suffixKind": 1,
+      "nameAddress": "0x004CE08F"
+    },
+    {
+      "code": 104,
+      "name": "回马强反",
+      "suffixKind": 4,
+      "nameAddress": "0x004CE098"
+    },
+    {
+      "code": 105,
+      "name": "一夫当关",
+      "suffixKind": 4,
+      "nameAddress": "0x004CE0A1"
+    },
+    {
+      "code": 106,
+      "name": "反击成双",
+      "suffixKind": 0,
+      "nameAddress": "0x004CE0AA"
+    },
+    {
+      "code": 107,
+      "name": "怀恨必中",
+      "suffixKind": 4,
+      "nameAddress": "0x004CE0B3"
+    },
+    {
+      "code": 108,
+      "name": "学会策略",
+      "suffixKind": 6,
+      "nameAddress": "0x004CE0BC"
+    },
+    {
+      "code": 109,
+      "name": "鬼神之勇",
+      "suffixKind": 4,
+      "nameAddress": "0x004CE0C5"
+    },
+    {
+      "code": 110,
+      "name": "MP辅助",
+      "suffixKind": 6,
+      "nameAddress": "0x004CE0CE"
+    },
+    {
+      "code": 111,
+      "name": "众矢之的",
+      "suffixKind": 6,
+      "nameAddress": "0x004CE0D7"
+    },
+    {
+      "code": 112,
+      "name": "弱点攻击",
+      "suffixKind": 6,
+      "nameAddress": "0x004CE0E0"
+    },
+    {
+      "code": 113,
+      "name": "万夫莫敌",
+      "suffixKind": 4,
+      "nameAddress": "0x004CE0E9"
+    },
+    {
+      "code": 114,
+      "name": "限制伤害",
+      "suffixKind": 5,
+      "nameAddress": "0x004CE0F2"
+    },
+    {
+      "code": 115,
+      "name": "转移伤害",
+      "suffixKind": 4,
+      "nameAddress": "0x004CE0FB"
+    },
+    {
+      "code": 116,
+      "name": "特效模仿",
+      "suffixKind": 0,
+      "nameAddress": "0x004CE104"
+    },
+    {
+      "code": 117,
+      "name": "特效屏蔽",
+      "suffixKind": 0,
+      "nameAddress": "0x004CE10D"
+    },
+    {
+      "code": 118,
+      "name": "拓展范围",
+      "suffixKind": 0,
+      "nameAddress": "0x004CE116"
+    },
+    {
+      "code": 119,
+      "name": "攻击追加",
+      "suffixKind": 6,
+      "nameAddress": "0x004CE11F"
+    },
+    {
+      "code": 120,
+      "name": "策略先手",
+      "suffixKind": 6,
+      "nameAddress": "0x004CE128"
+    },
+    {
+      "code": 121,
+      "name": "策略反击",
+      "suffixKind": 6,
+      "nameAddress": "0x004CE131"
+    },
+    {
+      "code": 122,
+      "name": "忽视能力",
+      "suffixKind": 6,
+      "nameAddress": "0x004CE13A"
+    },
+    {
+      "code": 123,
+      "name": "能力辅助",
+      "suffixKind": 6,
+      "nameAddress": "0x004CE143"
+    },
+    {
+      "code": 124,
+      "name": "能力替换",
+      "suffixKind": 6,
+      "nameAddress": "0x004CE14C"
+    }
+  ]
+}

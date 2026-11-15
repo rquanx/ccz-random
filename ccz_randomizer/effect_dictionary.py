@@ -90,8 +90,7 @@ def load_effect_dictionary(context=None):
         if rule["op"] == "skill":
             pattern = re.escape(name) + r"(?:[\s-].+)?"
         if rule["op"] == "lookup":
-            name = "穿透攻击"
-            aliases = tuple(rule["values"].values())
+            aliases = tuple(dict.fromkeys(rule["values"].values()))
         explanation = data.get("equipment", {}).get(code)
         if not explanation or explanation["name"] != name or not explanation["description"].strip():
             return EffectDictionary(version=context.game_version, notice=unavailable)

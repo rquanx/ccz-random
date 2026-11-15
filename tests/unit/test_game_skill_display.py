@@ -16,6 +16,8 @@ class GameSkillDisplayTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.game = json.loads(FIXTURE.read_text(encoding="utf-8"))
+        # Initialize lazy UI dependencies before the strict per-test PATH snapshot.
+        app.skill_score_catalog()
 
     def test_all_255_native_definitions_match_live_formatter(self):
         for row in self.game["catalog"]:
@@ -82,3 +84,47 @@ class GameSkillDisplayTests(unittest.TestCase):
                         separator = ""
                     expected = prefixes[key] + (separator + suffix if suffix else "")
                     self.assertEqual(expected, app.decode_equipment_effect(int(key, 16), parameter))
+
+    def test_equipment_mimic_ignores_parameter_as_native_literal_name(self):
+        # User screenshot: 风车轮 0x74/0x03. Native equipment name pointer:
+        # [0x5003F8 + (0x74 - 0x1A - 0x3C) * 4] = 0x4CE104.
+        expected = bytes.fromhex("ccd8d0a7c4a3b7c2").decode("gbk")
+        for parameter in range(256):
+            with self.subTest(parameter=parameter):
+                self.assertEqual(expected, app.decode_equipment_effect(0x74, parameter))
+
+    def test_captured_equipment_codes_all_have_display_rules(self):
+        from ccz_randomizer.display_rules import render_equipment
+        from ccz_randomizer.profile_context import current_context
+
+        skills = current_context().skills
+        path = FIXTURE.parents[2] / "resources/data/equipment/equip_ground_truth.json"
+        for observation in json.loads(path.read_text(encoding="utf-8")):
+            record = observation["bytes"]
+            parameter = record[2] if observation["index"] <= 46 else record[4]
+            with self.subTest(slot=observation["slot"], item=observation["name"]):
+                self.assertIsNotNone(render_equipment(
+                    skills["displayRules"], skills["nameFormatting"], record[0], parameter))
+
+    def test_native_equipment_table_is_fully_covered(self):
+        native = json.loads((FIXTURE.parent / "equipment_native_1104.json").read_text("utf-8"))
+        self.assertEqual(list(range(0x1A, 0x7D)), [row["code"] for row in native["entries"]])
+        for row in native["entries"]:
+            for parameter in range(256):
+                with self.subTest(code=row["code"], parameter=parameter):
+                    self.assertNotIn("未知特效", app.decode_equipment_effect(row["code"], parameter))
+
+    def test_newly_covered_names_follow_native_suffix_dispatch(self):
+        native = json.loads((FIXTURE.parent / "equipment_native_1104.json").read_text("utf-8"))
+        added = {0x1B, 0x1E, 0x26, 0x27, 0x28, 0x2F, 0x34, 0x3A, 0x45, 0x55, 0x67, 0x6F}
+        # Native dispatch 0x462167: literal, +n, +n%, -n%, n, category.
+        for row in native["entries"]:
+            if row["code"] not in added:
+                continue
+            for parameter in range(256):
+                suffix = {0: "", 1: f"+{parameter}", 2: f"+{parameter}%",
+                          3: f"-{parameter}%", 5: str(parameter),
+                          6: ("", "-攻击", "-策略", "ALL")[parameter & 3]}[row["suffixKind"]]
+                with self.subTest(code=row["code"], parameter=parameter):
+                    self.assertEqual(row["name"] + suffix,
+                                     app.decode_equipment_effect(row["code"], parameter))

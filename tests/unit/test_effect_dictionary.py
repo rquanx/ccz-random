@@ -22,9 +22,9 @@ class EffectDictionaryTests(unittest.TestCase):
         self.dictionary = load_effect_dictionary()
 
     def test_help_is_independent_and_covers_current_effect_codes(self):
-        self.assertEqual(86, len(self.dictionary.search(category="宝物特效")))
+        self.assertEqual(99, len(self.dictionary.search(category="宝物特效")))
         self.assertEqual(226, len(self.dictionary.search(category="特技说明")))
-        self.assertEqual(289, len({item.key for item in self.dictionary.entries}))
+        self.assertEqual(302, len({item.key for item in self.dictionary.entries}))
         guide = self.dictionary.search("引导攻击", "特技说明")
         self.assertEqual(1, len(guide))
         self.assertIn("击杀一个敌人后", guide[0].description)
@@ -94,6 +94,21 @@ class EffectDictionaryTests(unittest.TestCase):
             for redundant in ("尚未核实", "说明待核实", "仅供理解", "说明来源", "不能直接套用", "同名特技"):
                 self.assertNotIn(redundant, item.description)
 
+    def test_equipment_mimic_is_searchable_with_its_verified_help(self):
+        entry, = self.dictionary.search("特效模仿", "宝物特效")
+        self.assertEqual("equipment:116", entry.key)
+        self.assertIn("周围四格", entry.description)
+        self.assertIn("不分敌我", entry.description)
+        self.assertIn("部分特效无法模仿", entry.description)
+
+    def test_category_lookup_keeps_its_own_name_and_all_aliases(self):
+        for query in ("众矢之的", "众矢之的-攻击", "众矢之的-策略", "众矢之的ALL"):
+            entry, = self.dictionary.search(query, "宝物特效")
+            self.assertEqual("equipment:111", entry.key)
+            self.assertTrue(entry.name.startswith("众矢之的"))
+        entry, = self.dictionary.search("穿透攻击-两格", "宝物特效")
+        self.assertEqual("equipment:51", entry.key)
+
     def test_empty_placeholder_and_joke_help_is_not_presented_as_mechanics(self):
         entries = {item.key: item for item in self.dictionary.entries}
         for skill_id in (3, 36, 73, 78, 103, 211):
@@ -120,7 +135,7 @@ class EffectDictionaryTests(unittest.TestCase):
         _read_resource.cache_clear()
         self.addCleanup(_read_resource.cache_clear)
         with patch("sys._MEIPASS", str(root), create=True):
-            self.assertEqual(289, len(load_effect_dictionary().entries))
+            self.assertEqual(302, len(load_effect_dictionary().entries))
 
 
 class EffectDictionaryUiTests(unittest.TestCase):
@@ -135,7 +150,7 @@ class EffectDictionaryUiTests(unittest.TestCase):
         table = next(w for w in descendants(dialog) if isinstance(w, ttk.Treeview))
         text = next(w for w in descendants(dialog) if isinstance(w, tk.Text))
         search = next(w for w in descendants(dialog) if isinstance(w, ttk.Entry) and not isinstance(w, ttk.Combobox))
-        self.assertEqual(289, len(table.get_children()))
+        self.assertEqual(302, len(table.get_children()))
         search.insert(0, "穿越偷袭")
         self.root.after(150, self.root.quit)
         self.root.mainloop()
@@ -161,7 +176,7 @@ class EffectDictionaryUiTests(unittest.TestCase):
         self.assertFalse(any(isinstance(w, ttk.Combobox) for w in descendants(dialog)))
         table = next(w for w in descendants(dialog) if isinstance(w, ttk.Treeview))
         keys = table.get_children()
-        self.assertEqual(289, len(keys))
+        self.assertEqual(302, len(keys))
         self.assertIn("equipment:93", keys)
         self.assertIn("skill:54", keys)
         dialog.destroy()

@@ -1,6 +1,7 @@
 """Optional per-module keyword memory, independent of result rendering."""
 from ccz_randomizer.search_history import SearchHistory, SearchSession, normalize_keyword
 from ccz_randomizer.ui.recent_searches import RecentSearchesBar
+from ccz_randomizer.ui.window_events import bind_window_event
 
 
 class SearchMemory:
@@ -13,6 +14,7 @@ class SearchMemory:
         self.suppressed = None
         self.bar = RecentSearchesBar(parent, self.reuse, self.remove, self.clear)
         self._render()
+        self.remove_cleanup_listener = bind_window_event(entry._root(), "<<StorageCleaned>>", self._storage_cleaned)
         self.trace = query.trace_add("write", self._changed)
         entry.bind("<Return>", self.remember, add="+")
         entry.bind("<KP_Enter>", self.remember, add="+")
@@ -46,6 +48,12 @@ class SearchMemory:
         self.history.clear()
         self._render()
 
+    def _storage_cleaned(self, _event):
+        if "searches" in getattr(self.entry._root(), "_ccz_cleaned_categories", ()):
+            self._suppress_current()
+            self.history.items = self.history._read() or []
+            self._render()
+
     def _changed(self, *_args):
         self._cancel()
         self.suppressed = None
@@ -71,5 +79,6 @@ class SearchMemory:
 
     def _destroy(self, event):
         if event.widget is self.entry:
+            self.remove_cleanup_listener()
             self.remember(render=False)
             self.query.trace_remove("write", self.trace)

@@ -17,8 +17,12 @@ CATEGORIES = {
     "sandboxes": "残留沙箱",
     "results": "随机结果",
     "history": "历史记录（含存档副本）",
+    "statistics": "随机统计数据",
+    "searches": "最近搜索记录",
 }
 _SESSION = re.compile(r"^(\d+)-\d+$")
+_DATABASE = re.compile(r"^(history(?:-v\d+)?|statistics)\.sqlite3(?:-wal|-shm)?$")
+_SEARCHES = {"recruitment_searches.json", "equipment_searches.json"}
 
 
 @dataclass
@@ -70,16 +74,18 @@ def _candidates(base: Path):
         for path in _files(results):
             yield "results", path, True
 
-    # The history database is kept separately from the game files.  Include
-    # SQLite sidecar files too (WAL/SHM) so a clear operation cannot leave a
-    # partially retained database behind.
+    # Only explicitly owned names are eligible; never sweep the data directory.
     history_root = base / "ccz_fast_data"
     if history_root.is_dir() and not _linked(history_root):
         for path in history_root.iterdir():
             if path.name == "sandboxes" or path.is_dir() or _linked(path):
                 continue
             if path.is_file():
-                yield "history", path, True
+                match = _DATABASE.fullmatch(path.name)
+                if match:
+                    yield ("statistics" if match[1] == "statistics" else "history"), path, True
+                elif path.name in _SEARCHES:
+                    yield "searches", path, True
 
 
 def scan_storage(base: Path) -> dict[str, StorageUsage]:
@@ -102,9 +108,23 @@ def clean_storage(base: Path, categories: set[str]) -> tuple[int, int]:
     if not categories <= CATEGORIES.keys():
         raise ValueError("未知清理分类")
     removed = failed = 0
+    databases = set()
     # Recheck eligibility at cleanup time instead of trusting a stale UI scan.
     for category, path, eligible in _candidates(base):
         if category not in categories or not eligible:
+            continue
+        if category in {"history", "statistics"}:
+            # SQLite sidecars belong to the database, never delete them separately.
+            database = path.with_name(re.sub(r"-(wal|shm)$", "", path.name))
+            if database in databases:
+                continue
+            databases.add(database)
+            try:
+                from ccz_randomizer.runtime.storage_databases import clear_database
+                clear_database(database, category)
+                removed += 1
+            except (OSError, ValueError):
+                failed += 1
             continue
         try:
             path.unlink()

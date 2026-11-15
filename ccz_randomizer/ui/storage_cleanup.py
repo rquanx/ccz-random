@@ -5,10 +5,18 @@ import threading
 import tkinter as tk
 from pathlib import Path
 from tkinter import ttk
+from ccz_randomizer.ui import messages as messagebox
 
 from ccz_randomizer.runtime.storage_cleanup import CATEGORIES, clean_storage, scan_storage
 from ccz_randomizer.ui.window_position import centered_toplevel, show_centered
 from ccz_randomizer.ui.theme import setup_theme, style_dialog
+
+DATA_DESCRIPTIONS = {
+    "results": "随机结果：结果图片和归档存档文件",
+    "history": "历史记录（含存档副本）：全部轮次、备注、标记和独立存档副本",
+    "statistics": "随机统计数据：全部随机观测及人物、兵种、特技和宝物统计",
+    "searches": "最近搜索记录：入队人员和宝物的最近搜索关键词",
+}
 
 
 def format_size(size: int) -> str:
@@ -20,6 +28,7 @@ def format_size(size: int) -> str:
 
 
 def show_storage_cleanup(parent, base: Path, *, is_running=lambda: False) -> None:
+    previous_grab = parent.grab_current()
     dialog = centered_toplevel(parent)
     setup_theme(dialog)
     style_dialog(dialog)
@@ -32,8 +41,8 @@ def show_storage_cleanup(parent, base: Path, *, is_running=lambda: False) -> Non
     actions.pack(fill="x", side="bottom")
     body = ttk.Frame(dialog, padding=20)
     body.pack(fill="both", expand=True)
-    ttk.Label(body, text="清理工具产生的临时内容", font=("Microsoft YaHei UI", 13, "bold")).pack(anchor="w")
-    ttk.Label(body, text="保留结果图片、存档和历史记录。最近 24 小时的日志与截图、\n运行中的沙箱及无法确认归属的目录不会清理。",
+    ttk.Label(body, text="按数据类型管理占用空间", font=("Microsoft YaHei UI", 13, "bold")).pack(anchor="w")
+    ttk.Label(body, text="结果、历史、统计和最近搜索可分别清理；全部清理也包含这些数据。\n最近 24 小时的日志与截图、运行中的沙箱及未知文件不会清理。\n游戏原始存档、规则、设置和数据包不受影响。",
               foreground="#667085").pack(anchor="w", pady=(8, 16))
     grid = ttk.Frame(body)
     grid.pack(fill="x")
@@ -54,6 +63,18 @@ def show_storage_cleanup(parent, base: Path, *, is_running=lambda: False) -> Non
         if categories and is_running():
             status.set("请先停止随机任务，再清理空间。")
             return
+        if categories:
+            affected = [description for key, description in DATA_DESCRIPTIONS.items() if key in categories]
+            if affected and not messagebox.askyesno(
+                "确认清理数据", "将永久清理以下数据：\n" + "\n".join(affected)
+                + "\n\n各分类独立清理，游戏原始存档、规则和设置不受影响。"
+                + "\n需要保留的文件请先导出备份。此操作无法撤销，确认继续吗？",
+                parent=dialog, default="no", icon="warning",
+            ):
+                return
+            if is_running():
+                status.set("请先停止随机任务，再清理空间。")
+                return
         busy = True
         for button in buttons:
             button.configure(state="disabled")
@@ -62,9 +83,9 @@ def show_storage_cleanup(parent, base: Path, *, is_running=lambda: False) -> Non
         def work():
             try:
                 result = clean_storage(base, categories) if categories else None
-                messages.put((scan_storage(base), result, None))
+                messages.put((scan_storage(base), result, None, categories))
             except Exception as exc:
-                messages.put((None, None, str(exc)))
+                messages.put((None, None, str(exc), categories))
         threading.Thread(target=work, daemon=True).start()
 
     for row, (key, label) in enumerate(CATEGORIES.items(), 1):
@@ -76,7 +97,7 @@ def show_storage_cleanup(parent, base: Path, *, is_running=lambda: False) -> Non
         button = ttk.Button(grid, text="清理", command=lambda key=key: begin({key}))
         button.grid(row=row, column=3, padx=8)
         buttons.append(button)
-    ttk.Label(body, text="沙箱共享的游戏资源不重复计入占用。", foreground="#667085").pack(anchor="w", pady=(8, 4))
+    ttk.Label(body, text="沙箱共享资源不重复计入占用；数据库清空后保留结构，占用不会归零。", foreground="#667085").pack(anchor="w", pady=(8, 4))
     ttk.Label(body, textvariable=status, wraplength=570).pack(anchor="w", pady=4)
     refresh = ttk.Button(actions, text="刷新", command=begin)
     refresh.pack(side="left")
@@ -88,7 +109,7 @@ def show_storage_cleanup(parent, base: Path, *, is_running=lambda: False) -> Non
     def poll():
         nonlocal timer, busy, usage
         try:
-            scanned, result, error = messages.get_nowait()
+            scanned, result, error, categories = messages.get_nowait()
         except queue.Empty:
             pass
         else:
@@ -100,7 +121,11 @@ def show_storage_cleanup(parent, base: Path, *, is_running=lambda: False) -> Non
                 for key, (total, available) in values.items():
                     total.set(format_size(usage[key].total))
                     available.set(format_size(usage[key].cleanable))
-                status.set(f"已清理 {result[0]} 个文件，{result[1]} 个文件未能清理。" if result else "统计完成，可按分类清理。")
+                status.set(f"已清理 {result[0]} 项，{result[1]} 项未能清理。" if result else "统计完成，可按分类清理。")
+                if result:
+                    owner = dialog._root()
+                    owner._ccz_cleaned_categories = categories
+                    owner.event_generate("<<StorageCleaned>>")
             for button in buttons:
                 button.configure(state="normal")
         timer = dialog.after(100, poll)
@@ -109,11 +134,19 @@ def show_storage_cleanup(parent, base: Path, *, is_running=lambda: False) -> Non
         if event.widget is dialog and timer:
             dialog.after_cancel(timer)
     dialog.bind("<Destroy>", destroyed, add="+")
+    def close():
+        if busy:
+            return
+        dialog.destroy()
+        if previous_grab is not None and previous_grab.winfo_exists():
+            previous_grab.grab_set()
+    dialog.protocol("WM_DELETE_WINDOW", close)
     dialog.update_idletasks()
     width = max(620, dialog.winfo_reqwidth())
     height = max(370, dialog.winfo_reqheight())
     dialog.minsize(width, height)
     dialog.geometry(f"{width}x{height}")
     show_centered(dialog)
+    dialog.grab_set()
     begin()
     poll()

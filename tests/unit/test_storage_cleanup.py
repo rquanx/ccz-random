@@ -1,4 +1,7 @@
+from tkinter import ttk
+from contextlib import closing
 import os
+import sqlite3
 from pathlib import Path
 import tempfile
 import time
@@ -11,7 +14,6 @@ from ccz_randomizer.runtime.storage_cleanup import CATEGORIES, clean_storage, sc
 class StorageCleanupTests(unittest.TestCase):
     def test_footer_buttons_are_fully_visible_at_large_display_scaling(self):
         import tkinter as tk
-        from tkinter import ttk
         from ccz_randomizer.ui.storage_cleanup import show_storage_cleanup
         root = tk.Tk()
         self.addCleanup(root.destroy)
@@ -36,9 +38,9 @@ class StorageCleanupTests(unittest.TestCase):
         finally:
             root.tk.call("tk", "scaling", original_scaling)
 
-    def test_window_shows_sizes_and_all_cleanup_refreshes_them(self):
+    @patch("ccz_randomizer.ui.storage_cleanup.messagebox.askyesno", return_value=True)
+    def test_window_shows_sizes_and_all_cleanup_refreshes_them(self, _prompt):
         import tkinter as tk
-        from tkinter import ttk
         from ccz_randomizer.ui.storage_cleanup import show_storage_cleanup
         root = tk.Tk()
         self.addCleanup(root.destroy)
@@ -139,16 +141,17 @@ class StorageCleanupTests(unittest.TestCase):
             result.write_bytes(b"result" * 100)
             history = base / "ccz_fast_data/history.sqlite3"
             history.parent.mkdir(parents=True)
-            history.write_bytes(b"history" * 200)
-            sidecar = base / "ccz_fast_data/history.sqlite3-wal"
-            sidecar.write_bytes(b"wal" * 50)
+            from ccz_randomizer.history import HistoryRepository
+            repository = HistoryRepository(base)
+            repository.start_run("cleanup", mode="three", loop_random=False,
+                                 rule_name="test", rule={}, build={})
 
             usage = scan_storage(base)
             self.assertEqual(usage["results"].total, result.stat().st_size)
             self.assertEqual(usage["results"].cleanable, result.stat().st_size)
             self.assertEqual(
                 usage["history"].total,
-                history.stat().st_size + sidecar.stat().st_size,
+                sum(p.stat().st_size for p in history.parent.glob("history.sqlite3*")),
             )
             self.assertEqual(
                 clean_storage(base, {"results"}),
@@ -156,6 +159,7 @@ class StorageCleanupTests(unittest.TestCase):
             )
             self.assertFalse(result.exists())
             self.assertTrue(history.exists())
-            self.assertEqual(clean_storage(base, {"history"}), (2, 0))
-            self.assertFalse(history.exists())
-            self.assertFalse(sidecar.exists())
+            self.assertEqual(clean_storage(base, {"history"}), (1, 0))
+            self.assertTrue(history.exists())
+            with closing(sqlite3.connect(history)) as db, db:
+                self.assertEqual(db.execute("SELECT COUNT(*) FROM runs").fetchone()[0], 0)

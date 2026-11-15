@@ -1,3 +1,4 @@
+from tkinter import ttk
 import copy
 import json
 import tempfile
@@ -73,7 +74,10 @@ class LegacyRuleImportTests(unittest.TestCase):
         exported = build_rule_export(loaded, names)
         merged, added = merge_rule_export(loaded, exported)
         self.assertEqual("旧版自定义(1)", added[0])
-        self.assertEqual(loaded["profiles"][names[0]], merged["profiles"][added[0]])
+        original = dict(loaded["profiles"][names[0]])
+        imported = dict(merged["profiles"][added[0]])
+        self.assertNotEqual(original.pop("statisticsId"), imported.pop("statisticsId"))
+        self.assertEqual(original, imported)
 
     def test_v1_skill_threshold_is_migrated_instead_of_reset_to_default(self):
         payload = dict(version=1, activeProfile="旧规则", profiles={"旧规则": {
@@ -103,7 +107,7 @@ class LegacyRuleImportTests(unittest.TestCase):
                 show_rule_editor(root, Path(destination), default_rule_config(), JOB_MAP,
                                  TEAM_MEMBERS, SKILL_CATALOG, saved.append)
                 root.update()
-                next(w for w in descendants(root) if isinstance(w, tk.Button) and w.cget("text") == "导入规则").invoke()
+                next(w for w in descendants(root) if isinstance(w, ttk.Button) and w.cget("text") == "导入规则").invoke()
                 root.update()
                 ask.assert_not_called()
                 error.assert_not_called()

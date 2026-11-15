@@ -1,6 +1,8 @@
+from tkinter import ttk
 import copy
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 from ccz_randomizer.rules.config import (
@@ -12,9 +14,9 @@ from ccz_randomizer.ui.result_details import format_result_detail
 
 
 class SimpleDifficultyTests(unittest.TestCase):
+    @patch("ccz_randomizer.rules.editor.ask_rule_change", new=lambda *args, **kwargs: "confirm")
     def test_editor_applies_level_and_marks_manual_threshold_custom(self):
         import tkinter as tk
-        from tkinter import ttk
         from unittest.mock import patch
         from ccz_randomizer.rules.editor import show_rule_editor
         from tests.unit.test_rule_editor import descendants, JOB_MAP, TEAM_MEMBERS, SKILL_CATALOG
@@ -42,7 +44,7 @@ class SimpleDifficultyTests(unittest.TestCase):
             gate_combos[0].set('平均分达标')
             root.update()
             self.assertEqual('自定义', preset.get())
-            next(w for w in descendants(editor) if isinstance(w, tk.Button) and w.cget('text') == '保存规则').invoke()
+            next(w for w in descendants(editor) if isinstance(w, ttk.Button) and w.cget('text') == '保存规则').invoke()
             root.update()
         profile = active_profile(saved[0])
         self.assertEqual('average', profile['threePerson']['jobQualificationMode'])

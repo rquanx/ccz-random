@@ -1,4 +1,5 @@
 from __future__ import annotations
+from ccz_randomizer.ui.dialog_actions import add_dialog_actions
 
 from ccz_randomizer.ui.inputs import SearchEntry, TextEntry
 from ccz_randomizer.ui.window_position import centered_toplevel, show_centered
@@ -9,13 +10,17 @@ from ccz_randomizer.ui.member_pages import MemberPages
 from ccz_randomizer.ui.searchable_combo import SelectionCombobox
 from ccz_randomizer.ui.text_prompt import ask_text
 from ccz_randomizer.ui.theme import COLORS, FONT, setup_theme, style_dialog
+from ccz_randomizer.ui.rule_change_prompt import ask_rule_change
+from ccz_randomizer.statistics_rules import has_rule_statistics
+from ccz_randomizer.rules.identity import changed_profiles, mark_overwritten, new_rule_identity, rule_identity, save_changes_as_new
 
 import copy
 import json
 import tkinter as tk
 from datetime import datetime
 from pathlib import Path
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, ttk
+from ccz_randomizer.ui import messages as messagebox
 from typing import Callable
 from ccz_randomizer.runtime.skill_memory import normalize_skill_name
 from ccz_randomizer.rules.skill_defaults import EXCLUSIVE_SKILLS_22
@@ -681,7 +686,7 @@ def show_advanced_help(parent, selected_index: int) -> None:
 
     footer = tk.Frame(dialog, padx=14)
     footer.pack(fill="x", pady=(0, 12))
-    tk.Button(
+    ttk.Button(
         footer,
         text="关闭",
         command=dialog.destroy,
@@ -762,9 +767,8 @@ def show_member_affinity_editor(
                   for name, (primary, secondary) in variables.items()})
         dialog.destroy()
 
-    tk.Button(actions, text="取消" if editable else "关闭", command=dialog.destroy).pack(side="right")
-    if editable:
-        tk.Button(actions, text="确定", command=apply_changes).pack(side="right", padx=(0, 8))
+    add_dialog_actions(actions, confirm=apply_changes if editable else None,
+                       cancel=dialog.destroy, cancel_text="取消" if editable else "关闭")
     show_centered(dialog)
     dialog.lift()
     dialog.grab_set()
@@ -827,10 +831,12 @@ def show_rule_editor(
     skill_catalog: tuple,
     on_saved: Callable[[dict], None],
     save_notice: Callable[[dict], str | None] | None = None,
+    *, _original_config=None,
 ) -> None:
     RULE_MEMBER_NAMES = tuple(rule_member_indices())
     setup_theme(parent)
     working = copy.deepcopy(validate_rule_config(config))
+    original_config = copy.deepcopy(_original_config if _original_config is not None else working)
     # Retain saved choices from another edition; runtime validation explains
     # unavailable people rather than silently rewriting a saved profile.
     RULE_MEMBER_NAMES = tuple(dict.fromkeys((*RULE_MEMBER_NAMES, *(
@@ -981,7 +987,7 @@ def show_rule_editor(
     }
     qualification_controls: dict[
         str,
-        tuple[ttk.Combobox, ttk.Combobox, tk.Label, tk.Button],
+        tuple[ttk.Combobox, ttk.Combobox, tk.Label, ttk.Button],
     ] = {}
 
     def available_member_names() -> tuple[str, ...]:
@@ -1063,7 +1069,7 @@ def show_rule_editor(
             anchor="w",
         )
         count_label.grid(row=row, column=5, sticky="w", padx=(5, 0), pady=5)
-        member_button = tk.Button(
+        member_button = ttk.Button(
             threshold_tab,
             text=f"选择人物（{len(member_names)}/{len(member_names)}）",
         )
@@ -1158,20 +1164,20 @@ def show_rule_editor(
                 refresh_member_button()
                 dialog.destroy()
 
-            tk.Button(
+            ttk.Button(
                 button_frame,
                 text="全选",
                 command=select_all,
             ).pack(side="left")
-            tk.Button(button_frame, text="清空选择", command=clear_selection).pack(side="left", padx=(8, 0))
-            tk.Button(
+            ttk.Button(button_frame, text="清空选择", command=clear_selection).pack(side="left", padx=(8, 0))
+            ttk.Button(
                 button_frame,
                 text="取消",
                 command=dialog.destroy,
             ).pack(side="right", padx=(8, 0))
-            tk.Button(
+            ttk.Button(
                 button_frame,
-                text="确定",
+                text="确认",
                 command=confirm,
             ).pack(side="right")
 
@@ -1298,7 +1304,7 @@ def show_rule_editor(
             apply_affinity_values,
         )
 
-    tk.Button(
+    ttk.Button(
         threshold_tab,
         text="设置人物倾向",
         command=open_affinity_editor,
@@ -1318,7 +1324,7 @@ def show_rule_editor(
         show_result_image_members(editor, result_image_settings,
                                   available_member_names(), apply_settings)
 
-    result_image_button = tk.Button(threshold_tab, command=open_result_image_members)
+    result_image_button = ttk.Button(threshold_tab, command=open_result_image_members)
     result_image_button.grid(row=0, column=4, columnspan=2, sticky="w", pady=5)
     editable_widgets.append(result_image_button)
 
@@ -1474,7 +1480,7 @@ def show_rule_editor(
                   for key, (primary, secondary) in affinity_vars.items()),
             tuple((key, variable.get()) for key, variable in collection_vars.items()),
             tuple(value.get() for value in (skill_mode_var, skill_count_var,
-                  special_auto, high_auto, skill_type_matching, affinity_enabled)),
+                  special_auto, high_auto, high_job_auto, skill_type_matching, affinity_enabled)),
         )
 
     def store_profile(name: str, *, force: bool = False) -> None:
@@ -1493,6 +1499,13 @@ def show_rule_editor(
         profile["editorMode"] = (
             "simple" if notebook.index(notebook.select()) == 0 else "advanced"
         )
+        current_form = form_values()
+        if not force and loaded_form is not None and (
+            current_form[2:5] + current_form[6:] == loaded_form[2:5] + loaded_form[6:]
+        ):
+            # Presentation and collection edits must not rewrite untouched gates
+            # or expand every default score into a new filtering snapshot.
+            return
         for key, variable in simple_vars.items():
             profile["simpleSettings"][key] = variable.get()
         profile["threePerson"]["minJobAverage"] = float(
@@ -1752,6 +1765,7 @@ def show_rule_editor(
         name = unique_name(f"{selected_name}副本")
         profile = copy.deepcopy(working["profiles"][selected_name])
         profile["builtin"] = False
+        new_rule_identity(profile)
         working["profiles"][name] = profile
         refresh_profiles(name)
 
@@ -1776,7 +1790,9 @@ def show_rule_editor(
                 "名称已存在", "请换一个规则名称。", parent=editor
             )
             return
+        store_profile(selected_name)
         profile = working["profiles"].pop(selected_name)
+        profile["statisticsAliases"] = list(dict.fromkeys((*profile.get("statisticsAliases", []), selected_name)))
         old_name = selected_name
         working["profiles"][name] = profile
         if working["activeProfile"] == old_name:
@@ -1807,6 +1823,11 @@ def show_rule_editor(
             default_rule_config()["profiles"][DEFAULT_PROFILE_NAME]
         )
         profile["builtin"] = False
+        profile["statisticsId"] = working["profiles"][name]["statisticsId"]
+        if "statisticsGeneration" in working["profiles"][name]:
+            profile["statisticsGeneration"] = working["profiles"][name]["statisticsGeneration"]
+        if "statisticsAliases" in working["profiles"][name]:
+            profile["statisticsAliases"] = working["profiles"][name]["statisticsAliases"]
         working["profiles"][name] = profile
         load_profile(name)
 
@@ -1840,12 +1861,7 @@ def show_rule_editor(
             choice["value"] = scope_var.get()
             dialog.destroy()
 
-        tk.Button(
-            actions, text="取消", command=dialog.destroy
-        ).pack(side="right", padx=(8, 0))
-        tk.Button(
-            actions, text="下一步", command=confirm
-        ).pack(side="right")
+        add_dialog_actions(actions, confirm=confirm, confirm_text="下一步", cancel=dialog.destroy)
         dialog.protocol("WM_DELETE_WINDOW", dialog.destroy)
         dialog.update_idletasks()
         width = dialog.winfo_reqwidth()
@@ -1907,7 +1923,7 @@ def show_rule_editor(
         )
 
     def import_rules() -> None:
-        nonlocal working, saved_snapshot
+        nonlocal working, saved_snapshot, original_config
         try:
             store_profile(selected_name)
         except Exception as exc:
@@ -1933,12 +1949,21 @@ def show_rule_editor(
                 choice = messagebox.askyesnocancel(
                     "选择旧版运行模式",
                     "规则文件未记录当时使用3人还是7人，同目录也没有可用的 randomizer_settings.json。\n\n"
-                    "请按旧版主界面使用的模式选择：\n是：3人\n否：7人\n取消：不导入",
+                    "请选择旧版主界面使用的模式；取消将不导入。",
                     parent=editor)
                 if choice is None:
                     return
                 legacy_mode = "three" if choice else "seven"
                 merged, imported_names = merge_rule_export(working, payload, legacy_mode=legacy_mode)
+            changes = changed_profiles(original_config, merged)
+            if changes:
+                action = ask_rule_change(editor, has_statistics=has_rule_statistics(base_dir, original_config, changes))
+                if action == "cancel":
+                    return
+                if action == "new":
+                    merged = save_changes_as_new(original_config, merged, changes)
+                else:
+                    mark_overwritten(merged, changes)
             save_rule_config(base_dir, merged)
         except Exception as exc:
             messagebox.showerror(
@@ -1948,6 +1973,7 @@ def show_rule_editor(
             )
             return
         working = merged
+        original_config = copy.deepcopy(validate_rule_config(working))
         saved_snapshot = json.dumps(
             validate_rule_config(working),
             ensure_ascii=False,
@@ -1982,18 +2008,43 @@ def show_rule_editor(
         return current_snapshot != saved_snapshot
 
     def request_close() -> None:
-        if has_unsaved_changes() and not messagebox.askyesno(
-            "放弃未保存的修改",
-            "当前规则有尚未保存的修改，确定关闭吗？",
-            parent=editor,
-        ):
+        try:
+            store_profile(selected_name)
+            changes = changed_profiles(original_config, validate_rule_config(working))
+        except Exception:
+            if not messagebox.askyesno("放弃未保存的修改", "当前输入无效，确认放弃修改并关闭吗？", parent=editor):
+                return
+            editor.destroy()
             return
+        if changes:
+            action = ask_rule_change(editor, closing=True,
+                                     has_statistics=has_rule_statistics(base_dir, original_config, changes))
+            if action == "cancel":
+                return
+            if action == "new":
+                save_all(as_new=True)
+                return
+        elif {rule_identity(name, profile) for name, profile in working["profiles"].items()} != {
+            rule_identity(name, profile) for name, profile in original_config["profiles"].items()
+        }:
+            if not messagebox.askyesno("放弃规则列表修改", "新增或删除的规则尚未保存，确认放弃并关闭吗？", parent=editor):
+                return
         editor.destroy()
 
-    def save_all() -> None:
+    def save_all(*, as_new=False) -> None:
         try:
-            store_profile(selected_name, force=True)
+            store_profile(selected_name)
             normalized = validate_rule_config(working)
+            changes = changed_profiles(original_config, normalized)
+            if changes and not as_new:
+                action = ask_rule_change(editor, has_statistics=has_rule_statistics(base_dir, original_config, changes))
+                if action == "cancel":
+                    return
+                as_new = action == "new"
+            if as_new:
+                normalized = save_changes_as_new(original_config, normalized, changes)
+            else:
+                mark_overwritten(normalized, changes)
             save_rule_config(base_dir, normalized)
         except Exception as exc:
             messagebox.showerror(
@@ -2014,17 +2065,17 @@ def show_rule_editor(
         else:
             show_toast(parent, "规则已保存")
 
-    new_button = tk.Button(action_frame, text="新建副本", command=new_profile)
-    rename_button = tk.Button(
+    new_button = ttk.Button(action_frame, text="新建副本", command=new_profile)
+    rename_button = ttk.Button(
         action_frame, text="重命名", command=rename_profile
     )
-    delete_button = tk.Button(
+    delete_button = ttk.Button(
         action_frame, text="删除", command=delete_profile
     )
-    reset_button = tk.Button(
+    reset_button = ttk.Button(
         action_frame, text="恢复默认参数", command=reset_profile
     )
-    help_button = tk.Button(
+    help_button = ttk.Button(
         action_frame,
         text="规则说明",
         command=lambda: show_advanced_help(
@@ -2036,12 +2087,12 @@ def show_rule_editor(
             ),
         ),
     )
-    export_button = tk.Button(
+    export_button = ttk.Button(
         action_frame,
         text="导出规则",
         command=export_rules,
     )
-    import_button = tk.Button(
+    import_button = ttk.Button(
         action_frame,
         text="导入规则",
         command=import_rules,
@@ -2061,12 +2112,7 @@ def show_rule_editor(
         text="内置默认规则只读。需要调整时，请先创建副本。",
         fg="#555555",
     ).pack(side="left")
-    tk.Button(
-        footer, text="取消", command=request_close
-    ).pack(side="right", padx=(8, 0))
-    tk.Button(
-        footer, text="保存规则", command=save_all
-    ).pack(side="right")
+    add_dialog_actions(footer, confirm=save_all, confirm_text="保存规则", cancel=request_close)
 
     profile_combo.bind("<<ComboboxSelected>>", switch_profile)
     editor.protocol("WM_DELETE_WINDOW", request_close)
@@ -2099,6 +2145,6 @@ def show_rule_editor(
         from ccz_randomizer import app
         editor.destroy()
         show_rule_editor(parent, base_dir, working, app.JOB_MAP, team_members,
-            app.skill_score_catalog(), on_saved, save_notice)
+            app.skill_score_catalog(), on_saved, save_notice, _original_config=original_config)
 
     editor.bind("<<ProfileUpdated>>", refresh_profile_snapshot)

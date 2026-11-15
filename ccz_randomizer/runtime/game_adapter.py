@@ -669,6 +669,7 @@ def patch_runtime(
         self._scored_members = None
         self._result_image_settings = active_profile(rules).get("resultImage", {"mode": "selected", "members": []})
         self._equip_info = None
+        self._statistics_equipment = None
         self._equip_specials = ()
         self._personnel_snapshot = None
         self._fixed_personnel_snapshot = None
@@ -975,6 +976,11 @@ def patch_runtime(
         print(f"游戏原生随机已触发: {before}->{current}")
         check_stop_requested()
         self._r0_initial_three = read_job_ids(pid, JOB_POSITIONS_R0)
+        from ccz_randomizer.statistics_equipment import capture_equipment_statistics
+        capture_equipment_statistics(
+            self, lambda: decode_equipment_records(read_equipment_records(pid))[0],
+            lambda error: diagnostic_log("statistics_equipment_capture_failed", error=repr(error)),
+        )
         if (current_game_version() in VALID_GAME_VERSIONS
                 and self._data_collection.get("jobTalents", False)):
             # Capture the complete job catalog immediately after the roll so

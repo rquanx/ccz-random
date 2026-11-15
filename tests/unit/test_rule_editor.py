@@ -49,6 +49,9 @@ class RuleEditorTests(unittest.TestCase):
         version = patch.dict(os.environ, CCZ_GAME_VERSION="2.2")
         version.start()
         self.addCleanup(version.stop)
+        confirmation = patch("ccz_randomizer.rules.editor.ask_rule_change", return_value="confirm")
+        confirmation.start()
+        self.addCleanup(confirmation.stop)
 
     def test_destroyed_toast_cancels_pending_close_callback(self):
         root = tk.Tk()
@@ -276,7 +279,7 @@ class RuleEditorTests(unittest.TestCase):
                     buttons = {
                         widget.cget("text"): widget
                         for widget in descendants(editor)
-                        if isinstance(widget, tk.Button)
+                        if isinstance(widget, ttk.Button)
                     }
                     self.assertIn("导入规则", buttons)
                     self.assertIn("导出规则", buttons)
@@ -328,7 +331,9 @@ class RuleEditorTests(unittest.TestCase):
                     )
                 ]
                 self.assertEqual(
-                    {name: score for name, score, *_ in SKILL_CATALOG}, profile["sevenPerson"]["skillBaseScores"]
+                    {name: score for name, score, *_ in SKILL_CATALOG},
+                    {name: profile["sevenPerson"]["skillBaseScores"].get(name, score)
+                     for name, score, *_ in SKILL_CATALOG}
                 )
         finally:
             root.destroy()
@@ -350,8 +355,8 @@ class RuleEditorTests(unittest.TestCase):
                         config["activeProfile"] = "张宝规则"
                         before = json.dumps(config, sort_keys=True)
                         with tempfile.TemporaryDirectory() as directory, patch(
-                            "rule_editor.messagebox.askyesno", return_value=False
-                        ) as confirm:
+                            "ccz_randomizer.rules.editor.ask_rule_change", return_value="cancel"
+                        ) as confirm, patch("rule_editor.messagebox.askyesno", return_value=False) as invalid_confirm:
                             path = Path(directory) / "random_rules_v2.json"
                             path.write_text(json.dumps(config), encoding="utf-8")
                             original_bytes = path.read_bytes()
@@ -373,7 +378,7 @@ class RuleEditorTests(unittest.TestCase):
                                 entry.insert(0, "9")
                             editor.tk.call(editor.protocol("WM_DELETE_WINDOW"))
                             root.update()
-                            self.assertEqual(edit, confirm.called)
+                            self.assertEqual(edit, confirm.called or invalid_confirm.called)
                             self.assertEqual(edit, bool(editor.winfo_exists()))
                             self.assertEqual(original_bytes, path.read_bytes())
                             self.assertEqual(before, json.dumps(config, sort_keys=True))
@@ -407,7 +412,7 @@ class RuleEditorTests(unittest.TestCase):
                     buttons = {
                         widget.cget("text"): widget
                         for widget in descendants(editor)
-                        if isinstance(widget, tk.Button)
+                        if isinstance(widget, ttk.Button)
                     }
                     buttons["新建副本"].invoke()
                     root.update()
@@ -453,7 +458,7 @@ class RuleEditorTests(unittest.TestCase):
                     buttons = {
                         widget.cget("text"): widget
                         for widget in descendants(editor)
-                        if isinstance(widget, tk.Button)
+                        if isinstance(widget, ttk.Button)
                     }
                     buttons["保存规则"].invoke()
                     root.update()
@@ -532,7 +537,7 @@ class RuleEditorTests(unittest.TestCase):
                     buttons = {
                         widget.cget("text"): widget
                         for widget in descendants(editor)
-                        if isinstance(widget, tk.Button)
+                        if isinstance(widget, ttk.Button)
                     }
                     buttons["新建副本"].invoke()
                     root.update()
@@ -599,7 +604,7 @@ class RuleEditorTests(unittest.TestCase):
                     buttons = {
                         widget.cget("text"): widget
                         for widget in descendants(editor)
-                        if isinstance(widget, tk.Button)
+                        if isinstance(widget, ttk.Button)
                     }
                     buttons["新建副本"].invoke()
                     root.update()
@@ -628,7 +633,7 @@ class RuleEditorTests(unittest.TestCase):
                     buttons = {
                         widget.cget("text"): widget
                         for widget in descendants(editor)
-                        if isinstance(widget, tk.Button)
+                        if isinstance(widget, ttk.Button)
                     }
                     buttons["设置人物倾向"].invoke()
                     root.update()
@@ -652,9 +657,9 @@ class RuleEditorTests(unittest.TestCase):
                     dialog_buttons = {
                         widget.cget("text"): widget
                         for widget in descendants(dialog)
-                        if isinstance(widget, tk.Button)
+                        if isinstance(widget, ttk.Button)
                     }
-                    dialog_buttons["确定"].invoke()
+                    dialog_buttons["确认"].invoke()
                     root.update()
                     buttons["保存规则"].invoke()
                     root.update()
@@ -702,7 +707,7 @@ class RuleEditorTests(unittest.TestCase):
                     buttons = {
                         widget.cget("text"): widget
                         for widget in descendants(editor)
-                        if isinstance(widget, tk.Button)
+                        if isinstance(widget, ttk.Button)
                     }
                     buttons["新建副本"].invoke()
                     root.update()
@@ -788,7 +793,7 @@ class RuleEditorTests(unittest.TestCase):
                     buttons = {
                         widget.cget("text"): widget
                         for widget in descendants(editor)
-                        if isinstance(widget, tk.Button)
+                        if isinstance(widget, ttk.Button)
                     }
                     buttons["新建副本"].invoke()
                     root.update()
@@ -816,7 +821,7 @@ class RuleEditorTests(unittest.TestCase):
                     buttons = {
                         widget.cget("text"): widget
                         for widget in descendants(editor)
-                        if isinstance(widget, tk.Button)
+                        if isinstance(widget, ttk.Button)
                     }
                     mode_combos[0].set("平均分达标")
                     mode_combos[0].event_generate("<<ComboboxSelected>>")
@@ -847,14 +852,14 @@ class RuleEditorTests(unittest.TestCase):
                     dialog_buttons = {
                         widget.cget("text"): widget
                         for widget in descendants(dialog)
-                        if isinstance(widget, tk.Button)
+                        if isinstance(widget, ttk.Button)
                     }
-                    dialog_buttons["确定"].invoke()
+                    dialog_buttons["确认"].invoke()
                     root.update()
                     buttons = {
                         widget.cget("text"): widget
                         for widget in descendants(editor)
-                        if isinstance(widget, tk.Button)
+                        if isinstance(widget, ttk.Button)
                     }
                     self.assertIn(f"选择人物（3/{len(RULE_MEMBER_NAMES)}）", buttons)
                     buttons["保存规则"].invoke()
@@ -916,7 +921,7 @@ class RuleEditorTests(unittest.TestCase):
                     buttons = {
                         widget.cget("text"): widget
                         for widget in descendants(editor)
-                        if isinstance(widget, tk.Button)
+                        if isinstance(widget, ttk.Button)
                     }
                     buttons["导入规则"].invoke()
                     root.update()

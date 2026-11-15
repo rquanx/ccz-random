@@ -648,6 +648,9 @@ def validate_rule_config(config: dict[str, Any]) -> dict[str, Any]:
         normalized["profiles"][DEFAULT_PROFILE_NAME] = _default_profile()
         migrate_skill_scores(normalized["profiles"][DEFAULT_PROFILE_NAME])
     normalized["profiles"][DEFAULT_PROFILE_NAME]["builtin"] = True
+    from ccz_randomizer.rules.identity import rule_identity
+    for name, profile in normalized["profiles"].items():
+        profile["statisticsId"] = rule_identity(name, profile)
     return normalized
 
 
@@ -770,6 +773,8 @@ def merge_rule_export(
             probe_name
         ]
         normalized_profile["builtin"] = False
+        from ccz_randomizer.rules.identity import new_rule_identity
+        new_rule_identity(normalized_profile)
         merged["profiles"][imported_name] = normalized_profile
         existing_names.add(imported_name)
         imported_names.append(imported_name)

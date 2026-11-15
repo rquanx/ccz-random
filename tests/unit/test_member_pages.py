@@ -68,7 +68,7 @@ class MemberPagesTests(unittest.TestCase):
         combos[0].set('文官型')
         pages.query.set('无此人')
         self.root.update()
-        next(w for w in descendants(dialog) if isinstance(w, tk.Button) and w.cget('text') == '确定').invoke()
+        next(w for w in descendants(dialog) if isinstance(w, ttk.Button) and w.cget('text') == '确认').invoke()
         self.assertEqual(130, len(applied[0]))
         self.assertEqual(('MASTER', 'NONE'), applied[0][RULE_MEMBER_NAMES[0]])
         self.assertEqual(('MASTER', 'NONE'), applied[0][RULE_MEMBER_NAMES[-1]])

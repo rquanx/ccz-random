@@ -7130,6 +7130,12 @@ def gui_main() -> int:
         rule_settings_bar, text="历史记录", command=lambda: open_history()
     )
     recruit_button.pack(side="left", padx=(8, 0))
+    from ccz_randomizer.ui.statistics import show_statistics_window
+    statistics_button = ttk.Button(
+        rule_settings_bar, text="数据统计",
+        command=lambda: show_statistics_window(root, app_dir()),
+    )
+    statistics_button.pack(side="left", padx=(8, 0))
     from ccz_randomizer.ui.effect_dictionary import show_effect_dictionary
     effects_button = ttk.Button(
         rule_settings_bar, text="特效手册", command=lambda: show_effect_dictionary(root)
@@ -7146,7 +7152,7 @@ def gui_main() -> int:
     )
     action_button.pack(side="right", padx=(8, 0))
     # ttk's default minimum width leaves excessive space around short CJK labels.
-    for button in (rule_button, recruit_button, effects_button,
+    for button in (rule_button, recruit_button, statistics_button, effects_button,
                    repair_button, action_button):
         button.configure(width=-1)
 
@@ -8551,6 +8557,13 @@ def main() -> int:
         Path(state_base) if state_base else app
     )
     history_run_id = os.environ.get("CCZ_HISTORY_RUN_ID", run_id)
+    from ccz_randomizer.statistics import StatisticsRecorder
+    statistics_recorder = StatisticsRecorder(
+        Path(state_base) if state_base else app, run_id=history_run_id,
+        rule_name=rules["activeProfile"], rule=active_rule_snapshot,
+        mode="three" if three_person_mode else "seven",
+        on_error=lambda error: diagnostic_log("statistics_collection_failed", error=repr(error)),
+    )
     history_lifecycle = HistoryLifecycle(
         history_repository, history_run_id,
         owner=os.environ.get("CCZ_HISTORY_MANAGED") != "1")
@@ -8900,7 +8913,12 @@ def main() -> int:
                                 ),
                                 loaded=loaded,
                             ):
-                                accepted = runner.run()
+                                with statistics_recorder.attempt(
+                                    runner, round_number=round_number,
+                                    slot=result_slot, attempt=_round_index,
+                                ) as statistical_result:
+                                    accepted = runner.run()
+                                    statistical_result["saved"] = bool(accepted)
                         finally:
                             if getattr(
                                 runner,
@@ -9410,6 +9428,7 @@ def main() -> int:
                     restore_exc,
                     target=str(scratch_guard.target),
                 )
+        statistics_recorder.close()
         diagnostic_log("worker_exit")
         clear_diagnostic_context(
             "pid",

@@ -1,3 +1,4 @@
+from tkinter import ttk
 from ccz_randomizer.ui.inputs import TextEntry
 """Restore the optional special gate without changing existing independent gates."""
 import copy
@@ -51,6 +52,7 @@ class SpecialSkillAutoPassTests(unittest.TestCase):
             qualification=current["skillQualification"], effective_skills_by_member={"曹操": ["特效模仿"]})
         self.assertFalse(result.qualified)
 
+    @patch("ccz_randomizer.rules.editor.ask_rule_change", new=lambda *args, **kwargs: "confirm")
     def test_editor_restores_controls_live_special_label_and_persists_settings(self):
         root = tk.Tk()
         root.withdraw()
@@ -91,7 +93,7 @@ class SpecialSkillAutoPassTests(unittest.TestCase):
             next(variable for name, variable, _category in grid.items if name == "特效模仿").set("6")
             grid.refresh()
             self.assertIn("特殊 · 基础分", displayed_text())
-            next(w for w in descendants(editor) if isinstance(w, tk.Button) and w.cget("text") == "保存规则").invoke()
+            next(w for w in descendants(editor) if isinstance(w, ttk.Button) and w.cget("text") == "保存规则").invoke()
             root.update()
             current = active_profile(saved[-1])
             self.assertTrue(current["skillQualification"]["specialSkillAutoPass"])

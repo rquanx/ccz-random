@@ -63,6 +63,7 @@ class HighJobTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 validate_rule_config(bad)
 
+    @patch("ccz_randomizer.rules.editor.ask_rule_change", new=lambda *args, **kwargs: "confirm")
     def test_editor_saves_and_reopens_high_job_settings(self):
         root = tk.Tk()
         root.withdraw()
@@ -87,7 +88,7 @@ class HighJobTests(unittest.TestCase):
             entry = next(w for w in label.master.grid_slaves(row=5, column=1) if isinstance(w, TextEntry))
             entry.delete(0, "end")
             entry.insert(0, "10")
-            next(w for w in descendants(editor) if isinstance(w, tk.Button) and w.cget("text") == "保存规则").invoke()
+            next(w for w in descendants(editor) if isinstance(w, ttk.Button) and w.cget("text") == "保存规则").invoke()
             self.assertEqual(10, active_profile(saved[-1])["jobScoring"]["highJobThreshold"])
             self.assertTrue(active_profile(saved[-1])["jobScoring"]["highJobAutoPass"])
             editor.destroy()

@@ -1441,7 +1441,7 @@ class SessionManagementTests(unittest.TestCase):
         root.update()
         root.update_idletasks()
         buttons = [namespace[name] for name in (
-            "rule_button", "recruit_button", "effects_button",
+            "rule_button", "recruit_button", "statistics_button", "effects_button",
             "repair_button", "action_button")]
         default = ttk.Button(root, text="规则设置")
         self.assertLess(buttons[0].winfo_reqwidth(), default.winfo_reqwidth())

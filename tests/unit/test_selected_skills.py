@@ -1,3 +1,4 @@
+from tkinter import ttk
 import os
 from ccz_randomizer.ui.inputs import TextEntry
 import json
@@ -18,11 +19,11 @@ class SelectedSkillTests(unittest.TestCase):
         version.start()
         self.addCleanup(version.stop)
 
+    @patch("ccz_randomizer.rules.editor.ask_rule_change", new=lambda *args, **kwargs: "confirm")
     def test_editor_saves_independent_gates_for_shared_selection(self):
         import copy
         import tempfile
         import tkinter as tk
-        from tkinter import ttk
         from pathlib import Path
         from ccz_randomizer.rules.editor import show_rule_editor
         from tests.unit.test_rule_editor import descendants, SKILL_CATALOG
@@ -40,11 +41,11 @@ class SelectedSkillTests(unittest.TestCase):
             show_rule_editor(root, Path(directory), config, app.JOB_MAP, app.TEAM_MEMBERS, SKILL_CATALOG, saved.append)
             root.update()
             editor = next(w for w in root.winfo_children() if isinstance(w, tk.Toplevel))
-            chooser = next(w for w in descendants(editor) if isinstance(w, tk.Button) and w.cget('text') == '选择人物（1/130）')
+            chooser = next(w for w in descendants(editor) if isinstance(w, ttk.Button) and w.cget('text') == '选择人物（1/130）')
             label = next(w for w in descendants(editor) if isinstance(w, tk.Label) and w.cget('text') == '人物设置')
             self.assertLessEqual(abs((chooser.winfo_rooty() + chooser.winfo_height() / 2)
                 - (label.winfo_rooty() + label.winfo_height() / 2)), 1)
-            affinity = next(w for w in descendants(editor) if isinstance(w, tk.Button) and w.cget('text') == '设置人物倾向')
+            affinity = next(w for w in descendants(editor) if isinstance(w, ttk.Button) and w.cget('text') == '设置人物倾向')
             self.assertEqual(chooser.winfo_rooty(), affinity.winfo_rooty())
             self.assertGreaterEqual(affinity.winfo_rootx(), chooser.winfo_rootx() + chooser.winfo_width())
             chooser.invoke()
@@ -54,7 +55,7 @@ class SelectedSkillTests(unittest.TestCase):
             self.assertEqual(42, len(checks))
             self.assertEqual(set(range(7)), {int(w.grid_info()['column']) for w in checks})
             self.assertTrue(all(w.winfo_x() + w.winfo_width() <= w.master.winfo_width() for w in checks))
-            next(w for w in descendants(selection) if isinstance(w, tk.Button) and w.cget('text') == '取消').invoke()
+            next(w for w in descendants(selection) if isinstance(w, ttk.Button) and w.cget('text') == '取消').invoke()
             root.update()
             mode = next(w for w in descendants(editor) if isinstance(w, ttk.Combobox) and tuple(w.cget('values')) == ('无要求', '指定人数达标', '平均分达标', '总分达标') and int(w.grid_info()['row']) == 2)
             mode.set('平均分达标')
@@ -63,7 +64,7 @@ class SelectedSkillTests(unittest.TestCase):
             entry = next(w for w in threshold.master.grid_slaves(row=2, column=1) if isinstance(w, TextEntry))
             entry.delete(0, 'end')
             entry.insert(0, '2.5')
-            next(w for w in descendants(editor) if isinstance(w, tk.Button) and w.cget('text') == '保存规则').invoke()
+            next(w for w in descendants(editor) if isinstance(w, ttk.Button) and w.cget('text') == '保存规则').invoke()
             root.update()
         result = active_profile(saved[0])
         self.assertEqual(['张宝'], result['threePerson']['qualifiedMembers'])

@@ -1,4 +1,6 @@
 """Small history metadata editor shared by rounds and individual saves."""
+from ccz_randomizer.ui.dialog_actions import add_dialog_actions
+from tkinter import ttk
 from ccz_randomizer.ui.inputs import TextEntry
 from ccz_randomizer.ui.window_position import centered_toplevel, show_centered
 from ccz_randomizer.ui.theme import setup_theme, style_dialog
@@ -30,7 +32,6 @@ def edit_history_metadata(parent, metadata, save):
         save(values)
         dialog.destroy()
 
-    tk.Button(buttons, text="保存", command=submit).pack(side="right")
-    tk.Button(buttons, text="取消", command=dialog.destroy).pack(side="right", padx=8)
+    add_dialog_actions(buttons, confirm=submit, confirm_text="保存", cancel=dialog.destroy)
     show_centered(dialog)
     entry.focus_set()

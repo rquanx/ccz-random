@@ -1,4 +1,6 @@
 from __future__ import annotations
+from ccz_randomizer.ui.dialog_actions import add_dialog_actions
+from tkinter import ttk
 
 from ccz_randomizer.ui.inputs import SearchEntry, TextEntry
 from ccz_randomizer.ui.window_position import centered_toplevel, show_centered
@@ -11,6 +13,7 @@ from ccz_randomizer.history import SUMMARY_MEMBER_LIMIT, HistoryRepository
 from ccz_randomizer.history_members import history_members
 from ccz_randomizer.history_filters import matching_summaries, parse_time_range
 from ccz_randomizer.ui.history_loading import HistoryLoader, render_in_batches
+from ccz_randomizer.ui.history_rounds import RoundCard
 
 
 COLORS = {
@@ -534,7 +537,8 @@ def _show_round_overview(
 
 def show_history_window(parent, repository: HistoryRepository) -> None:
     import tkinter as tk
-    from tkinter import filedialog, messagebox, ttk
+    from tkinter import filedialog, ttk
+    from ccz_randomizer.ui import messages as messagebox
     from itertools import count
     from pathlib import Path
     import datetime as dt
@@ -648,9 +652,10 @@ def show_history_window(parent, repository: HistoryRepository) -> None:
         def clear_picker():
             target.delete(0, "end")
             picker.destroy()
-        tk.Button(body, text="确定", command=apply_picker).grid(row=2, column=4, sticky="e", pady=(10, 0))
-        tk.Button(body, text="清除", command=clear_picker).grid(row=2, column=3, sticky="e", padx=5, pady=(10, 0))
-        tk.Button(body, text="取消", command=picker.destroy).grid(row=2, column=2, sticky="e", pady=(10, 0))
+        picker_actions = ttk.Frame(body)
+        picker_actions.grid(row=2, column=2, columnspan=3, sticky="ew", pady=(10, 0))
+        add_dialog_actions(picker_actions, confirm=apply_picker, cancel=picker.destroy,
+                           alternatives=(("清除", clear_picker),))
         show_centered(picker)
 
     body = tk.PanedWindow(
@@ -697,7 +702,8 @@ def show_history_window(parent, repository: HistoryRepository) -> None:
     round_window = round_canvas.create_window((0, 0), window=round_content, anchor="nw")
     round_content.bind("<Configure>", lambda _e: round_canvas.configure(scrollregion=round_canvas.bbox("all")))
     round_canvas.bind("<Configure>", lambda e: round_canvas.itemconfigure(round_window, width=e.width))
-    round_widgets: dict[int, tk.Frame] = {}
+    round_widgets: dict[int, RoundCard] = {}
+    round_pool: list[RoundCard] = []
     active_edit_finish: Callable[[], None] | None = None
 
     def commit_edit_on_click(_event=None):
@@ -726,18 +732,9 @@ def show_history_window(parent, repository: HistoryRepository) -> None:
 
     bind_round_wheel(round_picker)
 
-    def paint_round_background(widget, color: str) -> None:
-        try:
-            if isinstance(widget, (tk.Frame, tk.Label, tk.Message)):
-                widget.configure(bg=color)
-        except tk.TclError:
-            pass
-        for child in widget.winfo_children():
-            paint_round_background(child, color)
-
     def set_round_selected(round_id: int) -> None:
         for rid, widget in round_widgets.items():
-            paint_round_background(widget, COLORS["blue_soft"] if rid == round_id else COLORS["surface"])
+            widget.set_selected(rid == round_id)
 
     def edit_round_inline(row: dict[str, Any], head: tk.Frame, name_label, edit_button) -> None:
         nonlocal active_edit_finish
@@ -789,30 +786,9 @@ def show_history_window(parent, repository: HistoryRepository) -> None:
         entry.focus_set()
         entry.select_range(0, "end")
 
-    def build_round_widget(row: dict[str, Any]) -> tk.Frame:
-        import tkinter as tk
-        rid = int(row["id"])
-        card = tk.Frame(round_content, bg=COLORS["surface"], padx=10, pady=8,
-                        highlightthickness=1, highlightbackground=COLORS["border"])
-        card.pack(fill="x", padx=7, pady=4)
-        head = tk.Frame(card, bg=COLORS["surface"])
-        head.pack(fill="x")
-        name = tk.Message(head, text=_display_round_title(row.get("title")), width=250,
-                          font=(FONT, 11, "bold"), fg=COLORS["ink"],
-                          bg=COLORS["surface"], anchor="w")
-        name.pack(side="left", fill="x", expand=True)
-        card._round_name_label = name
-        edit_button = tk.Button(head, text="编辑", command=lambda: edit_round_inline(row, head, name, edit_button),
-                  padx=6, pady=1, relief="flat", fg=COLORS["blue"],
-                  bg=COLORS["blue_soft"], activebackground="#DCE7FF")
-        edit_button.pack(side="right")
-        meta = tk.Frame(card, bg=COLORS["surface"])
-        meta.pack(fill="x", pady=(5, 0))
-        tk.Label(meta, text=_display_time(row["started_at"]), font=(FONT, 8),
-                 fg=COLORS["muted"], bg=COLORS["surface"], anchor="w").pack(side="left")
-        tk.Label(meta, text=row["rule_name"], font=(FONT, 8), fg=COLORS["muted"],
-                 bg=COLORS["surface"], anchor="e").pack(side="right")
-        def choose(_event=None):
+    def build_round_widget(row: dict[str, Any]) -> RoundCard:
+        def choose(current_row):
+            rid = int(current_row["id"])
             if active_edit_finish is not None:
                 active_edit_finish()
             item = next((key for key, value in round_rows.items() if int(value["id"]) == rid), None)
@@ -820,17 +796,18 @@ def show_history_window(parent, repository: HistoryRepository) -> None:
                 rounds.selection_set(item)
                 rounds.focus(item)
             set_round_selected(rid)
-            render_results(row)
-        for child in (card, head, name, meta):
-            child.bind("<Button-1>", choose)
-        round_widgets[rid] = card
+            render_results(current_row)
+        card = RoundCard(round_content, colors=COLORS, font=FONT,
+            display_title=_display_round_title, display_time=_display_time,
+            select=choose, edit=edit_round_inline)
+        card.update_content(row)
         bind_edit_clicks(card)
         bind_round_wheel(card)
         return card
 
     pager = tk.Frame(list_panel, bg=COLORS["surface"], pady=8)
     pager.pack(fill="x")
-    previous_button = tk.Button(pager, text="上一页")
+    previous_button = ttk.Button(pager, text="上一页")
     previous_button.pack(side="left", padx=(8, 0))
     page_var = tk.StringVar(value="第 1 页")
     tk.Label(
@@ -839,7 +816,7 @@ def show_history_window(parent, repository: HistoryRepository) -> None:
         fg=COLORS["muted"],
         bg=COLORS["surface"],
     ).pack(side="left", expand=True)
-    next_button = tk.Button(pager, text="下一页")
+    next_button = ttk.Button(pager, text="下一页")
     next_button.pack(side="right", padx=(0, 8))
 
     result_header = tk.Frame(result_panel, bg=COLORS["surface"], padx=12, pady=9)
@@ -1020,17 +997,13 @@ def show_history_window(parent, repository: HistoryRepository) -> None:
             rule_names.append(selected_rule)
         rule_combo.configure(values=("全部规则", *rule_names))
         rule_combo.current(0 if selected_rule is None else rule_names.index(selected_rule) + 1)
-        active_ids = {int(row["id"]) for row in rows}
-        # A long history can contain hundreds of rounds.  Keeping every page's
-        # Tk card alive made filtering and redraws progressively heavier, so
-        # release cards that are no longer visible and recreate them on return.
+        # Reuse at most one page of cards; changing pages must not accumulate widgets.
         if active_edit_finish is not None:
             active_edit_finish()
             active_edit_finish = None
-        for rid, widget in list(round_widgets.items()):
-            if rid not in active_ids:
-                widget.destroy()
-                del round_widgets[rid]
+        round_widgets.clear()
+        for widget in round_pool[len(rows):]:
+            widget.pack_forget()
         for row in rows:
             item = rounds.insert(
                 "",
@@ -1043,18 +1016,21 @@ def show_history_window(parent, repository: HistoryRepository) -> None:
             )
             round_rows[item] = row
         generation = page_generation
-        def render_round(_index, row):
-            if int(row["id"]) not in round_widgets:
-                build_round_widget(row)
+        def render_round(index, row):
+            if index < len(round_pool):
+                widget = round_pool[index]
+                widget.update_content(row)
             else:
-                widget = round_widgets[int(row["id"])]
+                widget = build_round_widget(row)
+                round_pool.append(widget)
+            round_widgets[int(row["id"])] = widget
+            if not widget.winfo_manager():
                 widget.pack(fill="x", padx=7, pady=4)
-                name_label = getattr(widget, "_round_name_label", None)
-                if name_label is not None and name_label.winfo_exists():
-                    name_label.configure(text=_display_round_title(row.get("title")))
-            if selected_round_id == int(row["id"]):
-                paint_round_background(round_widgets[int(row["id"])], COLORS["blue_soft"])
-        render_in_batches(dialog, rows, render_round,
+            widget.set_selected(selected_round_id == int(row["id"]))
+        reused = min(len(rows), len(round_pool))
+        for index, row in enumerate(rows[:reused]):
+            render_round(index, row)
+        render_in_batches(dialog, rows[reused:], lambda index, row: render_round(index + reused, row),
                           is_current=lambda: generation == page_generation, batch_size=2)
         total_pages = max(1, math.ceil(total / ROUND_PAGE_SIZE))
         page_var.set(f"第 {page} / {total_pages} 页")
@@ -1159,16 +1135,20 @@ def show_history_window(parent, repository: HistoryRepository) -> None:
     end_entry.bind("<Button-1>", lambda _event: open_time_picker(end_entry))
     start_entry.bind("<Return>", apply_filters)
     end_entry.bind("<Return>", apply_filters)
-    tk.Button(filters, text="搜索", command=apply_filters).pack(side="left")
-    tk.Button(filters, text="重置筛选", command=reset_filters).pack(side="left")
-    tk.Button(toolbar, text="刷新", command=load_page).pack(
+    ttk.Button(filters, text="搜索", command=apply_filters).pack(side="left")
+    ttk.Button(filters, text="重置筛选", command=reset_filters).pack(side="left")
+    ttk.Button(toolbar, text="刷新", command=load_page).pack(
         side="right"
     )
-    tk.Button(toolbar, text="清空全部历史", command=clear_history).pack(
+    ttk.Button(toolbar, text="清空全部历史", command=clear_history).pack(
         side="right", padx=(0, 8)
     )
-    tk.Button(toolbar, text="删除本轮", command=delete_selected).pack(
+    ttk.Button(toolbar, text="删除本轮", command=delete_selected).pack(
         side="right", padx=(0, 8)
     )
+    from ccz_randomizer.ui.window_events import bind_window_event
+    remove_storage_listener = bind_window_event(dialog._root(), "<<StorageCleaned>>", lambda _: load_page()
+        if "history" in getattr(dialog._root(), "_ccz_cleaned_categories", ()) else None)
+    bind_window_event(dialog, "<Destroy>", lambda _: remove_storage_listener())
     load_page()
     show_centered(dialog)

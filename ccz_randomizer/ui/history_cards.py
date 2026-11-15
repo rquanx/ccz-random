@@ -1,4 +1,5 @@
 """Reusable history cards with one drawing surface and native action buttons."""
+from tkinter import ttk
 import tkinter as tk
 
 
@@ -11,6 +12,7 @@ class SummaryCard(tk.Frame):
         self.callbacks = {}
         self.values = {}
         self.view = None
+        self._suspended = False
         self.canvas = tk.Canvas(self, width=222, height=240, highlightthickness=0, bg=colors["surface"])
         self.canvas.pack(fill="both", expand=True)
         self.canvas.create_rectangle(0, 0, 224, 34, fill=colors["ink"], outline="")
@@ -32,9 +34,8 @@ class SummaryCard(tk.Frame):
         # windows or retain the card through Tk callbacks.
         self.bind("<Destroy>", lambda _event: self._hide_tip(), add="+")
         self.separator = self.canvas.create_line(0, 0, 224, 0, fill=colors["border"])
-        self.detail = tk.Button(self, text="查看完整详情", command=lambda: self.invoke("detail"),
-            font=(font, 9), fg="#FFFFFF", bg=colors["blue"], activebackground="#1946A3",
-            activeforeground="#FFFFFF", relief="flat", padx=8, pady=2, cursor="hand2")
+        self.detail = ttk.Button(self, text="查看完整详情", command=lambda: self.invoke("detail"),
+            cursor="hand2")
         self.detail.pack(fill="x", padx=9, pady=7)
         self.canvas.tag_bind(self.backup_dot, "<Button-1>", lambda _event: self.invoke("export"))
 
@@ -73,10 +74,15 @@ class SummaryCard(tk.Frame):
         self.callbacks = dict(detail=show_detail, export=export_save)
         if view != self.view:
             self._paint(view)
-        self.canvas.itemconfigure(self.backup_dot, state="normal")
+        if self._suspended:
+            self.canvas.itemconfigure(self.backup_dot, state="normal")
+            self._suspended = False
         self._apply(self.detail, state="normal")
 
     def suspend(self):
+        if self._suspended:
+            return
+        self._suspended = True
         self.grid_remove()
         self.canvas.itemconfigure(self.backup_dot, state="disabled")
         self._apply(self.detail, state="disabled")

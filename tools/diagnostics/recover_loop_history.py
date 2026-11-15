@@ -161,7 +161,8 @@ def apply_recovery(base, plan):
             for number, slot in plan["missing"]:
                 row = staged.execute("SELECT results.* FROM results JOIN rounds ON rounds.id=results.round_id "
                                      "WHERE run_id=? AND round_number=? AND slot=?", (plan["runId"], number, slot)).fetchone()
-                snapshot = json.loads(row["snapshot_json"])
+                from ccz_randomizer.storage_codec import unpack
+                snapshot = json.loads(unpack(row["snapshot_json"]))
                 if hashlib.sha256(Path(snapshot["save"]["path"]).read_bytes()).hexdigest() != row["save_sha256"]:
                     raise ValueError("Archive changed after preview")
                 round_row = staged.execute("SELECT * FROM rounds WHERE id=?", (row["round_id"],)).fetchone()

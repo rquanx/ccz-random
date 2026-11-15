@@ -99,9 +99,10 @@ def run():
                 archived = list(set((game / "randResult").rglob("*.E5S")) - existing_archives)
                 archive_hashes = sorted(hashlib.sha256(path.read_bytes()).hexdigest() for path in archived)
             for row in rows:
-                snapshot = json.loads(row["snapshot_json"])
+                from ccz_randomizer.storage_codec import unpack
+                snapshot = json.loads(unpack(row["snapshot_json"]))
                 counts[row["round_number"]] = counts.get(row["round_number"], 0) + 1
-                digest = hashlib.sha256(row["data"]).hexdigest()
+                digest = hashlib.sha256(unpack(row["data"])).hexdigest()
                 assert digest == row["sha256"] == snapshot["save"]["sha256"]
                 assert snapshot["detail"]["job"]["metrics"]["eligibleMembers"] == expected_rule["threePerson"]["qualifiedMembers"]
             if loop:

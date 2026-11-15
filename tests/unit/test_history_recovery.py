@@ -65,7 +65,8 @@ class HistoryRecoveryTests(unittest.TestCase):
         self.assertEqual("unknown", result["phase"])
         self.assertTrue(all(row["personalSkills"] == [{"name": "历史记录未保存"}] for row in result["members"]))
         with closing(sqlite3.connect(self.repository.path)) as connection:
-            self.assertEqual(self.save.read_bytes(), connection.execute("SELECT data FROM result_saves").fetchone()[0])
+            from ccz_randomizer.storage_codec import unpack
+            self.assertEqual(self.save.read_bytes(), unpack(connection.execute("SELECT data FROM result_saves").fetchone()[0]))
             self.assertEqual((1, "stopped"), connection.execute("SELECT loop_random,status FROM runs").fetchone())
         with self.assertRaisesRegex(ValueError, "changed after preview"):
             apply_recovery(self.root, plan)

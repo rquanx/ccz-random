@@ -39,6 +39,38 @@ def displayed(widget, parent):
 
 
 class HistoryLoadingTests(unittest.TestCase):
+    def test_paging_reuses_bounded_round_cards_and_edits_current_round(self):
+        from ccz_randomizer.ui.history_rounds import RoundCard
+        for number in range(1, 22):
+            self.add_round(number, [1])
+        dialog = self.open_window()
+        def cards():
+            return [w for w in descendants(dialog) if isinstance(w, RoundCard)]
+        self.wait_until(lambda: len(cards()) == 10 and all(c.winfo_manager() for c in cards()))
+        original = {str(w) for c in cards() for w in (c, *descendants(c))}
+        first_ids = {c.row["id"] for c in cards()}
+        self.button(dialog, "下一页").invoke()
+        self.wait_until(lambda: len(cards()) == 10 and not first_ids.intersection(c.row["id"] for c in cards()))
+        self.assertEqual(original, {str(w) for c in cards() for w in (c, *descendants(c))})
+        current = cards()[0]
+        current_id = current.row["id"]
+        current.edit_button.invoke()
+        entry = next(w for w in descendants(current) if isinstance(w, TextEntry))
+        entry.delete(0, "end")
+        entry.insert(0, "翻页后修改当前轮次")
+        entry.event_generate("<Return>")
+        # Explicit focus is unreliable on a private desktop; an outside click also commits.
+        dialog.event_generate("<Button-1>")
+        self.wait_until(lambda: self.repository.list_rounds(query="翻页后修改当前轮次"))
+        self.assertEqual(current_id, self.repository.list_rounds(query="翻页后修改当前轮次")[0]["id"])
+        self.assertFalse(first_ids.intersection(r["id"] for r in self.repository.list_rounds(query="翻页后修改当前轮次")))
+        self.wait_until(lambda: str(self.button(dialog, "下一页")["state"]) == "normal")
+        self.button(dialog, "下一页").invoke()
+        self.wait_until(lambda: len([c for c in cards() if c.winfo_manager()]) == 1)
+        self.button(dialog, "上一页").invoke()
+        self.wait_until(lambda: len([c for c in cards() if c.winfo_manager()]) == 10)
+        self.assertEqual(original, {str(w) for c in cards() for w in (c, *descendants(c))})
+
     def test_rule_filter_resets_paging_and_all_rules_label_is_not_a_reserved_name(self):
         for number in range(1, 12):
             self.add_round(number, [1])
@@ -199,7 +231,7 @@ class HistoryLoadingTests(unittest.TestCase):
             self.assertEqual(0, full_round.call_count)
             self.assertEqual(0, full_result.call_count)
             button = next(w for w in descendants(dialog)
-                          if isinstance(w, tk.Button) and w.cget("text") == "查看完整详情")
+                          if isinstance(w, ttk.Button) and w.cget("text") == "查看完整详情")
             button.invoke()
             self.wait_until(lambda: detail.called)
             self.assertEqual(expected[0], detail.call_args.args[1])
@@ -235,7 +267,7 @@ class HistoryLoadingTests(unittest.TestCase):
             self.wait_until(lambda: any("暂时无法读取" in str(dialog.getvar(w.cget("textvariable")))
                                       for w in descendants(dialog)
                                       if isinstance(w, tk.Label) and w.cget("textvariable")))
-        button = next(w for w in descendants(dialog) if isinstance(w, tk.Button) and w.cget("text") == "刷新")
+        button = next(w for w in descendants(dialog) if isinstance(w, ttk.Button) and w.cget("text") == "刷新")
         button.invoke()
         self.wait_until(lambda: "存档 1" in self.labels(dialog))
         self.assertEqual(1, len(original()))
@@ -291,7 +323,7 @@ class HistoryLoadingTests(unittest.TestCase):
         self.assertLess(len(list(descendants(dialog))), 300)
 
     def button(self, window, text):
-        return next(w for w in descendants(window) if isinstance(w, tk.Button) and w.cget("text") == text and displayed(w, window))
+        return next(w for w in descendants(window) if isinstance(w, ttk.Button) and w.cget("text") == text and displayed(w, window))
 
     def submit_metadata(self, dialog, title, note):
         editor = next(w for w in descendants(dialog) if isinstance(w, tk.Toplevel) and w.title() == "命名与备注")
@@ -339,7 +371,7 @@ class HistoryLoadingTests(unittest.TestCase):
         destination = Path(self.temporary.name) / "recovered.E5S"
         dialog = self.open_window()
         self.wait_until(lambda: "存档 1" in self.labels(dialog))
-        with patch("tkinter.filedialog.asksaveasfilename", return_value=str(destination)), patch("tkinter.messagebox.showinfo"):
+        with patch("tkinter.filedialog.asksaveasfilename", return_value=str(destination)), patch("ccz_randomizer.ui.messages.showinfo"):
             card = next(w for w in descendants(dialog) if hasattr(w, "invoke") and getattr(w, "callbacks", {}).get("export"))
             card.invoke("export")
             self.wait_until(destination.is_file)
@@ -400,7 +432,7 @@ class HistoryLoadingTests(unittest.TestCase):
         # An invalid draft leaves the currently applied filter and results intact.
         entries[1].delete(0, "end")
         entries[1].insert(0, "2026-11-08")
-        with patch("tkinter.messagebox.showerror") as error:
+        with patch("ccz_randomizer.ui.messages.showerror") as error:
             self.button(dialog, "搜索").invoke()
             self.assertTrue(error.called)
         self.assertIn("存档 1", self.labels(dialog))
@@ -418,7 +450,7 @@ class HistoryLoadingTests(unittest.TestCase):
         entry.insert(0, "选中这轮")
         self.button(dialog, "搜索").invoke()
         self.wait_until(lambda: "存档 1" in self.labels(dialog))
-        with patch("tkinter.messagebox.askyesno", return_value=False) as confirm:
+        with patch("ccz_randomizer.ui.messages.askyesno", return_value=False) as confirm:
             self.button(dialog, "清空全部历史").invoke()
             self.assertIn("包括被筛选隐藏的记录", confirm.call_args.args[1])
         self.assertEqual(2, self.repository.count_rounds())
@@ -477,7 +509,7 @@ class HistoryLoadingTests(unittest.TestCase):
         dialog = self.open_window()
         self.wait_until(lambda: "存档 2" in self.labels(dialog))
         buttons = [w for w in descendants(dialog)
-                   if isinstance(w, tk.Button) and w.cget("text") == "编辑"]
+                   if isinstance(w, ttk.Button) and w.cget("text") == "编辑"]
         self.assertGreaterEqual(len(buttons), 2)
         buttons[0].invoke()
         self.root.update()
@@ -493,7 +525,7 @@ class HistoryLoadingTests(unittest.TestCase):
         dialog = self.open_window()
         self.wait_until(lambda: "存档 1" in self.labels(dialog))
         button = next(w for w in descendants(dialog)
-                      if isinstance(w, tk.Button) and w.cget("text") == "编辑")
+                      if isinstance(w, ttk.Button) and w.cget("text") == "编辑")
         button.invoke()
         entry = next(w for w in descendants(dialog)
                      if isinstance(w, TextEntry) and getattr(w.master, "_round_editor", False))
@@ -511,7 +543,7 @@ class HistoryLoadingTests(unittest.TestCase):
         dialog = self.open_window()
         self.wait_until(lambda: "存档 2" in self.labels(dialog))
         buttons = [w for w in descendants(dialog)
-                   if isinstance(w, tk.Button) and w.cget("text") == "编辑"]
+                   if isinstance(w, ttk.Button) and w.cget("text") == "编辑"]
         buttons[0].invoke()
         entry = next(w for w in descendants(dialog)
                      if isinstance(w, TextEntry) and getattr(w.master, "_round_editor", False))
@@ -527,7 +559,7 @@ class HistoryLoadingTests(unittest.TestCase):
         dialog = self.open_window()
         self.wait_until(lambda: "存档 2" in self.labels(dialog))
         buttons = [w for w in descendants(dialog)
-                   if isinstance(w, tk.Button) and w.cget("text") == "编辑"]
+                   if isinstance(w, ttk.Button) and w.cget("text") == "编辑"]
         buttons[0].invoke()
         entry = next(w for w in descendants(dialog)
                      if isinstance(w, TextEntry) and getattr(w.master, "_round_editor", False))
@@ -542,9 +574,9 @@ class HistoryLoadingTests(unittest.TestCase):
         dialog = tk.Toplevel(self.root)
         holder, canvas, content, _ = history._scrollable_frame(dialog, background="white")
         holder.pack()
-        nested = tk.Button(content, text="卡片按钮")
+        nested = ttk.Button(content, text="卡片按钮")
         nested.pack()
-        outside = tk.Button(dialog, text="其他区域")
+        outside = ttk.Button(dialog, text="其他区域")
         outside.pack()
         self.root.update()
         canvas.configure(scrollregion=(0, 0, 300, 3000))

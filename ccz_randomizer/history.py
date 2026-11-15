@@ -6,9 +6,10 @@ import sqlite3
 from contextlib import closing
 from pathlib import Path
 from typing import Any
+from ccz_randomizer.storage_codec import pack, unpack, compress_history, compact_database
 
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 DEFAULT_PAGE_SIZE = 20
 SUMMARY_MEMBER_LIMIT = 3
 
@@ -80,6 +81,8 @@ class HistoryRepository:
                 return
             connection.execute("BEGIN IMMEDIATE")
             version = int(connection.execute("PRAGMA user_version").fetchone()[0])
+            if version == SCHEMA_VERSION:
+                return
             if version > SCHEMA_VERSION:
                 raise RuntimeError(
                     f"历史数据库版本过新：{version}/{SCHEMA_VERSION}"
@@ -154,7 +157,12 @@ class HistoryRepository:
                 connection.execute("CREATE TABLE result_saves ("
                                    "result_id INTEGER PRIMARY KEY REFERENCES results(id) ON DELETE CASCADE, "
                                    "sha256 TEXT NOT NULL, data BLOB NOT NULL)")
+            if version < 4:
+                compress_history(connection)
             connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+        if version > 0:
+            with closing(self._connect()) as connection:
+                compact_database(connection)
 
     def start_run(
         self,
@@ -305,7 +313,7 @@ class HistoryRepository:
                     str(save.get("sha256") or ""),
                     int(bool(save.get("verified"))),
                     str(save.get("verificationError") or ""),
-                    json.dumps(snapshot, ensure_ascii=False),
+                    pack(json.dumps(snapshot, ensure_ascii=False)),
                 ),
             )
             row = connection.execute(
@@ -323,7 +331,7 @@ class HistoryRepository:
                 data, digest = backup
                 connection.execute("INSERT INTO result_saves(result_id,sha256,data) VALUES (?,?,?) "
                                    "ON CONFLICT(result_id) DO UPDATE SET sha256=excluded.sha256,data=excluded.data",
-                                   (row["id"], digest, data))
+                                   (row["id"], digest, pack(data)))
             else:
                 connection.execute("DELETE FROM result_saves WHERE result_id=? AND sha256 != ?",
                                    (row["id"], str(save.get("sha256") or "")))
@@ -347,7 +355,7 @@ class HistoryRepository:
             ).fetchone()
             if row is None:
                 return
-            snapshot = json.loads(row["snapshot_json"])
+            snapshot = json.loads(unpack(row["snapshot_json"]))
             save = snapshot.setdefault("save", {})
             save["verified"] = bool(verified)
             save["verificationError"] = error
@@ -361,7 +369,7 @@ class HistoryRepository:
                 (
                     int(verified),
                     error,
-                    json.dumps(snapshot, ensure_ascii=False),
+                    pack(json.dumps(snapshot, ensure_ascii=False)),
                     int(row["id"]),
                 ),
             )
@@ -472,7 +480,7 @@ class HistoryRepository:
                 """,
                 (round_id,),
             ).fetchall()
-        return [json.loads(row["snapshot_json"]) for row in rows]
+        return [json.loads(unpack(row["snapshot_json"])) for row in rows]
 
     def get_round_summaries(self, round_id: int) -> list[dict[str, Any]]:
         with closing(self._connect()) as connection, connection:
@@ -495,7 +503,7 @@ class HistoryRepository:
                     saved = connection.execute("SELECT snapshot_json FROM results WHERE id = ?", (row["id"],)).fetchone()
                     if saved is None:
                         continue
-                    summary = _summary_snapshot(json.loads(saved["snapshot_json"]))
+                    summary = _summary_snapshot(json.loads(unpack(saved["snapshot_json"])))
                     connection.execute("INSERT INTO result_summaries(result_id,summary_json) VALUES (?,?) "
                                        "ON CONFLICT(result_id) DO NOTHING",
                                        (row["id"], json.dumps(summary, ensure_ascii=False)))
@@ -509,7 +517,7 @@ class HistoryRepository:
                 "SELECT snapshot_json FROM results WHERE round_id = ? AND slot = ?",
                 (round_id, slot),
             ).fetchone()
-        return json.loads(row["snapshot_json"]) if row else None
+        return json.loads(unpack(row["snapshot_json"])) if row else None
 
     def annotate_round(self, round_id: int, *, title: str, note: str, marked: bool = False) -> None:
         with closing(self._connect()) as connection, connection:
@@ -531,7 +539,7 @@ class HistoryRepository:
                                      (round_id, slot)).fetchone()
         if row is None:
             raise ValueError("这条记录没有独立存档副本；可先尝试补备份旧记录")
-        export_save(Path(destination), row["data"], row["sha256"])
+        export_save(Path(destination), unpack(row["data"]), row["sha256"])
 
     def backfill_saves(self) -> dict[str, int]:
         """Only copy old files whose checksum still matches the recorded result."""
@@ -549,7 +557,7 @@ class HistoryRepository:
             with closing(self._connect()) as connection, connection:
                 cursor = connection.execute("INSERT INTO result_saves(result_id,sha256,data) "
                                             "SELECT id,?,? FROM results WHERE id=? AND save_sha256=? "
-                                            "ON CONFLICT(result_id) DO NOTHING", (digest, data, row["id"], digest))
+                                              "ON CONFLICT(result_id) DO NOTHING", (digest, pack(data), row["id"], digest))
                 counts["saved"] += cursor.rowcount
         return counts
 

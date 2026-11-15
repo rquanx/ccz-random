@@ -1,4 +1,5 @@
 from __future__ import annotations
+from tkinter import ttk
 
 from ccz_randomizer.ui.window_position import centered_toplevel, show_centered
 from ccz_randomizer.fixed_members import expand_rule_members
@@ -1238,7 +1239,7 @@ def show_changelog_window(
 
     footer = tk.Frame(dialog, padx=18, pady=14)
     footer.pack(fill="x")
-    tk.Button(
+    ttk.Button(
         footer,
         text="关闭",
         command=dialog.destroy,
@@ -6802,7 +6803,8 @@ def current_run_rule_save_notice(
 
 def gui_main() -> int:
     import tkinter as tk
-    from tkinter import messagebox, scrolledtext, ttk
+    from tkinter import scrolledtext, ttk
+    from ccz_randomizer.ui import messages as messagebox
     from ccz_randomizer.ui.theme import FONT, setup_theme
     from ccz_randomizer.ui.inputs import TextEntry
     from ccz_randomizer.ui.searchable_combo import SelectionCombobox
@@ -6884,7 +6886,7 @@ def gui_main() -> int:
         ).pack(fill="x")
         remaining = 5
         countdown = tk.StringVar(value=f"我已阅读（{remaining}）")
-        confirm = tk.Button(body, textvariable=countdown, state="disabled")
+        confirm = ttk.Button(body, textvariable=countdown, state="disabled")
         confirm.pack(anchor="e", pady=(18, 0))
 
         def finish() -> None:
@@ -7122,27 +7124,31 @@ def gui_main() -> int:
         width=24,
     )
     rule_profile_combo.pack(side="left", padx=(0, 8))
-    rule_button = tk.Button(rule_settings_bar, text="规则设置")
+    rule_button = ttk.Button(rule_settings_bar, text="规则设置")
     rule_button.pack(side="left")
-    recruit_button = tk.Button(
+    recruit_button = ttk.Button(
         rule_settings_bar, text="历史记录", command=lambda: open_history()
     )
     recruit_button.pack(side="left", padx=(8, 0))
     from ccz_randomizer.ui.effect_dictionary import show_effect_dictionary
-    effects_button = tk.Button(
+    effects_button = ttk.Button(
         rule_settings_bar, text="特效手册", command=lambda: show_effect_dictionary(root)
     )
     effects_button.pack(side="left", padx=(8, 0))
-    repair_button = tk.Button(
+    repair_button = ttk.Button(
         rule_settings_bar,
         text="常见问题",
     )
     repair_button.pack(side="left", padx=(8, 0))
-    action_button = tk.Button(
+    action_button = ttk.Button(
         rule_settings_bar,
-        text="开始随机",
+        text="开始随机", style="Primary.TButton",
     )
-    action_button.pack(side="right")
+    action_button.pack(side="right", padx=(8, 0))
+    # ttk's default minimum width leaves excessive space around short CJK labels.
+    for button in (rule_button, recruit_button, effects_button,
+                   repair_button, action_button):
+        button.configure(width=-1)
 
     output = scrolledtext.ScrolledText(
         outer,
@@ -7366,7 +7372,7 @@ def gui_main() -> int:
 
         actions = tk.Frame(body)
         actions.pack(fill="x", pady=(12, 0))
-        tk.Button(
+        ttk.Button(
             actions,
             text="关闭",
             width=10,
@@ -8031,7 +8037,7 @@ def gui_main() -> int:
             running_rule_name = None
             running_rule_snapshot = None
             action_button.configure(
-                text="开始随机",
+                text="开始随机", style="Primary.TButton",
                 command=start,
                 state="normal",
             )
@@ -8286,7 +8292,7 @@ def gui_main() -> int:
             daemon=True,
         ).start()
         action_button.configure(
-            text="停止随机",
+            text="停止随机", style="Danger.TButton",
             command=stop,
             state="normal",
         )

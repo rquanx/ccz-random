@@ -46,27 +46,26 @@ class RecentSearchesBar(ttk.Frame):
         self.groups = []
         self.delete_buttons = []
         for word in items:
-            group = tk.Frame(self.chips, bg="#EAF0FB")
+            group = tk.Frame(self.chips)
             self.groups.append(group)
-            button = tk.Button(group, text=word if len(word) <= 10 else word[:10]+"…",
-                command=lambda value=word: self.on_select(value), cursor="hand2", relief="flat",
-                bg="#EAF0FB", fg="#334E73", activebackground="#DCE7FA", borderwidth=0,
-                font=("Microsoft YaHei UI", 9), padx=9, pady=4)
+            button = ttk.Button(group, text=word if len(word) <= 10 else word[:10]+"…",
+                command=lambda value=word: self.on_select(value), cursor="hand2", )
             button._keyword = word
             button._tooltip = HoverTooltip(button, word)
             self.buttons.append(button)
             close_space = self._delete_icon.width() + 6 if self.on_remove else 0
             button.pack(side="left", padx=(0, close_space))
             if self.on_remove:
-                delete = tk.Button(group, image=self._delete_icon,
+                delete = ttk.Button(group, image=self._delete_icon,
                     command=lambda value=word: self.on_remove(value),
-                    relief="flat", borderwidth=0, highlightthickness=0, takefocus=True,
-                    cursor="hand2", bg="#EAF0FB", activebackground="#DCE7FA", padx=2, pady=2)
+                    takefocus=True,
+                    cursor="hand2", style="Icon.TButton")
+                button.pack_configure(padx=(0, delete.winfo_reqwidth()+4))
                 delete.place(relx=1, x=-1, y=1, anchor="ne")
                 delete.bind("<Enter>", lambda _event, control=delete:
-                            control.configure(image=self._delete_hover_icon, bg="#DCE7FA"))
+                            control.configure(image=self._delete_hover_icon))
                 delete.bind("<Leave>", lambda _event, control=delete:
-                            control.configure(image=self._delete_icon, bg="#EAF0FB"))
+                            control.configure(image=self._delete_icon))
                 delete._tooltip = HoverTooltip(delete, f"删除最近搜索：{word}")
                 self.delete_buttons.append(delete)
         self._layout()

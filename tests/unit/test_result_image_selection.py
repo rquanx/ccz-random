@@ -1,3 +1,4 @@
+from tkinter import ttk
 import copy
 import json
 import tempfile
@@ -75,13 +76,13 @@ class ResultImageSelectionTests(unittest.TestCase):
                 show_rule_editor(root,Path(folder),custom_config(),JOB_MAP,TEAM_MEMBERS,SKILL_CATALOG,saved.append)
                 root.update()
                 editor=next(w for w in root.winfo_children() if isinstance(w,tk.Toplevel))
-                next(w for w in descendants(editor) if isinstance(w,tk.Button) and w.cget('text').startswith('结果图人物')).invoke()
+                next(w for w in descendants(editor) if isinstance(w,ttk.Button) and w.cget('text').startswith('结果图人物')).invoke()
                 root.update()
                 dialog=next(w for w in descendants(editor) if isinstance(w,tk.Toplevel) and w.title()=='结果图人物')
-                next(w for w in descendants(dialog) if isinstance(w,tk.Button) and w.cget('text')=='清空选择').invoke()
+                next(w for w in descendants(dialog) if isinstance(w,ttk.Button) and w.cget('text')=='清空选择').invoke()
                 next(w for w in descendants(dialog) if isinstance(w,tk.Checkbutton) and w.cget('text')=='曹操').invoke()
-                next(w for w in descendants(dialog) if isinstance(w,tk.Button) and w.cget('text')=='确定').invoke()
-                next(w for w in descendants(editor) if isinstance(w,tk.Button) and w.cget('text')=='保存规则').invoke()
+                next(w for w in descendants(dialog) if isinstance(w,ttk.Button) and w.cget('text')=='确认').invoke()
+                next(w for w in descendants(editor) if isinstance(w,ttk.Button) and w.cget('text')=='保存规则').invoke()
                 self.assertEqual(1,len(saved))
                 profile=load_rule_config(Path(folder)).config['profiles']['图片独立']
                 self.assertEqual(['曹操'],profile['resultImage']['members'])

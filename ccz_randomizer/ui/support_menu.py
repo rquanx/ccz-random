@@ -32,11 +32,11 @@ def show_support_menu(parent, actions, package_version):
             buttons.columnconfigure(column, weight=1, uniform="support-actions")
         for position, (key, text) in enumerate(entries):
             last_wide = position == len(entries)-1 and len(entries) % 2
-            button = tk.Button(buttons, text=text, command=lambda action=actions[key]: action(dialog))
+            button = ttk.Button(buttons, text=text, command=lambda action=actions[key]: action(dialog))
             button.grid(row=position//2, column=position % 2, columnspan=2 if last_wide else 1,
                 sticky="ew", padx=(0 if last_wide or position % 2 == 0 else 4,
                                    0 if last_wide or position % 2 else 4), pady=(0, 6))
-    tk.Button(body, text="关闭", width=10, command=dialog.destroy).pack(anchor="e", pady=(12, 0))
+    ttk.Button(body, text="关闭", width=10, command=dialog.destroy).pack(anchor="e", pady=(12, 0))
     dialog.update_idletasks()
     width, height = max(400, dialog.winfo_reqwidth()), dialog.winfo_reqheight()
     dialog.geometry(f"{width}x{height}")

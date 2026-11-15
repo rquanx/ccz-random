@@ -1,5 +1,6 @@
 """Profile update controls; downloads never block the Tk event loop."""
 from __future__ import annotations
+from tkinter import ttk
 
 import queue
 import tkinter as tk
@@ -161,7 +162,7 @@ def show_profile_update_dialog(parent: tk.Misc, app_directory: Path, *, on_insta
         except OSError as exc:
             failed(exc)
     for label, callback in [("下载文件", download), ("上传数据包", local)]:
-        button = tk.Button(actions, text=label, command=callback)
+        button = ttk.Button(actions, text=label, command=callback)
         button.pack(side="left", padx=(0, 8))
         buttons.append(button)
     def close():

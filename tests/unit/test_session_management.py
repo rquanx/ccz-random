@@ -1,3 +1,4 @@
+from tkinter import ttk
 import tempfile
 import unittest
 import ast
@@ -1387,16 +1388,16 @@ class SessionManagementTests(unittest.TestCase):
             layout,
         )
         self.assertIn(
-            "repair_button = tk.Button(\n"
+            "repair_button = ttk.Button(\n"
             "        rule_settings_bar,",
             layout,
         )
         self.assertIn(
-            "action_button = tk.Button(\n"
+            "action_button = ttk.Button(\n"
             "        rule_settings_bar,",
             layout,
         )
-        self.assertIn('action_button.pack(side="right")', layout)
+        # Button placement and spacing are checked on real widgets below.
         self.assertNotIn("textvariable=status", layout)
 
     def test_main_navigation_buttons_keep_order_and_uniform_width(self):
@@ -1416,14 +1417,39 @@ class SessionManagementTests(unittest.TestCase):
             start = layout.index(f'text="{text}"')
             end = layout.index("\n    )", start)
             self.assertNotIn("width=10", layout[start:end])
-        theme_source = (
-            Path(__file__).resolve().parents[2]
-            / "ccz_randomizer"
-            / "ui"
-            / "theme.py"
-        ).read_text(encoding="utf-8")
-        self.assertIn('root.option_add("*Button.padX", 8)', theme_source)
-        self.assertIn('root.option_add("*Button.padY", 2)', theme_source)
+        import tkinter as tk
+        from ccz_randomizer.ui.theme import setup_theme
+        root = tk.Tk()
+        self.addCleanup(root.destroy)
+        setup_theme(root)
+        padding = ttk.Style(root).lookup("TButton", "padding")
+        self.assertEqual(tuple(map(int, root.tk.splitlist(padding))), (8, 2))
+        # Exercise the actual navigation row, including its geometry settings.
+        row = layout[layout.index("    rule_settings_bar = tk.Frame(settings_panel)"):]
+        import textwrap
+        namespace = dict(tk=tk, ttk=ttk, root=root, settings_panel=root,
+                         SelectionCombobox=ttk.Combobox,
+                         rule_profile_var=tk.StringVar(root, value="测试规则"),
+                         current_rules={"profiles": ["测试规则"]})
+        class Combo(ttk.Combobox):
+            def __init__(self, parent, **kwargs):
+                kwargs.pop("search_label", None)
+                super().__init__(parent, **kwargs)
+        namespace["SelectionCombobox"] = Combo
+        exec(textwrap.dedent(row), namespace)
+        root.geometry("1800x200")
+        root.update()
+        root.update_idletasks()
+        buttons = [namespace[name] for name in (
+            "rule_button", "recruit_button", "effects_button",
+            "repair_button", "action_button")]
+        default = ttk.Button(root, text="规则设置")
+        self.assertLess(buttons[0].winfo_reqwidth(), default.winfo_reqwidth())
+        self.assertEqual(len({b.winfo_reqwidth() for b in buttons[:-1]}), 1)
+        for left, right in zip(buttons, buttons[1:]):
+            self.assertGreaterEqual(right.winfo_x() - left.winfo_x() - left.winfo_width(), 8)
+        bar = namespace["rule_settings_bar"]
+        self.assertEqual(buttons[-1].winfo_x() + buttons[-1].winfo_width(), bar.winfo_width())
 
     def test_runtime_cleanup_repairs_s00_and_scratch_save(self):
         game = Path(r"C:\game\Ekd5.exe")

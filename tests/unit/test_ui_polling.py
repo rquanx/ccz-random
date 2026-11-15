@@ -131,7 +131,7 @@ class ProgressPollingTests(unittest.TestCase):
                  patch.object(app, "app_dir", return_value=Path(folder)), \
                  patch.object(app, "locate_game_executable", return_value=Path(folder) / "Ekd5.exe"), \
                  patch.object(app, "activate_game_version", return_value="2.2"), \
-                 patch("tkinter.messagebox.showerror", side_effect=AssertionError("测试不应打开错误弹窗")), \
+                 patch("ccz_randomizer.ui.messages.showerror", side_effect=AssertionError("测试不应打开错误弹窗")), \
                  patch.object(app, "validate_start_environment"), \
                  patch.object(app, "cleanup_random_runtime"), \
                  patch.object(app.subprocess, "Popen", side_effect=launch), \

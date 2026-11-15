@@ -1,3 +1,4 @@
+from tkinter import ttk
 import tempfile
 import tkinter as tk
 import unittest
@@ -91,7 +92,7 @@ class ProfileUpdateTests(unittest.TestCase):
             invalid.write_bytes(b"not a ZIP")
             show_profile_update_dialog(root, appdir)
             dialog = next(child for child in root.winfo_children() if isinstance(child, tk.Toplevel))
-            buttons = {widget.cget("text"): widget for widget in descendants(dialog) if isinstance(widget, tk.Button)}
+            buttons = {widget.cget("text"): widget for widget in descendants(dialog) if isinstance(widget, ttk.Button)}
             self.assertEqual({"下载文件", "上传数据包"}, set(buttons))
             labels = "\n".join(widget.cget("text") for widget in descendants(dialog) if isinstance(widget, tk.Label))
             self.assertIn("自动更新失败", labels)
@@ -116,7 +117,7 @@ class ProfileUpdateTests(unittest.TestCase):
             appdir = folder / "app"
             show_profile_update_dialog(root, appdir)
             upload = next(widget for widget in descendants(root)
-                          if isinstance(widget, tk.Button) and widget.cget("text") == "上传数据包")
+                          if isinstance(widget, ttk.Button) and widget.cget("text") == "上传数据包")
             with patch("ccz_randomizer.profile_updates.filedialog.askopenfilename", return_value=str(archive)), \
                  patch("ccz_randomizer.profile_updates.background_call", side_effect=immediate_background):
                 upload.invoke()

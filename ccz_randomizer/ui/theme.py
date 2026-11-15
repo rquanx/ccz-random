@@ -25,18 +25,17 @@ def setup_theme(root: tk.Misc) -> None:
     if getattr(owner, "_ccz_theme_initialized", False):
         return
     root.option_add("*Font", f"{{{FONT}}} 10")
-    root.option_add("*Button.Font", f"{{{FONT}}} 10")
-    # Tk buttons otherwise size themselves from platform-specific defaults.
-    # Keep the visual rhythm consistent while letting each label determine
-    # its natural width.
-    root.option_add("*Button.padX", 8)
-    root.option_add("*Button.padY", 2)
-    root.option_add("*Button.highlightThickness", 0)
     root.option_add("*Label.Font", f"{{{FONT}}} 10")
     root.option_add("*Entry.Font", f"{{{FONT}}} 10")
     root.option_add("*TCombobox*Listbox.font", f"{{{FONT}}} 10")
     style = ttk.Style(root)
     style.configure("TButton", font=(FONT, 10), padding=(8, 2))
+    style.configure("Primary.TButton", font=(FONT, 10, "bold"), foreground=COLORS["accent"])
+    style.configure("Danger.TButton", foreground=COLORS["danger"])
+    style.configure("Compact.TButton", padding=(4, 1))
+    style.configure("Icon.TButton", padding=2)
+    for button_style in ("Primary.TButton", "Danger.TButton", "Compact.TButton", "Icon.TButton"):
+        style.map(button_style, foreground=[("disabled", COLORS["muted"])])
     style.configure("TLabel", font=(FONT, 10))
     style.configure("TEntry", padding=(6, 4))
     style.configure("TCombobox", padding=(6, 4))

@@ -94,7 +94,7 @@ class EquipmentTests(unittest.TestCase):
     def test_score_button_displays_equipment_and_filters(self):
         root = self.make_root()
         show_score_detail(root, dict(label='合格', mode='three', equipment=self.equipment))
-        button = next(w for w in descendants(root) if isinstance(w, tk.Button) and w.cget('text') == '宝物信息')
+        button = next(w for w in descendants(root) if isinstance(w, ttk.Button) and w.cget('text') == '宝物信息')
         button.invoke()
         self.settle(root)
         dialog = next(w for w in descendants(root) if isinstance(w, tk.Toplevel) and w.title() == '宝物信息')
@@ -209,7 +209,7 @@ class EquipmentTests(unittest.TestCase):
             self.settle(root)
             dialog = next(w for w in descendants(root) if isinstance(w, tk.Toplevel))
             search = next(w for w in descendants(dialog) if isinstance(w, ttk.Entry))
-            self.assertFalse(any(isinstance(w, (ttk.Button, tk.Button)) and w.cget('text') == '清空'
+            self.assertFalse(any(isinstance(w, ttk.Button) and w.cget('text') == '清空'
                                  for w in descendants(dialog)))
             search.focus_force()
             deadline = time.monotonic() + 2

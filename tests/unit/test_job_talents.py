@@ -1,3 +1,4 @@
+from tkinter import ttk
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -52,7 +53,6 @@ class JobTalentsTests(unittest.TestCase):
 
     def test_actual_score_dialog_buttons_open_result_bound_views(self):
         import tkinter as tk
-        from tkinter import ttk
         try:
             root = tk.Tk()
         except tk.TclError as exc:
@@ -69,7 +69,7 @@ class JobTalentsTests(unittest.TestCase):
             for child in widget.winfo_children():
                 yield child
                 yield from descendants(child)
-        buttons = {w.cget("text"): w for w in descendants(root) if isinstance(w, tk.Button)}
+        buttons = {w.cget("text"): w for w in descendants(root) if isinstance(w, ttk.Button)}
         buttons["兵种天赋"].invoke()
         root.update()
         job_window = next(w for w in descendants(root) if isinstance(w, tk.Toplevel) and w.title() == "2.2 兵种天赋")

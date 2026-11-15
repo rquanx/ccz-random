@@ -1,4 +1,5 @@
 from __future__ import annotations
+from tkinter import ttk
 
 from ccz_randomizer.ui.window_position import centered_toplevel, show_centered
 from ccz_randomizer.ui.theme import COLORS, FONT, setup_theme, style_dialog
@@ -223,7 +224,7 @@ def show_score_detail(root, detail: dict) -> None:
 
     add_detail_actions(body, dialog, detail)
 
-    tk.Button(body, text="关闭", width=10, command=dialog.destroy).pack(
+    ttk.Button(body, text="关闭", width=10, command=dialog.destroy).pack(
         side="bottom", anchor="e", pady=(12, 0))
 
     detail_text = scrolledtext.ScrolledText(

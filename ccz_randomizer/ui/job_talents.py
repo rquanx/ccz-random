@@ -26,7 +26,8 @@ def load_job_talents(snapshot: dict) -> tuple[dict, ...]:
 
 def show_job_talents_window(parent, *, snapshot: dict) -> None:
     import tkinter as tk
-    from tkinter import messagebox, ttk, font
+    from tkinter import ttk, font
+    from ccz_randomizer.ui import messages as messagebox
 
     try:
         jobs = load_job_talents(snapshot)

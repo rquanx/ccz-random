@@ -56,7 +56,8 @@ def special_talent_names(rule: dict | None) -> frozenset[str]:
 def show_recruit_window(parent, catalog_path: Path | None = None, *, snapshot: dict | None = None, history_path: Path | None = None, rule: dict | None = None) -> None:
     """Display recruitment candidates as lightweight canvas cards."""
     import tkinter as tk
-    from tkinter import filedialog, messagebox, ttk
+    from tkinter import filedialog, ttk
+    from ccz_randomizer.ui import messages as messagebox
     if catalog_path is None and snapshot is None:
         filename = filedialog.askopenfilename(parent=parent, title="打开人员快照", filetypes=[("人员快照", "*.json")])
         if not filename: return

@@ -5,7 +5,8 @@ import sys
 import subprocess
 import threading
 import tkinter as tk
-from tkinter import messagebox, scrolledtext, ttk
+from tkinter import scrolledtext, ttk
+from ccz_randomizer.ui import messages as messagebox
 from ccz_randomizer.ui.inputs import TextEntry
 
 
@@ -48,7 +49,7 @@ def create_support_actions(root, api):
         progress.pack(fill="x", pady=(12, 14))
         progress.start(12)
         cancel = threading.Event()
-        cancel_button = tk.Button(body, text="取消", width=10)
+        cancel_button = ttk.Button(body, text="取消", width=10)
         cancel_button.pack(anchor="e")
         archive_holder: dict[str, Path] = {}
 
@@ -69,9 +70,9 @@ def create_support_actions(root, api):
                 success.clipboard_clear()
                 success.clipboard_append(url)
                 show_toast(success, "地址已复制")
-            tk.Button(actions, text="复制地址", width=12, command=copy_url).pack(side="left")
-            tk.Button(actions, text="打开地址", width=12, command=lambda: os.startfile(url)).pack(side="left", padx=(8, 0))
-            tk.Button(actions, text="关闭", width=10, command=success.destroy).pack(side="right")
+            ttk.Button(actions, text="复制地址", width=12, command=copy_url).pack(side="left")
+            ttk.Button(actions, text="打开地址", width=12, command=lambda: os.startfile(url)).pack(side="left", padx=(8, 0))
+            ttk.Button(actions, text="关闭", width=10, command=success.destroy).pack(side="right")
             success.update_idletasks()
             success.geometry(f"{max(620, success.winfo_reqwidth())}x{max(150, success.winfo_reqheight())}")
             show_centered(success)
@@ -97,16 +98,16 @@ def create_support_actions(root, api):
                 path_label = tk.Label(frame, text=str(archive), fg="#1565c0", cursor="hand2", anchor="w", wraplength=560, justify="left")
                 path_label.pack(fill="x")
                 path_label.bind("<Button-1>", lambda _event: open_folder())
-                tk.Button(frame, text="打开所在文件夹", command=open_folder, width=16).pack(anchor="w", pady=(8, 0))
+                ttk.Button(frame, text="打开所在文件夹", command=open_folder, width=16).pack(anchor="w", pady=(8, 0))
             failure_actions = tk.Frame(frame)
             failure_actions.pack(fill="x", pady=(14, 0))
-            tk.Button(
+            ttk.Button(
                 failure_actions,
                 text="再次上传",
                 command=lambda: (failure.destroy(), open_log_upload_progress(parent)),
                 width=12,
             ).pack(side="left")
-            tk.Button(failure_actions, text="关闭", command=failure.destroy, width=10).pack(side="right")
+            ttk.Button(failure_actions, text="关闭", command=failure.destroy, width=10).pack(side="right")
             failure.update_idletasks()
             failure.geometry(f"{max(560, failure.winfo_reqwidth())}x{max(220, failure.winfo_reqheight())}")
             show_centered(failure)
@@ -176,11 +177,11 @@ def create_support_actions(root, api):
         report.pack(fill="both", expand=True)
         actions = tk.Frame(body)
         actions.pack(fill="x", pady=(12, 0))
-        probe_button = tk.Button(actions, text="再次测试", width=16)
+        probe_button = ttk.Button(actions, text="再次测试", width=16)
         probe_button.pack(side="left")
-        upload_button = tk.Button(actions, text="上报日志给开发者", width=18)
+        upload_button = ttk.Button(actions, text="上报日志给开发者", width=18)
         upload_button.pack(side="left", padx=(8, 0))
-        tk.Button(actions, text="关闭", width=10, command=dialog.destroy).pack(side="right")
+        ttk.Button(actions, text="关闭", width=10, command=dialog.destroy).pack(side="right")
 
         try:
             game_executable = locate_game_executable()

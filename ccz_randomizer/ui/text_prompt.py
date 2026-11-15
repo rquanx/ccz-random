@@ -1,4 +1,5 @@
 """Small modal text prompts using the same placement as other tool dialogs."""
+from ccz_randomizer.ui.dialog_actions import add_dialog_actions
 import tkinter as tk
 from tkinter import ttk
 
@@ -33,8 +34,7 @@ def ask_text(title, prompt, *, parent, initialvalue=""):
         dialog.destroy()
         return "break"
 
-    ttk.Button(actions, text="确定", command=submit).pack(side="right")
-    ttk.Button(actions, text="取消", command=cancel).pack(side="right", padx=(0, 8))
+    add_dialog_actions(actions, confirm=submit, cancel=cancel)
     dialog.bind("<Return>", submit)
     dialog.bind("<KP_Enter>", submit)
     dialog.bind("<Escape>", cancel)

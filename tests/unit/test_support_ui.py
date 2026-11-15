@@ -1,3 +1,4 @@
+from tkinter import ttk
 import os
 """Exercise real Tk upload buttons without sending logs to a server."""
 from ccz_randomizer.ui.inputs import TextEntry
@@ -19,6 +20,9 @@ def descendants(widget):
 
 class SupportUiTests(unittest.TestCase):
     def setUp(self):
+        catalog = patch.object(app, "skill_score_catalog", return_value={})
+        catalog.start()
+        self.addCleanup(catalog.stop)
         environment = patch.dict(os.environ)
         environment.start()
         self.addCleanup(environment.stop)
@@ -26,12 +30,11 @@ class SupportUiTests(unittest.TestCase):
     def test_dictionary_is_available_from_main_window_before_any_random_run(self):
         def exercise(root):
             button = next(w for w in descendants(root)
-                          if isinstance(w, tk.Button) and w.cget("text") == "特效手册")
-            self.assertEqual("normal", button.cget("state"))
+                          if isinstance(w, ttk.Button) and w.cget("text") == "特效手册")
+            self.assertFalse(button.instate(("disabled",)))
             button.invoke()
             dialog = next(w for w in root.winfo_children()
                           if isinstance(w, tk.Toplevel) and w.title() == "特效手册")
-            from tkinter import ttk
             table = next(w for w in descendants(dialog) if isinstance(w, ttk.Treeview))
             self.assertEqual(302, len(table.get_children()))
             detail = next(w for w in descendants(dialog) if isinstance(w, tk.Text))
@@ -62,7 +65,7 @@ class SupportUiTests(unittest.TestCase):
         actions = {key: lambda parent, key=key: calls.append((key, parent)) for key in keys}
         dialog = show_support_menu(root, actions, "3")
         root.update()
-        buttons = [widget for widget in descendants(dialog) if isinstance(widget, tk.Button)]
+        buttons = [widget for widget in descendants(dialog) if isinstance(widget, ttk.Button)]
         self.assertEqual(["不会用？", "特效手册", "随机用不了？", "游戏没声音", "上传最新日志", "手动更新数据（3）", "空间清理", "关闭"],
             [button.cget("text") for button in buttons])
         headings = [widget.cget("text") for widget in descendants(dialog) if isinstance(widget, tk.Label)]
@@ -89,14 +92,14 @@ class SupportUiTests(unittest.TestCase):
                 while not predicate() and time.monotonic() < deadline:
                     root.update()
                     time.sleep(.002)
-                self.assertTrue(predicate())
+                self.assertTrue(predicate(), errors)
             try:
                 state["open_log_upload_progress"]()
                 targets.pop()()
-                wait_until(lambda: any(isinstance(w, tk.Button) and w.cget("text") == "再次上传"
+                wait_until(lambda: any(isinstance(w, ttk.Button) and w.cget("text") == "再次上传"
                                        for w in descendants(root)))
                 retry = next(w for w in descendants(root)
-                             if isinstance(w, tk.Button) and w.cget("text") == "再次上传")
+                             if isinstance(w, ttk.Button) and w.cget("text") == "再次上传")
                 retry.invoke()
                 targets.pop()()
                 wait_until(lambda: any(isinstance(w, TextEntry) and w.get() == url
@@ -105,11 +108,11 @@ class SupportUiTests(unittest.TestCase):
                              if isinstance(w, TextEntry) and w.get() == url)
                 self.assertEqual(url, entry.get())
                 copy = next(w for w in descendants(root)
-                            if isinstance(w, tk.Button) and w.cget("text") == "复制地址")
+                            if isinstance(w, ttk.Button) and w.cget("text") == "复制地址")
                 copy.invoke()
                 root.update()
                 self.assertEqual(url, root.clipboard_get())
-                self.assertFalse(any(isinstance(w, tk.Button) and w.cget("text") == "再次上传"
+                self.assertFalse(any(isinstance(w, ttk.Button) and w.cget("text") == "再次上传"
                                      for w in descendants(root)))
             finally:
                 # Let each toplevel cancel timers it owns before cancelling
@@ -132,7 +135,7 @@ class SupportUiTests(unittest.TestCase):
                  patch.object(app, "create_log_archive", return_value=archive), \
                  patch.object(app, "upload_log_archive", side_effect=[RuntimeError("TLS reset"), url]) as upload, \
                  patch("ccz_randomizer.profile_session.startup_profile_check"), \
-                 patch("tkinter.messagebox.askyesno", return_value=True), \
+                 patch("ccz_randomizer.ui.messages.askyesno", return_value=True), \
                  patch.object(app.threading.Thread, "start", capture_thread_start):
                 app.gui_main()
             self.assertEqual(2, upload.call_count)

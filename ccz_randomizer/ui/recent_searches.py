@@ -3,11 +3,32 @@ import tkinter as tk
 from tkinter import ttk
 from PIL import Image, ImageDraw, ImageTk
 from ccz_randomizer.ui.tooltip import HoverTooltip
+from ccz_randomizer.ui.theme import COLORS, FONT
+
+
+def _chip_styles(widget):
+    owner = widget._root()
+    if getattr(owner, '_ccz_recent_styles', False):
+        return
+    style = ttk.Style(widget)
+    style.element_create('Recent.Chip.border', 'from', 'clam', 'Button.border')
+    layout = [('Recent.Chip.border', {'sticky': 'nswe', 'children': [
+        ('Button.padding', {'sticky': 'nswe', 'children': [('Button.label', {'sticky': 'nswe'})]})]})]
+    for name in ('Recent.Keyword.TButton', 'Recent.Delete.TButton'):
+        style.layout(name, layout)
+        style.configure(name, font=(FONT, 9), background=COLORS['surface_alt'],
+                        foreground=COLORS['ink'], borderwidth=1, relief='flat',
+                        bordercolor=COLORS['border'], lightcolor=COLORS['surface_alt'],
+                        darkcolor=COLORS['surface_alt'], padding=0)
+        style.map(name, background=[('pressed', COLORS['accent_soft']), ('active', '#EEF2F7')],
+                  bordercolor=[('focus', COLORS['accent'])])
+    style.configure('Recent.Delete.TButton', bordercolor=COLORS['surface_alt'])
+    owner._ccz_recent_styles = True
 
 
 def delete_icon(master, color="#8492A6"):
     """Rasterize the small Lucide x icon at the current Tk display scale."""
-    size = max(12, round(9 * float(master.tk.call("tk", "scaling"))))
+    size = max(10, round(7.5 * float(master.tk.call("tk", "scaling"))))
     scale = size * 4 / 24
     image = Image.new("RGBA", (size * 4, size * 4))
     draw = ImageDraw.Draw(image)
@@ -24,6 +45,7 @@ def delete_icon(master, color="#8492A6"):
 class RecentSearchesBar(ttk.Frame):
     def __init__(self, parent, on_select, on_remove=None, on_clear=None):
         super().__init__(parent)
+        _chip_styles(self)
         self.on_select = on_select
         self.buttons = []
         self.groups = []
@@ -40,6 +62,10 @@ class RecentSearchesBar(ttk.Frame):
         self.chips.bind("<Configure>", self._layout)
 
     def set_items(self, items):
+        items = tuple(items)
+        if items == getattr(self, '_items', None):
+            return
+        self._items = items
         for group in self.groups:
             group.destroy()
         self.buttons = []
@@ -49,19 +75,20 @@ class RecentSearchesBar(ttk.Frame):
             group = tk.Frame(self.chips)
             self.groups.append(group)
             button = ttk.Button(group, text=word if len(word) <= 10 else word[:10]+"…",
-                command=lambda value=word: self.on_select(value), cursor="hand2", )
+                command=lambda value=word: self.on_select(value), cursor="hand2",
+                width=-1, style='Recent.Keyword.TButton')
             button._keyword = word
             button._tooltip = HoverTooltip(button, word)
             self.buttons.append(button)
-            close_space = self._delete_icon.width() + 6 if self.on_remove else 0
-            button.pack(side="left", padx=(0, close_space))
+            close_size = self._delete_icon.width() + 8 if self.on_remove else 0
+            button.configure(padding=(8, 4, close_size + 8, 4))
+            button.pack(fill='both', expand=True)
             if self.on_remove:
                 delete = ttk.Button(group, image=self._delete_icon,
                     command=lambda value=word: self.on_remove(value),
                     takefocus=True,
-                    cursor="hand2", style="Icon.TButton")
-                button.pack_configure(padx=(0, delete.winfo_reqwidth()+4))
-                delete.place(relx=1, x=-1, y=1, anchor="ne")
+                    cursor="hand2", width=-1, style="Recent.Delete.TButton")
+                delete.place(relx=1, x=-2, y=2, anchor="ne", width=close_size, height=close_size)
                 delete.bind("<Enter>", lambda _event, control=delete:
                             control.configure(image=self._delete_hover_icon))
                 delete.bind("<Leave>", lambda _event, control=delete:

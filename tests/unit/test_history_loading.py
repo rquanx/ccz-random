@@ -39,6 +39,77 @@ def displayed(widget, parent):
 
 
 class HistoryLoadingTests(unittest.TestCase):
+    def test_slow_database_initialization_keeps_window_responsive(self):
+        entered, release = threading.Event(), threading.Event()
+        threads = []
+        real_repository = history.HistoryRepository
+        def initialize(base):
+            threads.append(threading.get_ident())
+            entered.set()
+            release.wait(3)
+            return real_repository(base)
+        try:
+            with patch.object(history, "HistoryRepository", side_effect=initialize):
+                history.show_history_window(self.root, Path(self.temporary.name))
+                dialog = self.root._history_window
+                self.assertTrue(entered.wait(1))
+                beats = []
+                self.root.after(0, lambda: beats.append(True))
+                self.root.update()
+                self.assertEqual([True], beats)
+                self.assertNotEqual(threading.get_ident(), threads[0])
+                self.assertTrue(dialog.winfo_exists())
+                history.show_history_window(self.root, Path(self.temporary.name))
+                self.assertEqual([dialog], [w for w in self.root.winfo_children() if isinstance(w, tk.Toplevel)])
+                release.set()
+                self.wait_until(lambda: any("共 0 轮" in text for text in self.labels(dialog)))
+        finally:
+            release.set()
+
+    def test_database_initialization_error_can_be_retried_by_refresh(self):
+        real_repository = history.HistoryRepository
+        attempts = []
+        def initialize(base):
+            attempts.append(base)
+            if len(attempts) == 1:
+                raise OSError("测试数据库暂不可用")
+            return real_repository(base)
+        with patch.object(history, "HistoryRepository", side_effect=initialize):
+            history.show_history_window(self.root, Path(self.temporary.name))
+            dialog = self.root._history_window
+            self.wait_until(lambda: any("测试数据库暂不可用" in text for text in self.labels(dialog)))
+            self.button(dialog, "刷新").invoke()
+            self.wait_until(lambda: any("共 0 轮" in text for text in self.labels(dialog)))
+            self.assertEqual(2, len(attempts))
+
+    def test_datetime_picker_uses_plain_entries_and_validates_typed_date(self):
+        dialog = self.open_window()
+        self.root.update()
+        # The two date fields follow the keyword search field in the filters.
+        fields = [w for w in descendants(dialog) if isinstance(w, TextEntry)]
+        start = fields[1]
+        start.event_generate("<Button-1>")
+        self.root.update()
+        picker = next(w for w in descendants(dialog) if isinstance(w, tk.Toplevel) and w.title() == "选择日期与时间")
+        entries = [w for w in descendants(picker) if isinstance(w, TextEntry)]
+        self.assertEqual(6, len(entries))
+        self.assertFalse(any(isinstance(w, (tk.Spinbox, ttk.Spinbox)) for w in descendants(picker)))
+        for entry, text in zip(entries, ("2026", "2", "30", "13", "45", "30")):
+            entry.delete(0, "end")
+            entry.insert(0, text)
+        with patch("ccz_randomizer.ui.messages.showerror") as error:
+            self.button(picker, "确认").invoke()
+            error.assert_called_once()
+        self.assertTrue(picker.winfo_exists())
+        self.assertEqual("", start.get())
+        entries[1].delete(0, "end")
+        entries[1].insert(0, "11")
+        entries[2].delete(0, "end")
+        entries[2].insert(0, "16")
+        self.button(picker, "确认").invoke()
+        self.assertEqual("2026-11-16 13:45:30", start.get())
+        self.assertFalse(picker.winfo_exists())
+
     def test_paging_reuses_bounded_round_cards_and_edits_current_round(self):
         from ccz_randomizer.ui.history_rounds import RoundCard
         for number in range(1, 22):
@@ -48,10 +119,11 @@ class HistoryLoadingTests(unittest.TestCase):
             return [w for w in descendants(dialog) if isinstance(w, RoundCard)]
         self.wait_until(lambda: len(cards()) == 10 and all(c.winfo_manager() for c in cards()))
         original = {str(w) for c in cards() for w in (c, *descendants(c))}
-        first_ids = {c.row["id"] for c in cards()}
+        first_ids = {r["id"] for r in self.repository.list_rounds(page=1, page_size=10)}
         self.button(dialog, "下一页").invoke()
         self.wait_until(lambda: len(cards()) == 10 and not first_ids.intersection(c.row["id"] for c in cards()))
         self.assertEqual(original, {str(w) for c in cards() for w in (c, *descendants(c))})
+
         current = cards()[0]
         current_id = current.row["id"]
         current.edit_button.invoke()
@@ -70,6 +142,23 @@ class HistoryLoadingTests(unittest.TestCase):
         self.button(dialog, "上一页").invoke()
         self.wait_until(lambda: len([c for c in cards() if c.winfo_manager()]) == 10)
         self.assertEqual(original, {str(w) for c in cards() for w in (c, *descendants(c))})
+
+    def test_closed_history_reuses_controls_and_reads_new_records_when_reopened(self):
+        self.add_round(1, [1])
+        dialog = self.open_window()
+        self.wait_until(lambda: "存档 1" in self.labels(dialog))
+        controls = {str(w) for w in descendants(dialog)}
+        dialog.tk.call(dialog.protocol("WM_DELETE_WINDOW"))
+        self.assertEqual("withdrawn", dialog.state())
+        self.add_round(2, [2])
+        history.show_history_window(self.root, self.repository)
+        self.assertIs(dialog, self.root._history_window)
+        tree = next(w for w in descendants(dialog) if isinstance(w, ttk.Treeview))
+        self.wait_until(lambda: len(tree.get_children()) == 2)
+        tree.selection_set(tree.get_children()[0])
+        self.wait_until(lambda: "存档 2" in self.labels(dialog))
+        self.assertNotIn("存档 1", self.labels(dialog))
+        self.assertTrue(controls.issubset({str(w) for w in descendants(dialog)}))
 
     def test_rule_filter_resets_paging_and_all_rules_label_is_not_a_reserved_name(self):
         for number in range(1, 12):
@@ -126,7 +215,10 @@ class HistoryLoadingTests(unittest.TestCase):
 
     def setUp(self):
         self.root = tk.Tk()
-        self.root.withdraw()
+        # Native viewports need real dimensions. The test runner maps this root
+        # exclusively on its private Windows desktop, never the user's screen.
+        self.root.geometry("320x200")
+        self.root.update_idletasks()
         self.errors = []
         self.root.report_callback_exception = lambda *args: self.errors.append(args)
         self.temporary = tempfile.TemporaryDirectory()
@@ -173,7 +265,7 @@ class HistoryLoadingTests(unittest.TestCase):
                              if widget.type(item) == "text" and widget.itemcget(item, "state") != "hidden")
         return texts
 
-    def test_first_round_reads_once_and_all_fifteen_cards_render(self):
+    def test_first_round_reads_once_and_scrolling_exposes_all_fifteen_results(self):
         self.add_round(1, range(1, 16))
         original = self.repository.get_round_summaries
         thread_ids = []
@@ -182,14 +274,39 @@ class HistoryLoadingTests(unittest.TestCase):
             return original(rid)
         with patch.object(self.repository, "get_round_summaries", side_effect=read):
             dialog = self.open_window()
-            self.wait_until(lambda: len([x for x in self.labels(dialog) if x.startswith("存档 ")]) == 15)
+            viewport = dialog._result_viewport
+            self.wait_until(lambda: viewport.ready)
+            initial = {x for x in self.labels(dialog) if x.startswith("存档 ")}
+            self.assertLess(len(initial), 15)
+            self.assertIn("存档 1", initial)
+            seen = set(initial)
+            for fraction in (.25, .5, .75, 1):
+                viewport.canvas.yview_moveto(fraction)
+                self.root.update()
+                self.wait_until(lambda: viewport.ready)
+                seen.update(x for x in self.labels(dialog) if x.startswith("存档 "))
+            self.assertEqual({f"存档 {i}" for i in range(1, 16)}, seen)
+            self.assertIn("存档 15", self.labels(dialog))
+            from ccz_randomizer.ui.history_cards import SummaryCard
+            self.assertLess(len([w for w in descendants(dialog) if isinstance(w, SummaryCard)]), 15)
+            last = next(w for w in descendants(dialog) if isinstance(w, SummaryCard)
+                        and w.winfo_manager() and w.snapshot.get("slot") == 15)
+            bounds = last.canvas.bbox(last.texts["members"])
+            self.assertLessEqual(bounds[3], last.canvas.winfo_height())
+            with patch.object(history, "_show_detail") as detail:
+                last.detail.invoke()
+                self.wait_until(lambda: detail.called)
+                self.assertEqual(15, detail.call_args.args[1]["slot"])
             tree = next(w for w in descendants(dialog) if isinstance(w, ttk.Treeview))
             tree.event_generate("<<TreeviewSelect>>")
             self.root.update()
             self.assertEqual(1, len(thread_ids))
             self.assertNotEqual(threading.get_ident(), thread_ids[0])
-            self.assertEqual({f"存档 {i}" for i in range(1, 16)},
-                             {x for x in self.labels(dialog) if x.startswith("存档 ")})
+            query = next(w for w in descendants(dialog) if isinstance(w, TextEntry))
+            query.insert(0, "不存在的历史轮次")
+            self.button(dialog, "搜索").invoke()
+            self.wait_until(lambda: not tree.get_children())
+            self.assertEqual((0.0, 1.0), viewport.canvas.yview())
 
     def test_slow_read_does_not_block_input_and_old_selection_never_replaces_new_one(self):
         older = self.add_round(1, [1])
@@ -311,16 +428,31 @@ class HistoryLoadingTests(unittest.TestCase):
         from ccz_randomizer.ui.member_card import MemberCard
         history._show_detail(self.root, self.snapshot)
         dialog = next(w for w in self.root.winfo_children() if isinstance(w, tk.Toplevel))
+        self.assertEqual(f"第 {self.snapshot.get('slot', '-')} 号存档详情", dialog.title())
         members = history_members(self.snapshot)
         self.assertEqual(143, len(members))
-        self.wait_until(lambda: len([w for w in descendants(dialog) if isinstance(w, MemberCard)]) == len(members))
-        texts = self.labels(dialog)
+        viewport = dialog._member_viewport
+        self.wait_until(lambda: viewport.ready)
+        texts = set()
+        for step in range(101):
+            viewport.canvas.yview_moveto(step/100)
+            self.root.update()
+            self.wait_until(lambda: viewport.ready)
+            texts.update(self.labels(dialog))
+            for card in (w for w in descendants(dialog) if isinstance(w, MemberCard) and w.winfo_manager()):
+                for item in card.find_all():
+                    if card.type(item) == 'text':
+                        bounds = card.bbox(item)
+                        self.assertLessEqual(bounds[3], card.winfo_height())
         for member in members:
             self.assertIn(member["name"], texts)
             self.assertTrue(any(str(member["job"]) in text for text in texts))
             self.assertIn(history._skill_names(member.get("personalSkills") or []), texts)
             self.assertIn(history._skill_names(member.get("jobSkills") or []), texts)
-        self.assertLess(len(list(descendants(dialog))), 300)
+        self.assertLessEqual(len([w for w in descendants(dialog) if isinstance(w, MemberCard)]),
+                             viewport.columns*(int(viewport.canvas.winfo_height()/min(
+                                 b-a for a,b in zip(viewport.offsets, viewport.offsets[1:])))+3))
+        self.assertLess(len(list(descendants(dialog))), 150)
 
     def button(self, window, text):
         return next(w for w in descendants(window) if isinstance(w, ttk.Button) and w.cget("text") == text and displayed(w, window))
@@ -479,15 +611,13 @@ class HistoryLoadingTests(unittest.TestCase):
         older = self.add_round(1, [1, 2])
         latest = self.add_round(2, [3, 4])
         self.repository.annotate_round(older, title="旧轮优选", note="备注")
-        with patch.object(history, "_render_summary_card", wraps=history._render_summary_card) as create, \
-             patch.object(history, "_show_detail") as detail:
+        with patch.object(history, "_show_detail") as detail:
             dialog = self.open_window()
             self.wait_until(lambda: "存档 4" in self.labels(dialog))
             first_controls = {str(w) for w in descendants(dialog)}
             tree = next(w for w in descendants(dialog) if isinstance(w, ttk.Treeview))
             tree.selection_set(tree.get_children()[1])
             self.wait_until(lambda: "存档 2" in self.labels(dialog))
-            self.assertEqual(2, create.call_count)
             self.assertEqual(first_controls, {str(w) for w in descendants(dialog)})
             self.assertEqual("旧轮优选", self.repository.list_rounds(page=1, page_size=2)[1]["title"])
             self.button(dialog, "查看完整详情").invoke()
@@ -496,11 +626,12 @@ class HistoryLoadingTests(unittest.TestCase):
             self.assertEqual(self.repository.get_result(older, 1), detail.call_args.args[1])
             tree.selection_set(tree.get_children()[0])
             self.wait_until(lambda: "存档 4" in self.labels(dialog))
-            self.assertNotIn("旧轮优选", self.labels(dialog))
+            from ccz_randomizer.ui.history_cards import SummaryCard
+            self.assertFalse(any("旧轮优选" in card.view.values() for card in descendants(dialog)
+                                 if isinstance(card, SummaryCard) and card.view))
             self.assertNotIn("已标记", self.labels(dialog))
             self.button(dialog, "刷新").invoke()
             self.wait_until(lambda: "存档 4" in self.labels(dialog))
-            self.assertEqual(2, create.call_count)
             self.assertEqual(first_controls, {str(w) for w in descendants(dialog)})
 
     def test_round_picker_allows_only_one_inline_editor(self):
@@ -534,8 +665,7 @@ class HistoryLoadingTests(unittest.TestCase):
         dialog.event_generate("<Button-1>")
         self.wait_until(lambda: self.repository.list_rounds()[0]["title"] == "点击外部保存")
         self.assertEqual(rid, self.repository.list_rounds()[0]["id"])
-        self.wait_until(lambda: any(isinstance(w, tk.Message) and w.cget("text") == "点击外部保存"
-                                    for w in descendants(dialog)))
+        self.wait_until(lambda: "点击外部保存" in self.labels(dialog))
 
     def test_inline_editor_saves_before_starting_another_round_edit(self):
         rid = self.add_round(1, [1])

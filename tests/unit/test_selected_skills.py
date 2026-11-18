@@ -51,9 +51,9 @@ class SelectedSkillTests(unittest.TestCase):
             chooser.invoke()
             root.update()
             selection = next(w for w in descendants(editor) if isinstance(w, tk.Toplevel) and w.title() == '选择人物')
-            checks = [w for w in descendants(selection) if isinstance(w, tk.Checkbutton)]
-            self.assertEqual(42, len(checks))
-            self.assertEqual(set(range(7)), {int(w.grid_info()['column']) for w in checks})
+            checks = [w for w in descendants(selection) if isinstance(w, ttk.Checkbutton)]
+            self.assertEqual(24, len(checks))
+            self.assertEqual(set(range(6)), {int(w.grid_info()['column']) for w in checks})
             self.assertTrue(all(w.winfo_x() + w.winfo_width() <= w.master.winfo_width() for w in checks))
             next(w for w in descendants(selection) if isinstance(w, ttk.Button) and w.cget('text') == '取消').invoke()
             root.update()

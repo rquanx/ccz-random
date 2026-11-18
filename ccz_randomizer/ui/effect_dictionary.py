@@ -8,6 +8,7 @@ from ccz_randomizer.effect_dictionary import load_effect_dictionary
 from ccz_randomizer.ui.inputs import SearchEntry
 from ccz_randomizer.ui.theme import FONT, setup_theme, style_dialog
 from ccz_randomizer.ui.window_position import centered_toplevel, show_centered
+from ccz_randomizer.ui.window_events import bind_window_event
 
 
 def show_effect_dictionary(parent):
@@ -105,7 +106,7 @@ def show_effect_dictionary(parent):
 
     query.trace_add("write", schedule)
     table.bind("<<TreeviewSelect>>", show_selected)
-    dialog.bind("<Destroy>", cleanup, add="+")
+    bind_window_event(dialog, "<Destroy>", cleanup)
     refresh()
     show_centered(dialog)
     search.focus_set()

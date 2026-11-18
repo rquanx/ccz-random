@@ -1,6 +1,6 @@
 """Application messages use the same themed controls and action order as editors."""
 import tkinter as tk
-from tkinter import scrolledtext
+from ccz_randomizer.ui import scrolled_text as scrolledtext
 
 from ccz_randomizer.ui.dialog_actions import add_dialog_actions
 from ccz_randomizer.ui.theme import COLORS, FONT, setup_theme

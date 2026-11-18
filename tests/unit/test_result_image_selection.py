@@ -80,7 +80,7 @@ class ResultImageSelectionTests(unittest.TestCase):
                 root.update()
                 dialog=next(w for w in descendants(editor) if isinstance(w,tk.Toplevel) and w.title()=='结果图人物')
                 next(w for w in descendants(dialog) if isinstance(w,ttk.Button) and w.cget('text')=='清空选择').invoke()
-                next(w for w in descendants(dialog) if isinstance(w,tk.Checkbutton) and w.cget('text')=='曹操').invoke()
+                next(w for w in descendants(dialog) if isinstance(w,ttk.Checkbutton) and w.cget('text')=='曹操').invoke()
                 next(w for w in descendants(dialog) if isinstance(w,ttk.Button) and w.cget('text')=='确认').invoke()
                 next(w for w in descendants(editor) if isinstance(w,ttk.Button) and w.cget('text')=='保存规则').invoke()
                 self.assertEqual(1,len(saved))

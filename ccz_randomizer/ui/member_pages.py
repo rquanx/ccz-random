@@ -6,6 +6,51 @@ from ccz_randomizer.ui.inputs import SearchEntry
 from ccz_randomizer.ui.theme import setup_theme
 
 
+class MemberCheckGrid:
+    """Reuse one page of checkboxes while keeping each person's own variable."""
+
+    def __init__(self, variables, *, state=lambda: "normal", padx=4, uniform=None, columns=7):
+        self.variables = variables
+        self.state = state
+        self.padx = padx
+        self.uniform = uniform
+        self.columns = columns
+        self.checks = []
+        self.names = []
+        self.last_state = None
+
+    def __call__(self, body, visible):
+        if not self.checks:
+            for column in range(self.columns):
+                body.columnconfigure(column, weight=1, uniform=self.uniform or "")
+        state = self.state()
+        for index, name in enumerate(visible):
+            if index == len(self.checks):
+                check = ttk.Checkbutton(body, text=name, variable=self.variables[name], state=state)
+                self.checks.append(check)
+                self.names.append(name)
+                check.grid(row=index // self.columns, column=index % self.columns, sticky="ew",
+                           padx=self.padx, pady=4)
+                continue
+            check = self.checks[index]
+            was_hidden = self.names[index] is None
+            if self.names[index] != name:
+                check.configure(text=name, variable=self.variables[name])
+                self.names[index] = name
+            if was_hidden or self.last_state != state:
+                check.configure(state=state)
+            if not check.winfo_manager():
+                check.grid(row=index // self.columns, column=index % self.columns, sticky="ew",
+                           padx=self.padx, pady=4)
+        for index in range(len(visible), len(self.checks)):
+            check = self.checks[index]
+            if check.winfo_manager():
+                check.grid_remove()
+                check.configure(text="", variable="", state="disabled")
+                self.names[index] = None
+        self.last_state = state
+
+
 class MemberPages(tk.Frame):
     def __init__(self, parent, names, render, *, page_size=24, reuse_widgets=False):
         super().__init__(parent)
@@ -34,6 +79,8 @@ class MemberPages(tk.Frame):
         self.next.pack(side="right")
         self.query.trace_add("write", self.search)
         self.bind("<Destroy>", self.destroyed, add="+")
+        from ccz_randomizer.ui.render_state import track_render
+        track_render(self, lambda: self.pending is None)
         self.refresh()
 
     def search(self, *_):

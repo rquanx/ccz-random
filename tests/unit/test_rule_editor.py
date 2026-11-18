@@ -19,7 +19,7 @@ from fast_randomizer import (
     format_user_log,
     serialize_rule_profile,
 )
-from rule_config import build_rule_export, default_rule_config, load_rule_config
+from rule_config import build_rule_export, default_rule_config, load_rule_config, validate_rule_config
 from rule_editor import (
     ADVANCED_HELP_SECTIONS,
     ScoreGrid,
@@ -44,6 +44,16 @@ def descendants(widget):
     return result
 
 
+def select_advanced(root, editor, index=0):
+    mode = next(w for w in descendants(editor) if isinstance(w, ttk.Notebook) and len(w.tabs()) == 2)
+    mode.select(1)
+    root.update()
+    book = next(w for w in descendants(editor) if isinstance(w, ttk.Notebook) and len(w.tabs()) == 4)
+    book.select(index)
+    root.update()
+    return book
+
+
 class RuleEditorTests(unittest.TestCase):
     def setUp(self):
         version = patch.dict(os.environ, CCZ_GAME_VERSION="2.2")
@@ -52,6 +62,45 @@ class RuleEditorTests(unittest.TestCase):
         confirmation = patch("ccz_randomizer.rules.editor.ask_rule_change", return_value="confirm")
         confirmation.start()
         self.addCleanup(confirmation.stop)
+
+    def test_lazy_advanced_pages_preserve_unopened_values_and_do_not_mark_edits(self):
+        root = tk.Tk()
+        root.withdraw()
+        config = default_rule_config()
+        profile = json.loads(json.dumps(config["profiles"]["默认规则"]))
+        profile.update(builtin=False, editorMode="simple")
+        profile["jobScoring"]["jobBaseScores"]["群雄"] = 8.5
+        profile["sevenPerson"]["skillBaseScores"]["普通特技"] = 4.25
+        profile["resultImage"] = {"mode": "custom", "members": ["曹操"]}
+        config["profiles"]["延迟页面"] = profile
+        config["activeProfile"] = "延迟页面"
+        config = validate_rule_config(config)
+        profile = json.loads(json.dumps(config["profiles"]["延迟页面"]))
+        saved = []
+        try:
+            with tempfile.TemporaryDirectory() as folder, patch("rule_editor.show_toast"), \
+                    patch("ccz_randomizer.rules.editor.ask_rule_change") as confirm:
+                show_rule_editor(root, Path(folder), config, JOB_MAP, TEAM_MEMBERS, SKILL_CATALOG, saved.append)
+                root.update()
+                editor = next(w for w in root.winfo_children() if isinstance(w, tk.Toplevel))
+                self.assertFalse(any(isinstance(w, ScoreGrid) for w in descendants(editor)))
+                self.assertEqual(1, len([w for w in descendants(editor) if isinstance(w, ttk.Notebook)]))
+                book = select_advanced(root, editor)
+                self.assertFalse(any(isinstance(w, ScoreGrid) for w in descendants(editor)))
+                book.select(1)
+                root.update()
+                grid = next(w for w in descendants(editor) if isinstance(w, ScoreGrid))
+                self.assertEqual("8.5", next(var.get() for name, var, _ in grid.items if name == "群雄"))
+                self.assertEqual(1, len([w for w in descendants(editor) if isinstance(w, ScoreGrid)]))
+                mode = book.master.master
+                mode.select(0)
+                root.update()
+                next(w for w in descendants(editor) if isinstance(w, ttk.Button) and w.cget("text") == "保存规则").invoke()
+                self.assertFalse(confirm.called)
+                actual = saved[-1]["profiles"]["延迟页面"]
+                self.assertEqual(profile, actual)
+        finally:
+            root.destroy()
 
     def test_destroyed_toast_cancels_pending_close_callback(self):
         root = tk.Tk()
@@ -74,6 +123,43 @@ class RuleEditorTests(unittest.TestCase):
             root.destroy()
 
         self.assertEqual([], callback_errors)
+
+    def test_reopened_editor_discards_cancelled_input_and_uses_latest_saved_config(self):
+        root = tk.Tk()
+        root.withdraw()
+        try:
+            config = default_rule_config()
+            config["profiles"]["自定义"] = json.loads(json.dumps(config["profiles"]["默认规则"]))
+            config["profiles"]["自定义"].update(builtin=False, editorMode="advanced")
+            config["activeProfile"] = "自定义"
+            config = validate_rule_config(config)
+            with tempfile.TemporaryDirectory() as folder, patch("rule_editor.show_toast"):
+                show_rule_editor(root, Path(folder), config, JOB_MAP, TEAM_MEMBERS, SKILL_CATALOG, lambda _: None)
+                editor = root._rule_editor_window
+                select_advanced(root, editor, 1)
+                grid = next(w for w in descendants(editor) if isinstance(w, ScoreGrid))
+                grid.canvas.configure(width=800, height=300)
+                root.update()
+                x1, y1, x2, y2, _ = grid.hit_boxes[0]
+                grid._start_edit(SimpleNamespace(x=(x1+x2)//2, y=(y1+y2)//2))
+                grid.editor.delete(0, "end")
+                grid.editor.insert(0, "9")
+                editor.tk.call(editor.protocol("WM_DELETE_WINDOW"))
+                self.assertEqual("withdrawn", editor.state())
+                self.assertIsNone(root.grab_current())
+                config["profiles"]["自定义"]["jobScoring"]["jobBaseScores"]["群雄"] = 7.75
+                controls = {str(w) for w in descendants(editor)}
+                saved = []
+                show_rule_editor(root, Path(folder), config, JOB_MAP, TEAM_MEMBERS, SKILL_CATALOG, saved.append)
+                root.update()
+                self.assertIs(editor, root._rule_editor_window)
+                self.assertIs(editor, root.grab_current())
+                self.assertEqual("7.75", grid.canvas.itemcget(grid.value_text_items[0], "text"))
+                self.assertEqual(controls, {str(w) for w in descendants(editor)})
+                next(w for w in descendants(editor) if isinstance(w, ttk.Button) and w.cget("text") == "保存规则").invoke()
+                self.assertEqual(7.75, saved[-1]["profiles"]["自定义"]["jobScoring"]["jobBaseScores"]["群雄"])
+        finally:
+            root.destroy()
 
     def test_rule_help_describes_current_skill_type_behavior(self):
         help_text = "\n".join(
@@ -126,6 +212,62 @@ class RuleEditorTests(unittest.TestCase):
         for message in messages:
             with self.subTest(message=message):
                 self.assertEqual("", format_user_log(message))
+
+    def test_score_grid_deferred_refresh_paints_latest_values_and_cancels_on_close(self):
+        root = tk.Tk()
+        root.withdraw()
+        errors = []
+        root.report_callback_exception = lambda *args: errors.append(args)
+        try:
+            variable = tk.StringVar(value="2")
+            grid = ScoreGrid(root, [("强力特技", variable, "强力")])
+            grid.pack()
+            for value in ("3", "4", "5"):
+                variable.set(value)
+                grid.schedule_refresh()
+            grid.set_enabled(False)
+            grid.set_enabled(True)
+            root.update_idletasks()
+            self.assertEqual("5", grid.canvas.itemcget(grid.value_text_items[0], "text"))
+            grid.schedule_refresh()
+            grid.destroy()
+            root.update()
+            self.assertEqual([], errors)
+        finally:
+            root.destroy()
+
+    def test_score_grid_scrolls_and_edits_items_outside_initial_view(self):
+        root = tk.Tk()
+        root.withdraw()
+        try:
+            items = [(name, tk.StringVar(value="2"), "") for name in JOB_MAP.values()]
+            grid = ScoreGrid(root, items)
+            grid.pack()
+            with patch.object(grid.canvas, "winfo_height", return_value=300):
+                root.update_idletasks()
+                self.assertLess(len(grid.hit_boxes), len(items))
+                self.assertIn(0, grid.value_text_items)
+                last = len(items) - 1
+                self.assertNotIn(last, grid.value_text_items)
+                grid.canvas.yview_moveto(1)
+                root.update_idletasks()
+                self.assertIn(last, grid.value_text_items)
+                x1, y1, x2, y2 = grid.score_editor_boxes[last]
+                grid._start_edit(SimpleNamespace(
+                    x=(x1 + x2) // 2,
+                    y=int((y1 + y2) // 2 - grid.canvas.canvasy(0)),
+                ))
+                grid.editor.delete(0, "end")
+                grid.editor.insert(0, "7")
+                grid.canvas.yview_moveto(0)
+                root.update_idletasks()
+                self.assertEqual("7", items[last][1].get())
+                grid.search_var.set(items[last][0])
+                root.update_idletasks()
+                self.assertIn(last, grid.value_text_items)
+                self.assertEqual("7", grid.canvas.itemcget(grid.value_text_items[last], "text"))
+        finally:
+            root.destroy()
 
     def test_score_grid_uses_one_canvas_and_edits_values(self):
         root = tk.Tk()
@@ -276,6 +418,7 @@ class RuleEditorTests(unittest.TestCase):
                         for child in root.winfo_children()
                         if isinstance(child, tk.Toplevel)
                     )
+                    select_advanced(root, editor)
                     buttons = {
                         widget.cget("text"): widget
                         for widget in descendants(editor)
@@ -372,14 +515,20 @@ class RuleEditorTests(unittest.TestCase):
                                 selector.event_generate("<<ComboboxSelected>>")
                                 root.update()
                             if edit:
-                                entry = next(w for w in descendants(editor)
-                                             if isinstance(w, TextEntry) and not isinstance(w, SearchEntry) and str(w.cget("state")) == "normal")
-                                entry.delete(0, "end")
-                                entry.insert(0, "9")
+                                if mode == "simple":
+                                    preset = next(w for w in descendants(editor) if isinstance(w, ttk.Combobox)
+                                                  and "严格" in w.cget("values"))
+                                    preset.set("严格")
+                                    preset.event_generate("<<ComboboxSelected>>")
+                                else:
+                                    entry = next(w for w in descendants(editor)
+                                                 if isinstance(w, TextEntry) and not isinstance(w, SearchEntry) and str(w.cget("state")) == "normal")
+                                    entry.delete(0, "end")
+                                    entry.insert(0, "9")
                             editor.tk.call(editor.protocol("WM_DELETE_WINDOW"))
                             root.update()
                             self.assertEqual(edit, confirm.called or invalid_confirm.called)
-                            self.assertEqual(edit, bool(editor.winfo_exists()))
+                            self.assertEqual(edit, not getattr(editor, "_ccz_cached_closed", False))
                             self.assertEqual(original_bytes, path.read_bytes())
                             self.assertEqual(before, json.dumps(config, sort_keys=True))
                     finally:
@@ -425,7 +574,7 @@ class RuleEditorTests(unittest.TestCase):
                     confirm.return_value = True
                     buttons["取消"].invoke()
                     root.update()
-                    self.assertFalse(editor.winfo_exists())
+                    self.assertEqual("withdrawn", editor.state())
                     self.assertEqual(2, confirm.call_count)
         finally:
             root.destroy()
@@ -541,10 +690,8 @@ class RuleEditorTests(unittest.TestCase):
                     }
                     buttons["新建副本"].invoke()
                     root.update()
+                    book = select_advanced(root, editor, 1)
                     grid = next(w for w in descendants(editor) if isinstance(w, ScoreGrid) and w.type_label == "兵种类型")
-                    book = grid.master.master
-                    book.select(grid.master)
-                    root.update()
                     self.assertNotIn("设置兵种类型", buttons)
                     x1, y1, x2, y2, _ = grid.type_hit_boxes[0]
                     grid._start_edit(SimpleNamespace(x=(x1+x2)//2, y=(y1+y2)//2))
@@ -608,6 +755,7 @@ class RuleEditorTests(unittest.TestCase):
                     }
                     buttons["新建副本"].invoke()
                     root.update()
+                    select_advanced(root, editor)
                     advanced_book = next(
                         widget
                         for widget in descendants(editor)
@@ -620,7 +768,7 @@ class RuleEditorTests(unittest.TestCase):
                             "阶段门槛",
                             "兵种基础设置",
                             "特技基础设置",
-                            "实验功能",
+                            "信息采集",
                         )
                     )
                     self.assertNotIn(
@@ -648,10 +796,11 @@ class RuleEditorTests(unittest.TestCase):
                         for widget in descendants(dialog)
                         if isinstance(widget, ttk.Combobox)
                     ]
-                    self.assertEqual(20, len(combos))
+                    self.assertEqual(12, len(combos))
                     labels = {widget.cget("text") for widget in descendants(dialog) if isinstance(widget, tk.Label)}
                     self.assertTrue({"曹操", "夏侯惇", "夏侯渊"}.issubset(labels))
-                    self.assertTrue(set(RULE_MEMBER_NAMES[:10]).issubset(labels))
+                    from ccz_randomizer.rule_members import rule_member_indices
+                    self.assertTrue(set(tuple(rule_member_indices())[:6]).issubset(labels))
                     self.assertFalse({"曹仁", "乐进", "李典"} & labels)
                     combos[0].set("文官型")
                     dialog_buttons = {
@@ -711,13 +860,18 @@ class RuleEditorTests(unittest.TestCase):
                     }
                     buttons["新建副本"].invoke()
                     root.update()
+                    select_advanced(root, editor)
                     matching_check = next(
                         widget
                         for widget in descendants(editor)
-                        if isinstance(widget, tk.Checkbutton)
+                        if isinstance(widget, ttk.Checkbutton)
                         and widget.cget("text") == "启用特技类型匹配"
                     )
                     matching_check.invoke()
+                    book = next(w for w in descendants(editor) if isinstance(w, ttk.Notebook)
+                                and len(w.tabs()) == 4)
+                    book.select(2)
+                    root.update()
                     skill_grid = next(
                         widget
                         for widget in descendants(editor)
@@ -808,6 +962,7 @@ class RuleEditorTests(unittest.TestCase):
                         == ("简单模式", "高级模式")
                     )
                     mode_notebook.select(mode_notebook.tabs()[1])
+                    root.update()
                     mode_combos = [
                         widget
                         for widget in descendants(editor)
@@ -840,7 +995,7 @@ class RuleEditorTests(unittest.TestCase):
                     checks = {
                         widget.cget("text"): widget
                         for widget in descendants(dialog)
-                        if isinstance(widget, tk.Checkbutton)
+                        if isinstance(widget, ttk.Checkbutton)
                     }
                     self.assertTrue(set(RULE_MEMBER_NAMES[:24]).issubset(checks))
                     checks["夏侯惇"].invoke()
@@ -848,7 +1003,7 @@ class RuleEditorTests(unittest.TestCase):
                     search.insert(0, "张飞")
                     root.update()
                     next(widget for widget in descendants(dialog)
-                         if isinstance(widget, tk.Checkbutton) and widget.cget("text") == "张飞").invoke()
+                         if isinstance(widget, ttk.Checkbutton) and widget.cget("text") == "张飞").invoke()
                     dialog_buttons = {
                         widget.cget("text"): widget
                         for widget in descendants(dialog)

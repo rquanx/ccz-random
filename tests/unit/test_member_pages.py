@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import ttk
 import unittest
 
-from ccz_randomizer.ui.member_pages import MemberPages
+from ccz_randomizer.ui.member_pages import MemberCheckGrid, MemberPages
 from ccz_randomizer.rule_members import RULE_MEMBER_NAMES
 from ccz_randomizer.rules.editor import show_member_affinity_editor
 
@@ -17,6 +17,44 @@ class MemberPagesTests(unittest.TestCase):
     def setUp(self):
         self.root = tk.Tk()
         self.addCleanup(self.root.destroy)
+
+    def test_reused_checks_preserve_selection_across_pages_search_and_empty_results(self):
+        selected = {name: tk.BooleanVar(self.root) for name in RULE_MEMBER_NAMES}
+        pages = MemberPages(self.root, RULE_MEMBER_NAMES, MemberCheckGrid(selected),
+                            page_size=42, reuse_widgets=True)
+        pages.pack()
+        self.root.update()
+        def visible_checks():
+            return [w for w in pages.body.winfo_children()
+                    if isinstance(w, ttk.Checkbutton) and w.winfo_manager()]
+        visible_checks()[0].invoke()
+        original_ids = {str(w) for w in visible_checks()}
+        pages.move(1)
+        visible_checks()[0].invoke()
+        self.assertTrue(selected[RULE_MEMBER_NAMES[0]].get())
+        self.assertTrue(selected[RULE_MEMBER_NAMES[42]].get())
+        pages.move(2)
+        self.assertEqual(len(RULE_MEMBER_NAMES) % 42, len(visible_checks()))
+        pages.query.set(RULE_MEMBER_NAMES[-1])
+        self.root.update()
+        self.assertEqual([RULE_MEMBER_NAMES[-1]], [w.cget("text") for w in visible_checks()])
+        visible_checks()[0].invoke()
+        self.assertTrue(selected[RULE_MEMBER_NAMES[-1]].get())
+        pages.query.set("无此人")
+        self.root.update()
+        self.assertEqual([], visible_checks())
+        self.assertTrue(any(isinstance(w, ttk.Label) and w.cget("text") == "没有符合条件的人物。"
+                            for w in pages.body.winfo_children()))
+        pages.query.set("")
+        self.root.update()
+        for _ in range(50):
+            pages.move(1)
+            pages.move(-1)
+        self.assertEqual(original_ids, {str(w) for w in visible_checks()})
+        self.assertEqual(42, len(pages.body.winfo_children()))
+        self.assertTrue(selected[RULE_MEMBER_NAMES[0]].get())
+        self.assertTrue(selected[RULE_MEMBER_NAMES[42]].get())
+        self.assertTrue(selected[RULE_MEMBER_NAMES[-1]].get())
 
     def test_selection_survives_search_and_page_changes(self):
         selected = {name: tk.BooleanVar(self.root) for name in RULE_MEMBER_NAMES}
@@ -50,7 +88,7 @@ class MemberPagesTests(unittest.TestCase):
         self.root.update()
         dialog = next(w for w in self.root.winfo_children() if isinstance(w, tk.Toplevel))
         combos = [w for w in descendants(dialog) if isinstance(w, ttk.Combobox) and w.winfo_manager()]
-        self.assertEqual(20, len(combos))
+        self.assertEqual(12, len(combos))
         combos[0].set('文官型')
         pages = next(w for w in descendants(dialog) if isinstance(w, MemberPages))
         pages.move(1)
@@ -72,4 +110,4 @@ class MemberPagesTests(unittest.TestCase):
         self.assertEqual(130, len(applied[0]))
         self.assertEqual(('MASTER', 'NONE'), applied[0][RULE_MEMBER_NAMES[0]])
         self.assertEqual(('MASTER', 'NONE'), applied[0][RULE_MEMBER_NAMES[-1]])
-        self.assertEqual(('WARRIOR', 'NONE'), applied[0][RULE_MEMBER_NAMES[10]])
+        self.assertEqual(('WARRIOR', 'NONE'), applied[0][RULE_MEMBER_NAMES[6]])

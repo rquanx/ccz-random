@@ -42,11 +42,16 @@ class Chart(tk.Canvas):
         self.bind("<Motion>", self._motion)
         self.bind("<Leave>", lambda _: self._hide_tip())
         self.bind("<Destroy>", self._destroyed)
+        from ccz_randomizer.ui.render_state import track_render
+        track_render(self, lambda: self._redraw_timer is None and
+                     self._render_key == (self.winfo_width(), self.winfo_height(), self._revision))
 
     def _schedule_draw(self, _event):
+        if self._render_key == (self.winfo_width(), self.winfo_height(), self._revision):
+            return
         if self._redraw_timer is not None:
             self.after_cancel(self._redraw_timer)
-        self._redraw_timer = self.after(50, self._redraw)
+        self._redraw_timer = self.after(16, self._redraw)
 
     def _redraw(self):
         self._redraw_timer = None
@@ -77,10 +82,12 @@ class Chart(tk.Canvas):
             self.tag_raise(item, background)
 
     def set(self, rows, subtitle=None):
+        changed = rows != self.rows or subtitle is not None and subtitle != self.subtitle
         self.rows = rows
         if subtitle is not None:
             self.subtitle = subtitle
-        self._revision += 1
+        if changed:
+            self._revision += 1
         if self._expand_button is not None:
             self._expand_button.configure(state="normal")
         self.draw()
@@ -96,6 +103,9 @@ class Chart(tk.Canvas):
         w, h = self.winfo_width(), self.winfo_height()
         if w < 80 or h < 80:
             return
+        if self._redraw_timer is not None:
+            self.after_cancel(self._redraw_timer)
+            self._redraw_timer = None
         key = (w, h, self._revision)
         if key == self._render_key:
             return

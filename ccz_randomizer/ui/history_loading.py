@@ -10,6 +10,10 @@ from ccz_randomizer.ui.tasks import WindowTasks
 
 class HistoryLoader(WindowTasks):
     """Compatibility name for the serialized history task controller."""
+    def __init__(self, window, **options):
+        super().__init__(window, **options)
+        from ccz_randomizer.ui.render_state import track_render
+        track_render(window, lambda: not self.pending)
 
 
 def render_in_batches(window, items, render, *, is_current=lambda: True, batch_size=3, delay_ms=1,
@@ -17,9 +21,17 @@ def render_in_batches(window, items, render, *, is_current=lambda: True, batch_s
     """Yield to input and paint events between small groups of cards."""
     items = iter(enumerate(items))
     timer = None
+    jobs = getattr(window, '_ccz_render_jobs', None)
+    if jobs is None:
+        jobs = window._ccz_render_jobs = set()
+        from ccz_randomizer.ui.render_state import track_render
+        track_render(window, lambda: not jobs)
+    token = object()
+    jobs.add(token)
 
     def stop():
         nonlocal timer
+        jobs.discard(token)
         if timer is not None:
             window.after_cancel(timer)
             timer = None

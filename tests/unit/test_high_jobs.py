@@ -79,7 +79,7 @@ class HighJobTests(unittest.TestCase):
                 root.update()
                 return next(w for w in root.winfo_children() if isinstance(w, tk.Toplevel))
             editor = open_editor(config)
-            check = next(w for w in descendants(editor) if isinstance(w, tk.Checkbutton)
+            check = next(w for w in descendants(editor) if isinstance(w, ttk.Checkbutton)
                          and w.cget("text") == "出现高阶兵种时直接合格")
             self.assertEqual(0, root.getvar(check.cget("variable")))
             check.invoke()
@@ -93,7 +93,7 @@ class HighJobTests(unittest.TestCase):
             self.assertTrue(active_profile(saved[-1])["jobScoring"]["highJobAutoPass"])
             editor.destroy()
             editor = open_editor(saved[-1])
-            check = next(w for w in descendants(editor) if isinstance(w, tk.Checkbutton)
+            check = next(w for w in descendants(editor) if isinstance(w, ttk.Checkbutton)
                          and w.cget("text") == "出现高阶兵种时直接合格")
             self.assertEqual(1, root.getvar(check.cget("variable")))
 

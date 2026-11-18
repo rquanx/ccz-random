@@ -18,7 +18,7 @@ def add_detail_actions(parent, dialog, snapshot, *, include_equipment=True):
             messagebox.showinfo(
                 "入队人员信息",
                 "本次结果未采集入队人员信息。\n\n"
-        "请在规则设置 → 高级模式 → 实验功能中，开启“采集入队人员信息”，"
+        "请在规则设置 → 高级模式 → 信息采集中，开启“采集入队人员信息”，"
                 "然后重新运行并查看新的合格结果。",
                 parent=dialog,
             )
@@ -30,7 +30,7 @@ def add_detail_actions(parent, dialog, snapshot, *, include_equipment=True):
             messagebox.showinfo(
                 "兵种天赋",
                 "本次结果未采集兵种天赋。\n\n"
-        "请在规则设置 → 高级模式 → 实验功能中，开启“采集兵种天赋”，"
+        "请在规则设置 → 高级模式 → 信息采集中，开启“采集兵种天赋”，"
                 "然后重新运行并查看新的合格结果。",
                 parent=dialog,
             )

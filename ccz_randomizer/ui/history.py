@@ -7,6 +7,7 @@ from ccz_randomizer.ui.window_position import centered_toplevel, show_centered
 from ccz_randomizer.ui.theme import setup_theme, style_dialog
 
 import math
+from pathlib import Path
 from typing import Any, Callable
 
 from ccz_randomizer.history import SUMMARY_MEMBER_LIMIT, HistoryRepository
@@ -186,7 +187,7 @@ def _show_detail(parent, snapshot: dict[str, Any]) -> None:
     import tkinter as tk
 
     detail_dialog = centered_toplevel(parent)
-    detail_dialog.title(f"{snapshot.get('gameVersion', '2.2')} · 第 {snapshot.get('slot', '-')} 号存档详情")
+    detail_dialog.title(f"第 {snapshot.get('slot', '-')} 号存档详情")
     detail_dialog.minsize(960, 620)
     detail_dialog.transient(parent)
     detail_dialog.configure(bg=COLORS["page"])
@@ -250,16 +251,66 @@ def _show_detail(parent, snapshot: dict[str, Any]) -> None:
     member_grid.pack(fill="x")
     members = history_members(snapshot)
     member_columns = 3 if len(members) <= 3 else 4
-    for column in range(member_columns):
-        member_grid.columnconfigure(column, weight=1, uniform="member")
-    def render_member(index, member):
-        _render_member_card(
-            member_grid,
-            member,
-            index % member_columns,
-            index // member_columns,
-        )
-    render_in_batches(detail_dialog, members, render_member, batch_size=4)
+    from ccz_randomizer.ui.member_card import MemberCard
+    from ccz_randomizer.ui.viewport_rows import ViewportRows
+    member_grid.configure(width=member_columns*274)
+    active_cards, free_cards = {}, []
+    def render_member(index, y, height):
+        card = active_cards.get(index)
+        if card is None:
+            if free_cards:
+                card = free_cards.pop()
+                card.member = members[index]
+                card._width = None
+            else:
+                card = MemberCard(member_grid, members[index], colors=COLORS, font=FONT,
+                                  score=_score, skill_names=_skill_names)
+            active_cards[index] = card
+        width = max(1, member_grid.winfo_width()/member_columns)
+        card_width = max(1, int(width)-6)
+        card._draw(card_width)
+        card.place(x=int(index%member_columns*width)+3, y=y+3,
+                   width=card_width, height=max(1, height-6))
+
+    def release_member(index):
+        card = active_cards.pop(index, None)
+        if card is not None:
+            card.place_forget()
+            free_cards.append(card)
+
+    viewport = ViewportRows(canvas, member_grid, render_member, release_member,
+        columns=member_columns, manage_scrollregion=False,
+        origin=lambda: member_section.winfo_y()+member_grid.winfo_y())
+    detail_dialog._member_viewport = viewport
+    measured_width = None
+    reflow_timer = None
+    def reflow_members(_event=None):
+        nonlocal measured_width, reflow_timer
+        reflow_timer = None
+        if member_grid.winfo_width() <= 1:
+            return
+        width = max(1, int(member_grid.winfo_width()/member_columns)-6)
+        if width == measured_width:
+            return
+        measured_width = width
+        heights = MemberCard.row_heights(member_grid, members, member_columns, width,
+                                        font=FONT, score=_score, skill_names=_skill_names)
+        if viewport.count:
+            viewport._set_heights(heights)
+            viewport.width = None
+            viewport.schedule()
+        else:
+            viewport.replace(heights, len(members))
+    def schedule_reflow(_event=None):
+        nonlocal reflow_timer
+        if reflow_timer is None:
+            from ccz_randomizer.ui.window_timer import window_after
+            # Geometry negotiation can produce several intermediate widths in
+            # one idle pass; measure the full roster only after that pass.
+            reflow_timer = window_after(detail_dialog, 1, reflow_members)
+    member_grid.bind('<Configure>', schedule_reflow)
+    from ccz_randomizer.ui.render_state import track_render
+    track_render(member_grid, lambda: reflow_timer is None and (not members or viewport.ready))
 
     from ccz_randomizer.ui.equipment_sections import render_equipment_sections
     render_equipment_sections(content, snapshot.get("equipment") or {})
@@ -306,176 +357,8 @@ def _render_summary_card(parent, snapshot, *, show_detail, edit_metadata=None, e
 
 
 def _render_full_result_card(parent, snapshot: dict[str, Any]):
-    import tkinter as tk
-
-    job_metrics, skill_metrics = _metrics(snapshot)
-    card = tk.Frame(
-        parent,
-        width=360,
-        bg=COLORS["surface"],
-        highlightbackground=COLORS["border"],
-        highlightthickness=1,
-    )
-
-    header = tk.Frame(card, bg=COLORS["ink"], padx=10, pady=7)
-    header.pack(fill="x")
-    tk.Label(
-        header,
-        text=f"存档 {snapshot.get('slot', '-')}",
-        font=(FONT, 10, "bold"),
-        fg="#FFFFFF",
-        bg=COLORS["ink"],
-    ).pack(side="left")
-    tk.Label(
-        header,
-        text=f"第 {snapshot.get('acceptedAttempt', '-')} 次尝试",
-        font=(FONT, 8),
-        fg="#D1D5DB",
-        bg=COLORS["ink"],
-    ).pack(side="right")
-
-    score_bar = tk.Frame(card, bg=COLORS["surface"], padx=10, pady=6)
-    score_bar.pack(fill="x")
-    tk.Label(
-        score_bar,
-        text=f"兵种 {_score(job_metrics.get('average'))}",
-        font=(FONT, 9, "bold"),
-        fg=COLORS["blue"],
-        bg=COLORS["surface"],
-    ).pack(side="left")
-    tk.Label(
-        score_bar,
-        text=f"特技 {_score(skill_metrics.get('skillScore'))}",
-        font=(FONT, 9, "bold"),
-        fg=COLORS["purple"],
-        bg=COLORS["surface"],
-    ).pack(side="right")
-
-    members_panel = tk.Frame(card, bg=COLORS["surface"], padx=8, pady=3)
-    members_panel.pack(fill="x")
-    members = history_members(snapshot)
-    for member in members[:SUMMARY_MEMBER_LIMIT]:
-        block = tk.Frame(
-            members_panel,
-            bg=COLORS["surface_alt"],
-            padx=7,
-            pady=5,
-        )
-        block.pack(fill="x", pady=2)
-        title = tk.Frame(block, bg=COLORS["surface_alt"])
-        title.pack(fill="x")
-        tk.Label(
-            title,
-            text=str(member.get("name") or "未知"),
-            font=(FONT, 9, "bold"),
-            fg=COLORS["ink"],
-            bg=COLORS["surface_alt"],
-        ).pack(side="left")
-        tk.Label(
-            title,
-            text=(
-                f"{member.get('job', '未知兵种')}  "
-                f"{_score(member.get('jobScore'))}"
-            ),
-            font=(FONT, 8, "bold"),
-            fg=COLORS["red"],
-            bg=COLORS["surface_alt"],
-        ).pack(side="right")
-        tk.Label(
-            block,
-            text=(
-                "个人  "
-                + _skill_names(member.get("personalSkills") or [])
-                + "\n兵种  "
-                + _skill_names(member.get("jobSkills") or [])
-            ),
-            font=(FONT, 8),
-            fg=COLORS["ink"],
-            bg=COLORS["surface_alt"],
-            justify="left",
-            anchor="w",
-            wraplength=324,
-        ).pack(fill="x", pady=(2, 0))
-    if len(members) > SUMMARY_MEMBER_LIMIT:
-        tk.Label(
-            members_panel,
-            text=f"……其余 {len(members) - SUMMARY_MEMBER_LIMIT} 人请查看完整详情",
-            font=(FONT, 8),
-            fg=COLORS["muted"],
-            bg=COLORS["surface"],
-            anchor="w",
-        ).pack(fill="x", pady=(3, 0))
-
-    equipment = snapshot.get("equipment") or {}
-    specials = equipment.get("specials") or []
-    section = tk.Frame(card, bg=COLORS["surface"], padx=8, pady=5)
-    section.pack(fill="x")
-    tk.Label(
-        section,
-        text="宝物特殊组合",
-        font=(FONT, 9, "bold"),
-        fg=COLORS["red"],
-        bg=COLORS["surface"],
-    ).pack(anchor="w", pady=(0, 3))
-    if not specials:
-        tk.Label(
-            section,
-            text="无",
-            font=(FONT, 8),
-            fg=COLORS["muted"],
-            bg=COLORS["surface"],
-        ).pack(anchor="w")
-    for index, special in enumerate(specials):
-        color = SPECIAL_COLORS[index % len(SPECIAL_COLORS)]
-        tk.Label(
-            section,
-            text=(
-                f"{special.get('title', '')}\n"
-                + "\n".join(
-                    f"  {value}" for value in special.get("items") or []
-                )
-            ),
-            font=(FONT, 8),
-            fg=color,
-            bg=COLORS["surface"],
-            justify="left",
-            anchor="w",
-            wraplength=334,
-        ).pack(fill="x", pady=2)
-
-    equipment_section = tk.Frame(
-        card,
-        bg=COLORS["surface"],
-        padx=8,
-        pady=0,
-    )
-    equipment_section.pack(fill="x", pady=(0, 8))
-    tk.Label(
-        equipment_section,
-        text="宝物列表",
-        font=(FONT, 9, "bold"),
-        fg=COLORS["green"],
-        bg=COLORS["surface"],
-    ).pack(anchor="w", pady=(0, 3))
-    for category in equipment.get("categories") or []:
-        rows = [
-            f"{item.get('name', '')}  {item.get('effect', '')}"
-            for item in category.get("items") or []
-        ]
-        tk.Label(
-            equipment_section,
-            text=(
-                f"{category.get('name', '其他')}\n"
-                + "\n".join(f"  {item}" for item in rows)
-            ),
-            font=(FONT, 8),
-            fg=COLORS["ink"],
-            bg=COLORS["surface"],
-            justify="left",
-            anchor="w",
-            wraplength=334,
-        ).pack(fill="x", pady=2)
-    return card
+    from ccz_randomizer.ui.overview_card import result_card
+    return result_card(parent, snapshot)
 
 
 def _show_round_overview(
@@ -531,11 +414,11 @@ def _show_round_overview(
             padx=6,
             pady=6,
         )
-    render_in_batches(overview, snapshots, render_card, batch_size=1)
+    render_in_batches(overview, snapshots, render_card, batch_size=4, time_budget_ms=6)
     show_centered(overview)
 
 
-def show_history_window(parent, repository: HistoryRepository) -> None:
+def show_history_window(parent, repository: HistoryRepository | Path) -> None:
     import tkinter as tk
     from tkinter import filedialog, ttk
     from ccz_randomizer.ui import messages as messagebox
@@ -544,7 +427,17 @@ def show_history_window(parent, repository: HistoryRepository) -> None:
     import datetime as dt
     from ccz_randomizer.ui.history_actions import edit_history_metadata
 
+    existing = getattr(parent, "_history_window", None)
+    if existing is not None and existing.winfo_exists():
+        if getattr(existing, "_ccz_cached_closed", False):
+            existing._reload_history()
+            from ccz_randomizer.ui.cached_dialog import restore_dialog
+            restore_dialog(existing)
+        else:
+            existing.lift()
+        return
     dialog = centered_toplevel(parent)
+    parent._history_window = dialog
     setup_theme(dialog)
     style_dialog(dialog)
     dialog.title("历史记录")
@@ -565,6 +458,14 @@ def show_history_window(parent, repository: HistoryRepository) -> None:
     operations = count()
     applied_filters = dict(query="", marked_only=False, started_after=None, started_before=None, rule_name=None)
     rule_names = []
+
+    def resolve_repository():
+        # Called only by the serialized worker, including initialization and
+        # migration. Opening the window must never wait for a database lock.
+        nonlocal repository
+        if isinstance(repository, Path):
+            repository = HistoryRepository(repository)
+        return repository
 
     def request_action(action, done, failed):
         # Writes and exports must not be cancelled by a subsequent action.
@@ -631,12 +532,12 @@ def show_history_window(parent, repository: HistoryRepository) -> None:
             tk.StringVar(value=f"{parsed_time.minute:02d}"), tk.StringVar(value=f"{parsed_time.second:02d}"),
         ]
         tk.Label(body, text="日期").grid(row=0, column=0, sticky="w", padx=(0, 8), pady=4)
-        for index, (var, frm, to) in enumerate(zip(values[:3], (2000, 1, 1), (2100, 12, 31)), start=1):
-            ttk.Spinbox(body, from_=frm, to=to, textvariable=var, width=6, wrap=True).grid(row=0, column=index, padx=2, pady=4)
+        for index, var in enumerate(values[:3], start=1):
+            TextEntry(body, textvariable=var, width=6).grid(row=0, column=index, padx=2, pady=4)
         tk.Label(body, text="年 / 月 / 日", fg=COLORS["muted"]).grid(row=0, column=4, sticky="w", padx=(5, 0))
         tk.Label(body, text="时间").grid(row=1, column=0, sticky="w", padx=(0, 8), pady=4)
-        for index, (var, frm, to) in enumerate(zip(values[3:], (0, 0, 0), (23, 59, 59)), start=1):
-            ttk.Spinbox(body, from_=frm, to=to, textvariable=var, width=6, wrap=True).grid(row=1, column=index, padx=2, pady=4)
+        for index, var in enumerate(values[3:], start=1):
+            TextEntry(body, textvariable=var, width=6).grid(row=1, column=index, padx=2, pady=4)
         tk.Label(body, text="时 / 分 / 秒", fg=COLORS["muted"]).grid(row=1, column=4, sticky="w", padx=(5, 0))
         def apply_picker():
             try:
@@ -761,7 +662,7 @@ def show_history_window(parent, repository: HistoryRepository) -> None:
             if editor.winfo_exists():
                 editor.destroy()
                 name_label.pack(side="left", fill="x", expand=True)
-                edit_button.pack(side="right")
+                edit_button.pack(side="right", anchor="center", padx=(12, 0), before=name_label)
             if active_edit_finish is finish_edit:
                 active_edit_finish = None
         def finish_edit(_event=None):
@@ -775,7 +676,7 @@ def show_history_window(parent, repository: HistoryRepository) -> None:
                 return
             values = {"title": title_text, "note": row.get("note", "")}
             restore_editor()
-            request_action(lambda: repository.annotate_round(int(row["id"]), **values),
+            request_action(lambda: resolve_repository().annotate_round(int(row["id"]), **values),
                            lambda _: load_page(), action_error)
         # Defer one idle cycle so the Entry has committed the last keystroke
         # before the focus transition triggers persistence.
@@ -843,6 +744,8 @@ def show_history_window(parent, repository: HistoryRepository) -> None:
             child.pack_forget()
     grid.configure(padx=8, pady=8)
     cards = []
+    active_cards = {}
+    result_views = []
     notice = tk.Label(grid, bg=COLORS["page"], fg=COLORS["muted"], pady=30)
     def commit_edit_on_result_click(_event=None):
         if active_edit_finish is not None:
@@ -853,6 +756,7 @@ def show_history_window(parent, repository: HistoryRepository) -> None:
         grid.columnconfigure(column, minsize=236, weight=1)
 
     def hide_cards(text=None):
+        result_viewport.clear()
         for card in cards:
             card.suspend()
         if text:
@@ -865,6 +769,29 @@ def show_history_window(parent, repository: HistoryRepository) -> None:
         canvas.itemconfigure(grid_window, width=max(event.width, 1))
 
     canvas.bind("<Configure>", resize_grid)
+
+    def release_visible_card(index):
+        card = active_cards.pop(index, None)
+        if card is not None:
+            card.suspend()
+
+    def render_visible_card(index, top, height):
+        from ccz_randomizer.ui.history_cards import SummaryCard
+        snapshot = selected_snapshots[index]
+        card = active_cards.get(index) or next((card for card in cards if card not in active_cards.values()), None)
+        if card is None:
+            card = SummaryCard(grid, colors=COLORS, font=FONT)
+            cards.append(card)
+        card.update_content(snapshot, result_views[index],
+                            show_detail=open_result_detail, export_save=export_result)
+        card.place(x=8 + (index % 4) * max(236, (canvas.winfo_width() - 16) // 4),
+                   y=top + 5, width=224, height=height - 10)
+        active_cards[index] = card
+
+    from ccz_randomizer.ui.viewport_rows import ViewportRows
+    result_viewport = ViewportRows(canvas, grid, render_visible_card, release_visible_card)
+    # Diagnostics inspect completed visible rows, rather than requiring hidden cards.
+    dialog._result_viewport = result_viewport
 
     def render_results(row: dict[str, Any]) -> None:
         nonlocal selected_round_id, selected_snapshots, render_generation
@@ -885,12 +812,12 @@ def show_history_window(parent, repository: HistoryRepository) -> None:
             f"{row.get('title') or row['rule_name']}"
         )
         round_id = selected_round_id
-        loader.request("results", lambda: repository.get_round_summaries(round_id),
+        loader.request("results", lambda: resolve_repository().get_round_summaries(round_id),
                        lambda snapshots: show_results(row, snapshots, generation), show_error)
 
     def open_result_detail(snapshot):
         round_id, slot = selected_round_id, int(snapshot["slot"])
-        loader.request("detail", lambda: repository.get_result(round_id, slot),
+        loader.request("detail", lambda: resolve_repository().get_result(round_id, slot),
                        lambda full: _show_detail(dialog, full) if full is not None else show_error("该结果已被删除"),
                        show_error)
 
@@ -902,7 +829,7 @@ def show_history_window(parent, repository: HistoryRepository) -> None:
         destination = filedialog.asksaveasfilename(parent=dialog, title="导出历史存档",
             initialfile=f"SV{slot:03}.E5S", defaultextension=".E5S", filetypes=[("游戏存档", "*.E5S")])
         if destination:
-            request_action(lambda: repository.export_result_save(round_id, slot, Path(destination)),
+            request_action(lambda: resolve_repository().export_result_save(round_id, slot, Path(destination)),
                            lambda _: messagebox.showinfo("存档已导出", "存档已导出。将文件放入游戏 SV 目录的对应槽位后即可读取。", parent=dialog),
                            action_error)
 
@@ -911,7 +838,7 @@ def show_history_window(parent, repository: HistoryRepository) -> None:
         round_header.set(f"历史记录读取失败：{error}")
 
     def show_results(row, snapshots, generation) -> None:
-        nonlocal selected_snapshots
+        nonlocal selected_snapshots, result_views
         if generation != render_generation:
             return
         notice.grid_remove()
@@ -924,26 +851,12 @@ def show_history_window(parent, repository: HistoryRepository) -> None:
         if not selected_snapshots:
             hide_cards("本轮没有匹配的合格存档。" if any(applied_filters.values()) else "该轮次还没有已保存的合格结果。")
             return
-        for card in cards[len(selected_snapshots):]:
-            card.suspend()
-        def render_card(index, snapshot):
-            if index < len(cards):
-                card = cards[index]
-                card.update_content(snapshot, _summary_card_view(snapshot, applied_filters["query"]),
-                                    show_detail=open_result_detail, export_save=export_result)
-            else:
-                card = _render_summary_card(grid, snapshot, show_detail=open_result_detail,
-                    export_save=export_result, search_query=applied_filters["query"])
-                cards.append(card)
-            card.grid(
-                row=index // 4,
-                column=index % 4,
-                sticky="nw",
-                padx=5,
-                pady=5,
-            )
-        render_in_batches(dialog, selected_snapshots, render_card,
-                          is_current=lambda: generation == render_generation, batch_size=4)
+        from ccz_randomizer.ui.history_cards import SummaryCard
+        result_views = [_summary_card_view(snapshot, applied_filters["query"]) for snapshot in selected_snapshots]
+        if not cards:
+            cards.append(SummaryCard(grid, colors=COLORS, font=FONT))
+        heights = SummaryCard.row_heights(canvas, result_views, cards[0].detail.winfo_reqheight(), FONT)
+        result_viewport.replace(heights, len(selected_snapshots))
 
     def selected_row() -> dict[str, Any] | None:
         selection = rounds.selection()
@@ -981,9 +894,10 @@ def show_history_window(parent, repository: HistoryRepository) -> None:
         filters = dict(applied_filters)
 
         def read_page():
-            count = repository.count_rounds(**filters)
+            active_repository = resolve_repository()
+            count = active_repository.count_rounds(**filters)
             resolved_page = min(requested_page, max(1, math.ceil(count / ROUND_PAGE_SIZE)))
-            return resolved_page, repository.list_rounds(resolved_page, ROUND_PAGE_SIZE, **filters), count, repository.list_rule_names()
+            return resolved_page, active_repository.list_rounds(resolved_page, ROUND_PAGE_SIZE, **filters), count, active_repository.list_rule_names()
 
         loader.request("page", read_page, show_page, show_error)
 
@@ -1031,7 +945,8 @@ def show_history_window(parent, repository: HistoryRepository) -> None:
         for index, row in enumerate(rows[:reused]):
             render_round(index, row)
         render_in_batches(dialog, rows[reused:], lambda index, row: render_round(index + reused, row),
-                          is_current=lambda: generation == page_generation, batch_size=2)
+                           is_current=lambda: generation == page_generation,
+                           batch_size=4, delay_ms=1, time_budget_ms=6)
         total_pages = max(1, math.ceil(total / ROUND_PAGE_SIZE))
         page_var.set(f"第 {page} / {total_pages} 页")
         previous_button.configure(state="normal" if page > 1 else "disabled")
@@ -1072,7 +987,7 @@ def show_history_window(parent, repository: HistoryRepository) -> None:
         ):
             return
         round_id = int(row["id"])
-        request_action(lambda: repository.delete_round(round_id), lambda _: load_page(), action_error)
+        request_action(lambda: resolve_repository().delete_round(round_id), lambda _: load_page(), action_error)
 
     def clear_history() -> None:
         if not messagebox.askyesno(
@@ -1082,7 +997,7 @@ def show_history_window(parent, repository: HistoryRepository) -> None:
             parent=dialog,
         ):
             return
-        request_action(repository.clear, lambda _: load_page(), action_error)
+        request_action(lambda: resolve_repository().clear(), lambda _: load_page(), action_error)
 
     previous_button.configure(command=previous_page)
     next_button.configure(command=next_page)
@@ -1111,7 +1026,7 @@ def show_history_window(parent, repository: HistoryRepository) -> None:
         if row is not None:
             round_id = int(row["id"])
             edit_history_metadata(dialog, row, lambda values: request_action(
-                lambda: repository.annotate_round(round_id, **values),
+                lambda: resolve_repository().annotate_round(round_id, **values),
                 lambda _: load_page(), action_error))
 
     def edit_round_icon(event):
@@ -1150,5 +1065,8 @@ def show_history_window(parent, repository: HistoryRepository) -> None:
     remove_storage_listener = bind_window_event(dialog._root(), "<<StorageCleaned>>", lambda _: load_page()
         if "history" in getattr(dialog._root(), "_ccz_cleaned_categories", ()) else None)
     bind_window_event(dialog, "<Destroy>", lambda _: remove_storage_listener())
+    dialog._reload_history = load_page
+    from ccz_randomizer.ui.cached_dialog import hide_dialog
+    dialog.protocol("WM_DELETE_WINDOW", lambda: (commit_edit_on_click(), hide_dialog(dialog)))
     load_page()
     show_centered(dialog)

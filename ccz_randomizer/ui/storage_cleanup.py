@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import queue
-import threading
 import tkinter as tk
 from pathlib import Path
 from tkinter import ttk
@@ -10,6 +8,7 @@ from ccz_randomizer.ui import messages as messagebox
 from ccz_randomizer.runtime.storage_cleanup import CATEGORIES, clean_storage, scan_storage
 from ccz_randomizer.ui.window_position import centered_toplevel, show_centered
 from ccz_randomizer.ui.theme import setup_theme, style_dialog
+from ccz_randomizer.ui.tasks import WindowTasks
 
 DATA_DESCRIPTIONS = {
     "results": "随机结果：结果图片和归档存档文件",
@@ -53,11 +52,11 @@ def show_storage_cleanup(parent, base: Path, *, is_running=lambda: False) -> Non
     buttons = []
     usage = {}
     busy = False
-    messages = queue.Queue()
+    cleaning = False
     status = tk.StringVar(value="正在统计空间…")
 
     def begin(categories=None):
-        nonlocal busy
+        nonlocal busy, cleaning
         if busy:
             return
         if categories and is_running():
@@ -76,17 +75,15 @@ def show_storage_cleanup(parent, base: Path, *, is_running=lambda: False) -> Non
                 status.set("请先停止随机任务，再清理空间。")
                 return
         busy = True
+        cleaning = bool(categories)
         for button in buttons:
             button.configure(state="disabled")
         status.set("正在清理…" if categories else "正在统计空间…")
 
         def work():
-            try:
-                result = clean_storage(base, categories) if categories else None
-                messages.put((scan_storage(base), result, None, categories))
-            except Exception as exc:
-                messages.put((None, None, str(exc), categories))
-        threading.Thread(target=work, daemon=True).start()
+            result = clean_storage(base, categories) if categories else None
+            return scan_storage(base), result, categories
+        tasks.request("storage", work, completed, failed, durable=bool(categories))
 
     for row, (key, label) in enumerate(CATEGORIES.items(), 1):
         ttk.Label(grid, text=label).grid(row=row, column=0, sticky="w", padx=8, pady=12)
@@ -104,38 +101,34 @@ def show_storage_cleanup(parent, base: Path, *, is_running=lambda: False) -> Non
     clear_all = ttk.Button(actions, text="全部清理", command=lambda: begin(set(CATEGORIES)))
     clear_all.pack(side="right")
     buttons.extend((refresh, clear_all))
-    timer = None
+    def finish():
+        nonlocal busy, cleaning
+        busy = False
+        cleaning = False
+        for button in buttons:
+            button.configure(state="normal")
 
-    def poll():
-        nonlocal timer, busy, usage
-        try:
-            scanned, result, error, categories = messages.get_nowait()
-        except queue.Empty:
-            pass
-        else:
-            busy = False
-            if error:
-                status.set(f"操作未完成：{error}")
-            else:
-                usage = scanned
-                for key, (total, available) in values.items():
-                    total.set(format_size(usage[key].total))
-                    available.set(format_size(usage[key].cleanable))
-                status.set(f"已清理 {result[0]} 项，{result[1]} 项未能清理。" if result else "统计完成，可按分类清理。")
-                if result:
-                    owner = dialog._root()
-                    owner._ccz_cleaned_categories = categories
-                    owner.event_generate("<<StorageCleaned>>")
-            for button in buttons:
-                button.configure(state="normal")
-        timer = dialog.after(100, poll)
+    def completed(data):
+        nonlocal usage
+        scanned, result, categories = data
+        usage = scanned
+        for key, (total, available) in values.items():
+            total.set(format_size(usage[key].total))
+            available.set(format_size(usage[key].cleanable))
+        status.set(f"已清理 {result[0]} 项，{result[1]} 项未能清理。" if result else "统计完成，可按分类清理。")
+        if result:
+            owner = dialog._root()
+            owner._ccz_cleaned_categories = categories
+            owner.event_generate("<<StorageCleaned>>")
+        finish()
 
-    def destroyed(event):
-        if event.widget is dialog and timer:
-            dialog.after_cancel(timer)
-    dialog.bind("<Destroy>", destroyed, add="+")
+    def failed(error):
+        status.set(f"操作未完成：{error}")
+        finish()
+
+    tasks = WindowTasks(dialog, serial=False)
     def close():
-        if busy:
+        if cleaning:
             return
         dialog.destroy()
         if previous_grab is not None and previous_grab.winfo_exists():
@@ -149,4 +142,3 @@ def show_storage_cleanup(parent, base: Path, *, is_running=lambda: False) -> Non
     show_centered(dialog)
     dialog.grab_set()
     begin()
-    poll()

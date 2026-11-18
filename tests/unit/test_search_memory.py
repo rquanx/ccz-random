@@ -38,9 +38,11 @@ class SearchMemoryTests(unittest.TestCase):
                     root.update_idletasks()
                     group = memory.bar.groups[index]
                     label = memory.bar.buttons[index]
-                    self.assertGreaterEqual(delete.winfo_x(), label.winfo_x() + label.winfo_width())
+                    self.assertGreater(delete.winfo_x(), label.winfo_x())
+                    self.assertLess(delete.winfo_x(), label.winfo_x() + label.winfo_width())
                     self.assertLessEqual(delete.winfo_x() + delete.winfo_width(), group.winfo_width())
                     self.assertLess(delete.winfo_y(), label.winfo_height() / 2)
+                    self.assertLessEqual(delete.winfo_y() + delete.winfo_height(), label.winfo_height())
                     memory.bar.delete_buttons[index].invoke()
                     root.update()
                     memory.remember()  # Focus-out / close also must not restore it.

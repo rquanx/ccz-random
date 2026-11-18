@@ -89,7 +89,22 @@ class EquipmentTests(unittest.TestCase):
         root.update()
 
     def texts(self, canvas):
-        return [w.cget('text') for w in descendants(canvas) if isinstance(w, tk.Label)]
+        def shown(widget):
+            while widget is not canvas and not isinstance(widget, (tk.Toplevel, tk.Tk)):
+                if not widget.winfo_manager():
+                    return False
+                widget = widget.master
+            return True
+        texts = []
+        for widget in descendants(canvas):
+            if not shown(widget):
+                continue
+            if isinstance(widget, tk.Label):
+                texts.append(widget.cget('text'))
+            elif isinstance(widget, tk.Canvas):
+                texts.extend(widget.itemcget(item, 'text') for item in widget.find_all()
+                             if widget.type(item) == 'text' and widget.itemcget(item, 'state') != 'hidden')
+        return texts
 
     def test_score_button_displays_equipment_and_filters(self):
         root = self.make_root()
@@ -142,7 +157,7 @@ class EquipmentTests(unittest.TestCase):
         show_equipment_window(root, snapshot={"equipment": self.equipment})
         root.update()
         labels = [w for w in descendants(root) if isinstance(w, tk.Label)]
-        text = "\n".join(str(w.cget("text")) for w in labels)
+        text = "\n".join(self.texts(root))
         for category in self.equipment["categories"]:
             self.assertIn(category["name"], text)
             for item in category["items"]:
@@ -233,7 +248,7 @@ class EquipmentTests(unittest.TestCase):
             self.settle(root)
             self.assertEqual('雌雄双剑', search.get())
             canvas = next(w for w in descendants(dialog) if isinstance(w, tk.Canvas))
-            self.assertIn('雌雄双剑  反击成双', self.texts(canvas))
+            self.assertIn('雌雄双剑  反击成双', [line for text in self.texts(canvas) for line in text.splitlines()])
             search.delete(0, 'end')
             self.settle(root)
             self.assertEqual(['雌雄双剑'], SearchHistory(self.history_path).items)

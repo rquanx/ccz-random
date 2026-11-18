@@ -61,7 +61,6 @@ def centered_toplevel(parent):
     """Create a dialog; the builder must finish with show_centered(window)."""
     window = tk.Toplevel(parent)
     window.withdraw()
-    window.attributes("-alpha", 0.0)
     window._ccz_dialog_parent = parent
     window._ccz_dialog_shown = False
     return window
@@ -74,18 +73,24 @@ def show_centered(window):
     if getattr(window, "_ccz_dialog_shown", False):
         window.deiconify()
         return
-    parent = getattr(window, "_ccz_dialog_parent", window.master)
+    # A Tk root has no master; select its own monitor for initial placement.
+    parent = getattr(window, "_ccz_dialog_parent", window.master) or window
+    backend = None
+    placed = None
     try:
-        # Map only after construction. Layout updates cannot reveal a half-built
-        # dialog, and no Map/Configure timer competes with later size changes.
-        window.deiconify()
+        # Windows supplies the outer frame for a withdrawn Tk window after
+        # geometry negotiation. Lay out and center it before mapping, so those
+        # passes do not paint the entire transparent window repeatedly.
         window.update_idletasks()
+        if not _exists(window):
+            return
         try:
             backend = native_placement()
             if backend is None:
                 _center_fallback(window)
             else:
                 _center_native(window, parent, backend)
+                placed = backend.bounds(window)
         except (OSError, tk.TclError):
             _log.debug("Native dialog placement failed", exc_info=True)
             if _exists(window):
@@ -93,7 +98,19 @@ def show_centered(window):
                     _center_fallback(window)
                 except tk.TclError:
                     _log.debug("Fallback dialog placement failed", exc_info=True)
+        if _exists(window):
+            window.deiconify()
+            # Mapping on another DPI monitor may adjust the outer frame. Keep
+            # the existing correction without repainting every normal dialog.
+            if backend is not None and placed is not None:
+                try:
+                    if backend.bounds(window) != placed:
+                        _center_native(window, parent, backend)
+                except (OSError, tk.TclError):
+                    _log.debug("Mapped dialog placement failed", exc_info=True)
     finally:
         if _exists(window):
+            if window.state() == "withdrawn":
+                window.deiconify()
             window._ccz_dialog_shown = True
             window.attributes("-alpha", 1.0)

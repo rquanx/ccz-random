@@ -209,7 +209,7 @@ class RuleChangeEditorTests(unittest.TestCase):
             with patch("ccz_randomizer.rules.editor.ask_rule_change", return_value=action) as prompt:
                 self.buttons["取消"].invoke()
             self.assertTrue(prompt.call_args.kwargs["closing"])
-        self.assertFalse(self.editor.winfo_exists())
+        self.assertTrue(self.editor._ccz_cached_closed)
         self.assertEqual(before, (self.base / "random_rules_v2.json").read_bytes())
 
     def test_saving_unchanged_rule_does_not_prompt(self):
@@ -239,8 +239,10 @@ class RuleChangeEditorTests(unittest.TestCase):
                          self.saved[0]["profiles"]["新名字"]["statisticsId"])
 
     def test_collection_only_saves_without_rewriting_filter_or_prompting(self):
+        from tests.unit.test_rule_editor import select_advanced
+        select_advanced(self.root, self.editor, 3)
         check = next(w for w in descendants(self.editor)
-                     if isinstance(w, tk.Checkbutton) and w.cget("text") == "采集入队人员信息")
+                     if isinstance(w, ttk.Checkbutton) and w.cget("text") == "采集入队人员信息")
         check.invoke()
         with patch("ccz_randomizer.rules.editor.ask_rule_change") as prompt:
             self.buttons["保存规则"].invoke()
@@ -258,7 +260,7 @@ class RuleChangeEditorTests(unittest.TestCase):
             self.buttons["取消"].invoke()
         filtering.assert_not_called()
         generic.assert_not_called()
-        self.assertFalse(self.editor.winfo_exists())
+        self.assertTrue(self.editor._ccz_cached_closed)
 
     def test_close_can_save_changes_as_new_rule(self):
         self.edit_filter()

@@ -38,6 +38,8 @@ class SimpleDifficultyTests(unittest.TestCase):
             preset.set('严格')
             preset.event_generate('<<ComboboxSelected>>')
             root.update()
+            from tests.unit.test_rule_editor import select_advanced
+            select_advanced(root, editor)
             gate_combos = [w for w in descendants(editor) if isinstance(w, ttk.Combobox)
                            and '无要求' in w.cget('values') and '指定人数达标' in w.cget('values')]
             self.assertEqual(['指定人数达标'] * 2, [w.get() for w in gate_combos])

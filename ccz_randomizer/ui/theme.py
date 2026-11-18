@@ -4,6 +4,8 @@ from __future__ import annotations
 import tkinter as tk
 from tkinter import ttk
 
+from ccz_randomizer.ui.scrollbars import setup_scrollbars
+
 FONT = "Microsoft YaHei UI"
 COLORS = {
     "page": "#F4F6FA",
@@ -27,6 +29,8 @@ def setup_theme(root: tk.Misc) -> None:
     root.option_add("*Font", f"{{{FONT}}} 10")
     root.option_add("*Label.Font", f"{{{FONT}}} 10")
     root.option_add("*Entry.Font", f"{{{FONT}}} 10")
+    for control in ("TEntry", "TCombobox", "TSpinbox"):
+        root.option_add(f"*{control}.Font", f"{{{FONT}}} 10")
     root.option_add("*TCombobox*Listbox.font", f"{{{FONT}}} 10")
     style = ttk.Style(root)
     style.configure("TButton", font=(FONT, 10), padding=(8, 2))
@@ -39,16 +43,25 @@ def setup_theme(root: tk.Misc) -> None:
     style.configure("TLabel", font=(FONT, 10))
     style.configure("TEntry", padding=(6, 4))
     style.configure("TCombobox", padding=(6, 4))
-    for control in ("TEntry", "TCombobox"):
-        style.configure(control, foreground=COLORS["ink"], fieldbackground=COLORS["surface"])
+    style.configure("TSpinbox", padding=(6, 4), font=(FONT, 10))
+    for control in ("TCheckbutton", "TRadiobutton"):
+        style.configure(control, font=(FONT, 10), foreground=COLORS["ink"],
+                        padding=(0, 3), anchor="w")
+        style.map(control, foreground=[("disabled", COLORS["muted"])])
+    for control in ("TEntry", "TCombobox", "TSpinbox"):
+        style.configure(control, font=(FONT, 10), foreground=COLORS["ink"],
+                        fieldbackground=COLORS["surface"])
         style.map(control, fieldbackground=[("disabled", COLORS["surface_alt"]),
                                            ("readonly", COLORS["surface"])],
-                  foreground=[("disabled", COLORS["muted"])])
+                  foreground=[("disabled", COLORS["muted"])],
+                  selectbackground=[("!disabled", COLORS["accent"])],
+                  selectforeground=[("!disabled", "#FFFFFF")])
     # Card editors have a fixed height; standard form padding would clip text.
     style.configure("Inline.TEntry", padding=(3, 0))
     style.configure("Inline.TCombobox", padding=(2, 0))
     style.configure("Treeview", font=(FONT, 10), rowheight=28)
     style.configure("Treeview.Heading", font=(FONT, 10, "bold"))
+    setup_scrollbars(root, style, COLORS)
     owner._ccz_theme_initialized = True
 
 

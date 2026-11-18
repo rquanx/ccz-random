@@ -4,6 +4,7 @@ from tkinter import ttk
 
 from ccz_randomizer.ui.statistics_charts import Chart
 from ccz_randomizer.ui.inputs import SearchEntry
+from ccz_randomizer.ui.scrollbars import scrollbar_width
 
 
 class FrequencyChart(Chart):
@@ -15,7 +16,7 @@ class FrequencyChart(Chart):
         self._wheel_remainder = 0
         self._row_height = max(32, self._label_font.metrics("linespace")+14)
         self._all_rows = []
-        self._source_subtitle = ""
+        self._source_subtitle = None
         self._query = tk.StringVar(self)
         search = tk.Frame(self, bg="white")
         tk.Label(search, text="搜索", bg="white", font=self._label_font).pack(side="left", padx=(0, 5))
@@ -30,7 +31,11 @@ class FrequencyChart(Chart):
         self.bind("<Button-5>", lambda _: self.yview_scroll(1, "units"))
 
     def set(self, rows, subtitle=None):
-        self._all_rows = [(name, count) for name, count in rows if count > 0]
+        positive = [(name, count) for name, count in rows if count > 0]
+        if positive == self._all_rows and (subtitle or '') == self._source_subtitle:
+            self.draw()
+            return
+        self._all_rows = positive
         self._source_subtitle = subtitle or ""
         self._filter()
 
@@ -48,7 +53,8 @@ class FrequencyChart(Chart):
         self._visible_count = max(1, int((height-85)/self._row_height))
         self._offset = min(self._offset, max(0, len(self.rows)-self._visible_count))
         if len(self.rows) > self._visible_count:
-            self._scrollbar.place(relx=1, x=-2, y=64, anchor="ne", width=14, height=max(20, height-78))
+            self._scrollbar.place(relx=1, x=-7, y=68, anchor="ne",
+                                  width=scrollbar_width(self), height=max(20, height-82))
         else:
             self._scrollbar.place_forget()
         self._scrollbar.set(*self.yview())
@@ -57,7 +63,7 @@ class FrequencyChart(Chart):
             self.itemconfigure("empty", text="没有匹配的项目")
 
     def _bars(self, w, h):
-        super()._bars(w-18, h, rows=self.rows[self._offset:self._offset+self._visible_count],
+        super()._bars(w-scrollbar_width(self)-9, h, rows=self.rows[self._offset:self._offset+self._visible_count],
                       maximum=self._maximum, step=self._row_height)
 
     def yview(self, *args):

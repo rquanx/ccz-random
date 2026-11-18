@@ -377,7 +377,7 @@ class RecruitmentWindowTests(unittest.TestCase):
             root = tk.Tk()
         except tk.TclError as exc:
             self.skipTest(str(exc))
-        root.withdraw()
+        root.geometry("1000x700")
         self.addCleanup(root.destroy)
         dialog = tk.Toplevel(root)
         dialog.withdraw()
@@ -389,23 +389,23 @@ class RecruitmentWindowTests(unittest.TestCase):
                 yield child
                 yield from descendants(child)
         canvas = next(w for w in descendants(dialog) if isinstance(w, tk.Canvas))
-        # The complete catalog now renders in input-friendly batches.
-        import time
-        deadline = time.monotonic() + 3
-        while time.monotonic() < deadline:
+        cards = dialog._recruitment_cards
+        wait_until(root, lambda: cards.ready)
+        texts, highlighted = set(), set()
+        for step in range(101):
+            canvas.yview_moveto(step/100)
             root.update()
-            if all(any(name in canvas.itemcget(item, "text") for item in canvas.find_all()
-                       if canvas.type(item) == "text") for name in ("曹休", "曹纯")):
-                break
-            time.sleep(.002)
-        texts = [canvas.itemcget(item, "text") for item in canvas.find_all() if canvas.type(item) == "text"]
+            for item in canvas.find_all():
+                if canvas.type(item) == "text":
+                    value = canvas.itemcget(item, "text")
+                    texts.add(value)
+                    if canvas.itemcget(item, "fill") == "#B42318":
+                        highlighted.add(value)
         self.assertIn("曹休 · 轻炮车/弓骑兵", texts)
         self.assertIn("曹纯 · ", texts)
         self.assertIn("道士", texts)
         self.assertIn("虎豹骑", texts)
-        self.assertTrue(any(canvas.itemcget(item, "text") == "虎豹骑"
-                            and canvas.itemcget(item, "fill") == "#B42318"
-                            for item in canvas.find_all() if canvas.type(item) == "text"))
+        self.assertIn("虎豹骑", highlighted)
         self.assertFalse(any("随机结果" in text or "入队时兵种选项" in text for text in texts))
         self.assertIn("兵种天赋", texts)
         self.assertIn("人物天赋", texts)

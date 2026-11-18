@@ -181,7 +181,7 @@ def format_result_detail(detail: dict[str, Any]) -> dict[str, Any]:
 
 def show_score_detail(root, detail: dict) -> None:
     import tkinter as tk
-    from tkinter import scrolledtext
+    from ccz_randomizer.ui import scrolled_text as scrolledtext
     from ccz_randomizer.ui.detail_actions import add_detail_actions
     view = format_result_detail(detail)
     dialog = centered_toplevel(root)

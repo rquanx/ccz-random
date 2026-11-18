@@ -2,6 +2,7 @@
 from concurrent.futures import ThreadPoolExecutor, Future
 import threading
 import queue
+from time import perf_counter
 from tkinter import TclError
 from ccz_randomizer.ui.window_events import bind_window_event
 
@@ -18,7 +19,7 @@ class WindowTasks:
         self.callbacks = {}
         self.generations = {}
         self.closed = False
-        self.timer = window.after(20, self._poll)
+        self.timer = None
         self._unbind = bind_window_event(window, "<Destroy>", self._destroyed)
 
     def invalidate(self, key):
@@ -31,6 +32,13 @@ class WindowTasks:
         if future is not None and key not in self.durable:
             future.cancel()
         self.durable.discard(key)
+        if not self.callbacks and self.timer is not None:
+            self.window.after_cancel(self.timer)
+            self.timer = None
+
+    def _ensure_poll(self):
+        if not self.closed and self.callbacks and self.timer is None:
+            self.timer = self.window.after(20, self._poll)
 
     def request(self, key, action, done, failed, *, durable=False, cancel_event=None):
         if self.closed:
@@ -62,12 +70,14 @@ class WindowTasks:
                     read()
                     future.set_result(None)
             threading.Thread(target=run, daemon=True, name="window-task").start()
+        self._ensure_poll()
 
     def channel(self, key, callback):
         """Return a worker-safe writer. Only the UI thread invokes callback."""
         self.invalidate(key)
         generation = self.generations[key]
         self.callbacks[key] = (callback, callback)
+        self._ensure_poll()
         results = self.results
         return lambda value: results.put((key, generation, (None, value)))
 
@@ -75,8 +85,11 @@ class WindowTasks:
         self.timer = None
         if self.closed:
             return
+        started = perf_counter()
         try:
-            while True:
+            for _ in range(64):
+                if perf_counter() - started >= .008:
+                    break
                 key, generation, (success, value) = self.results.get_nowait()
                 if self.generations.get(key) == generation:
                     if success is None:
@@ -94,8 +107,7 @@ class WindowTasks:
         except queue.Empty:
             pass
         finally:
-            if not self.closed:
-                self.timer = self.window.after(20, self._poll)
+            self._ensure_poll()
 
     def _destroyed(self, event):
         if event.widget is self.window:

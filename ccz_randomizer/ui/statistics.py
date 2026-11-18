@@ -5,6 +5,7 @@ from tkinter import ttk
 
 from ccz_randomizer.history_filters import parse_time_range
 from ccz_randomizer.statistics_store import StatisticsRepository
+from ccz_randomizer.equipment_labels import merge_equipment_frequencies
 from ccz_randomizer.ui.searchable_combo import SelectionCombobox
 from ccz_randomizer.ui.statistics_charts import Chart, REASON_LABELS
 from ccz_randomizer.ui.statistics_frequency import FrequencyChart
@@ -17,6 +18,10 @@ from ccz_randomizer.ui.window_position import centered_toplevel, show_centered
 def show_statistics_window(parent, base):
     existing = getattr(parent, "_statistics_window", None)
     if existing is not None and existing.winfo_exists():
+        if getattr(existing, '_ccz_cached_closed', False):
+            from ccz_randomizer.ui.cached_dialog import restore_dialog
+            restore_dialog(existing)
+            existing._reload_statistics()
         existing.lift()
         return existing
     setup_theme(parent)
@@ -26,8 +31,15 @@ def show_statistics_window(parent, base):
     window.geometry("1180x820")
     window.minsize(980, 700)
     style_dialog(window)
-    repository = StatisticsRepository(base)
+    repository = None
+    def resolve_repository():
+        nonlocal repository
+        if repository is None:
+            repository = StatisticsRepository(base)
+        return repository
     tasks = WindowTasks(window)
+    from ccz_randomizer.ui.render_state import track_render
+    track_render(window, lambda: not tasks.pending)
     filters = tk.Frame(window, bg=COLORS["page"])
     filters.pack(fill="x", padx=24, pady=(20, 12))
     for column, weight, minimum in ((1, 1, 90), (3, 1, 90), (5, 2, 135), (7, 1, 75)):
@@ -105,14 +117,29 @@ def show_statistics_window(parent, base):
     equipment_combo = SelectionCombobox(equipment_filters, textvariable=equipment_name,
         values=("全部宝物",), state="readonly", width=26, search_label="搜索宝物")
     equipment_combo.pack(side="left")
+    merge_equipment = tk.BooleanVar(value=True)
+    merge_check = ttk.Checkbutton(equipment_filters, text="合并同类特效", variable=merge_equipment,
+                                 command=lambda: display_equipment())
+    merge_check.pack(side="left", padx=(16, 0))
+    HoverTooltip(merge_check, "合并百分比数值不同的同类效果及MP防御加值，累加次数；不同攻击范围分别统计")
     charts["equipment"] = FrequencyChart(equipment_page, "宝物效果频率")
     charts["equipment"].pack(fill="both", expand=True, padx=5, pady=(0, 5))
     rule_ids = {}
+    loaded_views = set()
+    choices_ready = False
+    equipment_rows = ()
+    equipment_samples = 0
+
+    def display_equipment():
+        rows = merge_equipment_frequencies(equipment_rows) if merge_equipment.get() else equipment_rows
+        charts["equipment"].set(rows, f"{equipment_samples:,} 次采集")
 
     def failed(error):
         status.set(f"筛选未更新，图表保留上次结果：{error}")
 
-    def display(data):
+    def display(data, view):
+        nonlocal equipment_rows, equipment_samples
+        loaded_views.update(("overview", view))
         total, qualified, saved, jobs, skills, elapsed = data["totals"]
         rate = qualified / total if total else 0
         for variable, value in zip(values, (f"{total:,}", f"{qualified:,}", f"{saved:,}",
@@ -123,11 +150,14 @@ def show_statistics_window(parent, base):
                     if total else "暂无符合条件的数据") +
                    (f" · 注意：曾有 {data['lost']:,} 次采集缺失，统计不完整" if data["lost"] else ""))
         for key in ("statuses", "trend", "reasons", "jobs", "skills"):
-            charts[key].set(data[key])
+            if key in data:
+                charts[key].set(data[key])
         charts["comparisons"].set([(name, 100*saved/count) for name, count, saved in data["comparisons"]])
-        charts["equipment"].set(data["equipment"], f"{data['equipment_samples']:,} 次采集")
-        for stage in ("job", "skill"):
-            rows = data["histograms"][stage]
+        if "equipment" in data:
+            equipment_rows = data["equipment"]
+            equipment_samples = data["equipment_samples"]
+            display_equipment()
+        for stage, rows in data.get("histograms", {}).items():
             count = sum(row[1] for row in rows)
             if rows and rows[-1][0] - rows[0][0] < 120:
                 counts = dict(rows)
@@ -135,7 +165,14 @@ def show_statistics_window(parent, base):
             charts[stage].set([(f"{score:g}–{score+1:g}", value) for score, value in rows],
                               f"{count:,} 人次")
 
-    def refresh():
+    def refresh(*, changed=True):
+        if not choices_ready:
+            return
+        if changed:
+            loaded_views.clear()
+        view = ("overview", "members", "equipment")[notebook.index(notebook.select())]
+        if view in loaded_views:
+            return
         try:
             after, before = parse_time_range(start.get(), end.get())
             options = dict(start=dt.datetime.fromisoformat(after).timestamp() if after else None,
@@ -149,9 +186,12 @@ def show_statistics_window(parent, base):
             failed(error)
             return
         status.set("正在汇总统计…")
-        tasks.request("query", lambda: repository.query(**options), display, failed)
+        tasks.request("query", lambda: resolve_repository().query(**options, view=view),
+                      lambda data: display(data, view), failed)
 
     def choices(data):
+        nonlocal choices_ready
+        choices_ready = True
         selected_revision = rule_ids.get(rule.get())
         rule_ids.clear()
         rule_ids.update({name: revision for revision, name in data["rules"]})
@@ -162,8 +202,12 @@ def show_statistics_window(parent, base):
         refresh()
 
     def reload_all():
+        nonlocal choices_ready
+        choices_ready = False
+        loaded_views.clear()
+        status.set("正在读取统计…")
         tasks.invalidate("query")
-        tasks.request("choices", repository.choices, choices, failed)
+        tasks.request("choices", lambda: resolve_repository().choices(), choices, failed)
 
     rule_update_binding = parent.bind("<<RulesUpdated>>", lambda _: reload_all(), add="+")
     from ccz_randomizer.ui.window_events import bind_window_event
@@ -175,13 +219,17 @@ def show_statistics_window(parent, base):
             remove_storage_listener()
             parent.unbind("<<RulesUpdated>>", rule_update_binding)
 
-    window.bind("<Destroy>", cleanup, add="+")
+    bind_window_event(window, "<Destroy>", cleanup)
 
     ttk.Button(filters, text="刷新", command=reload_all).grid(row=0, column=10)
     for combo in (rule_combo, people_combo, result_combo, equipment_combo):
         combo.bind("<<ComboboxSelected>>", lambda _: refresh(), add="+")
     for entry in date_entries:
         entry.bind("<Return>", lambda _: refresh())
+    notebook.bind("<<NotebookTabChanged>>", lambda _: refresh(changed=False))
+    from ccz_randomizer.ui.cached_dialog import hide_dialog
+    window._reload_statistics = reload_all
+    window.protocol('WM_DELETE_WINDOW', lambda: hide_dialog(window))
     reload_all()
     show_centered(window)
     return window

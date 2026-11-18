@@ -15,6 +15,7 @@ from ccz_randomizer.ui.inputs import SearchEntry
 from ccz_randomizer.ui.statistics_ranking import show_ranking_window
 from ccz_randomizer.statistics_store import StatisticsRepository
 from ccz_randomizer.statistics_equipment import capture_equipment_statistics
+from ccz_randomizer.equipment_labels import merge_equipment_frequencies
 from tests.unit.test_statistics_equipment import equipment_fixture
 from tests.unit.test_statistics import runner_fixture
 
@@ -58,6 +59,8 @@ class StatisticsUiTests(unittest.TestCase):
         # Never map this test window or steal focus from the user's desktop.
         with patch("ccz_randomizer.ui.statistics.show_centered"):
             window = show_statistics_window(self.root, self.base)
+        notebook = next(item for item in descendants(window) if isinstance(item, ttk.Notebook))
+        notebook.select(1)
         charts = [item for item in descendants(window) if isinstance(item, Chart)]
         people = next(item for item in descendants(window) if isinstance(item, SelectionCombobox)
                       and item.get() == "全部人物")
@@ -83,6 +86,53 @@ class StatisticsUiTests(unittest.TestCase):
         people.event_generate("<<ComboboxSelected>>")
         window.destroy()
         self.root.update()
+
+    def test_overview_is_available_without_waiting_for_detailed_pages(self):
+        import threading
+        recorder = StatisticsRecorder(self.base, run_id="lazy", rule_name="规则", rule={}, mode="three")
+        runner = runner_fixture()
+        capture_equipment_statistics(runner, equipment_fixture, self.fail)
+        with recorder.attempt(runner, round_number=1, slot=1, attempt=1) as result:
+            result["saved"] = True
+        recorder.close()
+        entered, release = threading.Event(), threading.Event()
+        original = StatisticsRepository.query
+
+        def delayed_details(repository, **options):
+            if options.get("view") == "equipment":
+                entered.set()
+                if not release.wait(5):
+                    raise TimeoutError("test detail read was not released")
+            return original(repository, **options)
+
+        with patch.object(StatisticsRepository, "query", delayed_details), patch("ccz_randomizer.ui.statistics.show_centered"):
+            window = show_statistics_window(self.root, self.base)
+            notebook = next(item for item in descendants(window) if isinstance(item, ttk.Notebook))
+            charts = [item for item in descendants(window) if isinstance(item, Chart)]
+            overview = next(item for item in charts if item.kind == "donut")
+            equipment = next(item for item in charts if item.title.startswith("宝物效果"))
+            skills = next(item for item in charts if item.title.startswith("特技频率"))
+            try:
+                self.wait_until(lambda: overview.rows == [("saved", 1)])
+                self.assertFalse(entered.is_set())
+                self.assertEqual([], equipment.rows)
+                self.assertEqual([], skills.rows)
+                notebook.select(2)
+                self.wait_until(entered.is_set)
+                # The overview is already usable while the detail query is waiting.
+                self.assertEqual([("saved", 1)], overview.rows)
+                heartbeat = []
+                self.root.after(0, lambda: heartbeat.append(True))
+                self.wait_until(lambda: bool(heartbeat))
+                release.set()
+                self.wait_until(lambda: bool(equipment.rows))
+                self.assertEqual(merge_equipment_frequencies(original(StatisticsRepository(self.base))["equipment"]), equipment.rows)
+                notebook.select(1)
+                self.wait_until(lambda: bool(skills.rows))
+                self.assertEqual([("能力辅助 防→攻精", 1)], skills.rows)
+            finally:
+                release.set()
+                window.destroy()
 
     def test_all_chart_forms_render_with_bounded_items_and_small_dimensions(self):
         for kind in ("donut", "bars", "percent", "histogram", "line"):
@@ -168,7 +218,11 @@ class StatisticsUiTests(unittest.TestCase):
             self.assertFalse(chart.find_withtag("hover"))
             chart._schedule_draw(None)
             chart._schedule_draw(None)
-            timer = chart._redraw_timer
+            self.assertIsNone(chart._redraw_timer)
+            with patch.object(chart, 'winfo_width', return_value=500):
+                chart._schedule_draw(None)
+                timer = chart._redraw_timer
+            self.assertIsNotNone(timer)
             chart.destroy()
             self.assertNotIn(timer, self.root.tk.call("after", "info"))
 
@@ -182,10 +236,12 @@ class StatisticsUiTests(unittest.TestCase):
         recorder.close()
         with patch("ccz_randomizer.ui.statistics.show_centered"):
             window = show_statistics_window(self.root, self.base)
+        notebook = next(item for item in descendants(window) if isinstance(item, ttk.Notebook))
+        notebook.select(2)
         chart = next(widget for widget in descendants(window)
                      if isinstance(widget, Chart) and widget.title.startswith("宝物效果"))
         self.wait_until(lambda: bool(chart.rows))
-        self.assertEqual(chart.rows, StatisticsRepository(self.base).query()["equipment"])
+        self.assertEqual(chart.rows, merge_equipment_frequencies(StatisticsRepository(self.base).query()["equipment"]))
         self.assertGreater(len(chart.rows), 12)
         item, effect = equipment_fixture()[0][0][0]
         picker = next(widget for widget in descendants(window)
@@ -201,6 +257,43 @@ class StatisticsUiTests(unittest.TestCase):
         self.assertIsNone(chart._expand_button)
         self.assertFalse(any(isinstance(widget, ttk.Button) and widget.cget("text") == "查看全部"
                              for widget in descendants(window)))
+        window.destroy()
+
+    def test_equipment_merge_defaults_on_can_restore_values_and_respects_item_filter(self):
+        names = [name for items, _ in equipment_fixture() for name, _ in items][:8]
+        effects = ['骑马克制20%', '骑马克制25%', '节约MP-10%', '节约MP-20%', '远距攻击3', '远距攻击16',
+                   'MP防御+10', 'MP防御+20']
+        displayed = effects[:4] + ['远距攻击3(菱形2～3格)', '远距攻击16(菱形3格)'] + effects[6:]
+        runner = runner_fixture(reject=True)
+        runner._statistics_equipment = [dict(name=name, effect=effect) for name, effect in zip(names, effects)]
+        recorder = StatisticsRecorder(self.base, run_id='merge', rule_name='规则', rule={}, mode='three')
+        with recorder.attempt(runner, round_number=1, slot=1, attempt=1):
+            pass
+        recorder.close()
+        with patch('ccz_randomizer.ui.statistics.show_centered'):
+            window = show_statistics_window(self.root, self.base)
+        notebook = next(w for w in descendants(window) if isinstance(w, ttk.Notebook))
+        notebook.select(2)
+        chart = next(w for w in descendants(window) if isinstance(w, Chart) and w.title.startswith('宝物效果'))
+        check = next(w for w in descendants(window) if isinstance(w, ttk.Checkbutton) and w.cget('text') == '合并同类特效')
+        self.assertTrue(bool(self.root.getvar(check.cget('variable'))))
+        merged = {'骑马克制': 2, '节约MP': 2, '远距攻击3(菱形2～3格)': 1, '远距攻击16(菱形3格)': 1, 'MP防御': 2}
+        self.wait_until(lambda: dict(chart.rows) == merged)
+        check.invoke()
+        self.assertEqual(dict.fromkeys(displayed, 1), dict(chart.rows))
+        check.invoke()
+        self.assertEqual(merged, dict(chart.rows))
+        chart.search_entry.insert(0, '骑马克制')
+        self.assertEqual([('骑马克制', 2)], chart.rows)
+        chart.search_entry.delete(0, 'end')
+        picker = next(w for w in descendants(window) if isinstance(w, SelectionCombobox) and w.get() == '全部宝物')
+        picker.set(names[0])
+        picker.event_generate('<<ComboboxSelected>>')
+        self.wait_until(lambda: chart.rows == [('骑马克制', 1)])
+        check.invoke()
+        self.assertEqual([('骑马克制20%', 1)], chart.rows)
+        raw = StatisticsRepository(self.base).query()['equipment']
+        self.assertEqual(dict.fromkeys(displayed, 1), dict(raw))
         window.destroy()
 
     def test_full_ranking_search_pagination_and_close_with_pending_search(self):

@@ -134,18 +134,18 @@ def show_recruit_window(parent, catalog_path: Path | None = None, *, snapshot: d
         has_matches=lambda word: bool(matching_recruits(word, current_special_names())),
         parent=outer, before=body, idle_ms=SEARCH_HISTORY_IDLE_MS)
     canvas = tk.Canvas(body, background=colors["alt"], highlightthickness=0); canvas.grid(row=0,column=0,sticky="nsew")
-    from tkinter.font import Font
-    heading_font = Font(canvas, family="Microsoft YaHei UI", size=10, weight="bold")
     vertical = ttk.Scrollbar(body, orient="vertical", command=canvas.yview); vertical.grid(row=0,column=1,sticky="ns")
     canvas.configure(yscrollcommand=vertical.set)
     stage_people: OrderedDict[str, list[Recruit]] = OrderedDict()
     for row in recruits:
         for stage_name in row.stages or (row.stage,): stage_people.setdefault(stage_name, []).append(row)
+    from ccz_randomizer.ui.recruitment_cards import RecruitmentCards
+    cards = RecruitmentCards(canvas, colors)
+    dialog._recruitment_cards = cards
     refresh_after = None
     last_layout = None
-    render_generation = 0
     def refresh() -> None:
-        nonlocal refresh_after, last_layout, render_generation
+        nonlocal refresh_after, last_layout
         refresh_after = None
         special_names = current_special_names()
         high_names = current_high_names()
@@ -155,112 +155,18 @@ def show_recruit_window(parent, catalog_path: Path | None = None, *, snapshot: d
         if layout == last_layout:
             return
         last_layout = layout
-        render_generation += 1
-        generation = render_generation
-        canvas.delete("all")
         visible = matching_recruits(query.get(), special_names)
         visible_ids = {row.record_index for row in visible}
-        columns = max(1, (width - 28 + 12) // 258)
-        card_width = max(100, (width - 28 - (columns - 1) * 12) // columns)
-        y = 12
-        shown_stages = 0
-
-        def draw_card(row: Recruit, x: int, top: int) -> tuple[int, int]:
-            tag = f"card:{row.record_index}"
-            background = canvas.create_rectangle(
-                x, top, x + card_width, top + 1,
-                fill=colors["surface"], outline=colors["line"], tags=(tag,))
-            cursor = top + 12
-
-            def line(text: str, *, indent: int = 0, bold: bool = False, reserve: int = 0, special: bool = False) -> None:
-                nonlocal cursor
-                item = canvas.create_text(
-                    x + 12 + indent, cursor, anchor="nw", text=text,
-                    fill=COLORS["danger"] if special else (colors["ink"] if bold else colors["muted"]),
-                    width=max(1, card_width - 24 - indent - reserve),
-                    font=("Microsoft YaHei UI", 10, "bold" if bold else "normal"),
-                    tags=(tag,))
-                cursor = canvas.bbox(item)[3] + 5
-
-            cost = canvas.create_text(
-                x + card_width - 12, cursor, anchor="ne", text="固定" if row.entry_kind == "fixed" else f"{row.cost}次",
-                fill=colors["muted"], font=("Microsoft YaHei UI", 9), tags=(tag,))
-            cost_bounds = canvas.bbox(cost)
-            options = display_job_options(row).split("/")
-            if not set(options) & high_names:
-                line(f"{row.name} · {display_job_options(row)}", bold=True,
-                     reserve=cost_bounds[2] - cost_bounds[0] + 12)
-            else:
-                font = heading_font
-                left = x + 12
-                right = x + card_width - 24 - (cost_bounds[2] - cost_bounds[0])
-                pen = left
-                segments = [(row.name + " · ", False)]
-                for index, job_name in enumerate(options):
-                    if index:
-                        segments.append(("/", False))
-                    segments.append((job_name, job_name in high_names))
-                for text, high in segments:
-                    length = font.measure(text)
-                    if pen > left and pen + length > right:
-                        pen = left
-                        cursor += font.metrics("linespace") + 2
-                        right = x + card_width - 12
-                    item = canvas.create_text(pen, cursor, anchor="nw", text=text,
-                        fill=COLORS["danger"] if high else colors["ink"],
-                        font=font, tags=(tag,))
-                    pen += length
-                cursor = canvas.bbox(item)[3] + 5
-            for title, talents in (("兵种天赋", row.job_talents),
-                                   ("人物天赋", row.personal_talents)):
-                cursor += 5
-                line(title, bold=True)
-                for talent in talents or ("无",):
-                    line(talent, indent=14, special=normalize_skill_name(talent) in special_names)
-            bottom = cursor + 7
-            canvas.coords(background, x, top, x + card_width, bottom)
-            return background, bottom
-
-        def draw_rows():
-            nonlocal y, shown_stages
-            for stage_name in stage_values:
-                people_all = stage_people[stage_name]
-                if stage_filter and stage_name != stage_filter:
-                    continue
-                people = [row for row in people_all if row.record_index in visible_ids]
-                if not people:
-                    continue
-                shown_stages += 1
-                canvas.create_text(14, y, anchor="nw",
-                                   text=stage_name.removeprefix("共通 · "),
-                                   fill=colors["ink"], font=("Microsoft YaHei UI", 11, "bold"))
-                y += 31
-                for kind, label in (("fixed", "固定入队 · 战前（随机预览）"), ("recruit", "可招募 · 战后")):
-                    group = [row for row in people if row.entry_kind == kind]
-                    if not group:
-                        continue
-                    canvas.create_text(14, y, anchor="nw", text=label, fill=colors["muted"],
-                                       font=("Microsoft YaHei UI", 9))
-                    y += 26
-                    for start in range(0, len(group), columns):
-                        cards = [draw_card(row, 14 + i * (card_width + 12), y)
-                                   for i, row in enumerate(group[start:start + columns])]
-                        bottom = max(height for _background, height in cards)
-                        for background, _height in cards:
-                            left, top, right, _ = canvas.coords(background)
-                            canvas.coords(background, left, top, right, bottom)
-                        y = bottom + 12
-                        canvas.configure(scrollregion=(0, 0, width, y))
-                        yield None
-                y += 8
-            if not shown_stages:
-                canvas.create_text(20, y, anchor="nw", text="没有符合条件的入队人员",
-                                   fill=colors["muted"], font=("Microsoft YaHei UI", 10))
-                y += 40
-            canvas.configure(scrollregion=(0, 0, width, y))
-        from ccz_randomizer.ui.history_loading import render_in_batches
-        render_in_batches(dialog, draw_rows(), lambda _index, _item: None,
-                          is_current=lambda: generation == render_generation, batch_size=3)
+        groups = []
+        for stage_name in stage_values:
+            if stage_filter and stage_name != stage_filter:
+                continue
+            people = [row for row in stage_people[stage_name] if row.record_index in visible_ids]
+            if people:
+                groups.append((stage_name, [(label, [row for row in people if row.entry_kind == kind])
+                    for kind, label in (("fixed", "固定入队 · 战前（随机预览）"), ("recruit", "可招募 · 战后"))]))
+        canvas.yview_moveto(0)
+        cards.set(groups, special_names, high_names)
 
     def schedule_query(*_args) -> None:
         nonlocal refresh_after
@@ -297,7 +203,7 @@ def show_recruit_window(parent, catalog_path: Path | None = None, *, snapshot: d
             except tk.TclError:
                 pass
             refresh_after = None
-    dialog.bind("<Destroy>", on_destroy)
+    bind_window_event(dialog, "<Destroy>", on_destroy)
     dialog.protocol("WM_DELETE_WINDOW", close)
     show_centered(dialog)
     if refresh_after:

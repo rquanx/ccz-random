@@ -85,7 +85,7 @@ def show_ranking_window(parent, repository, kind, filters):
         cancel_timer()
         previous.configure(state="disabled")
         following.configure(state="disabled")
-        timer = window.after(180, load)
+        timer = window.after(60, load)
 
     following = ttk.Button(footer, text="下一页", command=lambda: move(1))
     following.pack(side="right")

@@ -2,7 +2,7 @@
 import tkinter as tk
 from tkinter import ttk
 from ccz_randomizer.ui.inputs import SearchEntry
-from ccz_randomizer.ui.theme import FONT, setup_theme
+from ccz_randomizer.ui.theme import COLORS, FONT, setup_theme
 
 
 class SearchableCombobox(ttk.Combobox):
@@ -43,19 +43,20 @@ class SearchableCombobox(ttk.Combobox):
         popup.withdraw()
         popup.overrideredirect(True)
         popup.transient(owner)
-        outline = tk.Frame(popup, bg="#D9E0EA", padx=1, pady=1)
+        outline = tk.Frame(popup, bg=COLORS["border"], padx=1, pady=1)
         outline.pack(fill="both", expand=True)
         content = ttk.Frame(outline, padding=8)
         content.pack(fill="both", expand=True)
         ttk.Label(content, text=self.search_label, foreground="#667085").pack(anchor="w", pady=(0, 4))
         self.search = tk.StringVar()
+        self._visible_values = None
         self.search_entry = SearchEntry(content, textvariable=self.search)
         self.search_entry.pack(fill="x", pady=(0, 6))
         row = ttk.Frame(content)
         row.pack(fill="both", expand=True)
         self.listbox = tk.Listbox(row, height=10, exportselection=False, borderwidth=0,
-            highlightthickness=0, activestyle="none", bg="#FFFFFF", fg="#182230",
-            font=(FONT, 10), selectbackground="#EAF0FB", selectforeground="#182230")
+            highlightthickness=0, activestyle="none", bg=COLORS["surface"], fg=COLORS["ink"],
+            font=(FONT, 10), selectbackground=COLORS["accent_soft"], selectforeground=COLORS["ink"])
         self.listbox.pack(side="left", fill="both", expand=True)
         scrollbar = ttk.Scrollbar(row, orient="vertical", command=self.listbox.yview)
         scrollbar.pack(side="right", fill="y")
@@ -97,10 +98,18 @@ class SearchableCombobox(ttk.Combobox):
 
     def _filter(self, *_args):
         terms = self.search.get().casefold().split()
+        values = tuple(self.cget("values"))
+        if values != getattr(self, "_indexed_values", None):
+            self._indexed_values = values
+            self._search_index = tuple((value, value.casefold()) for value in values)
+        matches = tuple(value for value, text in self._search_index
+                        if all(term in text for term in terms))
+        if matches == getattr(self, "_visible_values", None) and self.listbox.size() == len(matches):
+            return
+        self._visible_values = matches
         self.listbox.delete(0, "end")
-        for value in self.cget("values"):
-            if all(term in value.casefold() for term in terms):
-                self.listbox.insert("end", value)
+        if matches:
+            self.listbox.insert("end", *matches)
         if self.listbox.size():
             self.empty.place_forget()
             self._select(0)

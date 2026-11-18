@@ -10,12 +10,15 @@ from ccz_randomizer.ui.search_memory import SearchMemory
 from ccz_randomizer.ui.window_position import centered_toplevel, show_centered
 from ccz_randomizer.ui.equipment_sections import render_equipment_sections
 from ccz_randomizer.ui.theme import setup_theme, style_dialog
+from ccz_randomizer.ui.window_events import bind_window_event
 
 SEARCH_HISTORY_IDLE_MS = 1000
 
 class EquipmentSearch:
     """Normalize the immutable result data once per dialog."""
     def __init__(self, equipment):
+        from ccz_randomizer.equipment_labels import equipment_display
+        equipment = equipment_display(equipment)
         self.specials = [(item, " ".join([str(item.get("title", "")),
                          *map(str, item.get("items") or [])]).casefold())
                          for item in equipment.get("specials") or []]
@@ -83,13 +86,15 @@ def show_equipment_window(parent, *, snapshot: dict, history_path: Path | None =
     content = tk.Frame(canvas, bg="#F4F6FA")
     window = canvas.create_window(0, 0, window=content, anchor="nw")
     pending = None
+    sections = None
+    empty = tk.Label(content, bg="#F4F6FA", fg="#667085")
 
     def resize(_event=None):
         canvas.itemconfigure(window, width=max(1100, canvas.winfo_width()))
         canvas.configure(scrollregion=canvas.bbox("all"))
 
     def refresh():
-        nonlocal pending, last_view
+        nonlocal pending, last_view, sections
         pending = None
         filtered = index.search(query.get())
         has_results = bool(filtered["specials"] or filtered["categories"])
@@ -97,14 +102,21 @@ def show_equipment_window(parent, *, snapshot: dict, history_path: Path | None =
         if view == last_view:
             return
         last_view = view
-        for child in content.winfo_children():
-            child.destroy()
         if filtered["specials"] or filtered["categories"]:
-            render_equipment_sections(content, filtered)
+            empty.pack_forget()
+            if sections is None:
+                sections = render_equipment_sections(content, filtered)
+            else:
+                sections.set_equipment(filtered)
+                if not sections.winfo_manager():
+                    sections.pack(fill="x")
         else:
+            if sections is not None:
+                sections.pack_forget()
             text = ("本次尝试未采集宝物信息，请查看合格结果。" if equipment is None else
                     "没有符合条件的宝物信息。" if query.get().strip() else "本次结果没有宝物记录。")
-            tk.Label(content, text=text, bg="#F4F6FA", fg="#667085").pack(anchor="w", padx=12, pady=12)
+            empty.configure(text=text)
+            empty.pack(anchor="w", padx=12, pady=12)
         canvas.yview_moveto(0)
         resize()
 
@@ -129,6 +141,6 @@ def show_equipment_window(parent, *, snapshot: dict, history_path: Path | None =
     canvas.bind("<Configure>", resize)
     content.bind("<Configure>", resize)
     dialog.bind("<MouseWheel>", wheel)
-    dialog.bind("<Destroy>", destroyed, add="+")
+    bind_window_event(dialog, "<Destroy>", destroyed)
     refresh()
     show_centered(dialog)

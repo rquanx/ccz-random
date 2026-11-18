@@ -6,7 +6,7 @@ from ccz_randomizer.ui.window_position import centered_toplevel, show_centered
 from ccz_randomizer.rule_members import rule_member_indices
 from ccz_randomizer.rules.help_content import ADVANCED_HELP_SECTIONS
 from ccz_randomizer.rules.legacy_import import LegacyModeRequired, read_legacy_mode
-from ccz_randomizer.ui.member_pages import MemberPages
+from ccz_randomizer.ui.member_pages import MemberCheckGrid, MemberPages
 from ccz_randomizer.ui.searchable_combo import SelectionCombobox
 from ccz_randomizer.ui.text_prompt import ask_text
 from ccz_randomizer.ui.theme import COLORS, FONT, setup_theme, style_dialog
@@ -146,6 +146,8 @@ class ScoreGrid(tk.Frame):
         self.category_bar_items: dict[int, int] = {}
         self.value_text_items: dict[int, int] = {}
         self.type_text_items: dict[int, int] = {}
+        self._refresh_timer = None
+        self._painted_rows = None
         self.search_var = tk.StringVar()
         self.result_text = tk.StringVar()
         search_bar = tk.Frame(self, background="#f5f5f5")
@@ -184,10 +186,15 @@ class ScoreGrid(tk.Frame):
         scrollbar = ttk.Scrollbar(
             canvas_frame, orient="vertical", command=self.canvas.yview
         )
-        self.canvas.configure(yscrollcommand=scrollbar.set)
+        def scrolled(first, last):
+            scrollbar.set(first, last)
+            if self._viewport_rows() != self._painted_rows:
+                self.schedule_refresh()
+
+        self.canvas.configure(yscrollcommand=scrolled)
         self.canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
-        self.canvas.bind("<Configure>", lambda _event: self.refresh())
+        self.canvas.bind("<Configure>", lambda _event: self.schedule_refresh())
         self.canvas.bind("<Button-1>", self._start_edit)
         self.canvas.bind("<Motion>", self._update_cursor)
         self.canvas.bind(
@@ -197,7 +204,22 @@ class ScoreGrid(tk.Frame):
         self.canvas.bind("<MouseWheel>", self._on_mousewheel)
         self.bind("<Destroy>", self._destroy_editor, add="+")
         self.search_var.trace_add("write", self._search_changed)
-        self.after_idle(self.refresh)
+        from ccz_randomizer.ui.window_events import bind_window_event
+        bind_window_event(self, "<Destroy>", lambda _event: self._cancel_refresh())
+        from ccz_randomizer.ui.render_state import track_render
+        track_render(self, lambda: self._refresh_timer is None and self._painted_rows == self._viewport_rows())
+        self.schedule_refresh()
+
+    def _cancel_refresh(self):
+        if self._refresh_timer is not None:
+            self.after_cancel(self._refresh_timer)
+            self._refresh_timer = None
+
+    def schedule_refresh(self):
+        # Profile loading changes many variables and control states together.
+        # Paint once using their final values, rather than repainting each step.
+        if self._refresh_timer is None:
+            self._refresh_timer = self.after_idle(self.refresh)
 
     def _visible_items(
         self,
@@ -228,7 +250,15 @@ class ScoreGrid(tk.Frame):
         self.canvas.yview_moveto(0)
         self.refresh()
 
+    def _viewport_rows(self) -> tuple[int, int]:
+        stride = self.card_height + self.GAP
+        top = max(0, int(self.canvas.canvasy(0)))
+        height = max(1, self.canvas.winfo_height())
+        # Keep one extra row on both sides so wheel scrolling stays smooth.
+        return max(0, top // stride - 1), (top + height) // stride + 2
+
     def refresh(self) -> None:
+        self._cancel_refresh()
         self.commit_pending(refresh=False)
         self.canvas.delete("all")
         self.hit_boxes.clear()
@@ -253,10 +283,15 @@ class ScoreGrid(tk.Frame):
         rows = (
             len(visible_items) + column_count - 1
         ) // column_count
+        total_height = self.GAP + rows * (self.card_height + self.GAP) if rows else 144
+        self.canvas.configure(scrollregion=(0, 0, viewport_width, total_height))
+        self._painted_rows = self._viewport_rows()
+        first_row, last_row = self._painted_rows
+        first_item = first_row * column_count
         for visible_index, (
             item_index,
             (name, variable, category),
-        ) in enumerate(visible_items):
+        ) in enumerate(visible_items[first_item:last_row * column_count], start=first_item):
             display_category = (
                 self.category_resolver(name, variable.get(), category)
                 if self.category_resolver is not None
@@ -422,14 +457,6 @@ class ScoreGrid(tk.Frame):
                 fill="#777777",
                 font=("Microsoft YaHei UI", 10),
             )
-        total_height = (
-            self.GAP + rows * (self.card_height + self.GAP)
-            if rows
-            else 144
-        )
-        self.canvas.configure(
-            scrollregion=(0, 0, viewport_width, total_height)
-        )
 
     @staticmethod
     def _category_color(category: str) -> str:
@@ -477,7 +504,7 @@ class ScoreGrid(tk.Frame):
         self.enabled = enabled
         if not enabled:
             self.commit_pending()
-        self.refresh()
+        self.schedule_refresh()
 
     def commit_pending(self, refresh: bool = True) -> None:
         if self.editor is None or self.editing_index is None:
@@ -638,11 +665,10 @@ def show_advanced_help(parent, selected_index: int) -> None:
 
     book = ttk.Notebook(dialog)
     book.pack(fill="both", expand=True, padx=14, pady=(14, 8))
-    tabs = []
-    for title, content in ADVANCED_HELP_SECTIONS:
-        tab = tk.Frame(book, padx=18, pady=16)
-        book.add(tab, text=title)
-        tabs.append(tab)
+    from ccz_randomizer.ui.lazy_pages import LazyPages
+    lazy = LazyPages(book)
+
+    def build_tab(tab, content):
         text = tk.Text(
             tab,
             wrap="word",
@@ -680,9 +706,18 @@ def show_advanced_help(parent, selected_index: int) -> None:
         text.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
 
+    tabs = []
+    for title, content in ADVANCED_HELP_SECTIONS:
+        tab = tk.Frame(book, padx=18, pady=16)
+        book.add(tab, text=title)
+        tabs.append(tab)
+        lazy.add(tab, lambda tab=tab, content=content: build_tab(tab, content))
+
     help_index = selected_index + 1
     if 0 <= help_index < len(tabs):
         book.select(tabs[help_index])
+
+    lazy.ensure(book.select())
 
     footer = tk.Frame(dialog, padx=14)
     footer.pack(fill="x", pady=(0, 12))
@@ -708,23 +743,40 @@ def show_member_affinity_editor(
     editable: bool,
     on_apply: Callable[[dict[str, tuple[str, str]]], None],
 ) -> None:
+    from ccz_randomizer.ui.cached_dialog import hide_dialog, restore_dialog
+    signature = (tuple(member_names), editable)
+    existing = getattr(parent, '_ccz_affinity_editor', None)
+    if existing is not None and existing.winfo_exists():
+        if existing._affinity_signature == signature:
+            if not getattr(existing, '_ccz_cached_closed', False):
+                existing.lift()
+                return
+            existing._reload_affinity(current_values, on_apply)
+            existing._affinity_previous = parent.grab_current()
+            restore_dialog(existing, modal=True)
+            return
+        existing.destroy()
     dialog = centered_toplevel(parent)
+    parent._ccz_affinity_editor = dialog
+    dialog._affinity_signature = signature
+    dialog._affinity_previous = parent.grab_current()
     setup_theme(dialog)
     style_dialog(dialog)
     dialog.title("人物倾向设置")
-    dialog.geometry("660x640")
-    dialog.minsize(600, 540)
+    dialog.geometry("660x520")
+    dialog.minsize(600, 460)
     dialog.transient(parent)
     frame = tk.Frame(dialog, padx=20, pady=16)
     frame.pack(fill="both", expand=True)
     tk.Label(frame, text="人物倾向仅影响兵种适配加分。" +
         ("" if editable else "内置规则仅供查看，请先新建副本再修改。"),
         anchor="w").pack(fill="x", pady=(0, 12))
-    variables = {name: (tk.StringVar(value=TYPE_LABELS[current_values[name][0]]),
-                        tk.StringVar(value=TYPE_LABELS[current_values[name][1]]))
+    variables = {name: (tk.StringVar(dialog, value=TYPE_LABELS[current_values[name][0]]),
+                        tk.StringVar(dialog, value=TYPE_LABELS[current_values[name][1]]))
                  for name in member_names}
     options = tuple(TYPE_LABELS[value] for value in AFFINITY_TYPES)
 
+    page_size = 6
     row_widgets = []
 
     def render(body, visible):
@@ -732,7 +784,7 @@ def show_member_affinity_editor(
         if not row_widgets:
             for column, title in enumerate(("人物", "主要倾向", "次要倾向")):
                 tk.Label(body, text=title, anchor="w").grid(row=0, column=column, sticky="w", pady=(0, 6))
-            for row in range(1, 11):
+            for row in range(1, page_size+1):
                 label = tk.Label(body, anchor="w", width=12)
                 label.grid(row=row, column=0, sticky="w", pady=4)
                 combos = []
@@ -759,16 +811,34 @@ def show_member_affinity_editor(
 
     actions = tk.Frame(frame)
     actions.pack(side="bottom", fill="x", pady=(12, 0))
-    pages = MemberPages(frame, member_names, render, page_size=10, reuse_widgets=True)
+    pages = MemberPages(frame, member_names, render, page_size=page_size, reuse_widgets=True)
     pages.pack(fill="both", expand=True)
 
+    callback = [on_apply]
+    def reload_values(values, on_apply):
+        callback[0] = on_apply
+        for name, (primary, secondary) in variables.items():
+            primary.set(TYPE_LABELS[values[name][0]])
+            secondary.set(TYPE_LABELS[values[name][1]])
+        pages.query.set('')
+        pages.page = 0
+        pages.refresh()
+    dialog._reload_affinity = reload_values
+
+    def close():
+        hide_dialog(dialog)
+        previous = dialog._affinity_previous
+        if previous is not None and previous.winfo_exists():
+            previous.grab_set()
+
     def apply_changes():
-        on_apply({name: (TYPE_VALUES[primary.get()], TYPE_VALUES[secondary.get()])
+        callback[0]({name: (TYPE_VALUES[primary.get()], TYPE_VALUES[secondary.get()])
                   for name, (primary, secondary) in variables.items()})
-        dialog.destroy()
+        close()
 
     add_dialog_actions(actions, confirm=apply_changes if editable else None,
-                       cancel=dialog.destroy, cancel_text="取消" if editable else "关闭")
+                       cancel=close, cancel_text="取消" if editable else "关闭")
+    dialog.protocol('WM_DELETE_WINDOW', close)
     show_centered(dialog)
     dialog.lift()
     dialog.grab_set()
@@ -833,6 +903,18 @@ def show_rule_editor(
     save_notice: Callable[[dict], str | None] | None = None,
     *, _original_config=None,
 ) -> None:
+    existing = getattr(parent, "_rule_editor_window", None)
+    signature = (Path(base_dir).resolve(), job_map, team_members, skill_catalog)
+    if existing is not None and existing.winfo_exists():
+        if existing._catalog_signature == signature:
+            if getattr(existing, "_ccz_cached_closed", False):
+                existing._reset_saved_rules(config, on_saved, save_notice, _original_config)
+                from ccz_randomizer.ui.cached_dialog import restore_dialog
+                restore_dialog(existing, modal=True)
+            else:
+                existing.lift()
+            return
+        existing.destroy()
     RULE_MEMBER_NAMES = tuple(rule_member_indices())
     setup_theme(parent)
     working = copy.deepcopy(validate_rule_config(config))
@@ -850,6 +932,8 @@ def show_rule_editor(
         separators=(",", ":"),
     )
     editor = centered_toplevel(parent)
+    parent._rule_editor_window = editor
+    editor._catalog_signature = copy.deepcopy(signature)
     editor.withdraw()
     editor.title("规则设置")
     editor.geometry("980x760")
@@ -933,495 +1017,514 @@ def show_rule_editor(
         )
     simple_tab.columnconfigure(0, weight=1)
 
-    advanced_book = ttk.Notebook(advanced_tab)
-    advanced_book.pack(fill="both", expand=True)
-    threshold_tab = tk.Frame(advanced_book, padx=16, pady=14)
-    base_score_tab = tk.Frame(advanced_book, padx=8, pady=8)
-    skill_score_tab = tk.Frame(advanced_book, padx=8, pady=8)
-    collection_tab = tk.Frame(advanced_book, padx=18, pady=16)
-    advanced_book.add(threshold_tab, text="阶段门槛")
-    advanced_book.add(base_score_tab, text="兵种基础设置")
-    advanced_book.add(skill_score_tab, text="特技基础设置")
-    advanced_book.add(collection_tab, text="实验功能")
-    job_tab = tk.LabelFrame(threshold_tab, text="兵种评分", padx=12, pady=8)
-    job_tab.grid(row=4, column=0, columnspan=7, sticky="ew", pady=(16, 0))
-    skill_tab = tk.LabelFrame(threshold_tab, text="特技评分", padx=12, pady=8)
-    skill_tab.grid(row=5, column=0, columnspan=7, sticky="ew", pady=(12, 0))
+    advanced_built = False
+    advanced_book = None
+    score_grids = []
+    result_image_settings = {}
+    number_vars = {}
+    bool_vars = {}
+    collection_vars = {}
+    qualification_mode_vars = {}
+    qualification_count_vars = {}
+    qualification_member_values = {}
+    qualification_controls = {}
+    affinity_vars = {}
+    job_score_vars = {}
+    job_type_vars = {}
+    job_default_types = {}
+    skill_score_vars = {}
+    skill_type_vars = {}
+    skill_defaults = {}
+    skill_default_types = {}
+    affinity_enabled = None
+    available_member_names = None
+    high_auto = None
+    high_job_auto = None
+    qualification_mode_values = None
+    qualification_mode_labels = None
+    refresh_result_image_button = None
+    refresh_skill_count = None
+    skill_count_combo = None
+    skill_count_var = None
+    skill_mode_labels = None
+    skill_mode_var = None
+    skill_type_matching = None
+    special_auto = None
+    def build_advanced():
+        nonlocal advanced_built, loading, loaded_form
+        nonlocal qualification_mode_labels
+        nonlocal advanced_book, number_vars, bool_vars, collection_vars
+        nonlocal qualification_mode_vars, qualification_count_vars, qualification_member_values, qualification_controls
+        nonlocal skill_mode_var, skill_count_var, skill_mode_labels, special_auto
+        nonlocal high_auto, high_job_auto, skill_type_matching, affinity_enabled
+        nonlocal affinity_vars, job_score_vars, job_type_vars, job_default_types
+        nonlocal skill_score_vars, skill_type_vars, skill_defaults, skill_default_types
+        nonlocal score_grids, result_image_settings, refresh_result_image_button, refresh_skill_count
+        nonlocal available_member_names, skill_count_combo, qualification_mode_values
+        if advanced_built:
+            return
+        advanced_book = ttk.Notebook(advanced_tab)
+        advanced_book.pack(fill="both", expand=True)
+        threshold_tab = tk.Frame(advanced_book, padx=16, pady=14)
+        base_score_tab = tk.Frame(advanced_book, padx=8, pady=8)
+        skill_score_tab = tk.Frame(advanced_book, padx=8, pady=8)
+        collection_tab = tk.Frame(advanced_book, padx=18, pady=16)
+        advanced_book.add(threshold_tab, text="阶段门槛")
+        advanced_book.add(base_score_tab, text="兵种基础设置")
+        advanced_book.add(skill_score_tab, text="特技基础设置")
+        advanced_book.add(collection_tab, text="信息采集")
+        from ccz_randomizer.ui.lazy_pages import LazyPages
+        lazy_pages = LazyPages(advanced_book)
+        job_tab = tk.LabelFrame(threshold_tab, text="兵种评分", padx=12, pady=8)
+        job_tab.grid(row=4, column=0, columnspan=7, sticky="ew", pady=(16, 0))
+        skill_tab = tk.LabelFrame(threshold_tab, text="特技评分", padx=12, pady=8)
+        skill_tab.grid(row=5, column=0, columnspan=7, sticky="ew", pady=(12, 0))
 
-    number_vars: dict[str, tk.StringVar] = {}
-    bool_vars: dict[str, tk.BooleanVar] = {}
-    collection_vars = {
-        "recruitment": tk.BooleanVar(value=False),
-        "jobTalents": tk.BooleanVar(value=False),
-        "allRandomPersonnel": tk.BooleanVar(value=False),
-    }
-    tk.Label(
-        collection_tab,
-        text="默认关闭。开启后只在合格结果保存时采集对应附加信息，可能增加少量运行时间。",
-        anchor="w",
-        fg="#666666",
-        justify="left",
-    ).pack(anchor="w", pady=(0, 14))
-    for key, label, description in (
-        ("allRandomPersonnel", "启用所有人物随机能力", "开启后，选择人物、人物倾向和结果图人物可使用全部入队人员；关闭时仅显示初始三人。"),
-        ("recruitment", "采集入队人员信息", "采集可招募人员和固定入队人员的兵种、兵种天赋及人物天赋。"),
-        ("jobTalents", "采集兵种天赋", "采集本次随机后的全部兵种天赋，用于“兵种天赋”弹窗查看。"),
-    ):
-        tk.Checkbutton(
-            collection_tab,
-            text=label,
-            variable=collection_vars[key],
-            anchor="w",
-        ).pack(anchor="w")
-        tk.Label(
-            collection_tab,
-            text=description,
-            fg="#666666",
-            anchor="w",
-        ).pack(anchor="w", padx=(24, 0), pady=(1, 12))
-    collection_tab.columnconfigure(0, weight=1)
-    qualification_mode_vars: dict[str, tk.StringVar] = {}
-    qualification_count_vars: dict[str, tk.StringVar] = {}
-    qualification_member_values: dict[str, list[str]] = {
-        "three": list(THREE_MEMBER_NAMES),
-    }
-    qualification_controls: dict[
-        str,
-        tuple[ttk.Combobox, ttk.Combobox, tk.Label, ttk.Button],
-    ] = {}
-
-    def available_member_names() -> tuple[str, ...]:
-        return tuple(RULE_MEMBER_NAMES if collection_vars["allRandomPersonnel"].get() else THREE_MEMBER_NAMES)
-
-    def add_number(
-        tab,
-        row: int,
-        key: str,
-        label: str,
-        hint: str = "",
-    ) -> None:
-        tk.Label(tab, text=label, anchor="w").grid(
-            row=row, column=0, sticky="w", pady=5
-        )
-        variable = tk.StringVar()
-        number_vars[key] = variable
-        entry = TextEntry(tab, textvariable=variable, width=16)
-        entry.grid(row=row, column=1, sticky="w", padx=(18, 10), pady=5)
-        editable_widgets.append(entry)
-        if hint:
-            tk.Label(tab, text=hint, fg="#666666", anchor="w").grid(
-                row=row, column=2, sticky="w", pady=5
-            )
-
-    add_number(
-        threshold_tab,
-        1,
-        "three_min",
-        "兵种合格分",
-        "",
-    )
-    qualification_mode_labels = {
-        "无要求": "none",
-        "指定人数达标": "count",
-        "平均分达标": "average",
-        "总分达标": "total",
-    }
-    qualification_mode_values = {
-        value: label for label, value in qualification_mode_labels.items()
-    }
-
-    def add_qualification_control(
-        row: int,
-        key: str,
-        member_names: tuple[str, ...],
-    ) -> None:
-        mode_var = tk.StringVar()
-        count_var = tk.StringVar()
-        qualification_mode_vars[key] = mode_var
-        qualification_count_vars[key] = count_var
-        mode_combo = SelectionCombobox(
-            threshold_tab,
-            textvariable=mode_var,
-            values=tuple(qualification_mode_labels),
-            state="readonly",
-            width=18,
-        )
-        mode_combo.grid(
-            row=row,
-            column=3,
-            sticky="w",
-            padx=(20, 8),
-            pady=5,
-        )
-        count_combo = SelectionCombobox(
-            threshold_tab,
-            textvariable=count_var,
-            values=tuple(
-                str(value) for value in range(1, len(member_names) + 1)
-            ),
-            state="readonly",
-            width=4,
-        )
-        count_combo.grid(row=row, column=4, sticky="w", pady=5)
-        count_label = tk.Label(
-            threshold_tab,
-            text="人达到门槛",
-            anchor="w",
-        )
-        count_label.grid(row=row, column=5, sticky="w", padx=(5, 0), pady=5)
-        member_button = ttk.Button(
-            threshold_tab,
-            text=f"选择人物（{len(member_names)}/{len(member_names)}）",
-        )
-        member_button.grid(
-            row=0,
-            column=1,
-            sticky="w",
-            padx=(18, 10),
-            pady=5,
-        )
-        qualification_controls[key] = (
-            mode_combo,
-            count_combo,
-            count_label,
-            member_button,
-        )
-        editable_widgets.extend((mode_combo, count_combo, member_button))
-
-        def refresh_member_button() -> None:
-            selected_count = len(qualification_member_values[key])
-            available = available_member_names()
-            member_button.configure(
-                text=f"选择人物（{selected_count}/{len(available)}）"
-            )
-
-        def choose_members() -> None:
-            member_names = available_member_names()
-            selected = set(qualification_member_values[key])
-            dialog = centered_toplevel(editor)
-            dialog.withdraw()
-            dialog.title("选择人物")
-            dialog.resizable(True, True)
-            dialog.transient(editor)
-            frame = tk.Frame(dialog, padx=20, pady=16)
-            frame.pack(fill="both", expand=True)
+        number_vars = {}
+        bool_vars = {}
+        collection_vars = {
+            "recruitment": tk.BooleanVar(value=False),
+            "jobTalents": tk.BooleanVar(value=False),
+            "allRandomPersonnel": tk.BooleanVar(value=False),
+        }
+        def build_collection():
             tk.Label(
-                frame,
-                text="所选人物同时参与兵种和特技判断",
+                collection_tab,
+                text="三个选项默认关闭。第一项设置可选人物范围；后两项在保存合格结果时额外记录信息，可能稍慢一些。",
                 anchor="w",
-            ).pack(fill="x", pady=(0, 10))
-            member_vars = {
-                member: tk.BooleanVar(value=member in selected)
-                for member in member_names
-            }
-            def render_members(body, visible):
-                for column in range(7):
-                    body.columnconfigure(column, weight=1, uniform="member-choice")
-                for index, member in enumerate(visible):
-                    tk.Checkbutton(body, text=member, variable=member_vars[member], anchor="w").grid(
-                        row=index // 7, column=index % 7, sticky="ew", padx=(0, 12), pady=4)
+                fg="#666666",
+                justify="left",
+            ).pack(anchor="w", pady=(0, 14))
+            for key, label, description in (
+                ("allRandomPersonnel", "启用所有人物随机能力", "开启后，选择人物、人物倾向和结果图人物可使用全部入队人员；关闭时仅显示初始三人。"),
+                ("recruitment", "采集入队人员信息", "采集可招募人员和固定入队人员的兵种、兵种天赋及人物天赋。"),
+                ("jobTalents", "采集兵种天赋", "采集本次随机后的全部兵种天赋，用于“兵种天赋”弹窗查看。"),
+            ):
+                ttk.Checkbutton(
+                    collection_tab,
+                    text=label,
+                    variable=collection_vars[key],
+                ).pack(anchor="w")
+                tk.Label(
+                    collection_tab,
+                    text=description,
+                    fg="#666666",
+                    anchor="w",
+                ).pack(anchor="w", padx=(24, 0), pady=(1, 12))
+            collection_tab.columnconfigure(0, weight=1)
+        lazy_pages.add(collection_tab, build_collection)
+        qualification_mode_vars = {}
+        qualification_count_vars = {}
+        qualification_member_values = {
+            "three": list(THREE_MEMBER_NAMES),
+        }
+        qualification_controls = {}
 
-            pages = MemberPages(frame, member_names, render_members, page_size=42)
-            pages.pack(fill="both", expand=True)
+        def available_member_names() -> tuple[str, ...]:
+            return tuple(RULE_MEMBER_NAMES if collection_vars["allRandomPersonnel"].get() else THREE_MEMBER_NAMES)
 
-            button_frame = tk.Frame(frame)
-            button_frame.pack(fill="x", pady=(14, 0))
-
-            def select_all() -> None:
-                for variable in member_vars.values():
-                    variable.set(True)
-
-            def clear_selection() -> None:
-                for variable in member_vars.values():
-                    variable.set(False)
-
-            def confirm() -> None:
-                chosen = [
-                    member
-                    for member in member_names
-                    if member_vars[member].get()
-                ]
-                if not chosen:
-                    messagebox.showwarning(
-                        "至少选择一人",
-                        "请至少选择一名参与判断的人物。",
-                        parent=dialog,
-                    )
-                    return
-                qualification_member_values[key] = chosen
-                count_combo.configure(
-                    values=tuple(
-                        str(value)
-                        for value in range(1, len(chosen) + 1)
-                    )
-                )
-                current_count = int(count_var.get() or "1")
-                if current_count > len(chosen):
-                    count_var.set(str(len(chosen)))
-                skill_count_combo.configure(values=tuple(str(i) for i in range(1, len(chosen) + 1)))
-                if int(skill_count_var.get() or "1") > len(chosen):
-                    skill_count_var.set(str(len(chosen)))
-                refresh_member_button()
-                dialog.destroy()
-
-            ttk.Button(
-                button_frame,
-                text="全选",
-                command=select_all,
-            ).pack(side="left")
-            ttk.Button(button_frame, text="清空选择", command=clear_selection).pack(side="left", padx=(8, 0))
-            ttk.Button(
-                button_frame,
-                text="取消",
-                command=dialog.destroy,
-            ).pack(side="right", padx=(8, 0))
-            ttk.Button(
-                button_frame,
-                text="确认",
-                command=confirm,
-            ).pack(side="right")
-
-            dialog.update_idletasks()
-            width = max(840, dialog.winfo_reqwidth())
-            height = max(430, dialog.winfo_reqheight())
-            dialog.minsize(width, height)
-            # centered_toplevel owns initial placement; only set the size here.
-            dialog.geometry(f"{width}x{height}")
-            show_centered(dialog)
-            dialog.lift()
-            dialog.grab_set()
-
-        member_button.configure(command=choose_members)
-
-        def refresh_count_control(_event=None) -> None:
-            enabled = (
-                mode_var.get() == "指定人数达标"
-                and str(mode_combo.cget("state")) != "disabled"
+        def add_number(
+            tab,
+            row: int,
+            key: str,
+            label: str,
+            hint: str = "",
+        ) -> None:
+            tk.Label(tab, text=label, anchor="w").grid(
+                row=row, column=0, sticky="w", pady=5
             )
-            count_combo.configure(state="readonly" if enabled else "disabled")
-            count_label.configure(fg="#222222" if enabled else "#999999")
-            member_button.configure(state="normal" if str(mode_combo.cget("state")) != "disabled" else "disabled")
-
-        mode_combo.bind(
-            "<<ComboboxSelected>>",
-            refresh_count_control,
-            add="+",
-        )
-
-    tk.Label(threshold_tab, text="人物设置", anchor="w").grid(row=0, column=0, sticky="w", pady=5)
-    add_qualification_control(1, "three", THREE_MEMBER_NAMES)
-    add_number(threshold_tab, 2, "skill_threshold", "特技合格分")
-    for row in (1, 2):
-        tk.Label(threshold_tab, text="算分模式").grid(row=row, column=2, padx=(12, 0))
-    skill_mode_labels = qualification_mode_labels
-    skill_mode_var = tk.StringVar()
-    skill_count_var = tk.StringVar()
-    skill_mode_combo = SelectionCombobox(threshold_tab, textvariable=skill_mode_var,
-        values=tuple(skill_mode_labels), state="readonly", width=18)
-    skill_mode_combo.grid(row=2, column=3, padx=(20, 8), sticky="w")
-    skill_count_combo = SelectionCombobox(threshold_tab, textvariable=skill_count_var,
-        values=tuple(str(i) for i in range(1, len(THREE_MEMBER_NAMES) + 1)), width=4, state="readonly")
-    skill_count_combo.grid(row=2, column=4, sticky="w")
-    skill_count_label = tk.Label(threshold_tab, text="人达到门槛")
-    skill_count_label.grid(row=2, column=5, padx=(5, 0), sticky="w")
-    editable_widgets.extend((skill_mode_combo, skill_count_combo))
-    def refresh_skill_count(*_):
-        enabled = skill_mode_var.get() == "指定人数达标" and str(skill_mode_combo.cget("state")) != "disabled"
-        skill_count_combo.configure(state="readonly" if enabled else "disabled")
-        skill_count_label.configure(fg="#222222" if enabled else "#999999")
-    skill_mode_combo.bind("<<ComboboxSelected>>", refresh_skill_count)
-    tk.Label(threshold_tab, text="兵种与特技均通过才会保留结果；特技分包含个人天赋和兵种天赋。",
-        fg="#666666", anchor="w").grid(row=3, column=0, columnspan=7, sticky="w", pady=(16, 0))
-    # Legacy fields stay available for reading old exports, but no longer gate this workflow.
-    for key in ("normal_average", "high_average", "medium_skills", "low_skills"):
-        number_vars[key] = tk.StringVar()
-
-    add_number(job_tab, 0, "base_weight", "兵种基础分权重")
-    add_number(
-        job_tab,
-        1,
-        "affinity_min",
-        "适配加成最低基础分",
-        "低于此分数不计算人物适配",
-    )
-    add_number(
-        job_tab,
-        2,
-        "primary_bonus",
-        "主要倾向加成比例",
-        "0.06 表示增加6%",
-    )
-    add_number(
-        job_tab,
-        3,
-        "secondary_bonus",
-        "次要倾向加成比例",
-        "0.03 表示增加3%",
-    )
-    affinity_enabled = tk.BooleanVar()
-    bool_vars["affinity_enabled"] = affinity_enabled
-    affinity_check = tk.Checkbutton(
-        job_tab,
-        text="启用人物兵种适配加成",
-        variable=affinity_enabled,
-        anchor="w",
-    )
-    affinity_check.grid(row=4, column=0, columnspan=2, sticky="w", pady=5)
-    editable_widgets.append(affinity_check)
-    add_number(job_tab, 5, "high_job_threshold", "高阶兵种基础分 / 门槛")
-    high_job_auto = tk.BooleanVar(value=False)
-    high_job_check = tk.Checkbutton(job_tab, text="出现高阶兵种时直接合格",
-                                   variable=high_job_auto, anchor="w")
-    high_job_check.grid(row=6, column=0, columnspan=2, sticky="w", pady=5)
-    editable_widgets.append(high_job_check)
-
-    affinity_vars: dict[str, tuple[tk.StringVar, tk.StringVar]] = {}
-    affinity_member_names = RULE_MEMBER_NAMES
-    for member_name in affinity_member_names:
-        affinity_vars[member_name] = (tk.StringVar(), tk.StringVar())
-
-    def apply_affinity_values(
-        values: dict[str, tuple[str, str]],
-    ) -> None:
-        for member_name, (primary, secondary) in values.items():
-            primary_var, secondary_var = affinity_vars[member_name]
-            primary_var.set(TYPE_LABELS[primary])
-            secondary_var.set(TYPE_LABELS[secondary])
-
-    def open_affinity_editor() -> None:
-        show_member_affinity_editor(
-            editor,
-            available_member_names(),
-            {
-                member_name: (
-                    TYPE_VALUES[primary.get()],
-                    TYPE_VALUES[secondary.get()],
+            variable = tk.StringVar()
+            number_vars[key] = variable
+            entry = TextEntry(tab, textvariable=variable, width=16)
+            entry.grid(row=row, column=1, sticky="w", padx=(18, 10), pady=5)
+            editable_widgets.append(entry)
+            if hint:
+                tk.Label(tab, text=hint, fg="#666666", anchor="w").grid(
+                    row=row, column=2, sticky="w", pady=5
                 )
-                for member_name, (primary, secondary)
-                in affinity_vars.items()
-            },
-            not is_builtin(selected_name),
-            apply_affinity_values,
+
+        add_number(
+            threshold_tab,
+            1,
+            "three_min",
+            "兵种合格分",
+            "",
         )
+        qualification_mode_labels = {
+            "无要求": "none",
+            "指定人数达标": "count",
+            "平均分达标": "average",
+            "总分达标": "total",
+        }
+        qualification_mode_values = {
+            value: label for label, value in qualification_mode_labels.items()
+        }
 
-    ttk.Button(
-        threshold_tab,
-        text="设置人物倾向",
-        command=open_affinity_editor,
-    ).grid(row=0, column=2, columnspan=2, sticky="w", pady=5)
-    result_image_settings = {"mode": "selected", "members": []}
+        def add_qualification_control(
+            row: int,
+            key: str,
+            member_names: tuple[str, ...],
+        ) -> None:
+            mode_var = tk.StringVar()
+            count_var = tk.StringVar()
+            qualification_mode_vars[key] = mode_var
+            qualification_count_vars[key] = count_var
+            mode_combo = SelectionCombobox(
+                threshold_tab,
+                textvariable=mode_var,
+                values=tuple(qualification_mode_labels),
+                state="readonly",
+                width=18,
+            )
+            mode_combo.grid(
+                row=row,
+                column=3,
+                sticky="w",
+                padx=(20, 8),
+                pady=5,
+            )
+            count_combo = SelectionCombobox(
+                threshold_tab,
+                textvariable=count_var,
+                values=tuple(
+                    str(value) for value in range(1, len(member_names) + 1)
+                ),
+                state="readonly",
+                width=4,
+            )
+            count_combo.grid(row=row, column=4, sticky="w", pady=5)
+            count_label = tk.Label(
+                threshold_tab,
+                text="人达到门槛",
+                anchor="w",
+            )
+            count_label.grid(row=row, column=5, sticky="w", padx=(5, 0), pady=5)
+            member_button = ttk.Button(
+                threshold_tab,
+                text=f"选择人物（{len(member_names)}/{len(member_names)}）",
+            )
+            member_button.grid(
+                row=0,
+                column=1,
+                sticky="w",
+                padx=(18, 10),
+                pady=5,
+            )
+            qualification_controls[key] = (
+                mode_combo,
+                count_combo,
+                count_label,
+                member_button,
+            )
+            editable_widgets.extend((mode_combo, count_combo, member_button))
 
-    def refresh_result_image_button():
-        suffix = "跟随评分" if result_image_settings["mode"] == "selected" else f"{len(result_image_settings['members'])}人"
-        result_image_button.configure(text=f"结果图人物（{suffix}）")
+            def refresh_member_button() -> None:
+                selected_count = len(qualification_member_values[key])
+                available = available_member_names()
+                member_button.configure(
+                    text=f"选择人物（{selected_count}/{len(available)}）"
+                )
 
-    def open_result_image_members():
-        from ccz_randomizer.rules.result_image_editor import show_result_image_members
-        def apply_settings(value):
-            nonlocal result_image_settings
-            result_image_settings = value
+            def choose_members() -> None:
+                member_names = available_member_names()
+                selected = set(qualification_member_values[key])
+                from ccz_randomizer.ui.member_picker import show_member_picker
+                def confirm(_mode, chosen):
+                    qualification_member_values[key] = chosen
+                    count_combo.configure(
+                        values=tuple(
+                            str(value)
+                            for value in range(1, len(chosen) + 1)
+                        )
+                    )
+                    current_count = int(count_var.get() or "1")
+                    if current_count > len(chosen):
+                        count_var.set(str(len(chosen)))
+                    skill_count_combo.configure(values=tuple(str(i) for i in range(1, len(chosen) + 1)))
+                    if int(skill_count_var.get() or "1") > len(chosen):
+                        skill_count_var.set(str(len(chosen)))
+                    refresh_member_button()
+                show_member_picker(editor, member_names, selected, confirm,
+                    cache_key=('qualification', key), title='选择人物',
+                    description='所选人物同时参与兵种和特技判断')
+
+            member_button.configure(command=choose_members)
+
+            def refresh_count_control(_event=None) -> None:
+                enabled = (
+                    mode_var.get() == "指定人数达标"
+                    and str(mode_combo.cget("state")) != "disabled"
+                )
+                count_combo.configure(state="readonly" if enabled else "disabled")
+                count_label.configure(fg="#222222" if enabled else "#999999")
+                member_button.configure(state="normal" if str(mode_combo.cget("state")) != "disabled" else "disabled")
+
+            mode_combo.bind(
+                "<<ComboboxSelected>>",
+                refresh_count_control,
+                add="+",
+            )
+
+        tk.Label(threshold_tab, text="人物设置", anchor="w").grid(row=0, column=0, sticky="w", pady=5)
+        add_qualification_control(1, "three", THREE_MEMBER_NAMES)
+        add_number(threshold_tab, 2, "skill_threshold", "特技合格分")
+        for row in (1, 2):
+            tk.Label(threshold_tab, text="算分模式").grid(row=row, column=2, padx=(12, 0))
+        skill_mode_labels = qualification_mode_labels
+        skill_mode_var = tk.StringVar()
+        skill_count_var = tk.StringVar()
+        skill_mode_combo = SelectionCombobox(threshold_tab, textvariable=skill_mode_var,
+            values=tuple(skill_mode_labels), state="readonly", width=18)
+        skill_mode_combo.grid(row=2, column=3, padx=(20, 8), sticky="w")
+        skill_count_combo = SelectionCombobox(threshold_tab, textvariable=skill_count_var,
+            values=tuple(str(i) for i in range(1, len(THREE_MEMBER_NAMES) + 1)), width=4, state="readonly")
+        skill_count_combo.grid(row=2, column=4, sticky="w")
+        skill_count_label = tk.Label(threshold_tab, text="人达到门槛")
+        skill_count_label.grid(row=2, column=5, padx=(5, 0), sticky="w")
+        editable_widgets.extend((skill_mode_combo, skill_count_combo))
+        def refresh_skill_count(*_):
+            enabled = skill_mode_var.get() == "指定人数达标" and str(skill_mode_combo.cget("state")) != "disabled"
+            skill_count_combo.configure(state="readonly" if enabled else "disabled")
+            skill_count_label.configure(fg="#222222" if enabled else "#999999")
+        skill_mode_combo.bind("<<ComboboxSelected>>", refresh_skill_count)
+        tk.Label(threshold_tab, text="兵种与特技均通过才会保留结果；特技分包含个人天赋和兵种天赋。",
+            fg="#666666", anchor="w").grid(row=3, column=0, columnspan=7, sticky="w", pady=(16, 0))
+        # Legacy fields stay available for reading old exports, but no longer gate this workflow.
+        for key in ("normal_average", "high_average", "medium_skills", "low_skills"):
+            number_vars[key] = tk.StringVar()
+
+        add_number(job_tab, 0, "base_weight", "兵种基础分权重")
+        add_number(
+            job_tab,
+            1,
+            "affinity_min",
+            "适配加成最低基础分",
+            "低于此分数不计算人物适配",
+        )
+        add_number(
+            job_tab,
+            2,
+            "primary_bonus",
+            "主要倾向加成比例",
+            "0.06 表示增加6%",
+        )
+        add_number(
+            job_tab,
+            3,
+            "secondary_bonus",
+            "次要倾向加成比例",
+            "0.03 表示增加3%",
+        )
+        affinity_enabled = tk.BooleanVar()
+        bool_vars["affinity_enabled"] = affinity_enabled
+        affinity_check = ttk.Checkbutton(
+            job_tab,
+            text="启用人物兵种适配加成",
+            variable=affinity_enabled,
+        )
+        affinity_check.grid(row=4, column=0, columnspan=2, sticky="w", pady=5)
+        editable_widgets.append(affinity_check)
+        add_number(job_tab, 5, "high_job_threshold", "高阶兵种基础分 / 门槛")
+        high_job_auto = tk.BooleanVar(value=False)
+        high_job_check = ttk.Checkbutton(job_tab, text="出现高阶兵种时直接合格",
+                                       variable=high_job_auto)
+        high_job_check.grid(row=6, column=0, columnspan=2, sticky="w", pady=5)
+        editable_widgets.append(high_job_check)
+
+        affinity_vars = {}
+        affinity_member_names = RULE_MEMBER_NAMES
+        for member_name in affinity_member_names:
+            affinity_vars[member_name] = (tk.StringVar(), tk.StringVar())
+
+        def apply_affinity_values(
+            values: dict[str, tuple[str, str]],
+        ) -> None:
+            for member_name, (primary, secondary) in values.items():
+                primary_var, secondary_var = affinity_vars[member_name]
+                primary_var.set(TYPE_LABELS[primary])
+                secondary_var.set(TYPE_LABELS[secondary])
+
+        def open_affinity_editor() -> None:
+            show_member_affinity_editor(
+                editor,
+                available_member_names(),
+                {
+                    member_name: (
+                        TYPE_VALUES[primary.get()],
+                        TYPE_VALUES[secondary.get()],
+                    )
+                    for member_name, (primary, secondary)
+                    in affinity_vars.items()
+                },
+                not is_builtin(selected_name),
+                apply_affinity_values,
+            )
+
+        ttk.Button(
+            threshold_tab,
+            text="设置人物倾向",
+            command=open_affinity_editor,
+        ).grid(row=0, column=2, columnspan=2, sticky="w", pady=5)
+
+        def refresh_result_image_button():
+            suffix = "跟随评分" if result_image_settings["mode"] == "selected" else f"{len(result_image_settings['members'])}人"
+            result_image_button.configure(text=f"结果图人物（{suffix}）")
+
+        def open_result_image_members():
+            from ccz_randomizer.rules.result_image_editor import show_result_image_members
+            def apply_settings(value):
+                nonlocal result_image_settings
+                result_image_settings = value
+                refresh_result_image_button()
+            show_result_image_members(editor, result_image_settings,
+                                      available_member_names(), apply_settings)
+
+        result_image_button = ttk.Button(threshold_tab, command=open_result_image_members)
+        result_image_button.grid(row=0, column=4, columnspan=2, sticky="w", pady=5)
+        editable_widgets.append(result_image_button)
+
+        def refresh_personnel_scope(*_args) -> None:
+            allowed = set(available_member_names())
+            current = qualification_member_values["three"]
+            qualification_member_values["three"] = [m for m in current if m in allowed] or list(THREE_MEMBER_NAMES)
+            _mode_combo, count_combo, _label, member_button = qualification_controls["three"]
+            count_combo.configure(values=tuple(str(i) for i in range(1, len(qualification_member_values["three"]) + 1)))
+            if int(qualification_count_vars["three"].get() or "1") > len(qualification_member_values["three"]):
+                qualification_count_vars["three"].set(str(len(qualification_member_values["three"])))
+            skill_count_combo.configure(values=tuple(str(i) for i in range(1, len(qualification_member_values["three"]) + 1)))
+            if int(skill_count_var.get() or "1") > len(qualification_member_values["three"]):
+                skill_count_var.set(str(len(qualification_member_values["three"])))
+            member_button.configure(text=f"选择人物（{len(qualification_member_values['three'])}/{len(allowed)}）")
+            if result_image_settings.get("mode") == "custom":
+                result_image_settings["members"] = [m for m in result_image_settings.get("members", []) if m in allowed]
+                if not result_image_settings["members"]:
+                    result_image_settings["mode"] = "selected"
             refresh_result_image_button()
-        show_result_image_members(editor, result_image_settings,
-                                  available_member_names(), apply_settings)
 
-    result_image_button = ttk.Button(threshold_tab, command=open_result_image_members)
-    result_image_button.grid(row=0, column=4, columnspan=2, sticky="w", pady=5)
-    editable_widgets.append(result_image_button)
+        collection_vars["allRandomPersonnel"].trace_add("write", refresh_personnel_scope)
+        job_default_types = {
+            job_name: job_type
+            for job_name, _score, job_type in job_map.values()
+        }
+        job_type_vars = {
+            job_name: tk.StringVar(value=job_type)
+            for job_name, job_type in job_default_types.items()
+        }
+        job_score_vars = {}
+        job_score_items = []
+        for _job_id, job in sorted(job_map.items()):
+            job_name, default_score, _job_type = job
+            variable = tk.StringVar(value=str(default_score))
+            job_score_vars[job_name] = variable
+            job_score_items.append((job_name, variable, ""))
+        score_grids = []
 
-    def refresh_personnel_scope(*_args) -> None:
-        allowed = set(available_member_names())
-        current = qualification_member_values["three"]
-        qualification_member_values["three"] = [m for m in current if m in allowed] or list(THREE_MEMBER_NAMES)
-        _mode_combo, count_combo, _label, member_button = qualification_controls["three"]
-        count_combo.configure(values=tuple(str(i) for i in range(1, len(qualification_member_values["three"]) + 1)))
-        if int(qualification_count_vars["three"].get() or "1") > len(qualification_member_values["three"]):
-            qualification_count_vars["three"].set(str(len(qualification_member_values["three"])))
-        skill_count_combo.configure(values=tuple(str(i) for i in range(1, len(qualification_member_values["three"]) + 1)))
-        if int(skill_count_var.get() or "1") > len(qualification_member_values["three"]):
-            skill_count_var.set(str(len(qualification_member_values["three"])))
-        member_button.configure(text=f"选择人物（{len(qualification_member_values['three'])}/{len(allowed)}）")
-        if result_image_settings.get("mode") == "custom":
-            result_image_settings["members"] = [m for m in result_image_settings.get("members", []) if m in allowed]
-            if not result_image_settings["members"]:
-                result_image_settings["mode"] = "selected"
-        refresh_result_image_button()
+        def build_job_scores():
+            grid = ScoreGrid(base_score_tab, job_score_items,
+                type_variables=job_type_vars, type_options=JOB_AFFINITY_TYPES, type_label="兵种类型")
+            grid.pack(fill="both", expand=True)
+            grid.set_enabled(not is_builtin(selected_name))
+            score_grids.append(grid)
 
-    collection_vars["allRandomPersonnel"].trace_add("write", refresh_personnel_scope)
-    job_default_types = {
-        job_name: job_type
-        for job_name, _score, job_type in job_map.values()
-    }
-    job_type_vars = {
-        job_name: tk.StringVar(value=job_type)
-        for job_name, job_type in job_default_types.items()
-    }
-    job_score_vars: dict[str, tk.StringVar] = {}
-    job_score_items = []
-    for _job_id, job in sorted(job_map.items()):
-        job_name, default_score, _job_type = job
-        variable = tk.StringVar(value=str(default_score))
-        job_score_vars[job_name] = variable
-        job_score_items.append((job_name, variable, ""))
-    job_score_grid = ScoreGrid(base_score_tab, job_score_items,
-        type_variables=job_type_vars, type_options=JOB_AFFINITY_TYPES, type_label="兵种类型")
-    job_score_grid.pack(fill="both", expand=True)
+        lazy_pages.add(base_score_tab, build_job_scores)
 
-    for key in ("ordinary_weight", "strong_weight", "special_weight"):
-        number_vars[key] = tk.StringVar()
-    special_auto = tk.BooleanVar(value=False)
-    high_auto = tk.BooleanVar(value=False)
-    add_number(skill_tab, 0, "special_weight", "特殊特技基础分 / 门槛")
-    special_check = tk.Checkbutton(skill_tab, text="出现特殊特技时直接合格",
-        variable=special_auto, anchor="w")
-    special_check.grid(row=1, column=0, columnspan=2, sticky="w", pady=5)
-    editable_widgets.append(special_check)
-    skill_type_matching = tk.BooleanVar()
-    bool_vars["skill_type_matching"] = skill_type_matching
-    skill_type_check = tk.Checkbutton(
-        skill_tab,
-        text="启用特技类型匹配",
-        variable=skill_type_matching,
-        anchor="w",
-    )
-    skill_type_check.grid(
-        row=3,
-        column=0,
-        columnspan=2,
-        sticky="w",
-        pady=5,
-    )
-    editable_widgets.append(skill_type_check)
-
-    skill_score_vars: dict[str, tk.StringVar] = {}
-    skill_type_vars: dict[str, tk.StringVar] = {}
-    skill_defaults: dict[str, float] = {}
-    skill_default_types: dict[str, str] = {}
-    skill_score_items = []
-    for skill_item in skill_catalog:
-        skill_name, default_score, category = skill_item[:3]
-        default_type = (
-            skill_item[3]
-            if len(skill_item) >= 4
-            else "ALL_ROUNDER"
+        for key in ("ordinary_weight", "strong_weight", "special_weight"):
+            number_vars[key] = tk.StringVar()
+        special_auto = tk.BooleanVar(value=False)
+        high_auto = tk.BooleanVar(value=False)
+        add_number(skill_tab, 0, "special_weight", "特殊特技基础分 / 门槛")
+        special_check = ttk.Checkbutton(skill_tab, text="出现特殊特技时直接合格",
+            variable=special_auto)
+        special_check.grid(row=1, column=0, columnspan=2, sticky="w", pady=5)
+        editable_widgets.append(special_check)
+        skill_type_matching = tk.BooleanVar()
+        bool_vars["skill_type_matching"] = skill_type_matching
+        skill_type_check = ttk.Checkbutton(
+            skill_tab,
+            text="启用特技类型匹配",
+            variable=skill_type_matching,
         )
-        variable = tk.StringVar(value=f"{default_score:g}")
-        skill_score_vars[skill_name] = variable
-        skill_type_vars[skill_name] = tk.StringVar(value=default_type)
-        skill_defaults[skill_name] = float(default_score)
-        skill_default_types[skill_name] = default_type
-        skill_score_items.append((skill_name, variable, ""))
+        skill_type_check.grid(
+            row=3,
+            column=0,
+            columnspan=2,
+            sticky="w",
+            pady=5,
+        )
+        editable_widgets.append(skill_type_check)
 
-    skill_score_grid = ScoreGrid(
-        skill_score_tab,
-        skill_score_items,
-        type_variables=skill_type_vars,
-        exclusive_names=EXCLUSIVE_SKILLS_22,
-        category_resolver=lambda _name, score, _category: special_score_category(
-            score, number_vars["special_weight"].get()),
-    )
-    skill_score_grid.pack(fill="both", expand=True)
-    number_vars["special_weight"].trace_add("write", lambda *_: skill_score_grid.refresh())
-    score_grids = (job_score_grid, skill_score_grid)
+        skill_score_vars = {}
+        skill_type_vars = {}
+        skill_defaults = {}
+        skill_default_types = {}
+        skill_score_items = []
+        for skill_item in skill_catalog:
+            skill_name, default_score, category = skill_item[:3]
+            default_type = (
+                skill_item[3]
+                if len(skill_item) >= 4
+                else "ALL_ROUNDER"
+            )
+            variable = tk.StringVar(value=f"{default_score:g}")
+            skill_score_vars[skill_name] = variable
+            skill_type_vars[skill_name] = tk.StringVar(value=default_type)
+            skill_defaults[skill_name] = float(default_score)
+            skill_default_types[skill_name] = default_type
+            skill_score_items.append((skill_name, variable, ""))
+
+        skill_score_grid = None
+
+        def build_skill_scores():
+            nonlocal skill_score_grid
+            skill_score_grid = ScoreGrid(
+                skill_score_tab,
+                skill_score_items,
+                type_variables=skill_type_vars,
+                exclusive_names=EXCLUSIVE_SKILLS_22,
+                category_resolver=lambda _name, score, _category: special_score_category(
+                    score, number_vars["special_weight"].get()),
+            )
+            skill_score_grid.pack(fill="both", expand=True)
+            skill_score_grid.set_enabled(not is_builtin(selected_name))
+            score_grids.append(skill_score_grid)
+
+        lazy_pages.add(skill_score_tab, build_skill_scores)
+        def refresh_skill_categories(*_args):
+            if skill_score_grid is None:
+                return
+            if loading:
+                skill_score_grid.schedule_refresh()
+            else:
+                skill_score_grid.refresh()
+        number_vars["special_weight"].trace_add("write", refresh_skill_categories)
+
+        advanced_built = True
+        was_loading = loading
+        loading = True
+        try:
+            load_advanced(working["profiles"][selected_name])
+            set_editable(not is_builtin(selected_name))
+            # Building a page is presentation only. Preserve the baseline for
+            # the mode and simple settings that existed before first selection.
+            if loaded_form is not None:
+                previous = loaded_form
+                current = form_values()
+                loaded_form = (previous[0], previous[1],
+                    (previous[2][0], *current[2][1:]), *current[3:])
+            for variable in (
+                number_vars["three_min"], number_vars["skill_threshold"],
+                *qualification_mode_vars.values(), *qualification_count_vars.values(),
+                skill_mode_var, skill_count_var,
+            ):
+                variable.trace_add("write", mark_custom_gate)
+        finally:
+            loading = was_loading
+
+    def selected_mode(_event=None):
+        if notebook.select() == str(advanced_tab):
+            build_advanced()
+
+    notebook.bind("<<NotebookTabChanged>>", selected_mode, add="+")
 
     def is_builtin(name: str) -> bool:
         return bool(working["profiles"][name].get("builtin"))
@@ -1455,8 +1558,9 @@ def show_rule_editor(
                     widget.configure(state="normal" if enabled else "disabled")
             except tk.TclError:
                 pass
-        refresh_qualification_controls(enabled)
-        refresh_skill_count()
+        if advanced_built:
+            refresh_qualification_controls(enabled)
+            refresh_skill_count()
         for score_grid in score_grids:
             score_grid.set_enabled(enabled)
         reset_button.configure(state="normal" if enabled else "disabled")
@@ -1480,7 +1584,7 @@ def show_rule_editor(
                   for key, (primary, secondary) in affinity_vars.items()),
             tuple((key, variable.get()) for key, variable in collection_vars.items()),
             tuple(value.get() for value in (skill_mode_var, skill_count_var,
-                  special_auto, high_auto, high_job_auto, skill_type_matching, affinity_enabled)),
+                  special_auto, high_auto, high_job_auto, skill_type_matching, affinity_enabled)) if advanced_built else (),
         )
 
     def store_profile(name: str, *, force: bool = False) -> None:
@@ -1491,6 +1595,15 @@ def show_rule_editor(
         if not force and form_values() == loaded_form:
             return
         profile = working["profiles"][name]
+        if not advanced_built:
+            profile["editorMode"] = "simple" if notebook.index(notebook.select()) == 0 else "advanced"
+            simple_changed = loaded_form is None or form_values()[2][0] != loaded_form[2][0]
+            if force or simple_changed:
+                for key, variable in simple_vars.items():
+                    profile["simpleSettings"][key] = variable.get()
+                if profile["editorMode"] == "simple":
+                    apply_simple_settings(profile)
+            return
         profile["resultImage"] = copy.deepcopy(result_image_settings)
         profile["dataCollection"] = {
             key: bool(variable.get())
@@ -1604,6 +1717,112 @@ def show_rule_editor(
         load_profile(selected_name)
         # Reload updates the form baseline; the working profile remains changed.
 
+    def load_advanced(profile):
+        refresh_result_image_button()
+        for key, variable in collection_vars.items():
+            variable.set(profile["dataCollection"][key])
+        three = dict(profile["threePerson"])
+        if three["jobQualificationMode"] == "all":
+            three.update(jobQualificationMode="count", qualifiedMembers=list(THREE_MEMBER_NAMES), minQualifiedCount=len(THREE_MEMBER_NAMES))
+        seven = profile["sevenPerson"]
+        scoring = profile["jobScoring"]
+        values = {
+            "three_min": three["minJobAverage"],
+            "high_job_threshold": scoring["highJobThreshold"],
+            "skill_threshold": profile["skillQualification"]["threshold"],
+            "normal_average": seven["normalJobAverage"],
+            "high_average": seven["highJobAverage"],
+            "medium_skills": seven["mediumMinSkillScore"],
+            "low_skills": seven["lowMinSkillScore"],
+            "ordinary_weight": seven["ordinarySkillWeight"],
+            "strong_weight": seven["strongSkillWeight"],
+            "special_weight": seven["specialSkillWeight"],
+            "base_weight": scoring["baseScoreWeight"],
+            "affinity_min": scoring["affinityMinBaseScore"],
+            "primary_bonus": scoring["primaryBonusRate"],
+            "secondary_bonus": scoring["secondaryBonusRate"],
+        }
+        for key, value in values.items():
+            number_vars[key].set(f"{value:g}")
+        for key, settings in (("three", three),):
+            allowed_members = available_member_names()
+            qualification_member_values[key] = list(
+                member for member in settings["qualifiedMembers"]
+                if member in allowed_members
+            )
+            if not qualification_member_values[key]:
+                qualification_member_values[key] = list(allowed_members)
+            qualification_mode_vars[key].set(
+                qualification_mode_values[
+                    settings["jobQualificationMode"]
+                ]
+            )
+            qualification_count_vars[key].set(
+                str(settings["minQualifiedCount"])
+            )
+            _mode_combo, count_combo, _label, member_button = (
+                qualification_controls[key]
+            )
+            count_combo.configure(
+                values=tuple(
+                    str(value)
+                    for value in range(
+                        1,
+                        len(qualification_member_values[key]) + 1,
+                    )
+                )
+            )
+            member_button.configure(
+                text=(
+                    "选择人物"
+                    f"（{len(qualification_member_values[key])}/"
+                    f"{len(allowed_members)}）"
+                )
+            )
+        skill_mode_var.set(next(label for label, value in skill_mode_labels.items()
+                                if value == profile["skillQualification"]["mode"]))
+        skill_count_var.set(str(profile["skillQualification"]["requiredCount"]))
+        skill_count_combo.configure(values=tuple(str(i) for i in range(1, len(three["qualifiedMembers"]) + 1)))
+        special_auto.set(profile["skillQualification"].get("specialSkillAutoPass", False))
+        high_job_auto.set(scoring["highJobAutoPass"])
+        high_auto.set(False)
+        skill_type_matching.set(seven["skillTypeMatchingEnabled"])
+        affinity_enabled.set(scoring["affinityEnabled"])
+        for member, (primary, secondary) in affinity_vars.items():
+            row = profile["memberAffinity"][member]
+            primary.set(TYPE_LABELS[row["primaryType"]])
+            secondary.set(TYPE_LABELS[row["secondaryType"]])
+        overrides = scoring["jobBaseScores"]
+        type_overrides = scoring["jobTypeOverrides"]
+        defaults = {
+            job[0]: job[1] for job in job_map.values()
+        }
+        for job_name, variable in job_score_vars.items():
+            variable.set(f"{overrides.get(job_name, defaults[job_name]):g}")
+        for job_name, variable in job_type_vars.items():
+            variable.set(
+                type_overrides.get(
+                    job_name,
+                    job_default_types[job_name],
+                )
+            )
+        skill_overrides = seven["skillBaseScores"]
+        skill_type_overrides = seven["skillTypeOverrides"]
+        for skill_name, variable in skill_score_vars.items():
+            fallback_score = skill_defaults[skill_name]
+            variable.set(
+                f"{skill_override(skill_overrides, skill_name, fallback_score):g}"
+            )
+            skill_type_vars[skill_name].set(
+                skill_override(
+                    skill_type_overrides,
+                    skill_name,
+                    skill_default_types[skill_name],
+                )
+            )
+        for score_grid in score_grids:
+            score_grid.schedule_refresh()
+
     def load_profile(name: str) -> None:
         nonlocal loading, selected_name, loaded_form, result_image_settings
         loading = True
@@ -1611,112 +1830,12 @@ def show_rule_editor(
             selected_name = name
             profile = working["profiles"][name]
             result_image_settings = copy.deepcopy(profile["resultImage"])
-            refresh_result_image_button()
-            for key, variable in collection_vars.items():
-                variable.set(profile["dataCollection"][key])
             for key, variable in simple_vars.items():
                 variable.set(profile["simpleSettings"][key])
-            three = dict(profile["threePerson"])
-            if three["jobQualificationMode"] == "all":
-                three.update(jobQualificationMode="count", qualifiedMembers=list(THREE_MEMBER_NAMES), minQualifiedCount=len(THREE_MEMBER_NAMES))
-            seven = profile["sevenPerson"]
-            scoring = profile["jobScoring"]
-            values = {
-                "three_min": three["minJobAverage"],
-                "high_job_threshold": scoring["highJobThreshold"],
-                "skill_threshold": profile["skillQualification"]["threshold"],
-                "normal_average": seven["normalJobAverage"],
-                "high_average": seven["highJobAverage"],
-                "medium_skills": seven["mediumMinSkillScore"],
-                "low_skills": seven["lowMinSkillScore"],
-                "ordinary_weight": seven["ordinarySkillWeight"],
-                "strong_weight": seven["strongSkillWeight"],
-                "special_weight": seven["specialSkillWeight"],
-                "base_weight": scoring["baseScoreWeight"],
-                "affinity_min": scoring["affinityMinBaseScore"],
-                "primary_bonus": scoring["primaryBonusRate"],
-                "secondary_bonus": scoring["secondaryBonusRate"],
-            }
-            for key, value in values.items():
-                number_vars[key].set(f"{value:g}")
-            for key, settings in (("three", three),):
-                allowed_members = available_member_names()
-                qualification_member_values[key] = list(
-                    member for member in settings["qualifiedMembers"]
-                    if member in allowed_members
-                )
-                if not qualification_member_values[key]:
-                    qualification_member_values[key] = list(allowed_members)
-                qualification_mode_vars[key].set(
-                    qualification_mode_values[
-                        settings["jobQualificationMode"]
-                    ]
-                )
-                qualification_count_vars[key].set(
-                    str(settings["minQualifiedCount"])
-                )
-                _mode_combo, count_combo, _label, member_button = (
-                    qualification_controls[key]
-                )
-                count_combo.configure(
-                    values=tuple(
-                        str(value)
-                        for value in range(
-                            1,
-                            len(qualification_member_values[key]) + 1,
-                        )
-                    )
-                )
-                member_button.configure(
-                    text=(
-                        "选择人物"
-                        f"（{len(qualification_member_values[key])}/"
-                        f"{len(allowed_members)}）"
-                    )
-                )
-            skill_mode_var.set(next(label for label, value in skill_mode_labels.items()
-                                    if value == profile["skillQualification"]["mode"]))
-            skill_count_var.set(str(profile["skillQualification"]["requiredCount"]))
-            skill_count_combo.configure(values=tuple(str(i) for i in range(1, len(three["qualifiedMembers"]) + 1)))
-            special_auto.set(profile["skillQualification"].get("specialSkillAutoPass", False))
-            high_job_auto.set(scoring["highJobAutoPass"])
-            high_auto.set(False)
-            skill_type_matching.set(seven["skillTypeMatchingEnabled"])
-            affinity_enabled.set(scoring["affinityEnabled"])
-            for member, (primary, secondary) in affinity_vars.items():
-                row = profile["memberAffinity"][member]
-                primary.set(TYPE_LABELS[row["primaryType"]])
-                secondary.set(TYPE_LABELS[row["secondaryType"]])
-            overrides = scoring["jobBaseScores"]
-            type_overrides = scoring["jobTypeOverrides"]
-            defaults = {
-                job[0]: job[1] for job in job_map.values()
-            }
-            for job_name, variable in job_score_vars.items():
-                variable.set(f"{overrides.get(job_name, defaults[job_name]):g}")
-            for job_name, variable in job_type_vars.items():
-                variable.set(
-                    type_overrides.get(
-                        job_name,
-                        job_default_types[job_name],
-                    )
-                )
-            skill_overrides = seven["skillBaseScores"]
-            skill_type_overrides = seven["skillTypeOverrides"]
-            for skill_name, variable in skill_score_vars.items():
-                fallback_score = skill_defaults[skill_name]
-                variable.set(
-                    f"{skill_override(skill_overrides, skill_name, fallback_score):g}"
-                )
-                skill_type_vars[skill_name].set(
-                    skill_override(
-                        skill_type_overrides,
-                        skill_name,
-                        skill_default_types[skill_name],
-                    )
-                )
-            for score_grid in score_grids:
-                score_grid.refresh()
+            if advanced_built:
+                load_advanced(profile)
+            elif profile["editorMode"] == "advanced":
+                build_advanced()
             notebook.select(
                 simple_tab
                 if profile["editorMode"] == "simple"
@@ -2029,7 +2148,8 @@ def show_rule_editor(
         }:
             if not messagebox.askyesno("放弃规则列表修改", "新增或删除的规则尚未保存，确认放弃并关闭吗？", parent=editor):
                 return
-        editor.destroy()
+        from ccz_randomizer.ui.cached_dialog import hide_dialog
+        hide_dialog(editor)
 
     def save_all(*, as_new=False) -> None:
         try:
@@ -2055,7 +2175,8 @@ def show_rule_editor(
             return
         notice = save_notice(normalized) if save_notice is not None else None
         on_saved(normalized)
-        editor.destroy()
+        from ccz_randomizer.ui.cached_dialog import hide_dialog
+        hide_dialog(editor)
         if notice:
             show_toast(
                 parent,
@@ -2120,13 +2241,17 @@ def show_rule_editor(
         if not loading and not is_builtin(selected_name):
             simple_vars["difficulty"].set("自定义")
 
-    for variable in (
-        number_vars["three_min"], number_vars["skill_threshold"],
-        *qualification_mode_vars.values(), *qualification_count_vars.values(),
-        skill_mode_var, skill_count_var,
-    ):
-        variable.trace_add("write", mark_custom_gate)
     load_profile(selected_name)
+    def reset_saved_rules(config, saved_callback, notice_callback, original):
+        nonlocal working, original_config, saved_snapshot, on_saved, save_notice
+        for grid in score_grids:
+            grid._destroy_editor()
+        working = copy.deepcopy(validate_rule_config(config))
+        original_config = copy.deepcopy(original if original is not None else working)
+        saved_snapshot = json.dumps(working, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        on_saved, save_notice = saved_callback, notice_callback
+        refresh_profiles(working["activeProfile"])
+    editor._reset_saved_rules = reset_saved_rules
     editor.update_idletasks()
     width = max(980, editor.winfo_reqwidth())
     height = max(760, editor.winfo_reqheight())

@@ -77,7 +77,7 @@ class WindowPositionTests(unittest.TestCase):
         dialog.geometry("300x200")
         self.root.update()
         self.assertEqual("withdrawn", dialog.state())
-        self.assertEqual(0.0, dialog.attributes("-alpha"))
+        self.assertEqual(1.0, dialog.attributes("-alpha"))
         # Reproduce builders doing layout before changing to their final size.
         dialog.geometry("720x560")
         dialog.update_idletasks()
@@ -101,6 +101,25 @@ class WindowPositionTests(unittest.TestCase):
             show_centered(dialog)
         self.root.update()
         self.assertEqual([True], revealed)
+        self.assert_native_centered(dialog)
+
+    def test_initial_geometry_is_negotiated_while_window_is_withdrawn(self):
+        if self.backend is None:
+            self.skipTest("Windows native placement")
+        dialog = centered_toplevel(self.root)
+        dialog.geometry('720x560')
+        tk.Label(dialog, text='完整内容').pack()
+        move = self.backend.move
+        states = []
+        def position(window, x, y):
+            states.append(window.state())
+            move(window, x, y)
+        with patch.object(self.backend, 'move', side_effect=position):
+            show_centered(dialog)
+        self.root.update()
+        self.assertTrue(states)
+        self.assertEqual('withdrawn', states[0])
+        self.assertTrue(dialog.winfo_ismapped())
         self.assert_native_centered(dialog)
 
     def assert_native_centered_geometry(self, dialog):
@@ -242,3 +261,54 @@ class WindowPositionTests(unittest.TestCase):
             self.assertEqual(expected, result)
             self.assertIs(self.root, self.root.grab_current())
         self.assertEqual([], self.errors)
+
+
+class MainWindowPositionTests(unittest.TestCase):
+    def test_gui_startup_centers_outer_frame_before_showing_main_window(self):
+        import os
+        from ccz_randomizer import app
+        from ccz_randomizer.ui import theme
+        backend = native_placement()
+        if backend is None:
+            self.skipTest("Windows native placement")
+        initialized_hidden = []
+        setup_theme = theme.setup_theme
+
+        def capture_initial_visibility(root):
+            initialized_hidden.append(root.state() == "withdrawn" and root.attributes("-alpha") == 0.0)
+            setup_theme(root)
+
+        def exercise(root):
+            try:
+                root.update_idletasks()
+                left, top, right, bottom = backend.bounds(root)
+                work = backend.work_area(root)
+                self.assertLessEqual(abs(left+right-work[0]-work[2]), 1)
+                self.assertLessEqual(abs(top+bottom-work[1]-work[3]), 1)
+                self.assertTrue(root.winfo_ismapped())
+                self.assertEqual(1.0, root.attributes("-alpha"))
+                self.assertEqual([True], initialized_hidden)
+                # Restoring a window must preserve the user's manual position.
+                backend.move(root, work[0]+30, work[1]+40)
+                root.update_idletasks()
+                moved = backend.bounds(root)
+                root.withdraw()
+                show_centered(root)
+                root.update_idletasks()
+                self.assertEqual(moved, backend.bounds(root))
+            finally:
+                for child in list(root.winfo_children()):
+                    child.destroy()
+                for timer in root.tk.call("after", "info"):
+                    root.after_cancel(timer)
+                root.destroy()
+
+        with tempfile.TemporaryDirectory() as folder, \
+             patch.dict(os.environ), \
+             patch.object(tk.Tk, "mainloop", exercise), \
+             patch.object(theme, "setup_theme", capture_initial_visibility), \
+             patch.object(app, "app_dir", return_value=Path(folder)), \
+             patch.object(app, "locate_game_executable", return_value=Path(folder)/"Ekd5.exe"), \
+             patch.object(app, "activate_game_version", return_value="2.2"), \
+             patch.object(app.threading.Thread, "start"):
+            self.assertEqual(0, app.gui_main())

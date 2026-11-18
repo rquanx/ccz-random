@@ -4,6 +4,24 @@ import tkinter as tk
 
 
 class SummaryCard(tk.Frame):
+    @staticmethod
+    def row_heights(canvas, views, button_height, font):
+        """Measure the same wrapped text as cards using one reusable Canvas item."""
+        item = canvas.create_text(-10000, 80, anchor="nw", width=208, font=(font, 8))
+        heights = []
+        try:
+            for index, view in enumerate(views):
+                canvas.itemconfigure(item, text=view["members"])
+                bounds = canvas.bbox(item)
+                height = max(205, (bounds[3] if bounds else 80) + 8) + button_height + 16
+                if index % 4 == 0:
+                    heights.append(height + 10)
+                else:
+                    heights[-1] = max(heights[-1], height + 10)
+        finally:
+            canvas.delete(item)
+        return heights
+
     def __init__(self, parent, *, colors, font):
         super().__init__(parent, width=224, bg=colors["surface"],
                          highlightbackground=colors["border"], highlightthickness=1)
@@ -83,7 +101,11 @@ class SummaryCard(tk.Frame):
         if self._suspended:
             return
         self._suspended = True
-        self.grid_remove()
+        self._hide_tip()
+        if self.winfo_manager() == "place":
+            self.place_forget()
+        else:
+            self.grid_remove()
         self.canvas.itemconfigure(self.backup_dot, state="disabled")
         self._apply(self.detail, state="disabled")
 
@@ -101,5 +123,6 @@ class SummaryCard(tk.Frame):
 
     def _hide_tip(self, _event=None):
         if self._tip is not None:
-            self._tip.destroy()
+            if self._tip.winfo_exists():
+                self._tip.destroy()
             self._tip = None

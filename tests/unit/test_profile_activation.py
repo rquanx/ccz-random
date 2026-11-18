@@ -44,6 +44,7 @@ class ProfileActivationTests(unittest.TestCase):
     def test_activation_refreshes_job_skill_memory_and_editor_snapshots(self):
         code = '''
 import copy, gc, hashlib, json, os, shutil, tempfile, tkinter as tk
+from tkinter import ttk
 from pathlib import Path
 from ccz_randomizer import profiles
 from tools.build_profile_package import build_package
@@ -73,7 +74,7 @@ with tempfile.TemporaryDirectory() as temp:
     editor.show_rule_editor(root, appdir, rules, app.JOB_MAP, app.TEAM_MEMBERS, skill_defaults.SKILL_DEFAULTS, lambda value: None)
     root.update()
     window = next(w for w in root.winfo_children() if isinstance(w, tk.Toplevel))
-    check = next(w for w in descendants(window) if isinstance(w, tk.Checkbutton) and w.cget('text') == '出现特殊特技时直接合格')
+    check = next(w for w in descendants(window) if isinstance(w, ttk.Checkbutton) and w.cget('text') == '出现特殊特技时直接合格')
     check.invoke()  # Unsaved edits must survive the data refresh.
     manifest = json.loads((source / 'manifest.json').read_text(encoding='utf-8'))
     manifest['catalogVersion'] += 1
@@ -108,7 +109,7 @@ with tempfile.TemporaryDirectory() as temp:
     root.update()
     replacement = next(w for w in root.winfo_children() if isinstance(w, tk.Toplevel))
     assert replacement is not window
-    check = next(w for w in descendants(replacement) if isinstance(w, tk.Checkbutton) and w.cget('text') == '出现特殊特技时直接合格')
+    check = next(w for w in descendants(replacement) if isinstance(w, ttk.Checkbutton) and w.cget('text') == '出现特殊特技时直接合格')
     assert root.getvar(check.cget('variable')) == 1
     replacement.destroy()
     del check, replacement, window

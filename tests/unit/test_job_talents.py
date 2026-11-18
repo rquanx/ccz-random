@@ -72,7 +72,7 @@ class JobTalentsTests(unittest.TestCase):
         buttons = {w.cget("text"): w for w in descendants(root) if isinstance(w, ttk.Button)}
         buttons["兵种天赋"].invoke()
         root.update()
-        job_window = next(w for w in descendants(root) if isinstance(w, tk.Toplevel) and w.title() == "2.2 兵种天赋")
+        job_window = next(w for w in descendants(root) if isinstance(w, tk.Toplevel) and w.title() == "兵种天赋")
         canvas = next(w for w in descendants(job_window) if isinstance(w, tk.Canvas))
         labels = [canvas.itemcget(i, "text") for i in canvas.find_all() if canvas.type(i) == "text"]
         self.assertIn("魔王", labels)

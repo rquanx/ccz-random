@@ -65,6 +65,21 @@ formats 支持 literal、number、strategy、index、mask、transfer 六种受�
 
 ## 发布新包
 
+### 特效手册随数据包更新（4.1，内置修订 11 起）
+
+`manifest.files.effectDictionary` 指向同目录的 `effect_dictionary.json`，同时列入 `sha256` 校验和 ZIP。说明文字、宝物效果与特技的合并关系、名称修正均在该文件中；不再另读 EXE 内的 `resources/data/effects`。
+
+- `schemaVersion: 1`；`profileId`、`gameVersion` 必须与 manifest 相同。
+- `skills`、`equipment` 保存说明，`catalogHash` 绑定当前特技目录和宝物显示规则。目录变化时应核对说明并同步更新该摘要；摘要不符时不展示旧说明。
+- `mergeRules.equivalences` 是宝物效果编号到特技编号列表的映射；只有已经核实机制相同的效果才能合并。
+- `mergeRules.nameOverrides` 以 `equipment:72` 或 `skill:111` 为键指定显示名，原名称继续作为搜索别名。
+
+通用合并、搜索、分类逻辑仍由 EXE 执行，包内只有声明式数据，不执行脚本。导入时会验证文件校验值、身份、数据格式和合并引用，失败不替换当前数据包。
+
+此扩展保持当前兼容组不变；没有 `effectDictionary` 的旧数据包仍可加载。旧包只有在 profile、游戏版本和特效目录摘要均与内置手册一致时才复用内置资料，否则提示暂无配套说明，不套用其他版本。
+
+手册随 `ProfileContext` 一起作为不可变快照在空闲时激活。更新后重新打开手册读取新内容；已经打开的窗口继续使用旧快照。新读取机制需要先更新一次工具 EXE，此后仅修改上述资料即可单独发布数据包。版本号继续为 4.1。
+
 复制当前 profile，修改数据、`profileId`、`gameVersion`、`fingerprintVersion`、`toolCompatibility` 和 `catalogVersion`。同一 profile 修订时递增 `catalogVersion`，新游戏版本使用新 ID。文件指纹必须来自完整新游戏。
 
 ```powershell

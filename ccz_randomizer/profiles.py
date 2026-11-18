@@ -67,6 +67,7 @@ class GameProfile:
     memory_layout: dict
     skills: dict
     script_rules: dict
+    effect_dictionary: dict | None = None
 
     @property
     def profile_id(self) -> str:
@@ -103,7 +104,10 @@ def validate_profile(root: Path) -> GameProfile:
     if not isinstance(files, dict):
         raise ValueError("数据包缺少文件清单")
     loaded = {}
-    for key in ("jobs", "fixedEntries", "recruitment", "fingerprints", "memoryLayout", "skills", "scriptRules"):
+    keys = ("jobs", "fixedEntries", "recruitment", "fingerprints", "memoryLayout", "skills", "scriptRules")
+    if 'effectDictionary' in files:
+        keys += ('effectDictionary',)
+    for key in keys:
         name = files.get(key)
         if not isinstance(name, str) or Path(name).name != name:
             raise ValueError(f"数据包文件名无效：{key}")
@@ -209,7 +213,10 @@ def validate_profile(root: Path) -> GameProfile:
                 raise ValueError("游戏指纹路径无效")
             if digest is not None and (not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest)):
                 raise ValueError("游戏指纹无效")
-    return GameProfile(root, manifest, loaded["jobs"], loaded["fixedEntries"], loaded["recruitment"], fingerprints, layout, loaded["skills"], loaded["scriptRules"])
+    if 'effectDictionary' in loaded:
+        from ccz_randomizer.effect_dictionary_data import validate_effect_dictionary
+        validate_effect_dictionary(loaded['effectDictionary'], manifest)
+    return GameProfile(root, manifest, loaded["jobs"], loaded["fixedEntries"], loaded["recruitment"], fingerprints, layout, loaded["skills"], loaded["scriptRules"], loaded.get('effectDictionary'))
 
 
 @lru_cache(maxsize=16)

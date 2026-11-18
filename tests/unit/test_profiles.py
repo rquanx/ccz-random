@@ -97,6 +97,9 @@ assert profile_version_label(Path(sys.argv[1])) == str(current.manifest["catalog
             shutil.copytree(source.root, root)
             manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
             manifest.update(profileId="ccz-profile-next", gameVersion="profile-test-next", fingerprintVersion="profile-test-next")
+            # No handbook has been verified for this hypothetical game version.
+            name = manifest['files'].pop('effectDictionary', None)
+            manifest['sha256'].pop(name, None)
             fingerprint = root / "fingerprints.json"
             fingerprint.write_text(json.dumps({"profile-test-next": next(iter(source.fingerprints.values()))}), encoding="utf-8")
             manifest["sha256"]["fingerprints.json"] = hashlib.sha256(fingerprint.read_bytes()).hexdigest()

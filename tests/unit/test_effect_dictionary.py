@@ -130,12 +130,12 @@ class EffectDictionaryTests(unittest.TestCase):
         self.assertTrue(load_effect_dictionary(replace(context, revision=100)).entries)
 
     def test_frozen_application_loads_bundled_help(self):
-        from ccz_randomizer.effect_dictionary import _read_resource
+        from ccz_randomizer.profiles import load_profile, DEFAULT_PROFILE_ID
+        from ccz_randomizer.profile_context import ProfileContext
         root = Path(__file__).resolve().parents[2]
-        _read_resource.cache_clear()
-        self.addCleanup(_read_resource.cache_clear)
         with patch("sys._MEIPASS", str(root), create=True):
-            self.assertEqual(302, len(load_effect_dictionary().entries))
+            context = ProfileContext.from_profile(load_profile(DEFAULT_PROFILE_ID))
+            self.assertEqual(302, len(load_effect_dictionary(context).entries))
 
 
 class EffectDictionaryUiTests(unittest.TestCase):

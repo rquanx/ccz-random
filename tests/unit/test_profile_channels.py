@@ -26,9 +26,15 @@ class ProfileChannelTests(unittest.TestCase):
         self.embedded = profiles.load_profile(profiles.DEFAULT_PROFILE_ID)
         shutil.copytree(self.embedded.root, self.source)
 
-    def package(self, revision, edit=None):
+    def package(self, revision=None, edit=None):
+        if revision is None:
+            revision = self.embedded.manifest['catalogVersion'] + 1
         manifest = json.loads((self.source / "manifest.json").read_text(encoding="utf-8"))
         manifest["catalogVersion"] = revision
+        if manifest['profileId'] != self.embedded.profile_id:
+            # This identity fixture has no independently verified handbook.
+            name = manifest['files'].pop('effectDictionary', None)
+            manifest['sha256'].pop(name, None)
         (self.source / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
         if edit:
             data = json.loads((self.source / "skills.json").read_text(encoding="utf-8"))
@@ -49,7 +55,7 @@ class ProfileChannelTests(unittest.TestCase):
     def test_old_and_new_packages_coexist_and_restore_preserves_all_old_files(self):
         root, before = self.old_installation()
         self.assertEqual(self.embedded.root, profiles.load_profile(app_directory=self.directory).root)
-        new = profiles.install_profile_package(self.package(6), self.directory)
+        new = profiles.install_profile_package(self.package(), self.directory)
         self.assertEqual(new.root, profiles.load_profile(app_directory=self.directory).root)
         self.assertIn("ccz-fast-v2", new.root.parts)
         profiles.restore_embedded_profile(self.directory)
@@ -57,7 +63,7 @@ class ProfileChannelTests(unittest.TestCase):
         self.assertEqual(before, {p: (root / p).read_bytes() for p in before})
 
     def test_real_v1_package_is_rejected_without_touching_current_activation(self):
-        installed = profiles.install_profile_package(self.package(6), self.directory)
+        installed = profiles.install_profile_package(self.package(), self.directory)
         marker = profiles.profile_storage_root(self.directory) / "active.json"
         before = marker.read_bytes()
         old = Path(__file__).parents[1] / "fixtures/profiles/ccz-v2.20-1104-night-r3.zip"
@@ -75,7 +81,7 @@ class ProfileChannelTests(unittest.TestCase):
             self.assertEqual(4, profiles.load_profile().manifest["catalogVersion"])
 
     def test_corrupt_marker_and_wrong_group_fall_back_to_embedded(self):
-        installed = profiles.install_profile_package(self.package(6), self.directory)
+        installed = profiles.install_profile_package(self.package(), self.directory)
         marker = profiles.profile_storage_root(self.directory) / "active.json"
         marker.write_text("broken", encoding="utf-8")
         self.assertEqual(self.embedded.root, profiles.load_profile(app_directory=self.directory).root)
@@ -104,7 +110,7 @@ class ProfileChannelTests(unittest.TestCase):
         manifest = json.loads(path.read_text(encoding="utf-8"))
         manifest["profileId"] = "a" * 80
         path.write_text(json.dumps(manifest), encoding="utf-8")
-        installed = profiles.install_profile_package(self.package(6), self.directory)
+        installed = profiles.install_profile_package(self.package(), self.directory)
         self.assertEqual("a" * 80, profiles.load_profile(app_directory=self.directory).profile_id)
         self.assertLessEqual(len(installed.root.name), 80)
 
@@ -121,7 +127,7 @@ class ProfileChannelTests(unittest.TestCase):
             equipment["EQUIPMENT_CATEGORY_BY_NAME"]["数据包宝物"] = equipment["EQUIPMENT_CATEGORY_BY_NAME"].pop("雌雄双剑")
             for _, names in equipment["EQUIPMENT_SETS"]:
                 names[:] = ["数据包宝物" if name == "雌雄双剑" else name for name in names]
-        installed = profiles.install_profile_package(self.package(6, edit), self.directory)
+        installed = profiles.install_profile_package(self.package(edit=edit), self.directory)
         rules, tables = installed.skills["displayRules"], installed.skills["nameFormatting"]
         self.assertEqual("弱点攻击：移动", render_skill(rules, tables, "弱点攻击", 8, 6))
         self.assertEqual("测试 移", render_skill(rules, tables, "测试", 9, 32))
@@ -130,7 +136,7 @@ class ProfileChannelTests(unittest.TestCase):
         self.assertEqual("数据包宝物", rules["equipment"]["EQUIPMENT_NAMES"][0])
 
     def test_invalid_rules_are_rejected_before_any_activation_change(self):
-        profiles.install_profile_package(self.package(6), self.directory)
+        profiles.install_profile_package(self.package(), self.directory)
         marker = profiles.profile_storage_root(self.directory) / "active.json"
         before = marker.read_bytes()
         original = json.loads((self.source / "skills.json").read_text(encoding="utf-8"))

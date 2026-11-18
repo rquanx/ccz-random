@@ -76,9 +76,17 @@ def extract(game_directory: Path):
                 "itemTableAddress": "0x4A1140", "recordSize": 25, "descriptionIndexBase": 1946,
                 "itemEvidenceSha256": hashlib.sha256(json.dumps(evidence, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()},
             "skills": entries}
-    target = ROOT / "resources/data/effects" / f"{PROFILE_ID}.json"
+    target = profile / "effect_dictionary.json"
+    previous = json.loads(target.read_text("utf-8"))
+    data['schemaVersion'] = 1
+    data['mergeRules'] = previous['mergeRules']
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    manifest_path = profile / 'manifest.json'
+    manifest = json.loads(manifest_path.read_text('utf-8'))
+    manifest['files']['effectDictionary'] = target.name
+    manifest['sha256'][target.name] = hashlib.sha256(target.read_bytes()).hexdigest()
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
 
 
 if __name__ == "__main__":

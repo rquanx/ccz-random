@@ -6,7 +6,7 @@
   "profileId": "ccz-v2.20-1104-night",
   "gameVersion": "2.20-1104-night",
   "displayName": "曹操传加强版 v2.20-1104 夜版",
-  "catalogVersion": 10,
+  "catalogVersion": 11,
   "engineLayout": "personnel-v1",
   "files": {
     "fingerprints": "fingerprints.json",
@@ -15,7 +15,8 @@
     "recruitment": "recruitment.json",
     "memoryLayout": "memory_layout.json",
     "skills": "skills.json",
-    "scriptRules": "script_rules.json"
+    "scriptRules": "script_rules.json",
+    "effectDictionary": "effect_dictionary.json"
   },
   "capabilities": {
     "validateRoster": true,
@@ -29,6 +30,7 @@
     "recruitment.json": "c53bb6e287968510e2cf5209cbca883e1867f95a1ad241e24a2e84eaaaf77b2a",
     "memory_layout.json": "a48007e54fe78c1f54b1e046a6e5c5ca89db170d4d4f55ed6746751b61cb69cc",
     "skills.json": "a260c97c14bb35a4cbda9b65e4af665e983fb211d205483c1d8fba16c51b7b76",
-    "script_rules.json": "806acbabb9c33f103de7df54276101ffcb6468fa7fd494151d8750e60df46ddc"
+    "script_rules.json": "806acbabb9c33f103de7df54276101ffcb6468fa7fd494151d8750e60df46ddc",
+    "effect_dictionary.json": "16d3ca7b3ad38c086a2959b0dbb3aeb1d3ed37587ce536617d8166b0919d2f1a"
   }
 }

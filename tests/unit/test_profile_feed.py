@@ -75,6 +75,9 @@ class ProfileFeedTests(unittest.TestCase):
         manifest["catalogVersion"] = revision
         if profile_id:
             manifest["profileId"] = profile_id
+            # A new profile must not claim the old version's handbook.
+            name = manifest['files'].pop('effectDictionary', None)
+            manifest['sha256'].pop(name, None)
         manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
         archive_path = source.with_suffix(".zip")
         with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as archive:

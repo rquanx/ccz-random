@@ -28,12 +28,13 @@ class ProfileContext:
     fixed_entries: Mapping
     recruitment: Mapping
     script_rules: Mapping
+    effect_dictionary: Mapping | None = None
 
     @classmethod
     def from_profile(cls, profile):
         return cls(profile.profile_id, profile.game_version, profile.manifest["catalogVersion"],
                    *(_freeze(getattr(profile, name)) for name in
-                     ("jobs", "skills", "memory_layout", "fixed_entries", "recruitment", "script_rules")))
+                     ("jobs", "skills", "memory_layout", "fixed_entries", "recruitment", "script_rules", "effect_dictionary")))
 
 
 _current = None

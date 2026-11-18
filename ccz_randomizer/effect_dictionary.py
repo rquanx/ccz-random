@@ -3,12 +3,9 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from functools import lru_cache
 import hashlib
 import json
-from pathlib import Path
 import re
-import sys
 
 from ccz_randomizer.profile_context import current_context
 
@@ -50,21 +47,15 @@ def _plain(value):
     return value
 
 
-@lru_cache(maxsize=4)
-def _read_resource(profile_id):
-    # IDs come from installed profiles, but must never become arbitrary filesystem paths.
-    if not re.fullmatch(r"\w[\w.-]*", profile_id):
-        return None
-    root = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[1]))
-    path = root / "resources/data/effects" / f"{profile_id}.json"
-    if not path.is_file():
-        return None
-    return json.loads(path.read_text("utf-8"))
-
-
 def load_effect_dictionary(context=None):
     context = context or current_context()
-    data = _read_resource(context.profile_id)
+    data = context.effect_dictionary
+    if data is None:
+        # Older packages have no handbook. Reuse bundled data only if its exact
+        # profile, game version and effect catalogue match (checked below).
+        from ccz_randomizer.profiles import DEFAULT_PROFILE_ID, load_profile
+        if context.profile_id == DEFAULT_PROFILE_ID:
+            data = load_profile(DEFAULT_PROFILE_ID).effect_dictionary
     unavailable = "当前数据包暂无配套特效说明，暂不显示其他版本的字典。"
     if not data or data["gameVersion"] != context.game_version or data["profileId"] != context.profile_id:
         return EffectDictionary(version=context.game_version, notice=unavailable)
@@ -98,4 +89,4 @@ def load_effect_dictionary(context=None):
                                    aliases, pattern))
     entries.sort(key=lambda item: item.category != "宝物特效")
     from ccz_randomizer.effect_dictionary_merge import merge_equivalent_effects
-    return EffectDictionary(merge_equivalent_effects(entries), version=context.game_version)
+    return EffectDictionary(merge_equivalent_effects(entries, data["mergeRules"]), version=context.game_version)

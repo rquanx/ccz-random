@@ -8,6 +8,7 @@ import time
 from ccz_randomizer.statistics_rules import rule_links, resolve_revision
 from ccz_randomizer.statistics_equipment_store import initialize, append as append_equipment
 from ccz_randomizer.storage_codec import compact_database
+from ccz_randomizer.equipment_labels import equipment_label_resolver
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS rules (
@@ -72,9 +73,9 @@ def ranking_sql(kind, where, *, person=None, equipment_name=None):
             where += (" AND " if where else " WHERE ") + "m.name_id=(SELECT id FROM equipment_names WHERE name=?)"
             args.append(equipment_name)
         # Aggregate integer keys before reading effect text; no repeated text joins per item.
-        return ("SELECT e.effect AS label,g.frequency FROM (SELECT m.effect_id,COUNT(*) AS frequency "
+        return ("SELECT equipment_label(e.effect) AS label,SUM(g.frequency) AS frequency FROM (SELECT m.effect_id,COUNT(*) AS frequency "
                 + join + where +
-                " GROUP BY m.effect_id) g JOIN equipment_effects e ON e.id=g.effect_id"), args
+                " GROUP BY m.effect_id) g JOIN equipment_effects e ON e.id=g.effect_id GROUP BY label"), args
     else:
         raise ValueError("未知的统计排行")
     if conditions:
@@ -94,6 +95,8 @@ class StatisticsRepository:
     def connect(self):
         self.path.parent.mkdir(parents=True, exist_ok=True)
         db = sqlite3.connect(self.path, timeout=10)
+        # Normalize only the small effect dictionary after integer aggregation.
+        db.create_function('equipment_label', 1, equipment_label_resolver(), deterministic=True)
         try:
             # Switching WAL on a newly created database can fail immediately when
             # another process initializes it; SQLite's busy timeout alone does
@@ -146,7 +149,10 @@ class StatisticsRepository:
                         people=[r[0] for r in db.execute("SELECT DISTINCT name FROM members ORDER BY name")],
                         equipment=[r[0] for r in db.execute("SELECT name FROM equipment_names ORDER BY name")])
 
-    def query(self, *, start=None, end=None, revision=None, person=None, result="all", equipment_name=None):
+    def query(self, *, start=None, end=None, revision=None, person=None, result="all", equipment_name=None, view="all"):
+        """Read the overview first; detailed pages can be requested independently."""
+        if view not in ("all", "overview", "members", "equipment"):
+            raise ValueError("未知的统计页面")
         with self.connect() as db:
             # All cards in one consistent read snapshot, including concurrent worker writes.
             db.execute("BEGIN")
@@ -161,28 +167,33 @@ class StatisticsRepository:
             statuses = read("SELECT status,COUNT(*)" + base + " GROUP BY status ORDER BY COUNT(*) DESC")
             trend = read("SELECT strftime('%Y-%m-%d',at,'unixepoch','localtime'),COUNT(*),"
                          "SUM(saved)" + base + " GROUP BY 1 ORDER BY 1")
-            member_where = where + (" AND " if where else " WHERE ") + "m.name=?" if person else where
-            member_args = (person,) if person else ()
-            join = " FROM attempts a JOIN members m ON m.attempt_id=a.id" + member_where
-            jobs = read("SELECT m.job,COUNT(*)" + join + (" AND " if member_where else " WHERE ") +
-                        "m.job IS NOT NULL GROUP BY m.job ORDER BY COUNT(*) DESC,m.job", member_args)
-            histograms = {}
-            for stage in ("job", "skill"):
-                col = "m." + stage + "_score"
-                histograms[stage] = read("SELECT CAST(floor(" + col + ") AS INTEGER),COUNT(*)" + join +
-                    (" AND " if member_where else " WHERE ") + col + " IS NOT NULL GROUP BY 1 ORDER BY 1", member_args)
-            skill_join = " FROM attempts a JOIN skills m ON m.attempt_id=a.id" + member_where
-            skills = read("SELECT m.skill,COUNT(*)" + skill_join +
-                          " GROUP BY m.skill ORDER BY COUNT(*) DESC,m.skill", member_args)
-            equipment_sql, equipment_args = ranking_sql("equipment", where, equipment_name=equipment_name)
-            equipment = read(equipment_sql + " ORDER BY frequency DESC,label", equipment_args)
-            equipment_where = where + (" AND " if where else " WHERE ")
-            sample_filter = ""
-            if equipment_name:
-                sample_filter = " AND s.name_id=(SELECT id FROM equipment_names WHERE name=?)"
-            sample_join = ("FROM attempts a JOIN equipment_attempts k ON k.attempt_id=a.id") if where else "FROM equipment_attempts k"
-            equipment_samples = read("SELECT COUNT(*) " + sample_join + equipment_where +
-                "EXISTS (SELECT 1 FROM equipment_samples s WHERE s.attempt_id=k.id" + sample_filter + ")", equipment_args)[0][0]
+            details = {}
+            if view in ("all", "members"):
+                member_where = where + (" AND " if where else " WHERE ") + "m.name=?" if person else where
+                member_args = (person,) if person else ()
+                join = " FROM attempts a JOIN members m ON m.attempt_id=a.id" + member_where
+                jobs = read("SELECT m.job,COUNT(*)" + join + (" AND " if member_where else " WHERE ") +
+                            "m.job IS NOT NULL GROUP BY m.job ORDER BY COUNT(*) DESC,m.job", member_args)
+                histograms = {}
+                for stage in ("job", "skill"):
+                    col = "m." + stage + "_score"
+                    histograms[stage] = read("SELECT CAST(floor(" + col + ") AS INTEGER),COUNT(*)" + join +
+                        (" AND " if member_where else " WHERE ") + col + " IS NOT NULL GROUP BY 1 ORDER BY 1", member_args)
+                skill_join = " FROM attempts a JOIN skills m ON m.attempt_id=a.id" + member_where
+                skills = read("SELECT m.skill,COUNT(*)" + skill_join +
+                              " GROUP BY m.skill ORDER BY COUNT(*) DESC,m.skill", member_args)
+                details.update(jobs=jobs, skills=skills, histograms=histograms)
+            if view in ("all", "equipment"):
+                equipment_sql, equipment_args = ranking_sql("equipment", where, equipment_name=equipment_name)
+                equipment = read(equipment_sql + " ORDER BY frequency DESC,label", equipment_args)
+                equipment_where = where + (" AND " if where else " WHERE ")
+                sample_filter = ""
+                if equipment_name:
+                    sample_filter = " AND s.name_id=(SELECT id FROM equipment_names WHERE name=?)"
+                sample_join = ("FROM attempts a JOIN equipment_attempts k ON k.attempt_id=a.id") if where else "FROM equipment_attempts k"
+                equipment_samples = read("SELECT COUNT(*) " + sample_join + equipment_where +
+                    "EXISTS (SELECT 1 FROM equipment_samples s WHERE s.attempt_id=k.id" + sample_filter + ")", equipment_args)[0][0]
+                details.update(equipment=equipment, equipment_samples=equipment_samples)
             reasons = read("SELECT r.reason,COUNT(*) FROM attempts a JOIN reasons r ON r.attempt_id=a.id" +
                            where + " GROUP BY r.reason ORDER BY COUNT(*) DESC LIMIT 12")
             comparisons = read("SELECT a.revision,COUNT(*),SUM(saved)"
@@ -194,25 +205,26 @@ class StatisticsRepository:
                            for name, revisions in links.values()]
             comparisons = sorted((row for row in comparisons if row[1]), key=lambda row: -row[1])[:12]
             lost = db.execute("SELECT COALESCE(SUM(lost),0) FROM coverage").fetchone()[0]
-            return dict(totals=totals, statuses=statuses, trend=trend, jobs=jobs, skills=skills,
-                        reasons=reasons, histograms=histograms, comparisons=comparisons, lost=lost,
-                        equipment=equipment, equipment_samples=equipment_samples)
+            return dict(totals=totals, statuses=statuses, trend=trend,
+                        reasons=reasons, comparisons=comparisons, lost=lost, **details)
 
     def ranking(self, kind, *, query="", page=1, page_size=50, equipment_name=None, **filters):
         if page < 1 or not 1 <= page_size <= 200:
             raise ValueError("无效的排行分页")
-        search = " WHERE instr(lower(label),lower(?))>0" if query.strip() else ""
-        search_args = [query.strip()] if search else []
         with self.connect() as db:
             db.execute("BEGIN")
             filters["revision"] = resolve_revision(self._rule_links(db), filters.get("revision"))
             where, args = attempt_filter(**filters)
             sql, extra = ranking_sql(kind, where, person=filters.get("person"), equipment_name=equipment_name)
             params = [*args, *extra]
-            cte = "WITH ranked AS (" + sql + ") "
-            total = db.execute(cte + "SELECT COALESCE(SUM(frequency),0) FROM ranked", params).fetchone()[0]
-            count = db.execute(cte + "SELECT COUNT(*) FROM ranked" + search, params + search_args).fetchone()[0]
-            rows = db.execute(cte + "SELECT label,frequency FROM ranked" + search +
-                " ORDER BY frequency DESC,label COLLATE NOCASE LIMIT ? OFFSET ?",
-                params + search_args + [page_size, (page-1)*page_size]).fetchall()
+            # Aggregate observations once. The result is the small distinct
+            # label dictionary, not the potentially millions of observations.
+            # Let SQLite do matching/sorting to retain its exact collation.
+            ranked = db.execute("WITH ranked AS (" + sql + ") "
+                "SELECT label,frequency,instr(lower(label),lower(?))>0 FROM ranked "
+                "ORDER BY frequency DESC,label COLLATE NOCASE", params + [query.strip()]).fetchall()
+            total = sum(frequency for _, frequency, _ in ranked)
+            matching = [(label, frequency) for label, frequency, matches in ranked if matches]
+            count = len(matching)
+            rows = matching[(page-1)*page_size:page*page_size]
             return dict(rows=rows, count=count, total=total, page=page, page_size=page_size)

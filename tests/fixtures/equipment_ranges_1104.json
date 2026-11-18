@@ -1,0 +1,81 @@
+{
+  "source": "1104 title-screen read-only memory; private desktop; isolated game copy",
+  "executableSha256": "aece85339ff48c24e8d783d2d65766e8c9f7be00bd7389d38a8cad8f7cbd95a5",
+  "tableAddress": "0x40CEE9",
+  "dispatchAddress": "0x46226C",
+  "dispatchBytes": "041a3c337509ff348de9ce4000eb18",
+  "entries": [
+    {
+      "parameter": 0,
+      "pointer": "0x486cfc",
+      "bytes": "cede",
+      "name": "无"
+    },
+    {
+      "parameter": 1,
+      "pointer": "0x500ccb",
+      "bytes": "caaed7d6",
+      "name": "十字"
+    },
+    {
+      "parameter": 2,
+      "pointer": "0x500cd0",
+      "bytes": "bec5b9ac",
+      "name": "九宫"
+    },
+    {
+      "parameter": 3,
+      "pointer": "0x48e7d4",
+      "bytes": "c3bbd3f0bcfd",
+      "name": "没羽箭"
+    },
+    {
+      "parameter": 4,
+      "pointer": "0x500cd5",
+      "bytes": "c1bdb8f1",
+      "name": "两格"
+    },
+    {
+      "parameter": 5,
+      "pointer": "0x500cda",
+      "bytes": "c1f9b8f1",
+      "name": "六格"
+    },
+    {
+      "parameter": 6,
+      "pointer": "0x48e7db",
+      "bytes": "b4f3c3bbd3f0bcfd",
+      "name": "大没羽箭"
+    },
+    {
+      "parameter": 7,
+      "pointer": "0x500cdf",
+      "bytes": "c8fdb8f1",
+      "name": "三格"
+    },
+    {
+      "parameter": 8,
+      "pointer": "0x48e7e4",
+      "bytes": "b7bdbfe9",
+      "name": "方块"
+    },
+    {
+      "parameter": 9,
+      "pointer": "0x48e7e9",
+      "bytes": "bae1c9a8",
+      "name": "横扫"
+    },
+    {
+      "parameter": 10,
+      "pointer": "0x48e7ee",
+      "bytes": "bbb7bbf7",
+      "name": "环击"
+    },
+    {
+      "parameter": 11,
+      "pointer": "0x48e7f3",
+      "bytes": "bda6c9e4",
+      "name": "溅射"
+    }
+  ]
+}

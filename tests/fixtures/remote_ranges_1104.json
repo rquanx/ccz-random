@@ -1,0 +1,1129 @@
+{
+  "source": "1104 isolated title-screen process, private desktop, read-only",
+  "executableSha256": "aece85339ff48c24e8d783d2d65766e8c9f7be00bd7389d38a8cad8f7cbd95a5",
+  "dispatchAddress": "0x436599",
+  "dispatchBytes": "3c0b74c5720248488b148500144d00",
+  "boundsAddress": "0x43657e",
+  "boundsBytes": "3c2577e03c0a7513ff7514ff75108b4dfcff7104e879170000eb443c0b74c5720248488b148500144d00",
+  "special10Address": "0x437d10",
+  "special10Bytes": "558bec6a006a008b4df80fb6152d424b003bca7d30c645fc008b4dfc0fb6152c424b003bca7d19ff7510ff750cff7508ff75f8ff75fce8b4fdfffffe45fcebd9fe45f8ebc28be55dc3",
+  "axisExpansionAddress": "0x436692",
+  "axisExpansionBytes": "3ac172028ac8884d20884d21ff751cff7518ff7514ff75108a450c02452050e84914000083ec0cff75108a450c2a452050e83714000083ec0c8a45102a452050ff750ce82514000083ec0c8a451002452050ff750ce81314000083ec0c",
+  "tableAddress": "0x4D1400",
+  "entries": [
+    {
+      "parameter": 0,
+      "name": "十字1格",
+      "pointer": "0x4d2228",
+      "pairs": [
+        [
+          1,
+          0
+        ]
+      ],
+      "bytes": "0100ffff",
+      "nameSource": "geometry"
+    },
+    {
+      "parameter": 1,
+      "name": "九宫",
+      "pointer": "0x4d222c",
+      "pairs": [
+        [
+          1,
+          0
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "bytes": "01000101ffff",
+      "nameSource": "geometry"
+    },
+    {
+      "parameter": 2,
+      "name": "菱形2格",
+      "pointer": "0x4d2232",
+      "pairs": [
+        [
+          2,
+          0
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "bytes": "02000101ffff",
+      "nameSource": "geometry"
+    },
+    {
+      "parameter": 3,
+      "name": "菱形2～3格",
+      "pointer": "0x4d2238",
+      "pairs": [
+        [
+          2,
+          0
+        ],
+        [
+          3,
+          0
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          2,
+          1
+        ],
+        [
+          1,
+          2
+        ]
+      ],
+      "bytes": "02000300010102010102ffff",
+      "nameSource": "geometry"
+    },
+    {
+      "parameter": 4,
+      "name": "菱形2～4格",
+      "pointer": "0x4d2244",
+      "pairs": [
+        [
+          2,
+          0
+        ],
+        [
+          3,
+          0
+        ],
+        [
+          4,
+          0
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          2,
+          1
+        ],
+        [
+          3,
+          1
+        ],
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          2
+        ],
+        [
+          1,
+          3
+        ]
+      ],
+      "bytes": "020003000400010102010301010202020103ffff",
+      "nameSource": "geometry"
+    },
+    {
+      "parameter": 5,
+      "name": "十字1～2格",
+      "pointer": "0x4d2258",
+      "pairs": [
+        [
+          1,
+          0
+        ],
+        [
+          2,
+          0
+        ]
+      ],
+      "bytes": "01000200ffff",
+      "nameSource": "geometry"
+    },
+    {
+      "parameter": 6,
+      "name": "菱形1～2格",
+      "pointer": "0x4d225e",
+      "pairs": [
+        [
+          1,
+          0
+        ],
+        [
+          2,
+          0
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "bytes": "010002000101ffff",
+      "nameSource": "geometry"
+    },
+    {
+      "parameter": 7,
+      "name": "炮车",
+      "pointer": "0x4d2266",
+      "pairs": [
+        [
+          4,
+          0
+        ],
+        [
+          3,
+          1
+        ],
+        [
+          2,
+          2
+        ],
+        [
+          1,
+          3
+        ]
+      ],
+      "bytes": "0400030102020103ffff",
+      "nameSource": "native skill definition"
+    },
+    {
+      "parameter": 8,
+      "name": "菱形4～5格",
+      "pointer": "0x4d2270",
+      "pairs": [
+        [
+          4,
+          0
+        ],
+        [
+          5,
+          0
+        ],
+        [
+          3,
+          1
+        ],
+        [
+          4,
+          1
+        ],
+        [
+          2,
+          2
+        ],
+        [
+          3,
+          2
+        ],
+        [
+          1,
+          3
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          1,
+          4
+        ]
+      ],
+      "bytes": "040005000301040102020302010302030104ffff",
+      "nameSource": "geometry"
+    },
+    {
+      "parameter": 9,
+      "name": "十字2格",
+      "pointer": "0x4d2284",
+      "pairs": [
+        [
+          2,
+          0
+        ]
+      ],
+      "bytes": "0200ffff",
+      "nameSource": "geometry"
+    },
+    {
+      "parameter": 10,
+      "name": "全地图",
+      "nameSource": "native special branch"
+    },
+    {
+      "parameter": 11,
+      "name": "不追加范围",
+      "nameSource": "native special branch"
+    },
+    {
+      "parameter": 12,
+      "name": "大没羽",
+      "pointer": "0x4d2288",
+      "pairs": [
+        [
+          1,
+          0
+        ],
+        [
+          2,
+          0
+        ],
+        [
+          3,
+          0
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          2,
+          1
+        ],
+        [
+          1,
+          2
+        ]
+      ],
+      "bytes": "010002000300010102010102ffff",
+      "nameSource": "native skill definition"
+    },
+    {
+      "parameter": 13,
+      "name": "菱形1～4格",
+      "pointer": "0x4d2296",
+      "pairs": [
+        [
+          1,
+          0
+        ],
+        [
+          2,
+          0
+        ],
+        [
+          3,
+          0
+        ],
+        [
+          4,
+          0
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          2,
+          1
+        ],
+        [
+          3,
+          1
+        ],
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          2
+        ],
+        [
+          1,
+          3
+        ]
+      ],
+      "bytes": "0100020003000400010102010301010202020103ffff",
+      "nameSource": "geometry"
+    },
+    {
+      "parameter": 14,
+      "name": "3格外框·窄边",
+      "pointer": "0x4d22ac",
+      "pairs": [
+        [
+          3,
+          0
+        ],
+        [
+          3,
+          1
+        ],
+        [
+          1,
+          3
+        ]
+      ],
+      "bytes": "030003010103ffff",
+      "nameSource": "geometry"
+    },
+    {
+      "parameter": 15,
+      "name": "3格外框·去角",
+      "pointer": "0x4d22b4",
+      "pairs": [
+        [
+          3,
+          0
+        ],
+        [
+          3,
+          1
+        ],
+        [
+          3,
+          2
+        ],
+        [
+          1,
+          3
+        ],
+        [
+          2,
+          3
+        ]
+      ],
+      "bytes": "03000301030201030203ffff",
+      "nameSource": "geometry"
+    },
+    {
+      "parameter": 16,
+      "name": "菱形3格",
+      "pointer": "0x4d22c0",
+      "pairs": [
+        [
+          3,
+          0
+        ],
+        [
+          2,
+          1
+        ],
+        [
+          1,
+          2
+        ]
+      ],
+      "bytes": "030002010102ffff",
+      "nameSource": "geometry"
+    },
+    {
+      "parameter": 17,
+      "name": "菱形3～4格",
+      "pointer": "0x4d22c8",
+      "pairs": [
+        [
+          3,
+          0
+        ],
+        [
+          4,
+          0
+        ],
+        [
+          2,
+          1
+        ],
+        [
+          3,
+          1
+        ],
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          2
+        ],
+        [
+          1,
+          3
+        ]
+      ],
+      "bytes": "0300040002010301010202020103ffff",
+      "nameSource": "geometry"
+    },
+    {
+      "parameter": 18,
+      "name": "菱形3～5格",
+      "pointer": "0x4d22d8",
+      "pairs": [
+        [
+          3,
+          0
+        ],
+        [
+          4,
+          0
+        ],
+        [
+          5,
+          0
+        ],
+        [
+          2,
+          1
+        ],
+        [
+          3,
+          1
+        ],
+        [
+          4,
+          1
+        ],
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          2
+        ],
+        [
+          3,
+          2
+        ],
+        [
+          1,
+          3
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          1,
+          4
+        ]
+      ],
+      "bytes": "030004000500020103010401010202020302010302030104ffff",
+      "nameSource": "geometry"
+    },
+    {
+      "parameter": 19,
+      "name": "大爆炎",
+      "pointer": "0x4d22f2",
+      "pairs": [
+        [
+          1,
+          0
+        ],
+        [
+          2,
+          0
+        ],
+        [
+          3,
+          0
+        ]
+      ],
+      "bytes": "010002000300ffff",
+      "nameSource": "native skill definition"
+    },
+    {
+      "parameter": 20,
+      "name": "方格",
+      "pointer": "0x4d22fa",
+      "pairs": [
+        [
+          1,
+          0
+        ],
+        [
+          2,
+          0
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          2,
+          1
+        ],
+        [
+          1,
+          2
+        ]
+      ],
+      "bytes": "01000200010102010102ffff",
+      "nameSource": "native skill definition"
+    },
+    {
+      "parameter": 21,
+      "name": "圆环",
+      "pointer": "0x4d2306",
+      "pairs": [
+        [
+          4,
+          0
+        ],
+        [
+          4,
+          1
+        ],
+        [
+          4,
+          2
+        ],
+        [
+          3,
+          3
+        ],
+        [
+          1,
+          4
+        ],
+        [
+          2,
+          4
+        ]
+      ],
+      "bytes": "040004010402030301040204ffff",
+      "nameSource": "native skill definition"
+    },
+    {
+      "parameter": 22,
+      "name": "方环3～4格·削角",
+      "pointer": "0x4d2314",
+      "pairs": [
+        [
+          3,
+          0
+        ],
+        [
+          4,
+          0
+        ],
+        [
+          3,
+          1
+        ],
+        [
+          4,
+          1
+        ],
+        [
+          3,
+          2
+        ],
+        [
+          4,
+          2
+        ],
+        [
+          1,
+          3
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          3,
+          3
+        ],
+        [
+          1,
+          4
+        ],
+        [
+          2,
+          4
+        ]
+      ],
+      "bytes": "03000400030104010302040201030203030301040204ffff",
+      "nameSource": "geometry"
+    },
+    {
+      "parameter": 23,
+      "name": "斜角1格",
+      "pointer": "0x4d232c",
+      "pairs": [
+        [
+          1,
+          1
+        ]
+      ],
+      "bytes": "0101ffff",
+      "nameSource": "geometry"
+    },
+    {
+      "parameter": 24,
+      "name": "斜角1～2格",
+      "pointer": "0x4d2330",
+      "pairs": [
+        [
+          1,
+          1
+        ],
+        [
+          2,
+          2
+        ]
+      ],
+      "bytes": "01010202ffff",
+      "nameSource": "geometry"
+    },
+    {
+      "parameter": 25,
+      "name": "2格外框·去角",
+      "pointer": "0x4d2336",
+      "pairs": [
+        [
+          2,
+          0
+        ],
+        [
+          2,
+          1
+        ],
+        [
+          1,
+          2
+        ]
+      ],
+      "bytes": "020002010102ffff",
+      "nameSource": "geometry"
+    },
+    {
+      "parameter": 26,
+      "name": "菱形2～3格·轴向限2格",
+      "pointer": "0x4d233e",
+      "pairs": [
+        [
+          2,
+          0
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          2,
+          1
+        ],
+        [
+          1,
+          2
+        ]
+      ],
+      "bytes": "0200010102010102ffff",
+      "nameSource": "geometry"
+    },
+    {
+      "parameter": 27,
+      "name": "斜角2格",
+      "pointer": "0x4d2348",
+      "pairs": [
+        [
+          2,
+          2
+        ]
+      ],
+      "bytes": "0202ffff",
+      "nameSource": "geometry"
+    },
+    {
+      "parameter": 28,
+      "name": "八方向2格",
+      "pointer": "0x4d234c",
+      "pairs": [
+        [
+          2,
+          0
+        ],
+        [
+          2,
+          2
+        ]
+      ],
+      "bytes": "02000202ffff",
+      "nameSource": "geometry"
+    },
+    {
+      "parameter": 29,
+      "name": "刺客",
+      "pointer": "0x4d2352",
+      "pairs": [
+        [
+          2,
+          0
+        ],
+        [
+          2,
+          1
+        ],
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          2
+        ]
+      ],
+      "bytes": "0200020101020202ffff",
+      "nameSource": "native skill definition"
+    },
+    {
+      "parameter": 30,
+      "name": "十字3格",
+      "pointer": "0x4d235c",
+      "pairs": [
+        [
+          3,
+          0
+        ]
+      ],
+      "bytes": "0300ffff",
+      "nameSource": "geometry"
+    },
+    {
+      "parameter": 31,
+      "name": "十字2～3格",
+      "pointer": "0x4d2360",
+      "pairs": [
+        [
+          2,
+          0
+        ],
+        [
+          3,
+          0
+        ]
+      ],
+      "bytes": "02000300ffff",
+      "nameSource": "geometry"
+    },
+    {
+      "parameter": 32,
+      "name": "九宫·加斜角2格",
+      "pointer": "0x4d2366",
+      "pairs": [
+        [
+          1,
+          0
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          2,
+          2
+        ]
+      ],
+      "bytes": "010001010202ffff",
+      "nameSource": "geometry"
+    },
+    {
+      "parameter": 33,
+      "name": "菱形1～5格",
+      "pointer": "0x4d236e",
+      "pairs": [
+        [
+          1,
+          0
+        ],
+        [
+          2,
+          0
+        ],
+        [
+          3,
+          0
+        ],
+        [
+          4,
+          0
+        ],
+        [
+          5,
+          0
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          2,
+          1
+        ],
+        [
+          3,
+          1
+        ],
+        [
+          4,
+          1
+        ],
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          2
+        ],
+        [
+          3,
+          2
+        ],
+        [
+          1,
+          3
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          1,
+          4
+        ]
+      ],
+      "bytes": "010002000300040005000101020103010401010202020302010302030104ffff",
+      "nameSource": "geometry"
+    },
+    {
+      "parameter": 34,
+      "name": "方环3～5格·削角",
+      "pointer": "0x4d238e",
+      "pairs": [
+        [
+          3,
+          0
+        ],
+        [
+          4,
+          0
+        ],
+        [
+          5,
+          0
+        ],
+        [
+          3,
+          1
+        ],
+        [
+          4,
+          1
+        ],
+        [
+          5,
+          1
+        ],
+        [
+          3,
+          2
+        ],
+        [
+          4,
+          2
+        ],
+        [
+          5,
+          2
+        ],
+        [
+          1,
+          3
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          3,
+          3
+        ],
+        [
+          4,
+          3
+        ],
+        [
+          1,
+          4
+        ],
+        [
+          2,
+          4
+        ],
+        [
+          3,
+          4
+        ],
+        [
+          1,
+          5
+        ],
+        [
+          2,
+          5
+        ]
+      ],
+      "bytes": "030004000500030104010501030204020502010302030303040301040204030401050205ffff",
+      "nameSource": "geometry"
+    },
+    {
+      "parameter": 35,
+      "name": "方环2～3格·削角",
+      "pointer": "0x4d23b4",
+      "pairs": [
+        [
+          2,
+          0
+        ],
+        [
+          3,
+          0
+        ],
+        [
+          2,
+          1
+        ],
+        [
+          3,
+          1
+        ],
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          2
+        ],
+        [
+          1,
+          3
+        ]
+      ],
+      "bytes": "0200030002010301010202020103ffff",
+      "nameSource": "geometry"
+    },
+    {
+      "parameter": 36,
+      "name": "方形1～2格",
+      "pointer": "0x4d23c4",
+      "pairs": [
+        [
+          1,
+          0
+        ],
+        [
+          2,
+          0
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          2,
+          1
+        ],
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          2
+        ]
+      ],
+      "bytes": "010002000101020101020202ffff",
+      "nameSource": "geometry"
+    },
+    {
+      "parameter": 37,
+      "name": "菱形3～6格·轴向限5格",
+      "pointer": "0x4d23d2",
+      "pairs": [
+        [
+          3,
+          0
+        ],
+        [
+          4,
+          0
+        ],
+        [
+          5,
+          0
+        ],
+        [
+          2,
+          1
+        ],
+        [
+          3,
+          1
+        ],
+        [
+          4,
+          1
+        ],
+        [
+          5,
+          1
+        ],
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          2
+        ],
+        [
+          3,
+          2
+        ],
+        [
+          4,
+          2
+        ],
+        [
+          1,
+          3
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          3,
+          3
+        ],
+        [
+          1,
+          4
+        ],
+        [
+          2,
+          4
+        ],
+        [
+          1,
+          5
+        ]
+      ],
+      "bytes": "03000400050002010301040105010102020203020402010302030303010402040105ffff",
+      "nameSource": "geometry"
+    }
+  ]
+}

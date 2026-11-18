@@ -976,9 +976,15 @@ def patch_runtime(
         print(f"游戏原生随机已触发: {before}->{current}")
         check_stop_requested()
         self._r0_initial_three = read_job_ids(pid, JOB_POSITIONS_R0)
-        from ccz_randomizer.statistics_equipment import capture_equipment_statistics
+        from ccz_randomizer.statistics_equipment import (
+            capture_equipment_statistics, completed_equipment_records,
+        )
         capture_equipment_statistics(
-            self, lambda: decode_equipment_records(read_equipment_records(pid))[0],
+            self, lambda: decode_equipment_records(completed_equipment_records(
+                lambda: read_equipment_records(pid),
+                clock=time.perf_counter, sleep=interruptible_sleep,
+                check_stop=check_stop_requested, report=diagnostic_log,
+            ))[0],
             lambda error: diagnostic_log("statistics_equipment_capture_failed", error=repr(error)),
         )
         if (current_game_version() in VALID_GAME_VERSIONS

@@ -67,6 +67,25 @@ class StatisticsTests(unittest.TestCase):
         with recorder.attempt(runner, round_number=round_number, slot=1, attempt=attempt) as result:
             result["saved"] = saved
 
+    def test_page_queries_preserve_filtered_totals_and_complete_detail_values(self):
+        recorder = self.recorder()
+        self.capture(recorder, runner_fixture(), saved=True)
+        self.capture(recorder, runner_fixture(reject=True))
+        recorder.close()
+        for options in ({}, {"person": "曹操"}, {"result": "qualified"}):
+            with self.subTest(options=options):
+                complete = self.repo.query(**options)
+                overview = self.repo.query(**options, view="overview")
+                self.assertEqual({key: complete[key] for key in overview}, overview)
+                self.assertNotIn("equipment", overview)
+                self.assertNotIn("histograms", overview)
+                for view, keys in (("members", ("jobs", "skills", "histograms")),
+                                   ("equipment", ("equipment", "equipment_samples"))):
+                    data = self.repo.query(**options, view=view)
+                    self.assertEqual(complete["totals"], data["totals"])
+                    for key in keys:
+                        self.assertEqual(complete[key], data[key])
+
     def test_short_circuit_does_not_invent_skills_and_only_selected_jobs(self):
         recorder = self.recorder()
         self.capture(recorder, runner_fixture(reject=True))

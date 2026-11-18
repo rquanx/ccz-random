@@ -1,0 +1,985 @@
+{
+  "source": "Read-only statistics.sqlite3, 1104 night, 2026-11-17. Labels only; no raw memory was recorded. Zero byte records in replay tests represent only the observed zero code/parameter, not a captured native memory layout.",
+  "rows": [
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "雌雄双剑",
+      "effect": "盾反破防11%"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "倚天剑",
+      "effect": "破坏状态攻击"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "青冥剑",
+      "effect": "增伤强命+17%"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "青釭剑",
+      "effect": "一夫当关9%"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "龙渊剑",
+      "effect": "麻痹破爆"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "古锭刀",
+      "effect": "主动连击"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "青龙偃月刀",
+      "effect": "引导攻击"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "流星锤",
+      "effect": "疾风迅雷8"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "双鞭",
+      "effect": "昭威奋烈1"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "双戟",
+      "effect": "同仇敌忾2"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "丈八蛇矛",
+      "effect": "破坏状态攻击"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "方天画戟",
+      "effect": "冲锋再动5%"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "龙胆枪",
+      "effect": "突击先手"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "霸王枪",
+      "effect": "一夫当关10%"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "开山斧",
+      "effect": "回马强反9%"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "龙骑枪",
+      "effect": "穿透攻击-十字"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "李广之弓",
+      "effect": "致命一击ALL"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "吕布之弓",
+      "effect": "弱点攻击-爆发"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "金火罐车",
+      "effect": "混乱攻击48%"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "白羽扇",
+      "effect": "二次行动"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "五火神焰扇",
+      "effect": "策略先手-衰气"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "芭蕉扇",
+      "effect": "削铁如泥ALL"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "圣者宝剑",
+      "effect": "MP辅助-防爆"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "七星剑",
+      "effect": "策略连击"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "镜铠",
+      "effect": "万夫莫敌2%"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "黄金铠",
+      "effect": "转移伤害21%"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "白银铠",
+      "effect": "援护攻击2"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "龙鳞铠",
+      "effect": "治愈光环17%"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "连环铠",
+      "effect": "防御特殊攻击"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "霸王乌金甲",
+      "effect": "盾反破防11%"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "蚩尤战甲",
+      "effect": "物理减伤26%"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "兽面吞云铠",
+      "effect": "自动提升-防爆移"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "亮银甲",
+      "effect": "昭威奋烈1"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "虎豹嘶风铠",
+      "effect": "忽视能力-攻精"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "上将铠",
+      "effect": "反弹伤害异常37%"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "青云羽衣",
+      "effect": "限制伤害75"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "短打劲装",
+      "effect": "HP辅助攻爆"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "凤凰羽衣",
+      "effect": "MP辅助-攻精"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "飞龙斗袍",
+      "effect": "恢复HP状态27%"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "青龙战袍",
+      "effect": "减轻策略损伤-47%"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "天仙洞衣",
+      "effect": "物理减伤30%"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "鹤氅",
+      "effect": "自动使用-粟"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "国士无双袍",
+      "effect": "鬼神之勇11%"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "漆黑道袍",
+      "effect": "回马强反11%"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "名士华服",
+      "effect": "HP辅助攻精"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "贯日袍",
+      "effect": "反弹伤害异常38%"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "白银盾",
+      "effect": "纵横无阻"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "风神盾",
+      "effect": "忽视能力-防爆"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "淮南子",
+      "effect": "中毒破士"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "风车轮",
+      "effect": "神魔附体5"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "诸葛巾",
+      "effect": "远距攻击4"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "精铁盔",
+      "effect": "策略模仿"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "的卢",
+      "effect": "辅士猛击+22%"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "绝影",
+      "effect": "节约MP-54%"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "赤兔",
+      "effect": "如履平地"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "爪黄飞电",
+      "effect": "恢复HP状态35%"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "照夜玉狮子",
+      "effect": "策略反击-诱惑"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "飞刀",
+      "effect": "能力辅助 攻→防"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "孟德新书",
+      "effect": "吸血攻击35%"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "六韬",
+      "effect": "状态强化12"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "三略",
+      "effect": "提升精神力+21%"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "太平清领书",
+      "effect": "提升精神力+20%"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "遁甲天书",
+      "effect": "能力替换 防→精"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "孙子兵法",
+      "effect": "辅爆强连+19%"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "青囊书",
+      "effect": "能力替换 防→精"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "玉玺",
+      "effect": "拓展范围"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "青龙宝玉",
+      "effect": "未知特效(0x00/0x00)"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "朱雀宝玉",
+      "effect": "未知特效(0x00/0x00)"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "玄武宝玉",
+      "effect": "未知特效(0x00/0x00)"
+    },
+    {
+      "id": "8ad888aded6e4a1f8d11662c96c6d6bf",
+      "at": "2026-11-17 17:18:14",
+      "status": "job_failed",
+      "name": "白虎宝玉",
+      "effect": "未知特效(0x00/0x00)"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "雌雄双剑",
+      "effect": "HP辅助攻精"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "倚天剑",
+      "effect": "回马强反11%"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "青冥剑",
+      "effect": "能力辅助 攻→防"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "青釭剑",
+      "effect": "属性增伤3%"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "龙渊剑",
+      "effect": "骑马克制26%"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "古锭刀",
+      "effect": "异常攻击"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "青龙偃月刀",
+      "effect": "弱点攻击-士气"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "流星锤",
+      "effect": "破坏状态攻击"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "双鞭",
+      "effect": "唯我独尊"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "双戟",
+      "effect": "增伤强命+19%"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "丈八蛇矛",
+      "effect": "怀恨必中11%"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "方天画戟",
+      "effect": "穿透攻击-横扫"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "龙胆枪",
+      "effect": "突击先手"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "霸王枪",
+      "effect": "致命一击ALL"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "开山斧",
+      "effect": "属性增伤3%"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "龙骑枪",
+      "effect": "能力辅助 士→攻精"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "李广之弓",
+      "effect": "增伤强命+20%"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "吕布之弓",
+      "effect": "万夫莫敌2%"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "金火罐车",
+      "effect": "鬼神之勇10%"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "白羽扇",
+      "effect": "策略穿透"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "五火神焰扇",
+      "effect": "策略随心"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "芭蕉扇",
+      "effect": "策略穿透"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "圣者宝剑",
+      "effect": "削铁如泥ALL"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "七星剑",
+      "effect": "MP辅助-攻爆"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "镜铠",
+      "effect": "反击成双"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "黄金铠",
+      "effect": "忽视能力-防士"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "白银铠",
+      "effect": "恢复HP状态28%"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "龙鳞铠",
+      "effect": "鬼神之勇10%"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "连环铠",
+      "effect": "辅爆强连+21%"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "霸王乌金甲",
+      "effect": "忽视能力-防士"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "蚩尤战甲",
+      "effect": "昭威奋烈1"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "兽面吞云铠",
+      "effect": "盾反破防9%"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "亮银甲",
+      "effect": "节约MP-41%"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "虎豹嘶风铠",
+      "effect": "援护攻击2"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "上将铠",
+      "effect": "物理减伤30%"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "青云羽衣",
+      "effect": "攻击追加-衰气"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "短打劲装",
+      "effect": "HP辅助-爆士"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "凤凰羽衣",
+      "effect": "吸血攻击30%"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "飞龙斗袍",
+      "effect": "绝对克制19%"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "青龙战袍",
+      "effect": "治愈光环18%"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "天仙洞衣",
+      "effect": "自动使用-粟"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "鹤氅",
+      "effect": "昭威奋烈1"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "国士无双袍",
+      "effect": "束缚破攻"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "漆黑道袍",
+      "effect": "能力辅助 精→防"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "名士华服",
+      "effect": "辅爆强连+17%"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "贯日袍",
+      "effect": "MP辅助-攻精"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "白银盾",
+      "effect": "冲锋再动5%"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "风神盾",
+      "effect": "策略反击-雷阵"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "淮南子",
+      "effect": "能力替换 防→攻"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "风车轮",
+      "effect": "异常攻击"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "诸葛巾",
+      "effect": "未知特效(0x00/0x00)"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "精铁盔",
+      "effect": "未知特效(0x00/0x00)"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "的卢",
+      "effect": "未知特效(0x00/0x00)"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "绝影",
+      "effect": "未知特效(0x00/0x00)"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "赤兔",
+      "effect": "未知特效(0x00/0x00)"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "爪黄飞电",
+      "effect": "未知特效(0x00/0x00)"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "照夜玉狮子",
+      "effect": "未知特效(0x00/0x00)"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "飞刀",
+      "effect": "未知特效(0x00/0x00)"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "孟德新书",
+      "effect": "未知特效(0x00/0x00)"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "六韬",
+      "effect": "未知特效(0x00/0x00)"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "三略",
+      "effect": "未知特效(0x00/0x00)"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "太平清领书",
+      "effect": "未知特效(0x00/0x00)"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "遁甲天书",
+      "effect": "未知特效(0x00/0x00)"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "孙子兵法",
+      "effect": "未知特效(0x00/0x00)"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "青囊书",
+      "effect": "未知特效(0x00/0x00)"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "玉玺",
+      "effect": "未知特效(0x00/0x00)"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "青龙宝玉",
+      "effect": "未知特效(0x00/0x00)"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "朱雀宝玉",
+      "effect": "未知特效(0x00/0x00)"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "玄武宝玉",
+      "effect": "未知特效(0x00/0x00)"
+    },
+    {
+      "id": "1c1fe8d81e7344a3b67e0d882914e07d",
+      "at": "2026-11-17 17:23:50",
+      "status": "job_failed",
+      "name": "白虎宝玉",
+      "effect": "未知特效(0x00/0x00)"
+    }
+  ]
+}

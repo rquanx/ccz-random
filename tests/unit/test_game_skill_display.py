@@ -58,6 +58,43 @@ class GameSkillDisplayTests(unittest.TestCase):
         self.assertEqual("策略反击", format_skill_name(
             "策略反击", 7, 144, strategy_name="", **self.game["tables"]))
 
+    def test_equipment_strategy_names_match_complete_recorded_game_table(self):
+        fixture = json.loads((FIXTURE.parent / 'strategy_names_1104.json').read_text(encoding='utf-8'))
+        self.assertEqual(self.game['sourceSha256'], fixture['executableSha256'])
+        for parameter, name in fixture['names'].items():
+            if not name or name.startswith('空白'):
+                continue
+            for code, prefix in ((0x77, '攻击追加'), (0x78, '策略先手'), (0x79, '策略反击')):
+                with self.subTest(parameter=parameter, code=code):
+                    self.assertEqual(f'{prefix}-{name}', app.decode_equipment_effect(code, int(parameter)))
+
+    def test_equipment_penetration_ranges_match_recorded_native_table(self):
+        fixture = json.loads((FIXTURE.parent / 'equipment_ranges_1104.json').read_text(encoding='utf-8'))
+        self.assertEqual(self.game['sourceSha256'], fixture['executableSha256'])
+        self.assertEqual(12, len(fixture['entries']))
+        for row in fixture['entries']:
+            with self.subTest(parameter=row['parameter']):
+                self.assertEqual(row['name'], bytes.fromhex(row['bytes']).decode('gb18030'))
+                self.assertEqual('穿透攻击-' + row['name'], app.decode_equipment_effect(0x33, row['parameter']))
+        self.assertEqual('穿透攻击-十字', app.decode_equipment_effect(0x33, 1))
+        self.assertEqual('穿透攻击-255', app.decode_equipment_effect(0x33, 255))
+
+    def test_equipment_remote_ranges_follow_native_definitions_and_geometry(self):
+        fixture = json.loads((FIXTURE.parent / 'remote_ranges_1104.json').read_text(encoding='utf-8'))
+        self.assertEqual(self.game['sourceSha256'], fixture['executableSha256'])
+        for row in fixture['entries']:
+            parameter = row['parameter']
+            with self.subTest(parameter=parameter):
+                self.assertEqual(f"远距攻击{parameter}({row['name']})", app.decode_equipment_effect(0x32, parameter))
+                if parameter in (3, 16):
+                    points = {(sx*x, sy*y) for x, y in row['pairs'] for sx in (-1, 1) for sy in (-1, 1)}
+                    # Native 0x436692 expands an axis pair in all four directions.
+                    points.update((0, sign*x) for x, y in row['pairs'] if y == 0 for sign in (-1, 1))
+                    minimum = 2 if parameter == 3 else 3
+                    self.assertEqual({(x,y) for x in range(-3,4) for y in range(-3,4)
+                                      if minimum <= abs(x)+abs(y) <= 3}, points)
+        self.assertEqual('远距攻击255', app.decode_equipment_effect(0x32, 255))
+
     def test_previously_installed_catalog_is_corrected_without_rewriting_it(self):
         row = dict(id=84, name="弱点攻击 移动", baseName="弱点攻击", formatType=8, parameter=6)
         data = dict(runtimeCatalog=[row], defaults=[[row["name"], 2, "强力", "WARRIOR"]])

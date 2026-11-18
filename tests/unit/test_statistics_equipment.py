@@ -9,6 +9,7 @@ import unittest
 from unittest.mock import Mock
 
 from ccz_randomizer.statistics_equipment import capture_equipment_statistics
+from ccz_randomizer.equipment_labels import equipment_label_resolver
 from tests.unit import test_statistics as statistics_tests
 from tests.unit.test_statistics import runner_fixture
 
@@ -28,6 +29,66 @@ class EquipmentStatisticsTests(unittest.TestCase):
     recorder = statistics_tests.StatisticsTests.recorder
     capture = statistics_tests.StatisticsTests.capture
 
+    def test_legacy_strategy_labels_merge_search_and_paginate_without_rewriting_records(self):
+        names = [name for items, _ in equipment_fixture() for name, _ in items][:5]
+        legacy = ['攻击追加-策略编号11', '策略先手-策略编号22',
+                  '攻击追加-策略编号2', '策略反击-策略编号2', '攻击追加-火阵']
+        runner = runner_fixture(reject=True)
+        runner._statistics_equipment = [dict(name=name, effect=effect) for name, effect in zip(names, legacy)]
+        recorder = self.recorder()
+        self.capture(recorder, runner)
+        recorder.close()
+        expected = {'攻击追加-龙卷': 1, '策略先手-谍报': 1, '攻击追加-火阵': 2, '策略反击-火阵': 1}
+        self.assertEqual(expected, dict(self.repo.query()['equipment']))
+        self.assertEqual(expected, dict(self.repo.ranking('equipment')['rows']))
+        first = self.repo.ranking('equipment', query='火阵', page_size=1)
+        second = self.repo.ranking('equipment', query='火阵', page_size=1, page=2)
+        self.assertEqual(2, first['count'])
+        self.assertEqual(5, first['total'])
+        self.assertEqual({'攻击追加-火阵': 2, '策略反击-火阵': 1}, dict(first['rows'] + second['rows']))
+        self.assertEqual([('攻击追加-火阵', 1)], self.repo.query(equipment_name=names[2])['equipment'])
+        with self.repo.connect() as db:
+            self.assertEqual(set(legacy), {r[0] for r in db.execute('SELECT effect FROM equipment_effects')})
+            self.assertEqual(5, db.execute('SELECT COUNT(*) FROM equipment_samples').fetchone()[0])
+
+    def test_unrecognized_strategy_labels_remain_distinguishable(self):
+        label = equipment_label_resolver()
+        for value in ('攻击追加-策略编号999', '策略先手-策略编号144', '其他-策略编号2'):
+            self.assertEqual(value, label(value))
+
+    def test_legacy_remote_aliases_merge_by_range_and_leave_distinct_ranges_separate(self):
+        names = [name for items, _ in equipment_fixture() for name, _ in items][:5]
+        effects = ['远距攻击3', '远程攻击 3', '远距攻击-菱形2～3格', '远距攻击16', '远距攻击255']
+        runner = runner_fixture(reject=True)
+        runner._statistics_equipment = [dict(name=name, effect=effect) for name, effect in zip(names, effects)]
+        recorder = self.recorder()
+        self.capture(recorder, runner)
+        recorder.close()
+        expected = {'远距攻击3(菱形2～3格)': 3, '远距攻击16(菱形3格)': 1, '远距攻击255': 1}
+        self.assertEqual(expected, dict(self.repo.query()['equipment']))
+        self.assertEqual(expected, dict(self.repo.ranking('equipment')['rows']))
+        self.assertEqual([('远距攻击16(菱形3格)', 1)], self.repo.ranking('equipment', query='菱形3格')['rows'])
+        self.assertEqual([('远距攻击3(菱形2～3格)', 1)], self.repo.query(equipment_name=names[1])['equipment'])
+        with self.repo.connect() as db:
+            self.assertEqual(set(effects), {row[0] for row in db.execute('SELECT effect FROM equipment_effects')})
+
+    def test_legacy_penetration_ranges_merge_and_search_without_rewriting_records(self):
+        names = [name for items, _ in equipment_fixture() for name, _ in items][:4]
+        effects = ['穿透攻击-1', '穿透攻击-十字', '穿透攻击-2', '穿透攻击-255']
+        runner = runner_fixture(reject=True)
+        runner._statistics_equipment = [dict(name=name, effect=effect) for name, effect in zip(names, effects)]
+        recorder = self.recorder()
+        self.capture(recorder, runner)
+        recorder.close()
+        expected = {'穿透攻击-十字': 2, '穿透攻击-九宫': 1, '穿透攻击-255': 1}
+        self.assertEqual(expected, dict(self.repo.query()['equipment']))
+        self.assertEqual(expected, dict(self.repo.ranking('equipment')['rows']))
+        self.assertEqual([('穿透攻击-十字', 2)], self.repo.ranking('equipment', query='十字')['rows'])
+        self.assertEqual([('穿透攻击-十字', 1)], self.repo.query(equipment_name=names[0])['equipment'])
+        with self.repo.connect() as db:
+            self.assertEqual(set(effects), {r[0] for r in db.execute('SELECT effect FROM equipment_effects')})
+            self.assertEqual(4, db.execute('SELECT COUNT(*) FROM equipment_samples').fetchone()[0])
+
     def test_failed_and_qualified_attempts_store_actual_effects_and_item_filter(self):
         recorder = self.recorder()
         info = equipment_fixture()
@@ -38,7 +99,8 @@ class EquipmentStatisticsTests(unittest.TestCase):
             self.capture(recorder, runner, saved=not rejected)
         recorder.close()
         reports.assert_not_called()
-        expected = Counter(effect for items, _ in info for _, effect in items)
+        label = equipment_label_resolver()
+        expected = Counter(label(effect) for items, _ in info for _, effect in items)
         self.assertEqual(70, sum(expected.values()))
         all_data = self.repo.ranking("equipment", page_size=200)
         self.assertEqual({effect: count*2 for effect, count in expected.items()}, dict(all_data["rows"]))

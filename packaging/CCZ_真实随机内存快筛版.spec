@@ -70,7 +70,8 @@ a = Analysis(
         (str(project_root / 'resources/app/2.2/original_s00.eex'), 'resources/app/2.2'),
         (str(project_root / 'resources/data/recruitment'), 'resources/data/recruitment'),
         (str(project_root / 'resources/data/profiles'), 'resources/data/profiles'),
-        (str(project_root / 'resources/data/effects'), 'resources/data/effects'),
+        (str(project_root / 'resources/patches/growth-fix.zip'), 'resources/patches'),
+        (str(project_root / 'resources/patches/Ekd5-audio-fix.exe'), 'resources/patches'),
         (str(project_root / 'resources/app/source_slot_20_help.png'), '.'),
         (
             str(

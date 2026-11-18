@@ -5,9 +5,15 @@ import sys
 import subprocess
 import threading
 import tkinter as tk
-from tkinter import scrolledtext, ttk
+from tkinter import ttk
+from ccz_randomizer.ui import scrolled_text as scrolledtext
 from ccz_randomizer.ui import messages as messagebox
 from ccz_randomizer.ui.inputs import TextEntry
+from ccz_randomizer.ui.dependency_messages import add_download_actions
+from ccz_randomizer.diagnostics.dependencies import (
+    dependency_guidance, format_checks, inspect_runtime_dependencies,
+    official_downloads, system_information,
+)
 
 
 def create_support_actions(root, api):
@@ -171,10 +177,12 @@ def create_support_actions(root, api):
         dialog.transient(parent)
         body = tk.Frame(dialog, padx=18, pady=16)
         body.pack(fill="both", expand=True)
-        tk.Label(body, text="先检查环境，再测试兼容模式", font=("Microsoft YaHei UI", 12, "bold"), anchor="w").pack(fill="x")
-        tk.Label(body, text="诊断只读取环境和日志；兼容模式测试会执行一次随机并自动保护现场存档。", fg="#666666", anchor="w", justify="left").pack(fill="x", pady=(6, 12))
+        tk.Label(body, text="先检查运行依赖，再测试兼容模式", font=("Microsoft YaHei UI", 12, "bold"), anchor="w").pack(fill="x")
+        tk.Label(body, text="依赖异常时提供官方下载指引；依赖正常后，兼容模式测试会随机一次并保护现场存档。", fg="#666666", anchor="w", justify="left", wraplength=650).pack(fill="x", pady=(6, 12))
         report = scrolledtext.ScrolledText(body, height=16, wrap="word", state="disabled")
         report.pack(fill="both", expand=True)
+        downloads_frame = ttk.Frame(body)
+        downloads_frame.pack(fill="x", pady=(8, 0))
         actions = tk.Frame(body)
         actions.pack(fill="x", pady=(12, 0))
         probe_button = ttk.Button(actions, text="再次测试", width=16)
@@ -183,46 +191,66 @@ def create_support_actions(root, api):
         upload_button.pack(side="left", padx=(8, 0))
         ttk.Button(actions, text="关闭", width=10, command=dialog.destroy).pack(side="right")
 
-        try:
-            game_executable = locate_game_executable()
-            log_root = app_dir() / "ccz_fast_logs"
-            checks = inspect_environment(
-                game_executable,
-                app_root=app_dir(),
-                native_root=native_dir(),
-                bundle_root=bundle_root(),
-                log_root=log_root,
-            )
-            source = game_executable.parent / "SV" / "SV020.E5S"
-            checks.append({"label": "第20栏源存档", "ok": source.is_file(), "message": "第20栏源存档存在。" if source.is_file() else "未找到第20栏源存档。"})
-        except Exception as exc:
-            game_executable = None
-            log_root = app_dir() / "ccz_fast_logs"
-            checks = [{"label": "游戏定位", "ok": False, "message": f"无法定位游戏：{exc}"}]
-
-        def write_report(lines: list[str]) -> None:
+        def write_report(lines: list[str], downloads=()) -> None:
             report.configure(state="normal")
             report.delete("1.0", "end")
+            for child in downloads_frame.winfo_children():
+                child.destroy()
+            for download in downloads:
+                url = download["url"]
+                lines = [*lines, "", download["label"] + "（官方下载）：", url]
+            add_download_actions(downloads_frame, downloads,
+                                 on_copy=lambda: show_toast(dialog, "下载地址已复制"))
             report.insert("end", "\n".join(lines))
             report.configure(state="disabled")
 
-        write_report([("通过  " if item["ok"] else "异常  ") + item["label"] + "：" + item["message"] for item in checks])
 
-        def run_probe() -> list[str]:
+        closed = threading.Event()
+
+        def run_probe() -> dict:
+            try:
+                game_executable = locate_game_executable()
+                log_root = app_dir() / "ccz_fast_logs"
+                checks = inspect_environment(
+                    game_executable,
+                    app_root=app_dir(),
+                    native_root=native_dir(),
+                    bundle_root=bundle_root(),
+                    log_root=log_root,
+                )
+                source = game_executable.parent / "SV" / "SV020.E5S"
+                checks.append({"label": "第20栏源存档", "ok": source.is_file(), "message": "第20栏源存档存在。" if source.is_file() else "未找到第20栏源存档。"})
+            except Exception as exc:
+                game_executable = None
+                log_root = app_dir() / "ccz_fast_logs"
+                checks = [{"label": "游戏定位", "ok": False, "message": f"无法定位游戏：{exc}"}]
+
+            command = [sys.executable] if getattr(sys, "frozen", False) else [sys.executable, str(source_entry_path())]
+            dependencies = inspect_runtime_dependencies(command, bundle_root())
+            environment_lines = format_checks([*checks, *dependencies])
+            downloads = official_downloads(dependencies)
+            if closed.is_set():
+                return dict(lines=["已取消诊断。"], downloads=[])
+            if any(not item["ok"] for item in dependencies):
+                return dict(lines=[*environment_lines, "", "请先修复上述依赖问题，再点击“再次测试”。本次未启动游戏。"], downloads=downloads)
             if game_executable is None:
-                return ["无法执行兼容模式测试：游戏定位失败。"] + [item["message"] for item in checks]
+                return dict(lines=[*environment_lines, "", "无法执行兼容模式测试：游戏定位失败。"], downloads=downloads)
             env = os.environ.copy()
             env.update({"CCZ_AUTOSTART": "1", "CCZ_NO_PAUSE": "1", "CCZ_SUPPORT_PROBE": "1", "CCZ_COMPATIBILITY_MODE": "1", "CCZ_RESULT_COUNT": "1", "CCZ_TOTAL_RESULT_COUNT": "1", "CCZ_RESULT_SLOT_START": "1", "CCZ_GAME_VERSION": current_game_version(), "CCZ_RANDOM_MODE": "three"})
-            command = [sys.executable, "--worker"] if getattr(sys, "frozen", False) else [sys.executable, str(source_entry_path()), "--worker"]
+            command = [*command, "--worker"]
             try:
                 completed = subprocess.run(command, cwd=str(app_dir()), env=env, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-                output = (completed.stdout or "")[-12000:]
+                output = ((completed.stdout or "") + "\n" + (completed.stderr or ""))[-12000:]
                 success = completed.returncode == 0
                 message = ("兼容模式测试成功。建议在主界面勾选“兼容模式”后重试。" if success else "兼容模式测试也未成功，暂时无法明确定位原因，请上报日志给开发者。")
-                return [message, "", output]
+                if not success and any(token in output.casefold() for token in ("dll load failed", "mfc140", "vcruntime140", "msvcp140")):
+                    guidance = dependency_guidance(output, system_information())
+                    message = guidance["message"]
+                    downloads = official_downloads([guidance])
+                return dict(lines=[*environment_lines, "", message, "", output], downloads=downloads)
             except Exception as exc:
                 error_text = str(exc)
-                return [f"兼容模式测试失败：{error_text}", "请上报日志给开发者。"]
+                return dict(lines=[*environment_lines, "", f"兼容模式测试失败：{error_text}", "请上报日志给开发者。"], downloads=downloads)
 
         def probe():
             try:
@@ -232,8 +260,8 @@ def create_support_actions(root, api):
 
         from ccz_randomizer.ui.tasks import WindowTasks
         tasks = WindowTasks(dialog, serial=False)
-        def probe_finished(lines):
-            write_report(lines)
+        def probe_finished(result):
+            write_report(result["lines"], result["downloads"])
             probe_button.configure(state="normal")
 
         def start_probe() -> None:
@@ -242,8 +270,9 @@ def create_support_actions(root, api):
                 return
             diagnostic_inflight.set()
             probe_button.configure(state="disabled")
-            write_report(["正在执行一次兼容模式测试，请等待最多两分钟……"])
-            tasks.request("probe", probe, probe_finished, lambda error: probe_finished([str(error)]), durable=True)
+            write_report(["正在检测系统、VC++/MFC 运行库和工具组件……", "依赖正常后将继续执行一次兼容模式测试，请等待最多两分半钟。"])
+            tasks.request("probe", probe, probe_finished,
+                          lambda error: probe_finished(dict(lines=[str(error)], downloads=[])), durable=True)
 
         def upload() -> None:
             open_log_upload_progress(dialog)
@@ -258,8 +287,9 @@ def create_support_actions(root, api):
         # Start the one-shot compatibility probe automatically after the initial
         # environment report is visible; the user should not need to advance a
         # second dialog just to obtain the conclusion.
-        initial_timer = dialog.after(120, start_probe)
+        initial_timer = dialog.after(1, start_probe)
         def cancel_initial():
+            closed.set()
             dialog.after_cancel(initial_timer)
         tasks.on_close = cancel_initial
 

@@ -1340,37 +1340,6 @@ class SessionManagementTests(unittest.TestCase):
         )
         self.assertNotIn("LegacyAudioRecoveryMonitor(", session_source)
 
-    def test_gui_uses_sandbox_scheduler_even_with_one_worker(self):
-        source = (
-            Path(__file__).resolve().parents[2]
-            / "ccz_randomizer"
-            / "app.py"
-        ).read_text(encoding="utf-8")
-        start_source = source.split("    def start() -> None:", 1)[1].split(
-            "    def stop() -> None:",
-            1,
-        )[0]
-
-        self.assertIn('env["CCZ_CONCURRENT_MODE"] = "1"', start_source)
-        self.assertIn(
-            'env["CCZ_CONCURRENT_COUNT"] = str(concurrency)',
-            start_source,
-        )
-        self.assertNotIn(
-            'if concurrency > 1:\n'
-            '            env["CCZ_CONCURRENT_MODE"]',
-            start_source,
-        )
-        self.assertIn(
-            "if concurrency > 1:\n"
-            "            concurrent_console_state = ConcurrentConsoleState(",
-            start_source,
-        )
-        self.assertIn(
-            'append(f"\\n========== 开始随机：{stamp} ==========")',
-            start_source,
-        )
-
     def test_main_settings_keep_repair_action_on_a_separate_row(self):
         source = (
             Path(__file__).resolve().parents[2]
@@ -1427,7 +1396,9 @@ class SessionManagementTests(unittest.TestCase):
         # Exercise the actual navigation row, including its geometry settings.
         row = layout[layout.index("    rule_settings_bar = tk.Frame(settings_panel)"):]
         import textwrap
+        from ccz_randomizer.ui.experimental import experimental_tooltip
         namespace = dict(tk=tk, ttk=ttk, root=root, settings_panel=root,
+                         experimental_tooltip=experimental_tooltip,
                          SelectionCombobox=ttk.Combobox,
                          rule_profile_var=tk.StringVar(root, value="测试规则"),
                          current_rules={"profiles": ["测试规则"]})

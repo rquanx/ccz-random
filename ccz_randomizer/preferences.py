@@ -103,6 +103,11 @@ def load_turbo_mode(app_directory: Path) -> bool:
     return value if isinstance(value, bool) else False
 
 
+def load_prevent_sleep(app_directory: Path) -> bool:
+    value = _load_preferences(app_directory).get("preventSleep")
+    return value if isinstance(value, bool) else False
+
+
 def load_first_use_notice_seen(app_directory: Path) -> bool:
     """Return whether the current first-use notice version was acknowledged."""
     loaded = _load_preferences(app_directory)
@@ -187,6 +192,7 @@ def save_random_runtime_settings(
     concurrency: int,
     compatibility_mode: bool = False,
     turbo_mode: bool = False,
+    prevent_sleep: bool = False,
 ) -> None:
     if not isinstance(loop_random, bool):
         raise ValueError("循环随机设置必须是布尔值")
@@ -200,6 +206,8 @@ def save_random_runtime_settings(
         raise ValueError("兼容模式设置必须是布尔值")
     if not isinstance(turbo_mode, bool):
         raise ValueError("极速模式设置必须是布尔值")
+    if not isinstance(prevent_sleep, bool):
+        raise ValueError("阻止系统睡眠设置必须是布尔值")
     payload = _load_preferences(app_directory)
     payload.update(
         {
@@ -208,6 +216,7 @@ def save_random_runtime_settings(
             "concurrency": concurrency,
             "compatibilityMode": compatibility_mode,
             "turboMode": turbo_mode,
+            "preventSleep": prevent_sleep,
         }
     )
     _save_preferences(app_directory, payload)

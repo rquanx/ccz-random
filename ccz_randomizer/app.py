@@ -124,6 +124,7 @@ from ccz_randomizer.preferences import (
     load_compatibility_mode,
     load_concurrency,
     load_loop_random,
+    load_prevent_sleep,
     save_random_runtime_settings,
 )
 from ccz_randomizer.game_versions import APP_DEFAULT_GAME_VERSION, DEFAULT_GAME_VERSION, current_game_version, activate_game_version, is_enhanced_game_version, VALID_GAME_VERSIONS
@@ -6803,13 +6804,16 @@ def current_run_rule_save_notice(
 
 def gui_main() -> int:
     import tkinter as tk
-    from tkinter import scrolledtext, ttk
+    from tkinter import ttk
+    from ccz_randomizer.ui import scrolled_text as scrolledtext
     from ccz_randomizer.ui import messages as messagebox
     from ccz_randomizer.ui.theme import FONT, setup_theme
     from ccz_randomizer.ui.inputs import TextEntry
     from ccz_randomizer.ui.searchable_combo import SelectionCombobox
 
     root = tk.Tk()
+    root.withdraw()
+    root.attributes("-alpha", 0.0)
     setup_theme(root)
     os.environ.setdefault("CCZ_GAME_VERSION", APP_DEFAULT_GAME_VERSION)
     try:
@@ -6823,6 +6827,8 @@ def gui_main() -> int:
     root.minsize(760, 520)
 
     worker: subprocess.Popen[str] | None = None
+    from ccz_randomizer.sleep_guard import SleepGuard
+    sleep_guard = SleepGuard()
     running_rule_name: str | None = None
     running_rule_snapshot: str | None = None
     # Keep one queue per run.  A bounded queue provides back-pressure when a
@@ -6848,6 +6854,7 @@ def gui_main() -> int:
     concurrent_console_last_render_at = 0.0
     concurrent_console_last_signature: tuple | None = None
     loop_var = tk.BooleanVar(value=load_loop_random(app_dir()))
+    prevent_sleep_var = tk.BooleanVar(value=load_prevent_sleep(app_dir()))
     concurrency_var = tk.IntVar(value=load_concurrency(app_dir()))
     compatibility_mode_var = tk.BooleanVar(
         value=load_compatibility_mode(app_dir())
@@ -6860,64 +6867,17 @@ def gui_main() -> int:
     )
 
     def show_first_use_notice() -> None:
-        """Show the one-time local-use reminder before the first interaction."""
         if first_use_notice_acknowledged(app_dir()):
             return
-
-        dialog = centered_toplevel(root)
-        dialog.withdraw()
-        dialog.title("首次使用提示")
-        dialog.resizable(False, False)
-        dialog.transient(root)
-        dialog.protocol("WM_DELETE_WINDOW", root.destroy)
-
-        body = tk.Frame(dialog, padx=24, pady=20)
-        body.pack(fill="both", expand=True)
-        tk.Label(
-            body,
-            text=(
-                "1. 本工具为玩家自制，仅在 QQ 群「吕布/曹操/蜀汉交流群」\n"
-                "   （656913383）发布。\n\n"
-                "2. 请勿盲目追求高强度存档，避免丢失游戏乐趣。"
-            ),
-            justify="left",
-            anchor="w",
-            font=("Microsoft YaHei UI", 10),
-        ).pack(fill="x")
-        remaining = 5
-        countdown = tk.StringVar(value=f"我已阅读（{remaining}）")
-        confirm = ttk.Button(body, textvariable=countdown, state="disabled")
-        confirm.pack(anchor="e", pady=(18, 0))
-
-        def finish() -> None:
-            saved = acknowledge_first_use_notice(app_dir())
-            dialog.grab_release()
-            dialog.destroy()
-            if not saved:
-                messagebox.showwarning(
-                    "已读状态保存失败",
-                    "本机用户目录和游戏目录均无法保存已读状态。本次可继续使用，下次启动仍会显示提醒。",
-                    parent=root,
-                )
-
-        def tick() -> None:
-            nonlocal remaining
-            if not dialog.winfo_exists():
-                return
-            remaining -= 1
-            if remaining <= 0:
-                countdown.set("我已阅读")
-                confirm.configure(state="normal", command=finish)
-                confirm.focus_set()
-                return
-            countdown.set(f"我已阅读（{remaining}）")
-            dialog.after(1000, tick)
-
-        dialog.update_idletasks()
-        show_centered(dialog)
-        dialog.grab_set()
-        dialog.focus_force()
-        dialog.after(1000, tick)
+        from ccz_randomizer.ui.first_use import show_first_use_prompt
+        show_first_use_prompt(root,
+            acknowledge=lambda: acknowledge_first_use_notice(app_dir()),
+            on_beginner=start_onboarding,
+            on_save_failed=lambda: messagebox.showwarning(
+                "已读状态保存失败",
+                "本机用户目录和游戏目录均无法保存已读状态。本次可继续使用，下次启动仍会显示提醒。",
+                parent=root),
+            on_exit=root.destroy)
 
     def selected_rule_member_count() -> int:
         """Return the number of people used by the active job filter rule."""
@@ -7070,6 +7030,7 @@ def gui_main() -> int:
                 loop_random=bool(loop_var.get()),
                 concurrency=int(concurrency_var.get()),
                 compatibility_mode=bool(compatibility_mode_var.get()),
+                prevent_sleep=bool(prevent_sleep_var.get()),
             )
         except (OSError, ValueError, TypeError, tk.TclError):
             show_toast(root, "运行参数保存失败，请检查输入和工具目录。")
@@ -7079,7 +7040,7 @@ def gui_main() -> int:
     tk.Label(runtime_settings_bar, text="运行参数").pack(
         side="left", padx=(0, 8)
     )
-    loop_check = tk.Checkbutton(
+    loop_check = ttk.Checkbutton(
         runtime_settings_bar,
         text="循环随机（每轮15个）",
         variable=loop_var,
@@ -7089,25 +7050,32 @@ def gui_main() -> int:
     tk.Label(runtime_settings_bar, text="实例并发").pack(
         side="left", padx=(0, 4)
     )
-    concurrency_spin = tk.Spinbox(
+    concurrency_entry = TextEntry(
         runtime_settings_bar,
-        from_=1,
-        to=2_147_483_647,
         width=7,
         textvariable=concurrency_var,
         justify="center",
-        command=persist_runtime_settings,
     )
-    concurrency_spin.pack(side="left", padx=(0, 18))
-    concurrency_spin.bind("<FocusOut>", persist_runtime_settings)
-    concurrency_spin.bind("<Return>", persist_runtime_settings)
-    compatibility_check = tk.Checkbutton(
+    concurrency_entry.pack(side="left", padx=(0, 18))
+    concurrency_entry.bind("<FocusOut>", persist_runtime_settings)
+    concurrency_entry.bind("<Return>", persist_runtime_settings)
+    compatibility_check = ttk.Checkbutton(
         runtime_settings_bar,
         text="兼容模式",
         variable=compatibility_mode_var,
         command=persist_runtime_settings,
     )
     compatibility_check.pack(side="left")
+    prevent_sleep_check = ttk.Checkbutton(
+        runtime_settings_bar, text="阻止系统睡眠",
+        variable=prevent_sleep_var, command=persist_runtime_settings,
+    )
+    prevent_sleep_check.pack(side="left", padx=(16, 0))
+    from ccz_randomizer.ui.experimental import experimental_tooltip
+    experimental_tooltip(prevent_sleep_check,
+        "仅在随机运行期间阻止因空闲自动睡眠，屏幕仍可正常熄灭。"
+        "结束、停止或退出后恢复；不阻止手动睡眠、合盖或低电量保护。"
+        )
 
     rule_settings_bar = tk.Frame(settings_panel)
     rule_settings_bar.pack(fill="x")
@@ -7136,6 +7104,8 @@ def gui_main() -> int:
         command=lambda: show_statistics_window(root, app_dir()),
     )
     statistics_button.pack(side="left", padx=(8, 0))
+    experimental_tooltip(statistics_button,
+        "查看随机次数、评分分布，以及兵种、特技和宝物特效的出现频率。")
     from ccz_randomizer.ui.effect_dictionary import show_effect_dictionary
     effects_button = ttk.Button(
         rule_settings_bar, text="特效手册", command=lambda: show_effect_dictionary(root)
@@ -7155,6 +7125,13 @@ def gui_main() -> int:
     for button in (rule_button, recruit_button, statistics_button, effects_button,
                    repair_button, action_button):
         button.configure(width=-1)
+
+    def fit_rule_picker(event) -> None:
+        # Keep the primary action readable at the supported minimum width.
+        width = 14 if event.width < 850 else 24
+        if int(rule_profile_combo.cget("width")) != width:
+            rule_profile_combo.configure(width=width)
+    rule_settings_bar.bind("<Configure>", fit_rule_picker)
 
     output = scrolledtext.ScrolledText(
         outer,
@@ -7212,48 +7189,8 @@ def gui_main() -> int:
             save_notice,
         )
 
-    def show_repair_result(result: ManualRepairResult) -> None:
-        duration = 4800 if result.status == "unable" else 3200
-        show_toast(root, result.message, duration)
-
-    def locate_game_for_repair() -> Path | None:
-        try:
-            return locate_game_executable()
-        except Exception as exc:
-            show_repair_result(
-                ManualRepairResult(
-                    "unable",
-                    f"无法定位游戏目录：{exc}",
-                )
-            )
-            return None
-
-    def repair_game_sound(parent: tk.Misc = root) -> None:
-        if not messagebox.askyesno(
-            "游戏声音修复",
-            "用于修复旧版本通过 Windows 音量合成器静音了正常"
-            " Ekd5.exe，导致之后手动启动游戏也没有声音的问题。\n\n"
-            "请先启动正常游戏并进入能播放声音的界面。"
-            "本操作只恢复正常 Ekd5.exe 的静音状态。是否继续？",
-            parent=parent,
-        ):
-            return
-        game_executable = locate_game_for_repair()
-        if game_executable is None:
-            return
-        try:
-            result = repair_normal_game_audio(
-                game_executable,
-                find_process_ids=find_process_ids,
-                process_executable=process_executable,
-                restore_sessions=restore_process_audio_sessions,
-            )
-        except Exception as exc:
-            result = ManualRepairResult(
-                "unable",
-                f"游戏声音修复失败：{exc}",
-            )
-        show_repair_result(result)
+    from ccz_randomizer.ui.sound_repair import create_sound_repair
+    repair_game_sound = create_sound_repair(root, sys.modules[__name__])
 
     def open_storage_cleanup(parent: tk.Misc = root) -> None:
         from ccz_randomizer.ui.storage_cleanup import show_storage_cleanup
@@ -7266,7 +7203,25 @@ def gui_main() -> int:
     open_log_upload_progress, upload_latest_logs, open_unusable_diagnostics = create_support_actions(
         root, sys.modules[__name__])
 
+    def start_onboarding() -> None:
+        from ccz_randomizer.ui.onboarding import show_onboarding
+        from ccz_randomizer.ui.usage_guide import show_usage_guide
+        show_onboarding(outer, before=settings_panel, targets={
+            "source": first_line, "rules": rule_profile_combo, "rule_editor": rule_button,
+            "runtime": runtime_settings_bar, "start": action_button,
+            "results": result_line, "history": recruit_button,
+            "statistics": statistics_button, "help": repair_button,
+            "effects": effects_button,
+        }, open_help=show_usage_guide)
+
+    def replay_onboarding(parent) -> None:
+        # Return to the real main controls; don't leave a hidden modal menu.
+        parent.destroy()
+        start_onboarding()
+
     def open_repair_dialog() -> None:
+        from ccz_randomizer.ui.audio_patch import show_audio_patch
+        from ccz_randomizer.ui.growth_patch import show_growth_patch
         from ccz_randomizer.ui.usage_guide import show_usage_guide
         from ccz_randomizer.ui.support_menu import show_support_menu
         from ccz_randomizer.ui.effect_dictionary import show_effect_dictionary
@@ -7276,25 +7231,20 @@ def gui_main() -> int:
             package_version = "未知"
         show_support_menu(root, {
             "guide": show_usage_guide,
+            "onboarding": replay_onboarding,
             "effects": show_effect_dictionary,
             "diagnostics": open_unusable_diagnostics,
             "sound": repair_game_sound,
+            "growth_patch": lambda parent: show_growth_patch(parent, sys.modules[__name__],
+                is_running=lambda: worker is not None and worker.poll() is None),
+            "audio_patch": lambda parent: show_audio_patch(parent, sys.modules[__name__]),
             "logs": upload_latest_logs,
             "update": lambda parent: show_profile_update_dialog(parent, application_directory(), on_installed=profile_session.downloaded),
             "cleanup": open_storage_cleanup,
         }, package_version)
 
     def open_history() -> None:
-        try:
-            repository = HistoryRepository(app_dir())
-        except Exception as exc:
-            messagebox.showerror(
-                "历史记录无法打开",
-                str(exc),
-                parent=root,
-            )
-            return
-        show_history_window(root, repository)
+        show_history_window(root, app_dir())
 
     def select_rule_profile(_event=None) -> None:
         nonlocal current_rules
@@ -7336,6 +7286,7 @@ def gui_main() -> int:
         round_number: int,
         slot: int,
     ) -> None:
+        from ccz_randomizer.ui.window_timer import window_after
         round_state = concurrent_console_rounds.get(round_number)
         if round_state is None or slot not in round_state.slots:
             return
@@ -7492,7 +7443,7 @@ def gui_main() -> int:
                 # Keep the dialog responsive while active, but avoid waking
                 # the Tk loop four times a second when nothing changed.
                 refresh_delay = min(1.0, refresh_delay * 1.5)
-            dialog.after(int(refresh_delay * 1000), refresh_detail)
+            window_after(dialog, int(refresh_delay * 1000), refresh_detail)
 
         refresh_detail()
         show_centered(dialog)
@@ -7854,6 +7805,8 @@ def gui_main() -> int:
         nonlocal concurrent_console_active_round
         nonlocal concurrent_console_finished, concurrent_console_footer
         nonlocal concurrent_console_render_pending
+        if worker is None or worker.poll() is not None:
+            sleep_guard.close()
         console_dirty = False
         force_console_render = False
         worker_finished = False
@@ -8051,8 +8004,9 @@ def gui_main() -> int:
             rule_button.configure(state="normal")
             repair_button.configure(state="normal")
             loop_check.configure(state="normal")
-            concurrency_spin.configure(state="normal")
+            concurrency_entry.configure(state="normal")
             compatibility_check.configure(state="normal")
+            prevent_sleep_check.configure(state="normal")
             stopped = stop_requested_by_user or code == 130
             if concurrent_console_state is not None:
                 if stopped:
@@ -8120,7 +8074,7 @@ def gui_main() -> int:
                 append_result_link()
         return 100
 
-    def start() -> None:
+    def start_random_worker() -> None:
         nonlocal output_queue
         nonlocal current_rules
         nonlocal worker, log_path, result_image_path, stop_file, run_started_at
@@ -8281,17 +8235,25 @@ def gui_main() -> int:
             command = [sys.executable, "--worker"]
         else:
             command = [sys.executable, str(source_entry_path()), "--worker"]
-        worker = subprocess.Popen(
-            command,
-            cwd=str(app_dir()),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            env=env,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-        )
+        try:
+            if prevent_sleep_var.get():
+                sleep_guard.start()
+            worker = subprocess.Popen(
+                command,
+                cwd=str(app_dir()),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                env=env,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+        except Exception as exc:
+            sleep_guard.close()
+            diagnostic_error("gui_worker_start_failed", exc)
+            messagebox.showerror("无法开始随机", str(exc), parent=root)
+            return
         threading.Thread(
             target=read_worker,
             args=(worker.stdout, output_queue),
@@ -8306,8 +8268,9 @@ def gui_main() -> int:
         rule_button.configure(state="normal")
         repair_button.configure(state="disabled")
         loop_check.configure(state="disabled")
-        concurrency_spin.configure(state="disabled")
+        concurrency_entry.configure(state="disabled")
         compatibility_check.configure(state="disabled")
+        prevent_sleep_check.configure(state="disabled")
 
     def stop() -> None:
         nonlocal stop_requested_by_user
@@ -8367,6 +8330,7 @@ def gui_main() -> int:
                 loop_random=bool(loop_var.get()),
                 concurrency=int(concurrency_var.get()),
                 compatibility_mode=bool(compatibility_mode_var.get()),
+                prevent_sleep=bool(prevent_sleep_var.get()),
             )
         except (OSError, ValueError, TypeError, tk.TclError):
             pass
@@ -8392,6 +8356,17 @@ def gui_main() -> int:
         except Exception as exc:
             diagnostic_error("gui_close_cleanup_failed", exc)
         root.destroy()
+
+    from ccz_randomizer.ui.start_dependencies import StartDependencyCheck
+    dependency_command = [sys.executable]
+    if not getattr(sys, "frozen", False):
+        dependency_command.append(str(source_entry_path()))
+    start_dependencies = StartDependencyCheck(
+        root, action_button, start_random_worker, dependency_command, bundle_root())
+
+    def start() -> None:
+        if worker is None:
+            start_dependencies.request()
 
     action_button.configure(command=start)
     rule_button.configure(command=open_rule_editor)
@@ -8421,7 +8396,11 @@ def gui_main() -> int:
         ).start(),
     )
     root.after(100, poll_worker)
-    root.mainloop()
+    show_centered(root)
+    try:
+        root.mainloop()
+    finally:
+        sleep_guard.close()
     return 0
 
 
@@ -9531,6 +9510,15 @@ def run_inspection_cli_with_diagnostics(
 
 
 def run_cli() -> int:
+    if "--benchmark-ui" in sys.argv:
+        from ccz_randomizer.diagnostics.ui_benchmark import run_request
+        return run_request(Path(sys.argv[sys.argv.index("--benchmark-ui") + 1]))
+    if "--diagnose-runtime" in sys.argv:
+        from ccz_randomizer.diagnostics.dependencies import probe_runtime
+        index = sys.argv.index("--diagnose-runtime")
+        Path(sys.argv[index + 1]).write_text(
+            json.dumps(probe_runtime(bundle_root()), ensure_ascii=False), encoding="utf-8")
+        return 0
     if "--smoke-startup" in sys.argv:
         return 0
     if "--smoke-windowed-output" in sys.argv:

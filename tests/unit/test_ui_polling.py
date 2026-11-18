@@ -4,6 +4,7 @@ import unittest
 import sys
 import io
 import tkinter as tk
+from tkinter import ttk
 from unittest.mock import patch
 from pathlib import Path
 
@@ -72,6 +73,7 @@ class ProgressPollingTests(unittest.TestCase):
                     root.destroy()
 
             with patch.object(tk.Tk, "mainloop", exercise), \
+                 patch("ccz_randomizer.ui.start_dependencies.StartDependencyCheck.request", lambda check: check.on_ready()), \
                  patch.object(app, "app_dir", return_value=base), \
                  patch.object(app, "locate_game_executable", return_value=base / "Ekd5.exe"), \
                  patch.object(app, "activate_game_version", return_value="2.2"), \
@@ -105,8 +107,8 @@ class ProgressPollingTests(unittest.TestCase):
             def exercise(root):
                 state = sys._getframe(1).f_locals
                 try:
-                    checks = [w for w in state["runtime_settings_bar"].winfo_children() if isinstance(w, tk.Checkbutton)]
-                    self.assertEqual(["循环随机（每轮15个）", "兼容模式"], [w.cget("text") for w in checks])
+                    checks = [w for w in state["runtime_settings_bar"].winfo_children() if isinstance(w, ttk.Checkbutton)]
+                    self.assertEqual(["循环随机（每轮15个）", "兼容模式", "阻止系统睡眠"], [w.cget("text") for w in checks])
                     for number in (1, 2):
                         state["start"]()
                         self.assertEqual('0', workers[-1].environment['CCZ_TURBO_MODE'])
@@ -128,6 +130,7 @@ class ProgressPollingTests(unittest.TestCase):
                     root.destroy()
 
             with patch.object(tk.Tk, "mainloop", exercise), \
+                 patch("ccz_randomizer.ui.start_dependencies.StartDependencyCheck.request", lambda check: check.on_ready()), \
                  patch.object(app, "app_dir", return_value=Path(folder)), \
                  patch.object(app, "locate_game_executable", return_value=Path(folder) / "Ekd5.exe"), \
                  patch.object(app, "activate_game_version", return_value="2.2"), \

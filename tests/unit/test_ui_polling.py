@@ -50,6 +50,10 @@ class ProgressPollingTests(unittest.TestCase):
                     old_queue.put(encode_concurrent_event(1, "第 1 号结果存档已通过游戏菜单保存"))
                     old_queue.put(encode_concurrent_event(1, f"@@CCZ_RESULT_IMAGE@@{image}"))
                     state["poll_worker_once"]()
+                    commands = tuple(state["output"]._tclCommands)
+                    for _ in range(10):
+                        state["render_concurrent_console"](force=True)
+                    self.assertEqual(commands, tuple(state["output"]._tclCommands))
                     state["stop"]()
                     workers[-1].returncode = 130
                     state["poll_worker_once"]()

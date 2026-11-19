@@ -7146,6 +7146,8 @@ def gui_main() -> int:
         borderwidth=1,
     )
     output.pack(fill="both", expand=True)
+    from ccz_randomizer.ui.text_links import TextLinks
+    output_links = TextLinks(output)
 
     def split_names(value: str) -> list[str]:
         normalized = value.replace("，", ",").replace("；", ",")
@@ -7274,7 +7276,8 @@ def gui_main() -> int:
             return
         output.configure(state="normal")
         output.insert("end", text + "\n")
-        trim_text_widget(output)
+        if trim_text_widget(output):
+            output_links.prune()
         output.see("end")
         output.configure(state="disabled")
 
@@ -7526,6 +7529,7 @@ def gui_main() -> int:
             concurrent_console_render_pending = True
             return False
         output.configure(state="normal")
+        output_links.clear()
         output.delete("1.0", "end")
         output.insert("end", "曹操传随机工具 - 内存快筛版\n")
         version_text = str(
@@ -7554,27 +7558,11 @@ def gui_main() -> int:
                 progress = round_state.slots[slot]
                 info_tag = f"concurrent-slot-info-{round_number}-{slot}"
                 output.insert("end", "明细", info_tag)
-                output.tag_configure(
+                output_links.add(
                     info_tag,
-                    foreground="#0563c1",
-                    underline=True,
-                )
-                output.tag_bind(
-                    info_tag,
-                    "<Button-1>",
                     lambda _event, value=(round_number, slot): (
                         show_concurrent_slot_detail(*value)
                     ),
-                )
-                output.tag_bind(
-                    info_tag,
-                    "<Enter>",
-                    lambda _event: output.configure(cursor="hand2"),
-                )
-                output.tag_bind(
-                    info_tag,
-                    "<Leave>",
-                    lambda _event: output.configure(cursor=""),
                 )
                 output.insert("end", " ")
                 if progress.attempt:
@@ -7594,27 +7582,11 @@ def gui_main() -> int:
                         f"concurrent-slot-score-{round_number}-{slot}"
                     )
                     output.insert("end", "查看评分", score_tag)
-                    output.tag_configure(
+                    output_links.add(
                         score_tag,
-                        foreground="#0563c1",
-                        underline=True,
-                    )
-                    output.tag_bind(
-                        score_tag,
-                        "<Button-1>",
                         lambda _event, value=progress.detail: (
                             show_result_detail(value)
                         ),
-                    )
-                    output.tag_bind(
-                        score_tag,
-                        "<Enter>",
-                        lambda _event: output.configure(cursor="hand2"),
-                    )
-                    output.tag_bind(
-                        score_tag,
-                        "<Leave>",
-                        lambda _event: output.configure(cursor=""),
                     )
                 output.insert("end", "\n")
             round_image = concurrent_console_round_images.get(round_number)
@@ -7626,25 +7598,9 @@ def gui_main() -> int:
                 tag = f"concurrent-result-image-{round_number}"
                 output.insert("end", "点击查看结果图", tag)
                 output.insert("end", "\n\n")
-                output.tag_configure(
+                output_links.add(
                     tag,
-                    foreground="#0563c1",
-                    underline=True,
-                )
-                output.tag_bind(
-                    tag,
-                    "<Button-1>",
                     lambda _event, path=round_image: os.startfile(path),
-                )
-                output.tag_bind(
-                    tag,
-                    "<Enter>",
-                    lambda _event: output.configure(cursor="hand2"),
-                )
-                output.tag_bind(
-                    tag,
-                    "<Leave>",
-                    lambda _event: output.configure(cursor=""),
                 )
         if concurrent_console_footer:
             output.insert("end", concurrent_console_footer + "\n")
@@ -7664,25 +7620,9 @@ def gui_main() -> int:
                 tag = "concurrent-final-result-image"
                 output.insert("end", "点击查看结果图", tag)
                 output.insert("end", "\n")
-                output.tag_configure(
+                output_links.add(
                     tag,
-                    foreground="#0563c1",
-                    underline=True,
-                )
-                output.tag_bind(
-                    tag,
-                    "<Button-1>",
                     lambda _event, path=final_image: os.startfile(path),
-                )
-                output.tag_bind(
-                    tag,
-                    "<Enter>",
-                    lambda _event: output.configure(cursor="hand2"),
-                )
-                output.tag_bind(
-                    tag,
-                    "<Leave>",
-                    lambda _event: output.configure(cursor=""),
                 )
         output.see("end")
         output.configure(state="disabled")
@@ -7698,24 +7638,13 @@ def gui_main() -> int:
         tag = f"detail-link-{output.index('end')}"
         output.insert("end", "点击查看详情", tag)
         output.insert("end", "）\n")
-        output.tag_configure(tag, foreground="#0563c1", underline=True)
-        output.tag_bind(
+        output_links.add(
             tag,
-            "<Button-1>",
             lambda _event, value=detail: show_result_detail(value),
         )
-        output.tag_bind(
-            tag,
-            "<Enter>",
-            lambda _event: output.configure(cursor="hand2"),
-        )
-        output.tag_bind(
-            tag,
-            "<Leave>",
-            lambda _event: output.configure(cursor=""),
-        )
         output.see("end")
-        trim_text_widget(output)
+        if trim_text_widget(output):
+            output_links.prune()
         output.configure(state="disabled")
 
     def append_result_link() -> None:
@@ -7730,24 +7659,13 @@ def gui_main() -> int:
         tag = f"result-link-{output.index('end')}"
         output.insert("end", "点击查看结果图", tag)
         output.insert("end", "\n")
-        output.tag_configure(tag, foreground="#0563c1", underline=True)
-        output.tag_bind(
+        output_links.add(
             tag,
-            "<Button-1>",
             lambda _event, path=result_image_path: os.startfile(path),
         )
-        output.tag_bind(
-            tag,
-            "<Enter>",
-            lambda _event: output.configure(cursor="hand2"),
-        )
-        output.tag_bind(
-            tag,
-            "<Leave>",
-            lambda _event: output.configure(cursor=""),
-        )
         output.see("end")
-        trim_text_widget(output)
+        if trim_text_widget(output):
+            output_links.prune()
         output.configure(state="disabled")
 
     def append_stopped_summary() -> None:
@@ -7757,26 +7675,13 @@ def gui_main() -> int:
             tag = f"result-link-{output.index('end')}"
             output.insert("end", "点击查看结果图", tag)
             output.insert("end", "\n")
-            output.tag_configure(
-                tag, foreground="#0563c1", underline=True
-            )
-            output.tag_bind(
+            output_links.add(
                 tag,
-                "<Button-1>",
                 lambda _event, path=result_image_path: os.startfile(path),
             )
-            output.tag_bind(
-                tag,
-                "<Enter>",
-                lambda _event: output.configure(cursor="hand2"),
-            )
-            output.tag_bind(
-                tag,
-                "<Leave>",
-                lambda _event: output.configure(cursor=""),
-            )
         output.see("end")
-        trim_text_widget(output)
+        if trim_text_widget(output):
+            output_links.prune()
         output.configure(state="disabled")
 
     def read_worker(pipe, target_queue: queue.Queue[str]) -> None:
